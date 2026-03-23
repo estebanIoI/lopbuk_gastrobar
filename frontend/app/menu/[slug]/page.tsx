@@ -145,7 +145,7 @@ export default function PublicMenuPage() {
       </div>
 
       {/* ── Items ── */}
-      <div className="max-w-2xl mx-auto px-4 py-4 pb-20">
+      <div className="max-w-2xl mx-auto px-3 py-4 pb-20">
         {visibleItems.length === 0 ? (
           <div className="flex flex-col items-center gap-3 py-20 text-white/30">
             <Search className="h-10 w-10" />
@@ -160,7 +160,7 @@ export default function PublicMenuPage() {
                   <h2 className="text-[11px] font-bold uppercase tracking-widest text-amber-400/70 mb-3 px-1">
                     {cat}
                   </h2>
-                  <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
                     {categories[cat].map(item => (
                       <MenuItemCard key={item.id} item={item} />
                     ))}
@@ -169,7 +169,7 @@ export default function PublicMenuPage() {
               ))}
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
               {visibleItems.map(item => (
                 <MenuItemCard key={item.id} item={item} />
               ))}
@@ -190,47 +190,57 @@ function MenuItemCard({ item }: { item: any }) {
   const AreaIcon = AREA_ICON[item.preparationArea]
 
   return (
-    <div className="flex gap-3 bg-white/4 hover:bg-white/7 border border-white/8 rounded-2xl p-3 transition-colors">
+    <div className="relative overflow-hidden rounded-2xl bg-white/4 border border-white/8 active:scale-[0.98] transition-transform">
       {/* Image */}
-      {item.imageUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={item.imageUrl}
-          alt={item.name}
-          className="h-20 w-20 rounded-xl object-cover shrink-0 bg-white/5"
-        />
-      ) : (
-        <div className="h-20 w-20 rounded-xl bg-white/5 flex items-center justify-center shrink-0">
-          <UtensilsCrossed className="h-7 w-7 text-white/15" />
-        </div>
-      )}
-
-      {/* Info */}
-      <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
-        <div>
-          <p className="font-semibold text-sm leading-snug">{item.name}</p>
-          {item.description && (
-            <p className="text-[12px] text-white/45 mt-1 line-clamp-2 leading-snug">{item.description}</p>
-          )}
-        </div>
-
-        <div className="flex items-center justify-between mt-2">
-          <p className="text-lg font-black text-amber-400 tabular-nums">{formatCOP(item.price)}</p>
-          <div className="flex items-center gap-1.5">
-            {item.prepTimeMinutes && (
-              <span className="flex items-center gap-1 text-[11px] text-white/35">
-                <Clock className="h-3 w-3" />
-                {item.prepTimeMinutes} min
-              </span>
-            )}
-            {AreaIcon && (
-              <span className="flex items-center gap-1 text-[11px] text-white/35">
-                <AreaIcon className="h-3 w-3" />
-              </span>
-            )}
+      <div className="relative aspect-[3/4] w-full">
+        {item.imageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={item.imageUrl}
+            alt={item.name}
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        ) : (
+          <div className="absolute inset-0 bg-white/5 flex items-center justify-center">
+            <UtensilsCrossed className="h-10 w-10 text-white/15" />
           </div>
+        )}
+
+        {/* Gradient overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
+
+        {/* Badge área preparación */}
+        {AreaIcon && (
+          <div className="absolute top-2 right-2 bg-black/50 backdrop-blur-sm rounded-full p-1.5">
+            <AreaIcon className="h-3.5 w-3.5 text-white/80" />
+          </div>
+        )}
+
+        {/* Tiempo */}
+        {item.prepTimeMinutes && (
+          <div className="absolute top-2 left-2 flex items-center gap-1 bg-black/50 backdrop-blur-sm rounded-full px-2 py-1">
+            <Clock className="h-3 w-3 text-amber-400" />
+            <span className="text-[11px] text-white/90 font-medium">{item.prepTimeMinutes}m</span>
+          </div>
+        )}
+
+        {/* Name + price overlaid at bottom */}
+        <div className="absolute bottom-0 inset-x-0 px-3 pb-3 pt-6">
+          <p className="font-bold text-sm leading-tight text-white line-clamp-2 drop-shadow">
+            {item.name}
+          </p>
+          <p className="text-base font-black text-amber-400 tabular-nums mt-1 drop-shadow">
+            {formatCOP(item.price)}
+          </p>
         </div>
       </div>
+
+      {/* Description (below image, only if exists) */}
+      {item.description && (
+        <p className="px-3 py-2 text-[11px] text-white/45 line-clamp-2 leading-snug">
+          {item.description}
+        </p>
+      )}
     </div>
   )
 }

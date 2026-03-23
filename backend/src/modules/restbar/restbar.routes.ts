@@ -24,11 +24,10 @@ router.get('/public-menu/:slug', async (req: Request, res: Response) => {
 
     const [items] = await pool.query(
       `SELECT p.id, p.name, p.category, p.description, p.sale_price AS price,
-              p.image_url AS imageUrl, ms.preparation_area AS preparationArea,
-              ms.prep_time_minutes AS prepTimeMinutes
+              p.image_url AS imageUrl, p.preparation_area AS preparationArea,
+              p.prep_time_minutes AS prepTimeMinutes
        FROM products p
-       INNER JOIN rb_menu_settings ms ON ms.product_id = p.id AND ms.tenant_id = p.tenant_id
-       WHERE p.tenant_id = ? AND ms.is_menu_item = 1 AND ms.available_in_menu = 1
+       WHERE p.tenant_id = ? AND p.is_menu_item = 1 AND p.available_in_menu = 1
        ORDER BY p.category, p.name`,
       [tenantId]
     ) as any;
