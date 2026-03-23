@@ -219,10 +219,55 @@ export async function handleWebhook(body: any): Promise<void> {
       [plan, limits.maxUsers, limits.maxProducts, tenantId]
     );
   } else {
-    // cancelled → downgrade to basico
+    // cancelled or paused → downgrade to basico
     await db.execute(
       `UPDATE tenants SET plan = 'basico', max_users = 3, max_products = 100, updated_at = NOW() WHERE id = ?`,
       [tenantId]
     );
+  }
+}
+
+/**
+ * Reconciliation job: verifies active subscriptions against MercadoPago
+ * and downgrades tenants whose subscriptions are no longer authorized.
+ * Should be called periodically (e.g. daily) to handle missed webhooks.
+ */
+export async function reconcileSubscriptions(): Promise<void> {
+  // Get all tenants on a paid plan
+  const [tenants] = await db.execute<RowDataPacket[]>(
+    `SELECT id, plan FROM tenants WHERE plan IN ('profesional', 'empresarial') AND status = 'activo'`
+  );
+  if (!tenants.length) return;
+
+  const client = await getClient();
+  const preApprovalApi = new PreApproval(client);
+
+  for (const tenant of tenants) {
+    try {
+      // Find the preapproval for this tenant by searching by payer email
+      const [userRows] = await db.execute<RowDataPacket[]>(
+        `SELECT email FROM users WHERE tenant_id = ? AND role = 'comerciante' LIMIT 1`,
+        [tenant.id]
+      );
+      const email = userRows[0]?.email as string | undefined;
+      if (!email) continue;
+
+      // Search MP for active subscriptions by payer email
+      const results = await (preApprovalApi as any).search({
+        options: { payer_email: email, status: 'authorized' },
+      });
+
+      const activeSubscriptions: any[] = results?.results ?? [];
+
+      // If no authorized subscription found → downgrade
+      if (activeSubscriptions.length === 0) {
+        await db.execute(
+          `UPDATE tenants SET plan = 'basico', max_users = 3, max_products = 100, updated_at = NOW() WHERE id = ?`,
+          [tenant.id]
+        );
+      }
+    } catch {
+      // Skip this tenant on error — will retry on next reconciliation run
+    }
   }
 }
