@@ -777,7 +777,7 @@ class RestbarService {
   // ── REPORTS ───────────────────────────────────────────────────────────────
 
   async getDailySummary(tenantId: string, date?: string) {
-    const targetDate = date ?? new Date().toISOString().split('T')[0];
+    const targetDate = date ?? new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
     const [rows] = await db.execute<RowDataPacket[]>(
       `SELECT
          COUNT(DISTINCT o.id)                    AS total_orders,

@@ -32,6 +32,7 @@ import { RestBar } from '@/components/restbar'
 import { Finances } from '@/components/finances'
 import { MeseroPanel } from '@/components/mesero-panel'
 import { BartenderPanel } from '@/components/bartender-panel'
+import { CocineroPanel } from '@/components/cocinero-panel'
 import { CajeroPanel } from '@/components/cajero-panel'
 
 export default function Home() {
@@ -110,6 +111,11 @@ export default function Home() {
     return <BartenderPanel />
   }
 
+  // Cocinero gets full-screen kitchen display
+  if (isAuthenticated && user?.role === 'cocinero') {
+    return <CocineroPanel />
+  }
+
   // Cajero gets full-screen panel (no sidebar)
   if (isAuthenticated && user?.role === 'cajero') {
     return <CajeroPanel />
@@ -183,6 +189,7 @@ export default function Home() {
       case 'restbar':
         if (user?.role === 'mesero')    return <MeseroPanel />
         if (user?.role === 'bartender') return <BartenderPanel />
+        if (user?.role === 'cocinero')  return <CocineroPanel />
         if (user?.role === 'cajero')    return <CajeroPanel />
         return <RestBar />
       case 'finances':

@@ -1705,59 +1705,427 @@ function CajaTab() {
 }
 
 // ─── REPORTES TAB ─────────────────────────────────────────────────────────────
+
+type Period = '1' | '7' | '30' | '90' | 'custom'
+
+const DOW_LABEL = ['', 'Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
+const AREA_LABEL: Record<string, string> = { cocina: 'Cocina', bar: 'Bar', ambos: 'Ambos' }
+const METHOD_LABEL: Record<string, string> = {
+  efectivo: 'Efectivo', tarjeta: 'Tarjeta', nequi: 'Nequi',
+  bancolombia: 'Bancolombia', bbva: 'BBVA', transferencia: 'Transferencia', mixto: 'Mixto',
+}
+
+function pct(val: number, max: number) { return max > 0 ? Math.round((val / max) * 100) : 0 }
+
+function BarChart({ data, keyX, keyY, color = 'bg-primary', fmt: fmtFn }: {
+  data: any[]; keyX: string; keyY: string; color?: string; fmt?: (v: number) => string
+}) {
+  const max = Math.max(...data.map(d => d[keyY]), 1)
+  return (
+    <div className="space-y-1.5">
+      {data.map((d, i) => (
+        <div key={i} className="flex items-center gap-2">
+          <span className="text-[11px] text-muted-foreground w-8 text-right shrink-0">{d[keyX]}</span>
+          <div className="flex-1 bg-accent/40 rounded-full h-5 overflow-hidden">
+            <div
+              className={cn('h-full rounded-full transition-all flex items-center justify-end pr-1.5', color)}
+              style={{ width: `${pct(d[keyY], max)}%`, minWidth: d[keyY] > 0 ? '8px' : '0' }}
+            >
+              {d[keyY] > 0 && pct(d[keyY], max) > 15 && (
+                <span className="text-[10px] font-bold text-white/90">
+                  {fmtFn ? fmtFn(d[keyY]) : d[keyY]}
+                </span>
+              )}
+            </div>
+          </div>
+          {(pct(d[keyY], max) <= 15) && (
+            <span className="text-[11px] text-muted-foreground w-16 tabular-nums shrink-0">
+              {fmtFn ? fmtFn(d[keyY]) : d[keyY]}
+            </span>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-2xl border border-border bg-card p-5">
+      <h3 className="text-sm font-bold text-foreground mb-4 flex items-center gap-2">
+        <span className="h-1 w-4 rounded-full bg-primary inline-block" />
+        {title}
+      </h3>
+      {children}
+    </div>
+  )
+}
+
 function ReportesTab() {
-  const [summary, setSummary] = useState<any>(null)
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0])
+  const [data,    setData]    = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [period,  setPeriod]  = useState<Period>('1')
+  const [from,    setFrom]    = useState('')
+  const [to,      setTo]      = useState('')
+
+  const getRange = useCallback(() => {
+    const tz = 'America/Bogota'
+    const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: tz })
+    if (period === 'custom') return { from, to }
+    const d = new Date()
+    d.setDate(d.getDate() - (Number(period) - 1))
+    return { from: d.toLocaleDateString('en-CA', { timeZone: tz }), to: todayStr }
+  }, [period, from, to])
 
   const load = useCallback(async () => {
     setLoading(true)
-    const r = await api.getRestbarDailySummary(date)
-    if (r.success) setSummary(r.data)
+    const { from: f, to: t } = getRange()
+    const r = await api.getRestbarAnalytics(f, t)
+    if (r.success) setData(r.data)
+    else setData(null)
     setLoading(false)
-  }, [date])
+  }, [getRange])
 
   useEffect(() => { load() }, [load])
 
+  const PERIODS: { id: Period; label: string }[] = [
+    { id: '1',  label: 'Hoy' },
+    { id: '7',  label: '7 días' },
+    { id: '30', label: '30 días' },
+    { id: '90', label: '90 días' },
+    { id: 'custom', label: 'Personalizado' },
+  ]
+
   return (
-    <div className="space-y-6 max-w-2xl">
-      <div className="flex items-center gap-3">
-        <input type="date" className="rounded-md border border-border bg-background px-3 py-1.5 text-sm"
-          value={date} onChange={e => setDate(e.target.value)} />
-        <Button size="sm" variant="ghost" onClick={load}><RefreshCw className="h-3.5 w-3.5" /></Button>
+    <div className="space-y-5 pb-8">
+
+      {/* ── Period selector ── */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex gap-1 flex-wrap">
+          {PERIODS.map(p => (
+            <button key={p.id} onClick={() => setPeriod(p.id)}
+              className={cn(
+                'rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors',
+                period === p.id
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'border-border text-muted-foreground hover:bg-accent',
+              )}>
+              {p.label}
+            </button>
+          ))}
+        </div>
+        {period === 'custom' && (
+          <div className="flex items-center gap-2">
+            <input type="date" value={from} onChange={e => setFrom(e.target.value)}
+              className="rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary" />
+            <span className="text-xs text-muted-foreground">→</span>
+            <input type="date" value={to} onChange={e => setTo(e.target.value)}
+              className="rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary" />
+          </div>
+        )}
+        <button onClick={load}
+          className="ml-auto flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-accent transition-colors">
+          <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} /> Actualizar
+        </button>
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-10"><RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" /></div>
-      ) : !summary ? (
-        <p className="text-sm text-muted-foreground">Sin datos</p>
+        <div className="flex flex-col items-center gap-3 py-20 text-muted-foreground">
+          <RefreshCw className="h-6 w-6 animate-spin" />
+          <p className="text-sm">Cargando analytics...</p>
+        </div>
+      ) : !data ? (
+        <div className="flex flex-col items-center gap-3 py-20 text-muted-foreground">
+          <TrendingUp className="h-10 w-10 opacity-20" />
+          <p>Sin datos para el período seleccionado</p>
+        </div>
       ) : (
         <>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          {/* Period label */}
+          <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider">
+            {data.period.from} → {data.period.to}
+          </p>
+
+          {/* ── KPI cards ── */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
             {[
-              { label: 'Ventas del día',    value: formatCOP(summary.revenue),        color: 'text-green-400' },
-              { label: 'Comandas cerradas', value: summary.closedOrders,              color: 'text-blue-400' },
-              { label: 'Mesas ocupadas',    value: `${summary.occupiedTables} / ${summary.totalTables}`, color: 'text-amber-400' },
-              { label: 'Total comandas',    value: summary.totalOrders,               color: 'text-foreground' },
-            ].map(s => (
-              <div key={s.label} className="rounded-xl border border-border bg-card p-4">
-                <p className="text-xs text-muted-foreground">{s.label}</p>
-                <p className={cn('text-2xl font-bold mt-1', s.color)}>{s.value}</p>
+              { label: 'Ingresos',       value: formatCOP(data.kpi.revenue),   color: 'text-green-400', sub: 'período completo' },
+              { label: 'Ticket prom.',   value: formatCOP(data.kpi.avgTicket), color: 'text-emerald-400', sub: 'por comanda' },
+              { label: 'Comandas',       value: data.kpi.totalOrders,          color: 'text-blue-400', sub: 'total abiertas' },
+              { label: 'Cerradas',       value: data.kpi.closedOrders,         color: 'text-violet-400', sub: 'pagadas' },
+              { label: 'Ítems vendidos', value: data.kpi.itemsSold,            color: 'text-amber-400', sub: 'productos' },
+              { label: 'Tasa cierre',    value: `${data.kpi.closeRate}%`,      color: data.kpi.closeRate >= 70 ? 'text-green-400' : 'text-red-400', sub: 'comandas cobradas' },
+            ].map(k => (
+              <div key={k.label} className="rounded-2xl border border-border bg-card px-4 py-3.5">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{k.label}</p>
+                <p className={cn('text-xl font-black mt-1 tabular-nums leading-none', k.color)}>{k.value}</p>
+                <p className="text-[10px] text-muted-foreground/60 mt-1">{k.sub}</p>
               </div>
             ))}
           </div>
 
-          {summary.topItems?.length > 0 && (
-            <div className="rounded-xl border border-border bg-card p-4">
-              <h3 className="text-sm font-semibold mb-3">Top 5 ítems vendidos</h3>
-              <div className="space-y-2">
-                {summary.topItems.map((item: any, i: number) => (
-                  <div key={i} className="flex justify-between items-center">
-                    <span className="text-sm">{item.name}</span>
-                    <span className="text-sm font-semibold text-primary">{item.qtySold} und.</span>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+            {/* ── Revenue trend ── */}
+            {data.daily.length > 0 && (
+              <Section title="Ingresos por día">
+                {data.daily.length <= 14 ? (
+                  <BarChart
+                    data={data.daily.map((d: any) => ({
+                      x: new Date(d.day + 'T12:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short' }),
+                      y: d.revenue,
+                    }))}
+                    keyX="x" keyY="y"
+                    color="bg-green-500"
+                    fmt={formatCOP}
+                  />
+                ) : (
+                  /* Sparkline for long ranges */
+                  <div className="space-y-2">
+                    <div className="flex items-end gap-0.5 h-24">
+                      {data.daily.map((d: any, i: number) => {
+                        const maxRev = Math.max(...data.daily.map((x: any) => x.revenue), 1)
+                        const h = Math.max(4, Math.round((d.revenue / maxRev) * 96))
+                        return (
+                          <div key={i} title={`${d.day}: ${formatCOP(d.revenue)}`}
+                            className="flex-1 bg-green-500/60 hover:bg-green-400 rounded-sm transition-colors cursor-default"
+                            style={{ height: `${h}px` }} />
+                        )
+                      })}
+                    </div>
+                    <div className="flex justify-between text-[10px] text-muted-foreground">
+                      <span>{data.daily[0]?.day}</span>
+                      <span>Máx: {formatCOP(Math.max(...data.daily.map((d: any) => d.revenue)))}</span>
+                      <span>{data.daily[data.daily.length - 1]?.day}</span>
+                    </div>
                   </div>
-                ))}
+                )}
+              </Section>
+            )}
+
+            {/* ── Hourly heatmap ── */}
+            {data.hourly.length > 0 && (
+              <Section title="Distribución por hora del día">
+                <div className="space-y-1">
+                  {(() => {
+                    const maxOrders = Math.max(...data.hourly.map((h: any) => h.orders), 1)
+                    const hours = Array.from({ length: 24 }, (_, i) => {
+                      const found = data.hourly.find((h: any) => h.hr === i)
+                      return { hr: i, orders: found?.orders ?? 0, revenue: found?.revenue ?? 0 }
+                    })
+                    const busyHours = hours.filter(h => h.orders > 0)
+                    return busyHours.map(h => (
+                      <div key={h.hr} className="flex items-center gap-2">
+                        <span className="text-[11px] text-muted-foreground w-12 shrink-0 text-right">
+                          {String(h.hr).padStart(2, '0')}:00
+                        </span>
+                        <div className="flex-1 bg-accent/40 rounded-full h-4 overflow-hidden">
+                          <div
+                            className={cn(
+                              'h-full rounded-full',
+                              h.orders / maxOrders > 0.7 ? 'bg-red-500/70'
+                              : h.orders / maxOrders > 0.4 ? 'bg-amber-500/70'
+                              : 'bg-primary/50',
+                            )}
+                            style={{ width: `${pct(h.orders, maxOrders)}%` }}
+                          />
+                        </div>
+                        <span className="text-[11px] text-muted-foreground w-8 shrink-0">{h.orders} cmd</span>
+                      </div>
+                    ))
+                  })()}
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-3">
+                  Rojo = hora pico · Amarillo = alta demanda · Azul = normal
+                </p>
+              </Section>
+            )}
+
+            {/* ── Day of week ── */}
+            {data.byDow.length > 0 && (
+              <Section title="Ingresos por día de la semana">
+                <BarChart
+                  data={data.byDow.map((d: any) => ({ x: DOW_LABEL[d.dow] ?? `D${d.dow}`, y: d.revenue }))}
+                  keyX="x" keyY="y" color="bg-violet-500" fmt={formatCOP}
+                />
+              </Section>
+            )}
+
+            {/* ── Payment methods ── */}
+            {data.byMethod.length > 0 && (
+              <Section title="Métodos de pago">
+                <div className="space-y-3">
+                  {(() => {
+                    const total = data.byMethod.reduce((a: number, m: any) => a + m.total, 0)
+                    return data.byMethod.map((m: any) => (
+                      <div key={m.method}>
+                        <div className="flex justify-between text-xs mb-1">
+                          <span className="font-medium">{METHOD_LABEL[m.method] ?? m.method}</span>
+                          <span className="text-muted-foreground">
+                            {formatCOP(m.total)} · {pct(m.total, total)}% · {m.txn} cobros
+                          </span>
+                        </div>
+                        <div className="h-2.5 bg-accent/40 rounded-full overflow-hidden">
+                          <div className="h-full bg-primary/70 rounded-full"
+                            style={{ width: `${pct(m.total, total)}%` }} />
+                        </div>
+                      </div>
+                    ))
+                  })()}
+                </div>
+              </Section>
+            )}
+          </div>
+
+          {/* ── Top products ── */}
+          {data.topItems.length > 0 && (
+            <Section title="Top 10 productos por ingreso">
+              <div className="space-y-2">
+                {data.topItems.map((item: any, i: number) => {
+                  const maxRev = data.topItems[0].revenue
+                  return (
+                    <div key={i} className="flex items-center gap-3">
+                      <span className="text-xs text-muted-foreground w-5 text-right shrink-0 font-bold">{i + 1}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="text-sm font-medium truncate">{item.name}</span>
+                          <div className="flex items-center gap-3 ml-2 shrink-0">
+                            <span className="text-[11px] text-muted-foreground">{item.qty} und</span>
+                            <span className="text-sm font-bold text-green-400 tabular-nums">{formatCOP(item.revenue)}</span>
+                            <span className="text-[10px] rounded-full px-1.5 py-0.5 bg-accent text-muted-foreground">
+                              {AREA_LABEL[item.area] ?? item.area}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="h-1.5 bg-accent/40 rounded-full overflow-hidden">
+                          <div className="h-full bg-green-500/60 rounded-full transition-all"
+                            style={{ width: `${pct(item.revenue, maxRev)}%` }} />
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
+            </Section>
+          )}
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+            {/* ── Waiter performance ── */}
+            {data.waiters.length > 0 && (
+              <Section title="Rendimiento por mesero">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border">
+                        {['Mesero', 'Comandas', 'Ingresos', 'Ticket prom.', 'Canc.'].map(h => (
+                          <th key={h} className="pb-2 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wide pr-4 last:pr-0">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.waiters.map((w: any, i: number) => (
+                        <tr key={i} className="border-b border-border/40 hover:bg-accent/20">
+                          <td className="py-2.5 pr-4 font-medium">{w.name}</td>
+                          <td className="py-2.5 pr-4 text-blue-400 font-bold">{w.orders}</td>
+                          <td className="py-2.5 pr-4 text-green-400 font-bold tabular-nums">{formatCOP(w.revenue)}</td>
+                          <td className="py-2.5 pr-4 text-muted-foreground tabular-nums">{formatCOP(w.avgTicket)}</td>
+                          <td className="py-2.5 text-red-400/70">{w.cancelledItems > 0 ? w.cancelledItems : '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </Section>
+            )}
+
+            {/* ── Table performance ── */}
+            {data.tables.filter((t: any) => t.visits > 0).length > 0 && (
+              <Section title="Rendimiento por mesa">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border">
+                        {['Mesa', 'Visitas', 'Ingresos', 'Prom. comensales', 'Tiempo prom.'].map(h => (
+                          <th key={h} className="pb-2 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wide pr-4 last:pr-0">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.tables.filter((t: any) => t.visits > 0).map((t: any, i: number) => (
+                        <tr key={i} className="border-b border-border/40 hover:bg-accent/20">
+                          <td className="py-2.5 pr-4 font-bold">Mesa {t.number}</td>
+                          <td className="py-2.5 pr-4 text-blue-400">{t.visits}</td>
+                          <td className="py-2.5 pr-4 text-green-400 font-bold tabular-nums">{formatCOP(t.revenue)}</td>
+                          <td className="py-2.5 pr-4 text-muted-foreground">{t.avgGuests > 0 ? `${t.avgGuests.toFixed(1)} pers.` : '—'}</td>
+                          <td className="py-2.5 text-muted-foreground">{t.avgMinutes > 0 ? `${Math.round(t.avgMinutes)} min` : '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </Section>
+            )}
+          </div>
+
+          {/* ── Area breakdown + prep times ── */}
+          {(data.byArea.length > 0 || data.prepTime.length > 0) && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+
+              {data.byArea.length > 0 && (
+                <Section title="Ventas por área de preparación">
+                  {(() => {
+                    const total = data.byArea.reduce((a: number, x: any) => a + x.revenue, 0)
+                    return (
+                      <div className="space-y-3">
+                        {data.byArea.map((a: any) => (
+                          <div key={a.area}>
+                            <div className="flex justify-between text-sm mb-1">
+                              <span className="font-medium">{AREA_LABEL[a.area] ?? a.area}</span>
+                              <span className="text-muted-foreground">
+                                {a.qty} und · {formatCOP(a.revenue)} · {pct(a.revenue, total)}%
+                              </span>
+                            </div>
+                            <div className="h-3 bg-accent/40 rounded-full overflow-hidden">
+                              <div
+                                className={cn('h-full rounded-full', a.area === 'bar' ? 'bg-blue-500/70' : 'bg-orange-500/70')}
+                                style={{ width: `${pct(a.revenue, total)}%` }}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  })()}
+                </Section>
+              )}
+
+              {data.prepTime.length > 0 && (
+                <Section title="Tiempo promedio de preparación">
+                  <div className="space-y-4">
+                    {data.prepTime.map((p: any) => (
+                      <div key={p.area} className="flex items-center justify-between rounded-xl border border-border bg-background px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          {p.area === 'bar'
+                            ? <GlassWater className="h-5 w-5 text-blue-400" />
+                            : <ChefHat className="h-5 w-5 text-orange-400" />
+                          }
+                          <span className="font-medium text-sm">{AREA_LABEL[p.area] ?? p.area}</span>
+                        </div>
+                        <div className="text-right">
+                          <p className={cn(
+                            'text-2xl font-black tabular-nums',
+                            p.avgMin < 10 ? 'text-green-400' : p.avgMin < 20 ? 'text-amber-400' : 'text-red-400',
+                          )}>
+                            {p.avgMin} min
+                          </p>
+                          <p className="text-[10px] text-muted-foreground">promedio</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </Section>
+              )}
             </div>
           )}
         </>

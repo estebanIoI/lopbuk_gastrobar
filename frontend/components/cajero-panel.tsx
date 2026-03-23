@@ -638,14 +638,13 @@ function FacturasTab({ orders, loading }: { orders: any[]; loading: boolean }) {
 function HistorialTab({ summary }: { summary: any; loading: boolean }) {
   const [payments, setPayments] = useState<any[]>([])
   const [loadingPay, setLoadingPay] = useState(true)
-  const [date, setDate] = useState(today())
 
   const load = useCallback(async () => {
     setLoadingPay(true)
-    const r = await api.getRestbarPayments(date)
+    const r = await api.getRestbarPayments()
     if (r.success) setPayments(r.data ?? [])
     setLoadingPay(false)
-  }, [date])
+  }, [])
 
   useEffect(() => { load() }, [load])
 
@@ -660,24 +659,23 @@ function HistorialTab({ summary }: { summary: any; loading: boolean }) {
   return (
     <div className="space-y-5 max-w-3xl">
 
-      {/* Filtro de fecha + resumen rápido */}
-      <div className="flex flex-wrap items-center gap-3">
-        <input
-          type="date"
-          value={date}
-          onChange={e => setDate(e.target.value)}
-          className="rounded-lg border border-border bg-card px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-        />
-        <button onClick={load}
-          className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
-          <RefreshCw className={cn('h-3.5 w-3.5', loadingPay && 'animate-spin')} /> Actualizar
-        </button>
-        {payments.length > 0 && (
-          <div className="ml-auto flex items-center gap-3 text-sm">
-            <span className="text-muted-foreground">{payments.length} transacción{payments.length !== 1 ? 'es' : ''}</span>
-            <span className="font-black text-green-400">{fmt(totalCobrado)}</span>
-          </div>
-        )}
+      {/* Encabezado del día */}
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="font-bold text-sm">Mis cobros de hoy</p>
+          <p className="text-xs text-muted-foreground">
+            {new Date().toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' })}
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          {payments.length > 0 && (
+            <span className="text-lg font-black text-green-400 tabular-nums">{fmt(totalCobrado)}</span>
+          )}
+          <button onClick={load}
+            className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
+            <RefreshCw className={cn('h-3.5 w-3.5', loadingPay && 'animate-spin')} /> Actualizar
+          </button>
+        </div>
       </div>
 
       {/* Resumen por método */}
@@ -709,15 +707,15 @@ function HistorialTab({ summary }: { summary: any; loading: boolean }) {
       ) : payments.length === 0 ? (
         <div className="flex flex-col items-center gap-3 py-16 text-muted-foreground">
           <History className="h-10 w-10 opacity-30" />
-          <p className="font-semibold">Sin pagos registrados</p>
-          <p className="text-sm">No hay transacciones para la fecha seleccionada.</p>
+          <p className="font-semibold">Sin cobros hoy</p>
+          <p className="text-sm">Tus transacciones del día aparecerán aquí.</p>
         </div>
       ) : (
         <div className="rounded-2xl border border-border bg-card overflow-hidden">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-accent/30">
-                {['Hora', 'Mesa', 'Pedido', 'Cobrado a', 'Método', 'Total', 'Cambio', 'Cajero'].map(h => (
+                {['Hora', 'Mesa', 'Pedido', 'Cobrado a', 'Método', 'Total', 'Cambio'].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -742,7 +740,6 @@ function HistorialTab({ summary }: { summary: any; loading: boolean }) {
                     </td>
                     <td className="px-4 py-3 font-bold text-green-400 tabular-nums">{fmt(Number(p.amount))}</td>
                     <td className="px-4 py-3 text-muted-foreground tabular-nums">{fmt(Number(p.change_amount))}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{p.cashier_name}</td>
                   </tr>
                 )
               })}

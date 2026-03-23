@@ -1633,6 +1633,14 @@ class ApiService {
     return this.request<any>(`/restbar/reports/summary${q}`)
   }
 
+  async getRestbarAnalytics(from?: string, to?: string) {
+    const p = new URLSearchParams()
+    if (from) p.set('from', from)
+    if (to)   p.set('to', to)
+    const q = p.toString()
+    return this.request<any>(`/restbar/reports/analytics${q ? `?${q}` : ''}`)
+  }
+
   async getRestbarPayments(date?: string) {
     const q = date ? `?date=${date}` : ''
     return this.request<any[]>(`/restbar/reports/payments${q}`)
