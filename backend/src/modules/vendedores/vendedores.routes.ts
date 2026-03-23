@@ -30,6 +30,9 @@ router.put(
 // GET  /api/vendedores/performance            – rendimiento con comisiones calculadas
 router.get('/performance', vendedoresController.getPerformance.bind(vendedoresController));
 
+// GET  /api/vendedores/restbar-performance    – rendimiento de staff RestBar (comandas)
+router.get('/restbar-performance', vendedoresController.getRestbarPerformance.bind(vendedoresController));
+
 // GET  /api/vendedores/adjustments            – bonos/descuentos del periodo
 router.get('/adjustments', vendedoresController.getAdjustments.bind(vendedoresController));
 

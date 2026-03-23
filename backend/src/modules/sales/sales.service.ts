@@ -4,6 +4,7 @@ import { Sale, SaleItem, PaymentMethod, SaleStatus, PaginatedResponse } from '..
 import { AppError } from '../../common/middleware';
 import { TAX_RATE } from '../../utils';
 import { RowDataPacket, ResultSetHeader, PoolConnection } from 'mysql2/promise';
+import { financesService } from '../finances/finances.service';
 
 interface SaleRow extends RowDataPacket {
   id: string;
@@ -583,6 +584,23 @@ export class SalesService {
       }
 
       await connection.commit();
+
+      // Registrar ingreso en finanzas (fire-and-forget, no bloquea la venta)
+      // Se omite para fiado porque el dinero no se recibió aún
+      if (data.paymentMethod !== 'fiado') {
+        financesService.autoRecord({
+          tenantId,
+          type: 'ingreso',
+          categoryName: 'Ventas',
+          description: `Venta ${invoiceNumber}${data.customerName ? ` — ${data.customerName}` : ''}`,
+          amount: total,
+          paymentMethod: data.paymentMethod,
+          sourceType: 'sale',
+          sourceId: saleId,
+          createdById: data.sellerId,
+          createdByName: data.sellerName,
+        });
+      }
 
       return this.findById(saleId);
     } catch (error) {

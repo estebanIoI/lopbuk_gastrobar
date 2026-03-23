@@ -607,7 +607,7 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
     const { storeSlug } = req.params;
 
     const [tenants] = await pool.query(
-      'SELECT id, bg_color FROM tenants WHERE status = ? AND slug = ? LIMIT 1',
+      'SELECT id, bg_color, public_menu_enabled FROM tenants WHERE status = ? AND slug = ? LIMIT 1',
       ['activo', storeSlug]
     ) as any;
 
@@ -618,6 +618,7 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
 
     const tenantId = tenants[0].id;
     const tenantBgColor = tenants[0].bg_color || '#000000';
+    const publicMenuEnabled = !!tenants[0].public_menu_enabled;
 
     // Banners (table may not exist if migration not run yet)
     let banners: any[] = [];
@@ -819,6 +820,7 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
           : null,
         bgColor: tenantBgColor,
         platformBgColor,
+        publicMenuEnabled,
       },
     });
   } catch (error) {

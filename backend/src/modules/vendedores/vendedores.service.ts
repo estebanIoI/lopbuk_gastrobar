@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { db } from '../../config';
 import { AppError } from '../../common/middleware';
 import { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
+import { financesService } from '../finances/finances.service';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -183,7 +184,7 @@ export class VendedoresService {
               COALESCE(monthly_goal, 0)                 AS monthly_goal,
               COALESCE(goal_bonus, 0)                   AS goal_bonus
        FROM users
-       WHERE tenant_id = ? AND role IN ('vendedor', 'comerciante')
+       WHERE tenant_id = ? AND role IN ('vendedor', 'comerciante', 'mesero', 'cocinero', 'cajero', 'bartender', 'administrador_rb')
        ORDER BY name ASC`,
       [tenantId]
     );
@@ -317,6 +318,60 @@ export class VendedoresService {
     });
   }
 
+  // ── RestBar staff performance ──────────────────────────────────────────────
+
+  async getRestbarPerformance(tenantId: string, from?: string, to?: string): Promise<any[]> {
+    const conds = ['o.tenant_id = ?', "o.status NOT IN ('cancelada')"];
+    const params: (string | Date)[] = [tenantId];
+
+    if (from) { conds.push('o.opened_at >= ?'); params.push(new Date(from + 'T00:00:00')); }
+    if (to)   { conds.push('o.opened_at <= ?'); params.push(new Date(to   + 'T23:59:59')); }
+
+    const where = conds.join(' AND ');
+
+    const [rows] = await db.execute<RowDataPacket[]>(
+      `SELECT
+         o.waiter_id,
+         o.waiter_name,
+         u.role,
+         COUNT(o.id)                                                              AS total_comandas,
+         COUNT(CASE WHEN o.status = 'cerrada' THEN 1 END)                        AS comandas_cerradas,
+         COALESCE(SUM(CASE WHEN o.status = 'cerrada' THEN o.total ELSE 0 END),0) AS total_facturado,
+         COALESCE(AVG(CASE WHEN o.status = 'cerrada' THEN o.total END),0)        AS promedio_comanda,
+         COALESCE(SUM(oi.items_count),0)                                          AS total_items
+       FROM rb_orders o
+       LEFT JOIN users u ON u.id = o.waiter_id
+       LEFT JOIN (
+         SELECT order_id, SUM(quantity) AS items_count
+         FROM rb_order_items GROUP BY order_id
+       ) oi ON oi.order_id = o.id
+       WHERE ${where}
+       GROUP BY o.waiter_id, o.waiter_name, u.role
+       ORDER BY total_facturado DESC`,
+      params
+    );
+
+    // Enrich with salary config
+    const [sellers] = await db.execute<RowDataPacket[]>(
+      `SELECT id, COALESCE(salary_base,0) AS salary_base
+       FROM users WHERE tenant_id = ?`,
+      [tenantId]
+    );
+    const salaryMap = new Map(sellers.map((s: any) => [s.id, Number(s.salary_base)]));
+
+    return rows.map(r => ({
+      waiterId:        r.waiter_id,
+      waiterName:      r.waiter_name,
+      role:            r.role ?? 'mesero',
+      totalComandas:   Number(r.total_comandas),
+      comandasCerradas: Number(r.comandas_cerradas),
+      totalFacturado:  Number(r.total_facturado),
+      promedioComanda: Number(r.promedio_comanda),
+      totalItems:      Number(r.total_items),
+      salaryBase:      salaryMap.get(r.waiter_id) ?? 0,
+    }));
+  }
+
   // ── Adjustments (bonos / descuentos) ──────────────────────────────────────
 
   async getAdjustments(tenantId: string, from: string, to: string, sellerId?: string): Promise<PayrollAdjustment[]> {
@@ -367,30 +422,119 @@ export class VendedoresService {
     periodLabel: string;
     generatedBy: string;
   }): Promise<PayrollRecord[]> {
-    const performance = await this.getPerformance(tenantId, data.periodFrom, data.periodTo);
-    const adjustments = await this.getAdjustments(tenantId, data.periodFrom, data.periodTo);
+    // ── 1. Period proration factor ───────────────────────────────────────────
+    // salary_base in users table is always the MONTHLY salary.
+    // For quincenal or any sub-monthly period, we prorate it proportionally.
+    const pFrom       = new Date(data.periodFrom + 'T00:00:00');
+    const pTo         = new Date(data.periodTo   + 'T23:59:59');
+    const periodDays  = Math.round((pTo.getTime() - pFrom.getTime()) / 86400000) + 1;
+    const daysInMonth = new Date(pFrom.getFullYear(), pFrom.getMonth() + 1, 0).getDate();
+    const salaryFactor = Math.min(periodDays / daysInMonth, 1.0);
 
+    // ── 2. Fetch all data in parallel ────────────────────────────────────────
+    const [salesPerf, rbPerf, allSellers, adjustments, novRows] = await Promise.all([
+      this.getPerformance(tenantId, data.periodFrom, data.periodTo),
+      this.getRestbarPerformance(tenantId, data.periodFrom, data.periodTo),
+      this.getSellers(tenantId),
+      this.getAdjustments(tenantId, data.periodFrom, data.periodTo),
+      // Approved novedades that deduct salary overlapping this period
+      db.execute<RowDataPacket[]>(
+        `SELECT user_id, user_name, type, description, deduct_amount, days_count
+         FROM employee_novelties
+         WHERE tenant_id = ? AND status = 'aprobado' AND deducts_salary = 1
+           AND start_date <= ? AND end_date >= ?`,
+        [tenantId, data.periodTo, data.periodFrom]
+      ).then(([r]) => r),
+    ]);
+
+    // Map novedades per employee
+    const novedadesMap = new Map<string, RowDataPacket[]>();
+    for (const n of novRows) {
+      if (!novedadesMap.has(n.user_id)) novedadesMap.set(n.user_id, []);
+      novedadesMap.get(n.user_id)!.push(n);
+    }
+
+    // ── 3. Build unified performance list ────────────────────────────────────
+    const seen = new Set<string>();
+    const performance: any[] = [];
+
+    // 3a. Sales-based employees
+    for (const p of salesPerf) {
+      seen.add(p.seller_id);
+      performance.push(p);
+    }
+
+    // 3b. RestBar staff not already in sales
+    for (const rb of rbPerf) {
+      if (!seen.has(rb.waiterId)) {
+        seen.add(rb.waiterId);
+        performance.push({
+          seller_id: rb.waiterId, seller_name: rb.waiterName,
+          total_ventas: rb.totalComandas, total_monto: rb.totalFacturado,
+          salary_base: rb.salaryBase, commission_type: 'sin_comision',
+          commission_value: 0, commission_earned: 0, monthly_goal: 0,
+          goal_pct: 0, goal_bonus: 0, goal_bonus_earned: 0,
+        });
+      }
+    }
+
+    // 3c. Employees with salary_base but no activity in this period
+    for (const s of allSellers) {
+      if (!seen.has(s.id) && s.salaryBase > 0) {
+        seen.add(s.id);
+        performance.push({
+          seller_id: s.id, seller_name: s.name,
+          total_ventas: 0, total_monto: 0,
+          salary_base: s.salaryBase, commission_type: s.commissionType,
+          commission_value: s.commissionValue, commission_earned: 0,
+          monthly_goal: s.monthlyGoal, goal_pct: 0,
+          goal_bonus: s.goalBonus, goal_bonus_earned: 0,
+        });
+      }
+    }
+
+    // ── 4. Generate records ──────────────────────────────────────────────────
     const records: PayrollRecord[] = [];
 
     for (const p of performance) {
-      const sellerAdjs = adjustments.filter(a => a.sellerId === p.seller_id);
+      // Skip if a record already exists for this employee in this exact period
+      const [dup] = await db.execute<RowDataPacket[]>(
+        `SELECT id FROM payroll_records
+         WHERE tenant_id = ? AND seller_id = ? AND period_from = ? AND period_to = ?`,
+        [tenantId, p.seller_id, data.periodFrom, data.periodTo]
+      );
+      if ((dup as any[]).length > 0) continue;
+
+      // Prorated salary for this period
+      const proratedSalary = Math.round(p.salary_base * salaryFactor);
+
+      // Manual adjustments (bonos / descuentos entered by the user)
+      const sellerAdjs      = adjustments.filter(a => a.sellerId === p.seller_id);
       const totalBonos      = sellerAdjs.filter(a => a.type === 'bono').reduce((s, a) => s + a.amount, 0);
-      const totalDescuentos = sellerAdjs.filter(a => a.type === 'descuento').reduce((s, a) => s + a.amount, 0);
-      const totalPagar = p.salary_base + p.commission_earned + p.goal_bonus_earned + totalBonos - totalDescuentos;
+      const manualDesc      = sellerAdjs.filter(a => a.type === 'descuento').reduce((s, a) => s + a.amount, 0);
+
+      // Auto-descuentos from approved novedades (permisos no remunerados, suspensiones)
+      const empNovedades    = novedadesMap.get(p.seller_id) ?? [];
+      const novedadesDesc   = empNovedades.reduce((s, n) => s + Number(n.deduct_amount), 0);
+
+      const totalDescuentos = manualDesc + novedadesDesc;
+      const totalPagar = proratedSalary + (p.commission_earned ?? 0) + (p.goal_bonus_earned ?? 0) + totalBonos - totalDescuentos;
 
       const id = uuidv4();
       await db.execute(
         `INSERT INTO payroll_records (id, tenant_id, period_from, period_to, period_label,
            seller_id, seller_name, total_ventas, total_monto, salary_base, commission_type,
            commission_value, commission_earned, monthly_goal, goal_bonus_earned,
-           total_bonos, total_descuentos, total_pagar, status, generated_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'borrador', ?)`,
+           total_bonos, total_descuentos, total_pagar, status, generated_by, notes)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'borrador', ?, ?)`,
         [
           id, tenantId, data.periodFrom, data.periodTo, data.periodLabel,
-          p.seller_id, p.seller_name, p.total_ventas, p.total_monto,
-          p.salary_base, p.commission_type, p.commission_value, p.commission_earned,
-          p.monthly_goal, p.goal_bonus_earned, totalBonos, totalDescuentos, totalPagar,
+          p.seller_id, p.seller_name, p.total_ventas ?? 0, p.total_monto ?? 0,
+          proratedSalary, p.commission_type, p.commission_value ?? 0, p.commission_earned ?? 0,
+          p.monthly_goal ?? 0, p.goal_bonus_earned ?? 0, totalBonos, totalDescuentos, totalPagar,
           data.generatedBy,
+          // Store proration factor and novedades info in notes
+          JSON.stringify({ salaryFactor, periodDays, daysInMonth, novedadesDesc, novedadesCount: empNovedades.length }),
         ]
       );
 
@@ -422,12 +566,34 @@ export class VendedoresService {
 
   async markPayrollPaid(tenantId: string, ids: string[]): Promise<void> {
     if (ids.length === 0) return;
+
+    // Obtener registros antes de actualizar para registrar en finanzas
     const placeholders = ids.map(() => '?').join(',');
+    const [records] = await db.execute<RowDataPacket[]>(
+      `SELECT id, seller_name, total_pagar, period_label
+       FROM payroll_records WHERE id IN (${placeholders}) AND tenant_id = ? AND status = 'borrador'`,
+      [...ids, tenantId]
+    );
+
     await db.execute(
       `UPDATE payroll_records SET status = 'pagado', paid_at = NOW()
        WHERE id IN (${placeholders}) AND tenant_id = ?`,
       [...ids, tenantId]
     );
+
+    // Registrar egreso en finanzas por cada nómina pagada (fire-and-forget)
+    for (const r of records as any[]) {
+      financesService.autoRecord({
+        tenantId,
+        type: 'egreso',
+        categoryName: 'Nómina y salarios',
+        description: `Nómina ${r.period_label} — ${r.seller_name}`,
+        amount: Number(r.total_pagar),
+        paymentMethod: 'efectivo',
+        sourceType: 'payroll',
+        sourceId: r.id,
+      });
+    }
   }
 
   async deletePayrollRecord(tenantId: string, id: string): Promise<void> {

@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS tenants (
     max_products INT NOT NULL DEFAULT 500,
     owner_id VARCHAR(36) NULL COMMENT 'Se actualiza despues de crear el usuario comerciante',
     bg_color VARCHAR(7) DEFAULT '#000000' COMMENT 'Color de fondo de la tienda',
+    public_menu_enabled TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Menú público QR activado',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_tenant_status (status),
@@ -2141,16 +2142,339 @@ CREATE TABLE IF NOT EXISTS printers (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   COMMENT 'Impresoras POS registradas por tenant';
 
--- ============================================
+-- ============================================================
+-- MÓDULO: restBar v1.0
+-- Gestión operativa de restaurante/gastrobar
+-- Mesas · Comandas · Cocina · Bar · Caja
+-- ============================================================
+
+-- 1. Extender users.role con roles de restaurante
+ALTER TABLE users MODIFY COLUMN role ENUM(
+    'superadmin','comerciante','vendedor','cliente','repartidor','auxiliar_bodega',
+    'mesero','cocinero','cajero','bartender','administrador_rb'
+) NOT NULL DEFAULT 'vendedor';
+
+-- 2. Extender products con campos de menú (compatible MySQL 5.7)
+DELIMITER //
+CREATE PROCEDURE IF NOT EXISTS sp_migrate_restbar_products()
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'products' AND COLUMN_NAME = 'is_menu_item'
+    ) THEN
+        ALTER TABLE products ADD COLUMN is_menu_item BOOLEAN NOT NULL DEFAULT FALSE
+            COMMENT 'TRUE = ítem de menú visible para meseros';
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'products' AND COLUMN_NAME = 'is_ingredient'
+    ) THEN
+        ALTER TABLE products ADD COLUMN is_ingredient BOOLEAN NOT NULL DEFAULT FALSE
+            COMMENT 'TRUE = insumo de cocina/bar, se descuenta por receta al vender';
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'products' AND COLUMN_NAME = 'preparation_area'
+    ) THEN
+        ALTER TABLE products ADD COLUMN preparation_area ENUM('bar','cocina','ambos') NULL
+            COMMENT 'Área de preparación del plato/bebida';
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'products' AND COLUMN_NAME = 'prep_time_minutes'
+    ) THEN
+        ALTER TABLE products ADD COLUMN prep_time_minutes INT NULL
+            COMMENT 'Tiempo estimado de preparación en minutos';
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'products' AND COLUMN_NAME = 'available_in_menu'
+    ) THEN
+        ALTER TABLE products ADD COLUMN available_in_menu BOOLEAN NOT NULL DEFAULT TRUE
+            COMMENT 'Disponibilidad en tiempo real para meseros (86 el plato)';
+    END IF;
+
+    -- Índices (ignorar error si ya existen)
+    IF NOT EXISTS (
+        SELECT 1 FROM INFORMATION_SCHEMA.STATISTICS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'products' AND INDEX_NAME = 'idx_menu_item'
+    ) THEN
+        ALTER TABLE products ADD INDEX idx_menu_item (tenant_id, is_menu_item, available_in_menu);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM INFORMATION_SCHEMA.STATISTICS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'products' AND INDEX_NAME = 'idx_prep_area'
+    ) THEN
+        ALTER TABLE products ADD INDEX idx_prep_area (tenant_id, preparation_area);
+    END IF;
+
+    -- 3. Extender product_recipes con include_in_cost
+    IF NOT EXISTS (
+        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'product_recipes' AND COLUMN_NAME = 'include_in_cost'
+    ) THEN
+        ALTER TABLE product_recipes ADD COLUMN include_in_cost TINYINT(1) NOT NULL DEFAULT 1
+            COMMENT '1 = incluir este ingrediente en el costo del plato';
+    END IF;
+END //
+DELIMITER ;
+CALL sp_migrate_restbar_products();
+DROP PROCEDURE IF EXISTS sp_migrate_restbar_products;
+
+-- ============================================================
+-- TABLA: rb_tables (Mesas del restaurante)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS rb_tables (
+    id         VARCHAR(36) PRIMARY KEY,
+    tenant_id  VARCHAR(36) NOT NULL,
+    number     VARCHAR(20) NOT NULL     COMMENT 'Número o nombre: "1", "Terraza 1", "VIP"',
+    capacity   INT NOT NULL DEFAULT 4   COMMENT 'Capacidad máxima de comensales',
+    area       VARCHAR(100) NULL        COMMENT 'Zona: Interior, Terraza, VIP, Bar',
+    status     ENUM('libre','ocupada','reservada','inactiva') NOT NULL DEFAULT 'libre',
+    qr_code    VARCHAR(500) NULL        COMMENT 'URL del QR de la mesa',
+    notes      TEXT NULL,
+    is_active  BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+    UNIQUE INDEX idx_rb_table_number (tenant_id, number),
+    INDEX idx_rb_table_status (tenant_id, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT 'Mesas del restaurante/gastrobar';
+
+-- ============================================================
+-- TABLA: rb_orders (Comandas)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS rb_orders (
+    id           VARCHAR(36) PRIMARY KEY,
+    tenant_id    VARCHAR(36) NOT NULL,
+    table_id     VARCHAR(36) NOT NULL,
+    order_number VARCHAR(20) NOT NULL   COMMENT 'Número legible: C-0045',
+    waiter_id    VARCHAR(36) NOT NULL,
+    waiter_name  VARCHAR(255) NOT NULL,
+    guests_count INT NOT NULL DEFAULT 1 COMMENT 'Número de comensales en la mesa',
+    status       ENUM(
+                     'abierta',        -- mesero tomando pedido
+                     'en_proceso',     -- ítems enviados a cocina/bar
+                     'lista',          -- todos los ítems listos
+                     'entregada',      -- mesero entregó todo
+                     'cerrada',        -- pago procesado
+                     'cancelada'
+                 ) NOT NULL DEFAULT 'abierta',
+    notes        TEXT NULL             COMMENT 'Notas generales de la comanda',
+    subtotal     DECIMAL(12,2) NOT NULL DEFAULT 0,
+    tax          DECIMAL(12,2) NOT NULL DEFAULT 0,
+    discount     DECIMAL(12,2) NOT NULL DEFAULT 0,
+    total        DECIMAL(12,2) NOT NULL DEFAULT 0,
+    sale_id      VARCHAR(36) NULL      COMMENT 'FK a sales.id generado al cobrar',
+    opened_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    closed_at    TIMESTAMP NULL,
+    created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+    FOREIGN KEY (table_id)  REFERENCES rb_tables(id) ON DELETE RESTRICT,
+    FOREIGN KEY (waiter_id) REFERENCES users(id) ON DELETE RESTRICT,
+    FOREIGN KEY (sale_id)   REFERENCES sales(id) ON DELETE SET NULL,
+    UNIQUE INDEX idx_rb_order_number (tenant_id, order_number),
+    INDEX idx_rb_order_table  (table_id, status),
+    INDEX idx_rb_order_status (tenant_id, status),
+    INDEX idx_rb_order_waiter (tenant_id, waiter_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT 'Comandas por mesa';
+
+-- ============================================================
+-- TABLA: rb_order_items (Ítems de comanda con estado individual)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS rb_order_items (
+    id                 VARCHAR(36) PRIMARY KEY,
+    tenant_id          VARCHAR(36) NOT NULL,
+    order_id           VARCHAR(36) NOT NULL,
+    menu_item_id       VARCHAR(36) NOT NULL   COMMENT 'FK a products (is_menu_item=TRUE)',
+    menu_item_name     VARCHAR(255) NOT NULL,
+    preparation_area   ENUM('bar','cocina','ambos') NOT NULL
+        COMMENT 'Copiado del producto al momento del pedido',
+    quantity           INT NOT NULL DEFAULT 1,
+    unit_price         DECIMAL(12,2) NOT NULL,
+    subtotal           DECIMAL(12,2) NOT NULL,
+    discount           DECIMAL(5,2) NOT NULL DEFAULT 0,
+    status             ENUM(
+                           'pendiente',        -- en espera de envío
+                           'en_preparacion',   -- cocina/bar lo está haciendo
+                           'listo',            -- listo para servir
+                           'entregado',        -- mesero lo entregó
+                           'cancelado'
+                       ) NOT NULL DEFAULT 'pendiente',
+    guest_number       TINYINT NULL DEFAULT NULL
+        COMMENT 'Número de comensal asignado (1,2,3...) para dividir cuenta',
+    item_notes         TEXT NULL      COMMENT 'Instrucciones: "sin cebolla", "término 3/4"',
+    sent_to_kitchen_at TIMESTAMP NULL COMMENT 'Cuando se envió a cocina/bar',
+    ready_at           TIMESTAMP NULL COMMENT 'Cuando el área marcó como listo',
+    delivered_at       TIMESTAMP NULL COMMENT 'Cuando el mesero lo entregó',
+    created_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (tenant_id)    REFERENCES tenants(id) ON DELETE CASCADE,
+    FOREIGN KEY (order_id)     REFERENCES rb_orders(id) ON DELETE CASCADE,
+    FOREIGN KEY (menu_item_id) REFERENCES products(id) ON DELETE RESTRICT,
+    INDEX idx_rb_item_order  (order_id),
+    INDEX idx_rb_item_status (tenant_id, status),
+    INDEX idx_rb_item_area   (tenant_id, preparation_area, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT 'Ítems individuales de cada comanda con tracking de estado';
+
+-- ============================================================
+-- TABLA: rb_order_sequence (Numeración automática de comandas)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS rb_order_sequence (
+    id             INT PRIMARY KEY AUTO_INCREMENT,
+    tenant_id      VARCHAR(36) NOT NULL,
+    prefix         VARCHAR(10) NOT NULL DEFAULT 'C',
+    current_number INT NOT NULL DEFAULT 0,
+    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+    UNIQUE INDEX idx_rb_order_seq (tenant_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT 'Secuencia de numeración de comandas por tenant';
+
+-- ============================================================
+-- TABLA: rb_payments (Pagos de comandas — soporta cuenta dividida)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS rb_payments (
+    id              VARCHAR(36) PRIMARY KEY,
+    tenant_id       VARCHAR(36) NOT NULL,
+    order_id        VARCHAR(36) NOT NULL,
+    guest_number    TINYINT NULL DEFAULT NULL
+        COMMENT 'NULL = pago total de la mesa, N = pago del comensal N',
+    payment_method  ENUM('efectivo','tarjeta','nequi','bancolombia','bbva','transferencia','mixto') NOT NULL,
+    amount          DECIMAL(12,2) NOT NULL  COMMENT 'Monto a cobrar',
+    amount_paid     DECIMAL(12,2) NOT NULL  COMMENT 'Monto recibido del cliente',
+    change_amount   DECIMAL(12,2) NOT NULL DEFAULT 0,
+    cashier_id      VARCHAR(36) NOT NULL,
+    cashier_name    VARCHAR(255) NOT NULL,
+    cash_session_id VARCHAR(36) NULL,
+    notes           TEXT NULL,
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (tenant_id)       REFERENCES tenants(id) ON DELETE CASCADE,
+    FOREIGN KEY (order_id)        REFERENCES rb_orders(id) ON DELETE RESTRICT,
+    FOREIGN KEY (cashier_id)      REFERENCES users(id) ON DELETE RESTRICT,
+    FOREIGN KEY (cash_session_id) REFERENCES cash_sessions(id) ON DELETE SET NULL,
+    INDEX idx_rb_payment_order   (order_id),
+    INDEX idx_rb_payment_tenant  (tenant_id),
+    INDEX idx_rb_payment_session (cash_session_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT 'Pagos procesados por caja — permite dividir la cuenta por comensal';
+
+-- ============================================================
+-- MÓDULO: finances v1.0
+-- Control de ingresos y egresos del negocio
+-- Libro de caja · Flujo de caja · Presupuesto
+-- ============================================================
+
+-- ============================================================
+-- TABLA: finance_categories (Categorías de ingresos y egresos)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS finance_categories (
+    id         VARCHAR(36) PRIMARY KEY,
+    tenant_id  VARCHAR(36) NOT NULL,
+    type       ENUM('ingreso','egreso') NOT NULL,
+    name       VARCHAR(100) NOT NULL,
+    icon       VARCHAR(50) NULL   COMMENT 'Emoji: "🏠", "💡", "👥"',
+    color      VARCHAR(7) NULL    COMMENT 'Color hex para UI: "#e74c3c"',
+    is_system  TINYINT(1) NOT NULL DEFAULT 0
+        COMMENT '1 = creada por el sistema, no se puede eliminar',
+    is_active  BOOLEAN NOT NULL DEFAULT TRUE,
+    sort_order INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+    UNIQUE INDEX idx_fin_cat_name   (tenant_id, type, name),
+    INDEX idx_fin_cat_tenant        (tenant_id, type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT 'Categorías de ingresos y egresos del negocio';
+
+-- ============================================================
+-- TABLA: finance_transactions (Libro diario — cada peso que entra/sale)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS finance_transactions (
+    id               VARCHAR(36) PRIMARY KEY,
+    tenant_id        VARCHAR(36) NOT NULL,
+    type             ENUM('ingreso','egreso') NOT NULL,
+    category_id      VARCHAR(36) NOT NULL,
+    category_name    VARCHAR(100) NOT NULL COMMENT 'Copia del nombre al momento de registrar',
+    description      VARCHAR(500) NOT NULL COMMENT 'Ej: "Pago arriendo enero", "Compra gas bar"',
+    amount           DECIMAL(12,2) NOT NULL,
+    transaction_date DATE NOT NULL         COMMENT 'Fecha real de la transacción',
+    payment_method   ENUM(
+                         'efectivo','tarjeta','transferencia',
+                         'nequi','daviplata','cheque','otro'
+                     ) NOT NULL DEFAULT 'efectivo',
+    receipt_url      VARCHAR(500) NULL     COMMENT 'Foto/PDF del recibo o factura',
+    receipt_number   VARCHAR(100) NULL     COMMENT 'Número del recibo o factura',
+    -- Gastos recurrentes
+    is_recurring     TINYINT(1) NOT NULL DEFAULT 0
+        COMMENT '1 = gasto/ingreso que se repite periódicamente',
+    recurrence_type  ENUM('diario','semanal','quincenal','mensual','bimestral','anual') NULL,
+    recurrence_day   TINYINT NULL
+        COMMENT 'Día del mes en que cae el gasto recurrente (1-31)',
+    -- Trazabilidad automática (integración con otros módulos)
+    source_type      ENUM(
+                         'manual',           -- registrado manualmente
+                         'sale',             -- generado desde una venta
+                         'purchase_invoice', -- generado desde factura de compra
+                         'payroll',          -- generado desde nómina pagada
+                         'cash_movement'     -- generado desde movimiento de caja
+                     ) NOT NULL DEFAULT 'manual',
+    source_id        VARCHAR(36) NULL      COMMENT 'ID del registro origen',
+    notes            TEXT NULL,
+    tags             JSON NULL             COMMENT '["fijo","urgente","deducible"]',
+    created_by       VARCHAR(36) NULL,
+    created_by_name  VARCHAR(255) NULL,
+    created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (tenant_id)   REFERENCES tenants(id) ON DELETE CASCADE,
+    FOREIGN KEY (category_id) REFERENCES finance_categories(id) ON DELETE RESTRICT,
+    FOREIGN KEY (created_by)  REFERENCES users(id) ON DELETE SET NULL,
+    INDEX idx_fin_tx_tenant    (tenant_id),
+    INDEX idx_fin_tx_type      (tenant_id, type),
+    INDEX idx_fin_tx_date      (tenant_id, transaction_date),
+    INDEX idx_fin_tx_category  (tenant_id, category_id),
+    INDEX idx_fin_tx_source    (source_type, source_id),
+    INDEX idx_fin_tx_recurring (tenant_id, is_recurring)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT 'Libro diario: registro de cada peso que entra o sale del negocio';
+
+-- ============================================================
+-- TABLA: finance_budgets (Presupuesto mensual por categoría)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS finance_budgets (
+    id              VARCHAR(36) PRIMARY KEY,
+    tenant_id       VARCHAR(36) NOT NULL,
+    category_id     VARCHAR(36) NOT NULL,
+    year            SMALLINT NOT NULL,
+    month           TINYINT NOT NULL COMMENT '1=Enero ... 12=Diciembre',
+    budgeted_amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+    notes           TEXT NULL,
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (tenant_id)   REFERENCES tenants(id) ON DELETE CASCADE,
+    FOREIGN KEY (category_id) REFERENCES finance_categories(id) ON DELETE CASCADE,
+    UNIQUE INDEX idx_budget_unique (tenant_id, category_id, year, month),
+    INDEX idx_budget_period        (tenant_id, year, month)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT 'Presupuesto mensual por categoría — comparar planificado vs real';
+
+-- ============================================================
 -- FIN DEL SCRIPT v3.0 Multi-Tenant
--- ============================================
+-- ============================================================
 -- CREDENCIALES POR DEFECTO:
 --   Superadmin:   superadmin@stockpro.com  / admin123
 --   Comerciante:  comerciante@stockpro.com / admin123
 --   Vendedor:     vendedor@stockpro.com    / admin123
--- ============================================
+-- ============================================================
 -- PERFUMES BOM:
 --   Perfume Larry White 100ML → $75,000 con IVA (43 extractos + envase + caja)
 --   Perfume Larry White 50ML  → $38,000 con IVA (22 extractos + envase + caja)
 --   Perfume Larry White 30ML  → $22,000 con IVA (13 extractos + envase + caja)
--- ============================================
+-- ============================================================

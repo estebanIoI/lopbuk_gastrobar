@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { db } from '../../config';
 import { AppError } from '../../common/middleware';
 import { RowDataPacket, ResultSetHeader } from 'mysql2';
+import { financesService } from '../finances/finances.service';
 
 interface PurchaseInvoiceRow extends RowDataPacket {
   id: string;
@@ -352,6 +353,21 @@ export class PurchasesService {
       }
 
       await connection.commit();
+
+      // Registrar egreso en finanzas solo si la factura está pagada (no crédito proveedor)
+      if (paymentStatus === 'pagado') {
+        financesService.autoRecord({
+          tenantId,
+          type: 'egreso',
+          categoryName: 'Compra de insumos',
+          description: `Compra ${data.invoiceNumber} — ${data.supplierName}`,
+          amount: total,
+          paymentMethod: paymentMethod,
+          sourceType: 'purchase_invoice',
+          sourceId: invoiceId,
+          createdById: userId,
+        });
+      }
 
       return this.findById(invoiceId, tenantId);
     } catch (error) {

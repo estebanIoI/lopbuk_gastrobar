@@ -627,6 +627,26 @@ export function Settings() {
                       />
                     </div>
                     <div className="space-y-2">
+                      <Label>Rol del sistema</Label>
+                      <Select
+                        value={newUserForm.role}
+                        onValueChange={(v) => setNewUserForm({ ...newUserForm, role: v })}
+                      >
+                        <SelectTrigger className="bg-secondary border-none">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="vendedor">Vendedor — POS e inventario</SelectItem>
+                          <SelectItem value="mesero">Mesero — mesas y comandas</SelectItem>
+                          <SelectItem value="cocinero">Cocinero — pantalla cocina</SelectItem>
+                          <SelectItem value="bartender">Bartender — pantalla bar</SelectItem>
+                          <SelectItem value="cajero">Cajero — cobro de comandas</SelectItem>
+                          <SelectItem value="administrador_rb">Admin RestBar — gestión completa</SelectItem>
+                          <SelectItem value="auxiliar_bodega">Aux. Bodega — solo inventario</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
                       <Label>Cargo</Label>
                       <Select
                         value={newUserForm.cargoId}

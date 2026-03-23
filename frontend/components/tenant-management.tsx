@@ -184,7 +184,7 @@ export function TenantManagement() {
   const [productSearchQuery, setProductSearchQuery] = useState('')
   const [productSearchResults, setProductSearchResults] = useState<any[]>([])
   const [isSearchingProducts, setIsSearchingProducts] = useState(false)
-  const [showProductSearch, setShowProductSearch] = useState(false)
+
   const productSearchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'
@@ -556,11 +556,30 @@ export function TenantManagement() {
             Gestión de comercios y plataforma
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => setShowProductSearch(!showProductSearch)} className="gap-1" title="Buscar productos en tiendas">
-            <Search className="h-4 w-4" />
-            Buscar Productos
-          </Button>
+        <div className="flex gap-2 flex-wrap items-center">
+          {/* Unified search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+            <Input
+              placeholder="Buscar tienda, producto o servicio..."
+              value={search}
+              onChange={(e) => {
+                const q = e.target.value
+                setSearch(q)
+                setPage(1)
+                handleProductSearch(q)
+              }}
+              className="pl-9 pr-8 w-56 sm:w-72 h-9 text-sm"
+            />
+            {search && (
+              <button
+                onClick={() => { setSearch(''); setPage(1); handleProductSearch('') }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
           <Button variant="outline" size="sm" onClick={() => { fetchTenants(); fetchStats() }} className="gap-1">
             <RefreshCw className="h-4 w-4" />
             Actualizar
@@ -589,33 +608,19 @@ export function TenantManagement() {
         </div>
       )}
 
-      {/* Global Product Search */}
-      {showProductSearch && (
+      {/* Unified search results — products */}
+      {productSearchQuery && (
         <Card className="border-border bg-card">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <CardTitle className="text-base lg:text-lg flex items-center gap-2">
-                <Search className="h-5 w-5 text-muted-foreground" />
-                Buscar Productos en Tiendas
+                <Package className="h-5 w-5 text-muted-foreground" />
+                Productos encontrados para &quot;{productSearchQuery}&quot;
               </CardTitle>
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setShowProductSearch(false); setProductSearchQuery(''); setProductSearchResults([]) }}>
-                <X className="h-4 w-4" />
-              </Button>
             </div>
-            <CardDescription>Busca cualquier producto publicado en todas las tiendas</CardDescription>
+            <CardDescription>Productos publicados en todas las tiendas que coinciden con la búsqueda</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Buscar por nombre, marca o categoría..."
-                value={productSearchQuery}
-                onChange={(e) => handleProductSearch(e.target.value)}
-                className="pl-9"
-                autoFocus
-              />
-            </div>
-
             {isSearchingProducts && (
               <div className="flex items-center justify-center py-8">
                 <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -623,7 +628,7 @@ export function TenantManagement() {
               </div>
             )}
 
-            {!isSearchingProducts && productSearchQuery && productSearchResults.length === 0 && (
+            {!isSearchingProducts && productSearchResults.length === 0 && (
               <div className="text-center py-8 text-muted-foreground">
                 <Package className="h-10 w-10 mx-auto mb-2 opacity-50" />
                 <p className="text-sm">No se encontraron productos para &quot;{productSearchQuery}&quot;</p>
@@ -978,17 +983,6 @@ export function TenantManagement() {
           </Button>
         </CardContent>
       </Card>
-
-      {/* Search */}
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Buscar comercio por nombre o email..."
-          value={search}
-          onChange={(e) => { setSearch(e.target.value); setPage(1) }}
-          className="pl-9"
-        />
-      </div>
 
       {/* Tenants Table */}
       <Card className="border-border bg-card">

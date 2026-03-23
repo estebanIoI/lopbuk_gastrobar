@@ -37,6 +37,9 @@ import cargosRoutes from './modules/cargos/cargos.routes';
 import novedadesRoutes from './modules/novedades/novedades.routes';
 import reviewsRoutes from './modules/reviews/reviews.routes';
 import { syncRoutes, startSyncScheduler } from './modules/sync';
+import { subscriptionsRoutes } from './modules/subscriptions/subscriptions.routes';
+import { restbarRoutes } from './modules/restbar';
+import { financesRoutes } from './modules/finances';
 
 const app = express();
 
@@ -135,6 +138,9 @@ app.use(`${apiPrefix}/cargos`, cargosRoutes);
 app.use(`${apiPrefix}/novedades`, novedadesRoutes);
 app.use(`${apiPrefix}/reviews`, reviewsRoutes);
 app.use(`${apiPrefix}/sync`, syncRoutes);
+app.use(`${apiPrefix}/subscriptions`, subscriptionsRoutes);
+app.use(`${apiPrefix}/restbar`, restbarRoutes);
+app.use(`${apiPrefix}/finances`, financesRoutes);
 
 // Error handling
 app.use(notFoundHandler);
@@ -206,6 +212,35 @@ const startServer = async () => {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
       `);
     } catch { /* column may already exist or DB doesn't support IF NOT EXISTS */ }
+
+    // ── restBar + Finances migrations ────────────────────────────────────────
+    try {
+      const pool2 = (await import('./config/database')).default;
+      // Extender products con campos de menú
+      await pool2.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS is_menu_item BOOLEAN NOT NULL DEFAULT FALSE COMMENT 'TRUE = ítem de menú visible para meseros'`);
+      await pool2.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS is_ingredient BOOLEAN NOT NULL DEFAULT FALSE COMMENT 'TRUE = insumo que se descuenta por receta'`);
+      await pool2.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS preparation_area ENUM('bar','cocina','ambos') NULL COMMENT 'Área de preparación'`);
+      await pool2.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS prep_time_minutes INT NULL COMMENT 'Tiempo estimado de preparación en minutos'`);
+      await pool2.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS available_in_menu BOOLEAN NOT NULL DEFAULT TRUE COMMENT 'Disponibilidad en tiempo real para meseros'`);
+      // Extender product_recipes
+      await pool2.query(`ALTER TABLE product_recipes ADD COLUMN IF NOT EXISTS include_in_cost TINYINT(1) NOT NULL DEFAULT 1 COMMENT '1 = incluir en costo del plato'`);
+      // Mesas
+      await pool2.query(`CREATE TABLE IF NOT EXISTS rb_tables (id VARCHAR(36) PRIMARY KEY, tenant_id VARCHAR(36) NOT NULL, number VARCHAR(20) NOT NULL, capacity INT NOT NULL DEFAULT 4, area VARCHAR(100) NULL, status ENUM('libre','ocupada','reservada','inactiva') NOT NULL DEFAULT 'libre', qr_code VARCHAR(500) NULL, notes TEXT NULL, is_active BOOLEAN NOT NULL DEFAULT TRUE, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE, UNIQUE INDEX idx_rb_table_number (tenant_id, number), INDEX idx_rb_table_status (tenant_id, status)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+      // Comandas
+      await pool2.query(`CREATE TABLE IF NOT EXISTS rb_orders (id VARCHAR(36) PRIMARY KEY, tenant_id VARCHAR(36) NOT NULL, table_id VARCHAR(36) NOT NULL, order_number VARCHAR(20) NOT NULL, waiter_id VARCHAR(36) NOT NULL, waiter_name VARCHAR(255) NOT NULL, guests_count INT NOT NULL DEFAULT 1, status ENUM('abierta','en_proceso','lista','entregada','cerrada','cancelada') NOT NULL DEFAULT 'abierta', notes TEXT NULL, subtotal DECIMAL(12,2) NOT NULL DEFAULT 0, tax DECIMAL(12,2) NOT NULL DEFAULT 0, discount DECIMAL(12,2) NOT NULL DEFAULT 0, total DECIMAL(12,2) NOT NULL DEFAULT 0, sale_id VARCHAR(36) NULL, opened_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, closed_at TIMESTAMP NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE, FOREIGN KEY (table_id) REFERENCES rb_tables(id) ON DELETE RESTRICT, FOREIGN KEY (waiter_id) REFERENCES users(id) ON DELETE RESTRICT, FOREIGN KEY (sale_id) REFERENCES sales(id) ON DELETE SET NULL, UNIQUE INDEX idx_rb_order_number (tenant_id, order_number), INDEX idx_rb_order_table (table_id, status), INDEX idx_rb_order_status (tenant_id, status)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+      // Ítems de comanda
+      await pool2.query(`CREATE TABLE IF NOT EXISTS rb_order_items (id VARCHAR(36) PRIMARY KEY, tenant_id VARCHAR(36) NOT NULL, order_id VARCHAR(36) NOT NULL, menu_item_id VARCHAR(36) NOT NULL, menu_item_name VARCHAR(255) NOT NULL, preparation_area ENUM('bar','cocina','ambos') NOT NULL, quantity INT NOT NULL DEFAULT 1, unit_price DECIMAL(12,2) NOT NULL, subtotal DECIMAL(12,2) NOT NULL, discount DECIMAL(5,2) NOT NULL DEFAULT 0, status ENUM('pendiente','en_preparacion','listo','entregado','cancelado') NOT NULL DEFAULT 'pendiente', guest_number TINYINT NULL DEFAULT NULL, item_notes TEXT NULL, sent_to_kitchen_at TIMESTAMP NULL, ready_at TIMESTAMP NULL, delivered_at TIMESTAMP NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE, FOREIGN KEY (order_id) REFERENCES rb_orders(id) ON DELETE CASCADE, FOREIGN KEY (menu_item_id) REFERENCES products(id) ON DELETE RESTRICT, INDEX idx_rb_item_order (order_id), INDEX idx_rb_item_status (tenant_id, status), INDEX idx_rb_item_area (tenant_id, preparation_area, status)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+      // Secuencia de comandas
+      await pool2.query(`CREATE TABLE IF NOT EXISTS rb_order_sequence (id INT PRIMARY KEY AUTO_INCREMENT, tenant_id VARCHAR(36) NOT NULL, prefix VARCHAR(10) NOT NULL DEFAULT 'C', current_number INT NOT NULL DEFAULT 0, FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE, UNIQUE INDEX idx_rb_order_seq (tenant_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+      // Pagos de comandas
+      await pool2.query(`CREATE TABLE IF NOT EXISTS rb_payments (id VARCHAR(36) PRIMARY KEY, tenant_id VARCHAR(36) NOT NULL, order_id VARCHAR(36) NOT NULL, guest_number TINYINT NULL DEFAULT NULL, payment_method ENUM('efectivo','tarjeta','nequi','transferencia','mixto') NOT NULL, amount DECIMAL(12,2) NOT NULL, amount_paid DECIMAL(12,2) NOT NULL, change_amount DECIMAL(12,2) NOT NULL DEFAULT 0, cashier_id VARCHAR(36) NOT NULL, cashier_name VARCHAR(255) NOT NULL, cash_session_id VARCHAR(36) NULL, notes TEXT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE, FOREIGN KEY (order_id) REFERENCES rb_orders(id) ON DELETE RESTRICT, FOREIGN KEY (cashier_id) REFERENCES users(id) ON DELETE RESTRICT, FOREIGN KEY (cash_session_id) REFERENCES cash_sessions(id) ON DELETE SET NULL, INDEX idx_rb_payment_order (order_id), INDEX idx_rb_payment_tenant (tenant_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+      // Categorías financieras
+      await pool2.query(`CREATE TABLE IF NOT EXISTS finance_categories (id VARCHAR(36) PRIMARY KEY, tenant_id VARCHAR(36) NOT NULL, type ENUM('ingreso','egreso') NOT NULL, name VARCHAR(100) NOT NULL, icon VARCHAR(50) NULL, color VARCHAR(7) NULL, is_system TINYINT(1) NOT NULL DEFAULT 0, is_active BOOLEAN NOT NULL DEFAULT TRUE, sort_order INT NOT NULL DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE, UNIQUE INDEX idx_fin_cat_name (tenant_id, type, name), INDEX idx_fin_cat_tenant (tenant_id, type)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+      // Transacciones financieras
+      await pool2.query(`CREATE TABLE IF NOT EXISTS finance_transactions (id VARCHAR(36) PRIMARY KEY, tenant_id VARCHAR(36) NOT NULL, type ENUM('ingreso','egreso') NOT NULL, category_id VARCHAR(36) NOT NULL, category_name VARCHAR(100) NOT NULL, description VARCHAR(500) NOT NULL, amount DECIMAL(12,2) NOT NULL, transaction_date DATE NOT NULL, payment_method ENUM('efectivo','tarjeta','transferencia','nequi','daviplata','cheque','otro') NOT NULL DEFAULT 'efectivo', receipt_url VARCHAR(500) NULL, receipt_number VARCHAR(100) NULL, is_recurring TINYINT(1) NOT NULL DEFAULT 0, recurrence_type ENUM('diario','semanal','quincenal','mensual','bimestral','anual') NULL, recurrence_day TINYINT NULL, source_type ENUM('manual','sale','purchase_invoice','payroll','cash_movement') NOT NULL DEFAULT 'manual', source_id VARCHAR(36) NULL, notes TEXT NULL, tags JSON NULL, created_by VARCHAR(36) NULL, created_by_name VARCHAR(255) NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE, FOREIGN KEY (category_id) REFERENCES finance_categories(id) ON DELETE RESTRICT, FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL, INDEX idx_fin_tx_tenant (tenant_id), INDEX idx_fin_tx_type (tenant_id, type), INDEX idx_fin_tx_date (tenant_id, transaction_date), INDEX idx_fin_tx_source (source_type, source_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+      // Presupuestos
+      await pool2.query(`CREATE TABLE IF NOT EXISTS finance_budgets (id VARCHAR(36) PRIMARY KEY, tenant_id VARCHAR(36) NOT NULL, category_id VARCHAR(36) NOT NULL, year SMALLINT NOT NULL, month TINYINT NOT NULL, budgeted_amount DECIMAL(12,2) NOT NULL DEFAULT 0, notes TEXT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE, FOREIGN KEY (category_id) REFERENCES finance_categories(id) ON DELETE CASCADE, UNIQUE INDEX idx_budget_unique (tenant_id, category_id, year, month), INDEX idx_budget_period (tenant_id, year, month)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+    } catch { /* tables may already exist */ }
 
     // Run AES encryption migration for existing plaintext sensitive data
     try {

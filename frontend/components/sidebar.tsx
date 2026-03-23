@@ -28,6 +28,8 @@ import {
   LayoutTemplate,
   Printer,
   Star,
+  UtensilsCrossed,
+  Wallet,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
@@ -46,6 +48,7 @@ const navigation = [
   { id: 'purchases', name: 'Compras', icon: ShoppingBag, adminOnly: true, superadminOnly: false, merchantOnly: true, group: 'core' },
   { id: 'services', name: 'Servicios', icon: Scissors, adminOnly: true, superadminOnly: false, merchantOnly: true, group: 'core' },
   // operations (merchant/vendedor only)
+  { id: 'restbar', name: 'RestBar', icon: UtensilsCrossed, adminOnly: false, superadminOnly: false, merchantOnly: true, group: 'ops' },
   { id: 'pos', name: 'Punto de Venta', icon: ShoppingCart, adminOnly: false, superadminOnly: false, merchantOnly: true, group: 'ops' },
   { id: 'cash-register', name: 'Caja', icon: Vault, adminOnly: false, superadminOnly: false, merchantOnly: true, group: 'ops' },
   { id: 'invoices', name: 'Facturación', icon: Receipt, adminOnly: true, superadminOnly: false, merchantOnly: true, group: 'ops' },
@@ -55,6 +58,7 @@ const navigation = [
   // reports (merchant/vendedor only)
   { id: 'history', name: 'Historial', icon: History, adminOnly: false, superadminOnly: false, merchantOnly: true, group: 'reports' },
   { id: 'analytics', name: 'Análisis', icon: TrendingUp, adminOnly: true, superadminOnly: false, merchantOnly: true, group: 'reports' },
+  { id: 'finances', name: 'Finanzas', icon: Wallet, adminOnly: true, superadminOnly: false, merchantOnly: true, group: 'reports' },
   // config (merchant only)
   { id: 'printers', name: 'Impresoras', icon: Printer, adminOnly: true, superadminOnly: false, merchantOnly: true, group: 'config' },
   { id: 'settings', name: 'Configuración', icon: Settings, adminOnly: true, superadminOnly: false, merchantOnly: true, group: 'config' },

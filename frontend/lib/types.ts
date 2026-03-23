@@ -485,6 +485,11 @@ export interface User {
   deliveryLatitude?: number
   deliveryLongitude?: number
   profileCompleted?: boolean
+  // Tenant plan info (populated from JOIN on login/checkAuth)
+  tenantPlan?: TenantPlan
+  tenantName?: string
+  tenantMaxUsers?: number
+  tenantMaxProducts?: number
   createdAt: string
 }
 

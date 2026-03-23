@@ -331,11 +331,14 @@ export class AuthService {
 
   async getProfile(userId: string): Promise<Omit<User, 'password'>> {
     const [rows] = await db.execute<UserRow[]>(
-      `SELECT id, tenant_id, email, name, role, avatar, is_active,
-              phone, cedula, department, municipality, address, neighborhood,
-              delivery_latitude, delivery_longitude, profile_completed,
-              created_at, updated_at
-       FROM users WHERE id = ?`,
+      `SELECT u.id, u.tenant_id, u.email, u.name, u.role, u.avatar, u.is_active,
+              u.phone, u.cedula, u.department, u.municipality, u.address, u.neighborhood,
+              u.delivery_latitude, u.delivery_longitude, u.profile_completed,
+              u.created_at, u.updated_at,
+              t.plan AS tenant_plan, t.name AS tenant_name, t.max_users, t.max_products
+       FROM users u
+       LEFT JOIN tenants t ON t.id = u.tenant_id
+       WHERE u.id = ?`,
       [userId]
     );
 
@@ -343,7 +346,7 @@ export class AuthService {
       throw new AppError('Usuario no encontrado', 404);
     }
 
-    const user = rows[0];
+    const user = rows[0] as any;
     return {
       id: user.id,
       tenantId: user.tenant_id,
@@ -361,6 +364,10 @@ export class AuthService {
       deliveryLatitude: user.delivery_latitude ?? undefined,
       deliveryLongitude: user.delivery_longitude ?? undefined,
       profileCompleted: !!user.profile_completed,
+      tenantPlan: user.tenant_plan || undefined,
+      tenantName: user.tenant_name || undefined,
+      tenantMaxUsers: user.max_users ?? undefined,
+      tenantMaxProducts: user.max_products ?? undefined,
       createdAt: user.created_at,
       updatedAt: user.updated_at,
     } as any;

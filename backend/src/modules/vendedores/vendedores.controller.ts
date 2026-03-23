@@ -35,6 +35,14 @@ export class VendedoresController {
     } catch (e) { next(e); }
   }
 
+  async getRestbarPerformance(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { from, to } = req.query as { from?: string; to?: string };
+      const data = await vendedoresService.getRestbarPerformance(req.user!.tenantId!, from, to);
+      res.json({ success: true, data });
+    } catch (e) { next(e); }
+  }
+
   async getAdjustments(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const { from, to, sellerId } = req.query as { from?: string; to?: string; sellerId?: string };

@@ -50,6 +50,7 @@ import {
   Phone,
   CreditCard,
   Info,
+  UtensilsCrossed,
 } from 'lucide-react'
 import { CheckoutView } from '@/components/checkout/CheckoutView'
 import { ServiceBookingModal } from '@/components/service-booking-modal'
@@ -137,6 +138,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   const [stores, setStores] = useState<{ id: string; name: string; slug: string; businessType: string | null; logoUrl: string | null; address: string | null; productCount: number }[]>([])
   const [selectedStore, setSelectedStore] = useState<string>('all')
   const [showStoresView, setShowStoresView] = useState(true)
+  const [businessTypeFilter, setBusinessTypeFilter] = useState<string>('all')
+  const [allProducts, setAllProducts] = useState<StorefrontProduct[]>([])
+  const [loadingAllProducts, setLoadingAllProducts] = useState(false)
   const [storesWithServices, setStoresWithServices] = useState<Set<string>>(new Set())
 
   // ====== SEDES STATE ======
@@ -179,6 +183,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     } | null
     bgColor?: string
     platformBgColor?: string
+    publicMenuEnabled?: boolean
   } | null>(null)
 
   // ====== PRODUCT DETAIL MODAL STATE ======
@@ -253,6 +258,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   const [platformFeatured, setPlatformFeatured] = useState<StorefrontProduct[]>([])
   const [globalSearchQuery, setGlobalSearchQuery] = useState('')
   const [globalSearchResults, setGlobalSearchResults] = useState<StorefrontProduct[]>([])
+  const [globalSearchStores, setGlobalSearchStores] = useState<typeof stores>([])
   const [loadingGlobalSearch, setLoadingGlobalSearch] = useState(false)
   const globalSearchInputRef = useRef<HTMLInputElement>(null)
   const [showDesktopSearch, setShowDesktopSearch] = useState(false)
@@ -635,26 +641,75 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     setGlobalSearchQuery(query)
     if (!query.trim()) {
       setGlobalSearchResults([])
+      setGlobalSearchStores([])
       return
     }
+    const q = query.toLowerCase()
+
+    // Immediate client-side store filter (if already loaded)
+    if (stores.length > 0) {
+      setGlobalSearchStores(
+        stores.filter(s =>
+          s.name?.toLowerCase().includes(q) ||
+          s.businessType?.toLowerCase().includes(q) ||
+          s.slug?.toLowerCase().includes(q)
+        )
+      )
+    }
+
     setLoadingGlobalSearch(true)
     try {
-      const res = await fetch(`${API_URL}/storefront/products?limit=200&store=all`)
-      const json = await res.json()
-      if (json.success && json.data?.products) {
-        const filtered = json.data.products.filter((p: StorefrontProduct) =>
-          p.name.toLowerCase().includes(query.toLowerCase()) ||
-          p.brand?.toLowerCase().includes(query.toLowerCase()) ||
-          p.category?.toLowerCase().includes(query.toLowerCase())
+      const [storesRes, productsRes] = await Promise.all([
+        fetch(`${API_URL}/storefront/stores`),
+        fetch(`${API_URL}/storefront/products?limit=200&store=all`),
+      ])
+      const storesJson = await storesRes.json()
+      const productsJson = await productsRes.json()
+
+      if (storesJson.success && storesJson.data) {
+        setGlobalSearchStores(
+          storesJson.data.filter((s: any) =>
+            s.name?.toLowerCase().includes(q) ||
+            s.businessType?.toLowerCase().includes(q) ||
+            s.slug?.toLowerCase().includes(q)
+          )
         )
-        setGlobalSearchResults(filtered)
+      }
+      if (productsJson.success && productsJson.data?.products) {
+        setGlobalSearchResults(
+          productsJson.data.products.filter((p: StorefrontProduct) =>
+            p.name.toLowerCase().includes(q) ||
+            p.brand?.toLowerCase().includes(q) ||
+            p.category?.toLowerCase().includes(q)
+          )
+        )
       }
     } catch (e) {
-      console.error('Error searching products:', e)
+      console.error('Error buscando:', e)
     } finally {
       setLoadingGlobalSearch(false)
     }
   }
+
+  // ====== FETCH ALL PRODUCTS (for stores view and catalog all-stores view) ======
+  useEffect(() => {
+    if ((!showStoresView && !showCatalog) || selectedStore !== 'all') return
+    const load = async () => {
+      setLoadingAllProducts(true)
+      try {
+        const res = await fetch(`${API_URL}/storefront/products?limit=200&store=all`)
+        const json = await res.json()
+        if (json.success && json.data?.products) {
+          setAllProducts(json.data.products)
+          // Also populate categories from all products
+          const cats = Array.from(new Set(json.data.products.map((p: any) => p.category).filter(Boolean))) as string[]
+          setCategories(cats)
+        }
+      } catch (e) { console.error(e) }
+      finally { setLoadingAllProducts(false) }
+    }
+    load()
+  }, [showStoresView, showCatalog, selectedStore, API_URL])
 
   // ====== FETCH PRODUCTS ======
   useEffect(() => {
@@ -1876,7 +1931,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 />
               </>
             ) : (
-              <span className="text-xl font-light tracking-[0.3em] text-white uppercase">{storeConfig?.storeInfo?.name || 'Tienda'}</span>
+              <span className="text-xl font-light tracking-[0.3em] text-white uppercase">{storeConfig?.storeInfo?.name || 'DAIMUZ'}</span>
             )}
           </div>
           {/* Mobile: logo centered */}
@@ -1955,6 +2010,12 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
             )}
             {publicServices.length > 0 && <button onClick={() => { closeProductModal(); setShowServices(true); setShowCatalog(false); setShowDrop(false); setShowNewLaunches(false); setShowOffers(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className={`${showServices ? 'text-white' : 'text-white/50'} hover:text-white transition-colors uppercase text-xs tracking-[0.2em]`}>Servicios</button>}
             {storeConfig?.activeDrop && <button onClick={() => { closeProductModal(); setShowDrop(true); setShowCatalog(false); setShowServices(false); setShowNewLaunches(false); setShowOffers(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className={`${showDrop ? 'text-white' : 'text-white/50'} hover:text-white transition-colors uppercase text-xs tracking-[0.2em]`}>Drop</button>}
+            {storeConfig?.publicMenuEnabled && selectedStore !== 'all' && (
+              <a href={`/menu/${selectedStore}`} target="_blank" rel="noreferrer"
+                className="text-white/50 hover:text-white transition-colors uppercase text-xs tracking-[0.2em]">
+                Menú
+              </a>
+            )}
           </div>
           <div className="flex items-center gap-3">
             {isAuthenticated && authUser ? (
@@ -2011,7 +2072,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         <>
           <div
             className="fixed inset-0 z-[48] hidden md:block"
-            onClick={() => { setShowDesktopSearch(false); setGlobalSearchQuery(''); setGlobalSearchResults([]) }}
+            onClick={() => { setShowDesktopSearch(false); setGlobalSearchQuery(''); setGlobalSearchResults([]); setGlobalSearchStores([]) }}
           />
           <div
             className="fixed left-0 right-0 z-[49] hidden md:block border-b border-white/10 shadow-2xl"
@@ -2033,7 +2094,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 />
                 {globalSearchQuery ? (
                   <button
-                    onClick={() => { setGlobalSearchQuery(''); setGlobalSearchResults([]); desktopSearchInputRef.current?.focus() }}
+                    onClick={() => { setGlobalSearchQuery(''); setGlobalSearchResults([]); setGlobalSearchStores([]); desktopSearchInputRef.current?.focus() }}
                     className="absolute right-4 top-1/2 -translate-y-1/2 text-white/30 hover:text-white"
                   >
                     <X className="w-4 h-4" />
@@ -2050,24 +2111,67 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
               {/* Results */}
               {!globalSearchQuery ? (
-                <p className="text-center text-white/30 text-sm py-6">Escribe para buscar productos...</p>
+                <p className="text-center text-white/30 text-sm py-6">Escribe para buscar tiendas, productos o servicios...</p>
               ) : loadingGlobalSearch ? (
                 <div className="flex items-center justify-center gap-3 py-6">
                   <div className="w-5 h-5 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
                   <span className="text-white/40 text-sm">Buscando...</span>
                 </div>
-              ) : globalSearchResults.length === 0 ? (
+              ) : globalSearchResults.length === 0 && globalSearchStores.length === 0 ? (
                 <p className="text-center text-white/30 text-sm py-6">Sin resultados para &ldquo;{globalSearchQuery}&rdquo;</p>
               ) : (
-                <div className="mt-4 grid grid-cols-4 gap-3 pb-4 max-h-[60vh] overflow-y-auto">
-                  {globalSearchResults.slice(0, 12).map(product => {
+                <div className="mt-4 pb-4 max-h-[60vh] overflow-y-auto space-y-4">
+                  {/* Stores */}
+                  {globalSearchStores.length > 0 && (
+                    <div>
+                      <p className="text-[10px] uppercase tracking-widest text-white/20 mb-3 font-light">Tiendas</p>
+                      <div className="flex flex-col gap-1.5">
+                        {globalSearchStores.map(store => (
+                          <button
+                            key={store.id}
+                            onClick={() => { setSelectedStore(store.slug); setShowDesktopSearch(false); setGlobalSearchQuery(''); setGlobalSearchResults([]); setGlobalSearchStores([]) }}
+                            className="group flex items-center gap-4 px-4 py-3 rounded-none border-b border-white/5 hover:bg-white/4 hover:border-amber-500/20 transition-all duration-150 text-left w-full"
+                          >
+                            {/* Logo / icon */}
+                            <div className="shrink-0 w-10 h-10 rounded-sm overflow-hidden border border-white/8 bg-white/3 flex items-center justify-center">
+                              {store.logoUrl ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={ensureAbsoluteUrl(store.logoUrl)} alt={store.name} className="w-full h-full object-cover" />
+                              ) : (
+                                <Store className="w-4 h-4 text-white/20" />
+                              )}
+                            </div>
+                            {/* Info */}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-light text-white/90 tracking-wide truncate group-hover:text-white transition-colors">
+                                {store.name}
+                              </p>
+                              {store.businessType && (
+                                <p className="text-[11px] text-amber-500/60 uppercase tracking-widest font-light mt-0.5 truncate">
+                                  {store.businessType}
+                                </p>
+                              )}
+                            </div>
+                            {/* Arrow */}
+                            <ChevronRight className="w-3.5 h-3.5 text-white/15 group-hover:text-amber-500/50 transition-colors shrink-0" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {/* Products */}
+                  {globalSearchResults.length > 0 && (
+                    <div>
+                      {globalSearchStores.length > 0 && <p className="text-[10px] uppercase tracking-widest text-white/30 mb-2">Productos</p>}
+                      <div className="grid grid-cols-4 gap-3">
+                        {globalSearchResults.slice(0, 12).map(product => {
                     const isOffer = product.isOnOffer && product.offerPrice
                     const inCart = carrito.find(c => c.id === product.id)
                     return (
                       <div
                         key={product.id}
                         className={`group relative bg-white/5 border ${isOffer ? 'border-orange-500/30' : 'border-white/10'} overflow-hidden cursor-pointer hover:border-amber-500/40 transition-colors`}
-                        onClick={() => { openProductModal(product); setShowDesktopSearch(false); setGlobalSearchQuery(''); setGlobalSearchResults([]) }}
+                        onClick={() => { openProductModal(product); setShowDesktopSearch(false); setGlobalSearchQuery(''); setGlobalSearchResults([]); setGlobalSearchStores([]) }}
                       >
                         <div data-dark className="relative aspect-square bg-black/50 overflow-hidden">
                           {product.imageUrl ? (
@@ -2092,6 +2196,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       </div>
                     )
                   })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -2132,6 +2239,14 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               {publicServices.length > 0 && <button onClick={() => { closeProductModal(); setShowServices(true); setShowCatalog(false); setShowDrop(false); setShowNewLaunches(false); setShowOffers(false); setMobileMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className={`text-left py-2 ${showServices ? 'text-white' : 'text-white/50'} hover:text-white transition-colors uppercase border-b border-white/5`}>Servicios</button>}
               {storeConfig?.activeDrop && <button onClick={() => { closeProductModal(); setShowDrop(true); setShowCatalog(false); setShowServices(false); setShowNewLaunches(false); setShowOffers(false); setMobileMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className={`text-left py-2 ${showDrop ? 'text-white' : 'text-white/50'} hover:text-white transition-colors uppercase border-b border-white/5`}>Drop</button>}
               {offerProducts.length > 0 && <button onClick={() => { closeProductModal(); setShowOffers(true); setShowCatalog(false); setShowDrop(false); setShowServices(false); setShowNewLaunches(false); setMobileMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className={`text-left py-2 ${showOffers ? 'text-white' : 'text-white/50'} hover:text-white transition-colors uppercase border-b border-white/5`}>Ofertas</button>}
+              {storeConfig?.publicMenuEnabled && selectedStore !== 'all' && (
+                <a href={`/menu/${selectedStore}`} target="_blank" rel="noreferrer"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="text-left py-2 text-amber-400 hover:text-amber-300 transition-colors uppercase border-b border-white/5 flex items-center gap-2">
+                  <UtensilsCrossed className="w-4 h-4" />
+                  Menú
+                </a>
+              )}
               {isAuthenticated && authUser ? (
                 <>
                   <button onClick={() => { fetchClientOrders(); setShowMyOrders(true); setMobileMenuOpen(false) }} className="text-left py-2 text-amber-400 hover:text-amber-300 transition-colors uppercase border-b border-white/5 flex items-center gap-2"><Package className="w-4 h-4" />Mis Pedidos</button>
@@ -2748,7 +2863,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       : 'Catálogo'}
                   </h1>
                   <div className="flex items-center gap-3">
-                    {!(sedesViewMode && !activeSede) && <span className="text-xs text-white/40">{catalogFilteredProducts.length} producto{catalogFilteredProducts.length !== 1 ? 's' : ''}</span>}
+                    {selectedStore === 'all' && !sedesViewMode && <span className="text-xs text-white/40">{stores.filter(s => businessTypeFilter === 'all' || s.businessType === businessTypeFilter).length} comercio{stores.filter(s => businessTypeFilter === 'all' || s.businessType === businessTypeFilter).length !== 1 ? 's' : ''}</span>}
+                    {selectedStore !== 'all' && !(sedesViewMode && !activeSede) && <span className="text-xs text-white/40">{catalogFilteredProducts.length} producto{catalogFilteredProducts.length !== 1 ? 's' : ''}</span>}
                     {sedesViewMode && !activeSede && <span className="text-xs text-white/40">{storeSedes.length} sede{storeSedes.length !== 1 ? 's' : ''}</span>}
                     {/* Mobile filter toggle */}
                     <button
@@ -2760,8 +2876,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     </button>
                   </div>
                 </div>
-                {/* Search bar (hidden in sede picker view) */}
-                {!(sedesViewMode && !activeSede) && <div className="relative">
+                {/* Search bar (hidden in sede picker view and all-stores view) */}
+                {!(sedesViewMode && !activeSede) && selectedStore !== 'all' && <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
                   <input
                     type="text"
@@ -2828,8 +2944,137 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
               {/* Products Grid */}
               <div className="px-4 sm:px-6 lg:px-8 py-6">
-                {/* Sede Picker View */}
-                {sedesViewMode && !activeSede ? (
+
+                {/* ── ALL-STORES CATALOG: grouped by business type ── */}
+                {selectedStore === 'all' && !sedesViewMode ? (
+                  <div className="space-y-10">
+                    {/* Business type filter pills */}
+                    {(() => {
+                      const types = Array.from(new Set(stores.map(s => s.businessType).filter(Boolean))) as string[]
+                      return types.length > 1 ? (
+                        <div className="flex gap-2 flex-wrap">
+                          <button
+                            onClick={() => setBusinessTypeFilter('all')}
+                            className={`px-4 py-1.5 text-xs uppercase tracking-wider border transition-colors ${businessTypeFilter === 'all' ? 'bg-amber-500 border-amber-500 text-black font-medium' : 'border-white/20 text-white/50 hover:border-white/40 hover:text-white'}`}
+                          >
+                            Todos
+                          </button>
+                          {types.map(t => (
+                            <button
+                              key={t}
+                              onClick={() => setBusinessTypeFilter(businessTypeFilter === t ? 'all' : t)}
+                              className={`px-4 py-1.5 text-xs uppercase tracking-wider border transition-colors ${businessTypeFilter === t ? 'bg-amber-500 border-amber-500 text-black font-medium' : 'border-white/20 text-white/50 hover:border-white/40 hover:text-white'}`}
+                            >
+                              {t}
+                            </button>
+                          ))}
+                        </div>
+                      ) : null
+                    })()}
+
+                    {loadingAllProducts ? (
+                      <div className="text-center py-20">
+                        <div className="w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                        <p className="text-white/40 text-sm font-light">Cargando catálogo...</p>
+                      </div>
+                    ) : (() => {
+                      const types = Array.from(new Set(
+                        stores
+                          .filter(s => businessTypeFilter === 'all' || s.businessType === businessTypeFilter)
+                          .map(s => s.businessType || 'General')
+                      ))
+                      return types.map(type => {
+                        const typeStores = stores.filter(s => (s.businessType || 'General') === type && (businessTypeFilter === 'all' || s.businessType === businessTypeFilter))
+                        if (typeStores.length === 0) return null
+                        return (
+                          <div key={type} className="space-y-4">
+                            {/* Category section header */}
+                            <div className="flex items-center gap-4">
+                              <div className="h-px flex-1 bg-white/5" />
+                              <div className="flex items-center gap-2">
+                                <Store className="w-3 h-3 text-amber-500/60" />
+                                <span className="text-[10px] uppercase tracking-[0.3em] text-amber-500/70 font-light">{type}</span>
+                                <span className="text-[10px] text-white/20">· {typeStores.length} comercio{typeStores.length !== 1 ? 's' : ''}</span>
+                              </div>
+                              <div className="h-px flex-1 bg-white/5" />
+                            </div>
+
+                            {/* Store cards for this type */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                              {typeStores.map(store => {
+                                const storeProds = allProducts.filter(p =>
+                                  p.storeSlug === store.slug ||
+                                  p.storeName === store.name
+                                )
+                                const preview = storeProds.slice(0, 4)
+                                return (
+                                  <div
+                                    key={store.id}
+                                    className="group bg-white/[0.03] border border-white/8 hover:border-amber-500/30 hover:bg-white/[0.05] transition-all duration-300 overflow-hidden cursor-pointer"
+                                    onClick={() => {
+                                      setSelectedStore(store.slug)
+                                      setBusinessTypeFilter('all')
+                                    }}
+                                  >
+                                    {/* Store header */}
+                                    <div className="flex items-center gap-3 px-4 pt-4 pb-3">
+                                      <div className="w-9 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center overflow-hidden shrink-0">
+                                        {store.logoUrl ? (
+                                          // eslint-disable-next-line @next/next/no-img-element
+                                          <img src={store.logoUrl} alt={store.name} className="w-full h-full object-cover" />
+                                        ) : (
+                                          <Store className="w-4 h-4 text-white/30" />
+                                        )}
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-white text-sm font-medium leading-tight truncate">{store.name}</p>
+                                        <p className="text-white/30 text-[10px] uppercase tracking-wider mt-0.5">{storeProds.length} producto{storeProds.length !== 1 ? 's' : ''}</p>
+                                      </div>
+                                      <ArrowRight className="w-3.5 h-3.5 text-white/20 group-hover:text-amber-400 group-hover:translate-x-0.5 transition-all" />
+                                    </div>
+
+                                    {/* Product preview strip */}
+                                    {preview.length > 0 ? (
+                                      <div className="grid grid-cols-4 gap-px bg-white/5">
+                                        {preview.map((p, i) => (
+                                          <div key={p.id} className="relative aspect-square bg-black/40 overflow-hidden">
+                                            {p.imageUrl ? (
+                                              // eslint-disable-next-line @next/next/no-img-element
+                                              <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                                            ) : (
+                                              <div className="w-full h-full flex items-center justify-center">
+                                                <Package className="w-4 h-4 text-white/10" />
+                                              </div>
+                                            )}
+                                            {i === 3 && storeProds.length > 4 && (
+                                              <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                                                <span className="text-white text-xs font-medium">+{storeProds.length - 4}</span>
+                                              </div>
+                                            )}
+                                          </div>
+                                        ))}
+                                        {Array.from({ length: Math.max(0, 4 - preview.length) }).map((_, i) => (
+                                          <div key={`empty-${i}`} className="aspect-square bg-black/20" />
+                                        ))}
+                                      </div>
+                                    ) : (
+                                      <div className="h-16 bg-white/[0.01] flex items-center justify-center border-t border-white/5">
+                                        <p className="text-white/15 text-[10px] uppercase tracking-wider">Sin productos</p>
+                                      </div>
+                                    )}
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )
+                      })
+                    })()}
+                  </div>
+
+                ) : (
+                /* Sede Picker View */
+                sedesViewMode && !activeSede ? (
                   <div className="space-y-8">
                     <div className="flex items-center gap-3">
                       <div className="h-px flex-1 bg-white/5" />
@@ -3110,7 +3355,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       )
                     })}
                   </div>
-                )}
+                ))}
               </div>
             </main>
           </div>
@@ -4780,86 +5025,242 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
             </div>
           )}
 
-          {/* STORES SECTION — moved to bottom when in all-stores view */}
-          {showStoresView && selectedStore === 'all' && stores.length > 0 && (
-            <div className="mt-4 mb-12">
-              {/* Stores carousel header */}
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-2">
-                  <Store className="w-4 h-4 text-amber-500" />
-                  <span className="text-white/60 text-sm font-light uppercase tracking-widest">Comercios Activos en el Epicentro</span>
-                </div>
-              </div>
-              {/* Carousel */}
-              <div className="relative">
-                <button onClick={() => carouselStoresRef.current?.scrollBy({ left: -600, behavior: 'smooth' })} className="absolute -left-3 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-black/80 border border-white/20 flex items-center justify-center text-white hover:bg-amber-500 hover:border-amber-500 hover:text-black transition-all shadow-lg hidden sm:flex"><ChevronLeft className="w-4 h-4" /></button>
-                <div ref={carouselStoresRef} className="flex gap-5 overflow-x-auto scrollbar-hide scroll-smooth">
-                  {stores.map(store => (
+          {/* ===== MARKETPLACE: ALL STORES VIEW ===== */}
+          {showStoresView && selectedStore === 'all' && (
+            <div className="space-y-8 mt-2">
+
+              {/* ── Filter row ── */}
+              <div className="space-y-3">
+                {/* Business type pills */}
+                {stores.length > 0 && (
+                  <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1 -mx-4 px-4 sm:mx-0 sm:px-0">
                     <button
-                      key={store.id}
-                      onClick={() => {
-                        setSelectedStore(store.slug)
-                        setShowStoresView(false)
-                        setActiveSede(null)
-                        setStoreSedes([])
-                      }}
-                      className="group relative bg-white/5 border border-white/10 hover:border-amber-500/40 transition-all duration-500 overflow-hidden text-left flex-shrink-0 w-64 sm:w-72"
+                      onClick={() => setBusinessTypeFilter('all')}
+                      className={`shrink-0 px-4 py-1.5 text-[11px] uppercase tracking-widest border transition-all ${
+                        businessTypeFilter === 'all'
+                          ? 'bg-amber-500 text-black border-amber-500'
+                          : 'bg-transparent text-white/40 border-white/10 hover:border-white/30 hover:text-white/70'
+                      }`}
                     >
-                      {/* Services ribbon — direct child of card, outside any overflow-hidden child */}
-                      {storesWithServices.has(store.slug) && (
-                        <div style={{ position: 'absolute', top: 0, left: 0, width: 96, height: 96, zIndex: 30, pointerEvents: 'none', overflow: 'hidden' }}>
-                          <div style={{
-                            position: 'absolute', top: 22, left: -26, width: 120,
-                            transform: 'rotate(-45deg)',
-                            background: 'linear-gradient(90deg,#7c3aed,#a855f7)',
-                            color: '#fff', fontSize: 9, fontWeight: 800,
-                            textTransform: 'uppercase', letterSpacing: '0.18em',
-                            padding: '4px 0', textAlign: 'center',
-                            boxShadow: '0 2px 8px rgba(124,58,237,0.5)',
-                          }}>
-                            Servicios
-                          </div>
-                        </div>
-                      )}
-                      {/* Store Image/Logo */}
-                      <div className="relative h-40 bg-gradient-to-br from-amber-500/10 via-black to-white/5 overflow-hidden flex items-center justify-center">
-                        {store.logoUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={ensureAbsoluteUrl(store.logoUrl)} alt={store.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
-                        ) : (
-                          <Store className="w-16 h-16 text-amber-500/20 group-hover:text-amber-500/40 transition-colors duration-500" />
-                        )}
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-                        {/* Product count badge */}
-                        <div className="absolute top-3 right-3 bg-amber-500/90 text-black text-[10px] font-bold px-2 py-1 flex items-center gap-1">
-                          <Package className="w-3 h-3" />
-                          {store.productCount}
-                        </div>
-                      </div>
-                      {/* Store Info */}
-                      <div className="p-5 space-y-2">
-                        <h3 className="text-base font-light text-white group-hover:text-amber-400 transition-colors truncate">{store.name}</h3>
-                        {store.businessType && (
-                          <p className="text-[11px] text-amber-400/60 uppercase tracking-widest">{store.businessType}</p>
-                        )}
-                        {store.address && (
-                          <p className="text-xs text-white/30 font-light flex items-center gap-1.5 truncate">
-                            <MapPin className="w-3 h-3 shrink-0" />
-                            {store.address}
-                          </p>
-                        )}
-                        <div className="flex items-center gap-2 text-amber-400/70 text-xs uppercase tracking-[0.15em] font-light pt-2 group-hover:gap-3 transition-all">
-                          <span>Ver productos</span>
-                          <ArrowRight className="w-3 h-3" />
-                        </div>
-                      </div>
+                      Todos los comercios
                     </button>
-                  ))}
-                </div>
-                <button onClick={() => carouselStoresRef.current?.scrollBy({ left: 600, behavior: 'smooth' })} className="absolute -right-3 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-black/80 border border-white/20 flex items-center justify-center text-white hover:bg-amber-500 hover:border-amber-500 hover:text-black transition-all shadow-lg hidden sm:flex"><ChevronRight className="w-4 h-4" /></button>
+                    {Array.from(new Set(stores.map(s => s.businessType).filter(Boolean))).map(type => (
+                      <button
+                        key={type}
+                        onClick={() => setBusinessTypeFilter(type!)}
+                        className={`shrink-0 px-4 py-1.5 text-[11px] uppercase tracking-widest border transition-all ${
+                          businessTypeFilter === type
+                            ? 'bg-amber-500 text-black border-amber-500'
+                            : 'bg-transparent text-white/40 border-white/10 hover:border-white/30 hover:text-white/70'
+                        }`}
+                      >
+                        {type}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Category pills */}
+                {categories.length > 0 && (
+                  <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1 -mx-4 px-4 sm:mx-0 sm:px-0">
+                    <button
+                      onClick={() => setSelectedCategory('all')}
+                      className={`shrink-0 px-3 py-1 text-[10px] uppercase tracking-widest border transition-all ${
+                        selectedCategory === 'all'
+                          ? 'border-white/40 text-white/80 bg-white/5'
+                          : 'border-white/8 text-white/30 hover:border-white/20 hover:text-white/50'
+                      }`}
+                    >
+                      Todas las categorías
+                    </button>
+                    {categories.map(cat => (
+                      <button
+                        key={cat}
+                        onClick={() => setSelectedCategory(cat)}
+                        className={`shrink-0 px-3 py-1 text-[10px] uppercase tracking-widest border transition-all ${
+                          selectedCategory === cat
+                            ? 'border-white/40 text-white/80 bg-white/5'
+                            : 'border-white/8 text-white/30 hover:border-white/20 hover:text-white/50'
+                        }`}
+                      >
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
+
+              {/* ── Store cards grid ── */}
+              {(() => {
+                const visibleStores = stores.filter(s =>
+                  businessTypeFilter === 'all' || s.businessType === businessTypeFilter
+                )
+                return visibleStores.length === 0 ? null : (
+                  <div>
+                    <div className="flex items-center gap-2 mb-5">
+                      <Store className="w-3.5 h-3.5 text-amber-500/60" />
+                      <span className="text-[10px] uppercase tracking-widest text-white/30 font-light">
+                        {visibleStores.length} Comercio{visibleStores.length !== 1 ? 's' : ''}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {visibleStores.map(store => {
+                        const storeProducts = allProducts.filter(p => {
+                          const matchStore = p.storeName === store.name || (p as any).storeSlug === store.slug || (p as any).tenantSlug === store.slug
+                          const matchCat = selectedCategory === 'all' || p.category === selectedCategory
+                          return matchStore && matchCat
+                        }).slice(0, 4)
+                        return (
+                          <button
+                            key={store.id}
+                            onClick={() => { setSelectedStore(store.slug); setShowStoresView(false); setActiveSede(null); setStoreSedes([]) }}
+                            className="group relative bg-white/3 border border-white/8 hover:border-amber-500/30 transition-all duration-300 overflow-hidden text-left flex flex-col"
+                          >
+                            {/* Services ribbon */}
+                            {storesWithServices.has(store.slug) && (
+                              <div style={{ position: 'absolute', top: 0, left: 0, width: 80, height: 80, zIndex: 30, pointerEvents: 'none', overflow: 'hidden' }}>
+                                <div style={{ position: 'absolute', top: 18, left: -22, width: 100, transform: 'rotate(-45deg)', background: 'linear-gradient(90deg,#7c3aed,#a855f7)', color: '#fff', fontSize: 8, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.18em', padding: '3px 0', textAlign: 'center' }}>
+                                  Servicios
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Banner */}
+                            <div className="relative h-32 bg-gradient-to-br from-amber-500/8 via-black to-white/3 overflow-hidden flex items-center justify-center shrink-0">
+                              {store.logoUrl ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={ensureAbsoluteUrl(store.logoUrl)} alt={store.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 opacity-80 group-hover:opacity-100" />
+                              ) : (
+                                <Store className="w-12 h-12 text-amber-500/15 group-hover:text-amber-500/30 transition-colors duration-500" />
+                              )}
+                              <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-transparent" />
+                              {/* Badges */}
+                              <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5">
+                                <span className="bg-black/70 border border-white/10 text-white/60 text-[9px] px-2 py-0.5 flex items-center gap-1">
+                                  <Package className="w-2.5 h-2.5" />{store.productCount}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Info */}
+                            <div className="px-4 pt-3 pb-2">
+                              <h3 className="text-sm font-light text-white group-hover:text-amber-400 transition-colors truncate">{store.name}</h3>
+                              {store.businessType && (
+                                <p className="text-[10px] text-amber-500/50 uppercase tracking-widest mt-0.5">{store.businessType}</p>
+                              )}
+                              {store.address && (
+                                <p className="text-[11px] text-white/25 font-light flex items-center gap-1 mt-1 truncate">
+                                  <MapPin className="w-2.5 h-2.5 shrink-0" />{store.address}
+                                </p>
+                              )}
+                            </div>
+
+                            {/* Product previews */}
+                            {loadingAllProducts ? (
+                              <div className="px-4 pb-3 flex gap-1.5">
+                                {[0,1,2].map(i => <div key={i} className="w-14 h-14 bg-white/5 animate-pulse" />)}
+                              </div>
+                            ) : storeProducts.length > 0 ? (
+                              <div className="px-4 pb-3 flex gap-1.5 flex-wrap">
+                                {storeProducts.map(p => (
+                                  <div key={p.id} className="w-14 h-14 bg-white/5 border border-white/5 overflow-hidden shrink-0">
+                                    {p.imageUrl ? (
+                                      // eslint-disable-next-line @next/next/no-img-element
+                                      <img src={ensureAbsoluteUrl(p.imageUrl)} alt={p.name} className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition-opacity" />
+                                    ) : (
+                                      <div className="w-full h-full flex items-center justify-center"><Sparkles className="w-4 h-4 text-white/10" /></div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="px-4 pb-3">
+                                <p className="text-[10px] text-white/15 italic">Sin productos publicados</p>
+                              </div>
+                            )}
+
+                            {/* CTA */}
+                            <div className="px-4 pb-4 mt-auto flex items-center gap-1.5 text-amber-400/50 text-[10px] uppercase tracking-widest group-hover:text-amber-400/80 transition-colors">
+                              <span>Explorar tienda</span>
+                              <ArrowRight className="w-3 h-3" />
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })()}
+
+              {/* ── All products across stores ── */}
+              {(() => {
+                const filtered = allProducts.filter(p => {
+                  const matchType = businessTypeFilter === 'all' || stores.find(s => (s.name === p.storeName || (s as any).slug === (p as any).storeSlug || (s as any).slug === (p as any).tenantSlug) && s.businessType === businessTypeFilter)
+                  const matchCat = selectedCategory === 'all' || p.category === selectedCategory
+                  const matchSearch = !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.brand?.toLowerCase().includes(searchQuery.toLowerCase())
+                  return matchType && matchCat && matchSearch
+                })
+                if (filtered.length === 0 && !loadingAllProducts) return null
+                return (
+                  <div>
+                    <div className="flex items-center gap-2 mb-5">
+                      <Package className="w-3.5 h-3.5 text-amber-500/60" />
+                      <span className="text-[10px] uppercase tracking-widest text-white/30 font-light">
+                        {loadingAllProducts ? 'Cargando productos...' : `${filtered.length} Producto${filtered.length !== 1 ? 's' : ''}`}
+                      </span>
+                    </div>
+                    {loadingAllProducts ? (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                        {[0,1,2,3,4,5,6,7,8,9].map(i => (
+                          <div key={i} className="bg-white/5 animate-pulse aspect-[3/4]" />
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                        {filtered.slice(0, 40).map(product => {
+                          const isOffer = product.isOnOffer && product.offerPrice
+                          const inCart = carrito.find(c => c.id === product.id)
+                          return (
+                            <button
+                              key={product.id}
+                              onClick={() => openProductModal(product)}
+                              className="group relative bg-white/3 border border-white/8 hover:border-amber-500/30 overflow-hidden transition-all duration-300 text-left"
+                            >
+                              <div className="relative aspect-[3/4] bg-black/50 overflow-hidden">
+                                {product.imageUrl ? (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img src={ensureAbsoluteUrl(product.imageUrl)} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center"><Sparkles className="w-8 h-8 text-white/8" /></div>
+                                )}
+                                {isOffer && (
+                                  <div className="absolute top-2 left-2 bg-gradient-to-r from-red-600 to-orange-600 text-white text-[9px] font-bold px-1.5 py-0.5">OFERTA</div>
+                                )}
+                                {inCart && (
+                                  <div className="absolute bottom-2 right-2 bg-amber-500 text-black text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center">{inCart.cantidad}</div>
+                                )}
+                              </div>
+                              <div className="p-2.5">
+                                <p className="text-[11px] text-white/70 truncate font-light">{product.name}</p>
+                                {product.storeName && (
+                                  <p className="text-[9px] text-white/25 truncate mt-0.5 uppercase tracking-wide">{product.storeName}</p>
+                                )}
+                                <p className="text-xs text-amber-400 font-light mt-1">
+                                  {isOffer ? formatCOP(product.offerPrice!) : formatCOP(product.salePrice)}
+                                </p>
+                              </div>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
+
             </div>
           )}
+          {/* Category filter — only when a store is selected */}
           {!(showStoresView && selectedStore === 'all') && (
             <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-2 sm:pb-0 sm:flex-wrap sm:justify-center mb-6 sm:mb-10 -mx-4 px-4 sm:mx-0 sm:px-0">
               <button
@@ -6189,7 +6590,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 autoFocus
               />
               {globalSearchQuery && (
-                <button onClick={() => { setGlobalSearchQuery(''); setGlobalSearchResults([]) }} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white">
+                <button onClick={() => { setGlobalSearchQuery(''); setGlobalSearchResults([]); setGlobalSearchStores([]) }} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white">
                   <X className="w-4 h-4" />
                 </button>
               )}
@@ -6200,21 +6601,61 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
             {!globalSearchQuery ? (
               <div className="text-center py-16">
                 <Search className="w-12 h-12 text-white/10 mx-auto mb-4" />
-                <p className="text-white/40 text-sm font-light">Busca productos, marcas o categorías</p>
+                <p className="text-white/40 text-sm font-light">Busca tiendas, productos o servicios</p>
               </div>
             ) : loadingGlobalSearch ? (
               <div className="text-center py-12">
                 <div className="w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
                 <p className="text-white/40 text-sm">Buscando...</p>
               </div>
-            ) : globalSearchResults.length === 0 ? (
+            ) : globalSearchResults.length === 0 && globalSearchStores.length === 0 ? (
               <div className="text-center py-12">
                 <Search className="w-12 h-12 text-white/10 mx-auto mb-4" />
                 <p className="text-white/40 text-sm font-light">No se encontraron resultados para &quot;{globalSearchQuery}&quot;</p>
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-3">
-                {globalSearchResults.map(product => {
+              <div className="space-y-5">
+                {/* Stores */}
+                {globalSearchStores.length > 0 && (
+                  <div>
+                    <p className="text-[10px] uppercase tracking-widest text-white/20 mb-3 font-light">Tiendas</p>
+                    <div className="flex flex-col gap-1">
+                      {globalSearchStores.map(store => (
+                        <button
+                          key={store.id}
+                          onClick={() => { setSelectedStore(store.slug); setGlobalSearchQuery(''); setGlobalSearchResults([]); setGlobalSearchStores([]) }}
+                          className="group flex items-center gap-4 px-1 py-3 border-b border-white/5 active:bg-white/4 transition-all text-left w-full"
+                        >
+                          <div className="shrink-0 w-11 h-11 rounded-sm overflow-hidden border border-white/8 bg-white/3 flex items-center justify-center">
+                            {store.logoUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={ensureAbsoluteUrl(store.logoUrl)} alt={store.name} className="w-full h-full object-cover" />
+                            ) : (
+                              <Store className="w-4 h-4 text-white/20" />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-light text-white/90 tracking-wide truncate">
+                              {store.name}
+                            </p>
+                            {store.businessType && (
+                              <p className="text-[11px] text-amber-500/60 uppercase tracking-widest font-light mt-0.5 truncate">
+                                {store.businessType}
+                              </p>
+                            )}
+                          </div>
+                          <ChevronRight className="w-3.5 h-3.5 text-white/15 shrink-0" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {/* Products */}
+                {globalSearchResults.length > 0 && (
+                  <div>
+                    {globalSearchStores.length > 0 && <p className="text-[10px] uppercase tracking-widest text-white/30 mb-2">Productos</p>}
+                    <div className="grid grid-cols-2 gap-3">
+                      {globalSearchResults.map(product => {
                   const isOffer = product.isOnOffer && product.offerPrice
                   const inCart = carrito.find(c => c.id === product.id)
                   return (
@@ -6254,6 +6695,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     </div>
                   )
                 })}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

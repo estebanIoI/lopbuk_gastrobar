@@ -1522,6 +1522,198 @@ class ApiService {
   async deleteReview(id: string) {
     return this.request<any>(`/reviews/${id}`, { method: 'DELETE' })
   }
+
+  // ─── MercadoPago Suscripciones ────────────────────────────────────────────────
+
+  async getSubscriptionConfig() {
+    return this.request<{ configured: boolean; planIds: Record<string, string | null> }>('/subscriptions/config')
+  }
+
+  async createMPSubscription(plan: 'basico' | 'profesional' | 'empresarial') {
+    return this.request<{ url: string }>('/subscriptions/subscribe', {
+      method: 'POST',
+      body: JSON.stringify({ plan }),
+    })
+  }
+
+  async syncMPPlans() {
+    return this.request<Record<string, string>>('/subscriptions/sync-plans', { method: 'POST' })
+  }
+
+  async savePlanPrices(prices: { basico?: string; profesional?: string; empresarial?: string }) {
+    const tasks: Promise<any>[] = []
+    if (prices.basico !== undefined)      tasks.push(this.updatePlatformSetting('plan_price_basico', prices.basico))
+    if (prices.profesional !== undefined) tasks.push(this.updatePlatformSetting('plan_price_profesional', prices.profesional))
+    if (prices.empresarial !== undefined) tasks.push(this.updatePlatformSetting('plan_price_empresarial', prices.empresarial))
+    await Promise.all(tasks)
+    return { success: true }
+  }
+
+  // ── restBar module ──────────────────────────────────────────────────────────
+
+  async getRestbarTables() {
+    return this.request<any[]>('/restbar/tables')
+  }
+  async createRestbarTable(data: { number: string; capacity?: number; area?: string; notes?: string }) {
+    return this.request<any>('/restbar/tables', { method: 'POST', body: JSON.stringify(data) })
+  }
+  async updateRestbarTable(id: string, data: { number?: string; capacity?: number; area?: string; notes?: string; isActive?: boolean }) {
+    return this.request<any>(`/restbar/tables/${id}`, { method: 'PUT', body: JSON.stringify(data) })
+  }
+  async updateRestbarTableStatus(id: string, status: string) {
+    return this.request<any>(`/restbar/tables/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) })
+  }
+  async deleteRestbarTable(id: string) {
+    return this.request<any>(`/restbar/tables/${id}`, { method: 'DELETE' })
+  }
+  async getRestbarMenu() {
+    return this.request<any[]>('/restbar/menu')
+  }
+  async getMenuCatalog() {
+    return this.request<any[]>('/restbar/menu/catalog')
+  }
+  async updateMenuItemSettings(id: string, data: { isMenuItem: boolean; preparationArea?: string | null; prepTimeMinutes?: number | null }) {
+    return this.request<any>(`/restbar/menu/${id}/settings`, { method: 'PATCH', body: JSON.stringify(data) })
+  }
+  async toggleMenuItemAvailability(id: string) {
+    return this.request<any>(`/restbar/menu/${id}/availability`, { method: 'PATCH' })
+  }
+  async getMenuItemYield(id: string) {
+    return this.request<any>(`/restbar/menu/${id}/yield`)
+  }
+  async getRestbarOrders(status?: string) {
+    const q = status ? `?status=${status}` : ''
+    return this.request<any[]>(`/restbar/orders${q}`)
+  }
+  async getRestbarOrder(id: string) {
+    return this.request<any>(`/restbar/orders/${id}`)
+  }
+  async createRestbarOrder(data: { tableId: string; guestsCount?: number; notes?: string }) {
+    return this.request<any>('/restbar/orders', { method: 'POST', body: JSON.stringify(data) })
+  }
+  async addRestbarOrderItem(orderId: string, data: { menuItemId: string; quantity: number; itemNotes?: string; guestNumber?: number }) {
+    return this.request<any>(`/restbar/orders/${orderId}/items`, { method: 'POST', body: JSON.stringify(data) })
+  }
+  async updateRestbarOrderItem(orderId: string, itemId: string, data: { quantity?: number; itemNotes?: string; guestNumber?: number | null }) {
+    return this.request<any>(`/restbar/orders/${orderId}/items/${itemId}`, { method: 'PUT', body: JSON.stringify(data) })
+  }
+  async removeRestbarOrderItem(orderId: string, itemId: string) {
+    return this.request<any>(`/restbar/orders/${orderId}/items/${itemId}`, { method: 'DELETE' })
+  }
+  async sendRestbarOrderToKitchen(orderId: string) {
+    return this.request<any>(`/restbar/orders/${orderId}/send`, { method: 'POST' })
+  }
+  async getKitchenDisplay() {
+    return this.request<any[]>('/restbar/kitchen')
+  }
+  async getBarDisplay() {
+    return this.request<any[]>('/restbar/bar')
+  }
+  async updateRestbarItemStatus(itemId: string, status: string) {
+    return this.request<any>(`/restbar/items/${itemId}/status`, { method: 'PATCH', body: JSON.stringify({ status }) })
+  }
+  async updateRestbarOrderNotes(orderId: string, notes: string | null) {
+    return this.request<any>(`/restbar/orders/${orderId}/notes`, { method: 'PATCH', body: JSON.stringify({ notes }) })
+  }
+  async getRestbarGuestBreakdown(orderId: string) {
+    return this.request<any>(`/restbar/orders/${orderId}/guests`)
+  }
+  async processRestbarPayment(orderId: string, data: { paymentMethod: string; amountPaid: number; guestNumber?: number | null; cashSessionId?: string; notes?: string }) {
+    return this.request<any>(`/restbar/orders/${orderId}/pay`, { method: 'POST', body: JSON.stringify(data) })
+  }
+  async getRestbarEmployeePerformance(params?: { from?: string; to?: string }) {
+    const q = new URLSearchParams()
+    if (params?.from) q.set('from', params.from)
+    if (params?.to)   q.set('to',   params.to)
+    const query = q.toString()
+    return this.request<any[]>(`/vendedores/restbar-performance${query ? `?${query}` : ''}`)
+  }
+  async getRestbarDailySummary(date?: string) {
+    const q = date ? `?date=${date}` : ''
+    return this.request<any>(`/restbar/reports/summary${q}`)
+  }
+
+  async getRestbarPayments(date?: string) {
+    const q = date ? `?date=${date}` : ''
+    return this.request<any[]>(`/restbar/reports/payments${q}`)
+  }
+
+  async getPublicMenuSettings() {
+    return this.request<{ enabled: boolean; slug: string }>('/restbar/settings/public-menu')
+  }
+
+  async setPublicMenuEnabled(enabled: boolean) {
+    return this.request<{ enabled: boolean; slug: string }>('/restbar/settings/public-menu', {
+      method: 'PATCH',
+      body: JSON.stringify({ enabled }),
+    })
+  }
+
+  // ── Finances module ─────────────────────────────────────────────────────────
+
+  async getFinanceCategories(type?: 'ingreso' | 'egreso') {
+    const q = type ? `?type=${type}` : ''
+    return this.request<any[]>(`/finances/categories${q}`)
+  }
+  async seedFinanceCategories() {
+    return this.request<any>('/finances/categories/seed', { method: 'POST' })
+  }
+  async createFinanceCategory(data: { type: 'ingreso' | 'egreso'; name: string; icon?: string; color?: string }) {
+    return this.request<any>('/finances/categories', { method: 'POST', body: JSON.stringify(data) })
+  }
+  async updateFinanceCategory(id: string, data: { name?: string; icon?: string; color?: string }) {
+    return this.request<any>(`/finances/categories/${id}`, { method: 'PUT', body: JSON.stringify(data) })
+  }
+  async deleteFinanceCategory(id: string) {
+    return this.request<any>(`/finances/categories/${id}`, { method: 'DELETE' })
+  }
+  async getFinanceTransactions(params?: { type?: string; categoryId?: string; from?: string; to?: string; page?: number; limit?: number }) {
+    const q = new URLSearchParams()
+    if (params?.type)       q.set('type', params.type)
+    if (params?.categoryId) q.set('categoryId', params.categoryId)
+    if (params?.from)       q.set('from', params.from)
+    if (params?.to)         q.set('to', params.to)
+    if (params?.page)       q.set('page', String(params.page))
+    if (params?.limit)      q.set('limit', String(params.limit))
+    const query = q.toString()
+    return this.request<any>(`/finances/transactions${query ? `?${query}` : ''}`)
+  }
+  async createFinanceTransaction(data: { type: string; categoryId: string; description: string; amount: number; transactionDate: string; paymentMethod?: string; receiptNumber?: string; isRecurring?: boolean; notes?: string }) {
+    return this.request<any>('/finances/transactions', { method: 'POST', body: JSON.stringify(data) })
+  }
+  async updateFinanceTransaction(id: string, data: any) {
+    return this.request<any>(`/finances/transactions/${id}`, { method: 'PUT', body: JSON.stringify(data) })
+  }
+  async deleteFinanceTransaction(id: string) {
+    return this.request<any>(`/finances/transactions/${id}`, { method: 'DELETE' })
+  }
+  async getFinanceSummary(year?: number, month?: number) {
+    const q = new URLSearchParams()
+    if (year)  q.set('year',  String(year))
+    if (month) q.set('month', String(month))
+    const query = q.toString()
+    return this.request<any>(`/finances/summary${query ? `?${query}` : ''}`)
+  }
+  async getFinanceCashflow(from?: string, to?: string) {
+    const q = new URLSearchParams()
+    if (from) q.set('from', from)
+    if (to)   q.set('to', to)
+    const query = q.toString()
+    return this.request<any[]>(`/finances/reports/cashflow${query ? `?${query}` : ''}`)
+  }
+  async getFinanceBudgets(year?: number, month?: number) {
+    const q = new URLSearchParams()
+    if (year)  q.set('year',  String(year))
+    if (month) q.set('month', String(month))
+    const query = q.toString()
+    return this.request<any[]>(`/finances/budgets${query ? `?${query}` : ''}`)
+  }
+  async upsertFinanceBudget(data: { categoryId: string; year: number; month: number; budgetedAmount: number; notes?: string }) {
+    return this.request<any>('/finances/budgets', { method: 'POST', body: JSON.stringify(data) })
+  }
+  async deleteFinanceBudget(id: string) {
+    return this.request<any>(`/finances/budgets/${id}`, { method: 'DELETE' })
+  }
 }
 
 export const api = new ApiService()

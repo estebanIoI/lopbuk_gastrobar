@@ -204,11 +204,14 @@ export class NovedadesService {
     const targetYear = year || new Date().getFullYear();
 
     // Get all employees + their balance for the year (auto-create if missing)
+    // Includes all roles managed by the comerciante
     const [employees] = await db.execute<RowDataPacket[]>(
-      `SELECT u.id, u.name, u.cargo_id, ec.name AS cargo_name
+      `SELECT u.id, u.name, u.role, u.cargo_id, ec.name AS cargo_name
        FROM users u
        LEFT JOIN employee_cargos ec ON u.cargo_id = ec.id
-       WHERE u.tenant_id = ? AND u.role = 'vendedor' AND u.is_active = 1
+       WHERE u.tenant_id = ?
+         AND u.role IN ('vendedor','mesero','cocinero','cajero','bartender','administrador_rb')
+         AND u.is_active = 1
        ORDER BY u.name ASC`,
       [tenantId]
     );
@@ -236,6 +239,7 @@ export class NovedadesService {
       result.push({
         userId: emp.id,
         userName: emp.name,
+        role: emp.role,
         cargoName: emp.cargo_name || null,
         year: targetYear,
         daysGranted: balance.daysGranted,

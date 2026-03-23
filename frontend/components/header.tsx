@@ -16,6 +16,8 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { api } from '@/lib/api'
 import { SyncStatusBar } from '@/components/sync-status-bar'
+import { ProfileModal } from '@/components/profile-modal'
+import { PreferencesModal } from '@/components/preferences-modal'
 
 const sectionTitles: Record<string, string> = {
   dashboard: 'Dashboard',
@@ -215,6 +217,8 @@ function GlobalSearch() {
 export function Header() {
   const { activeSection, products, toggleSidebar, navigateToInventory, pendingOrdersCount, fetchPendingOrdersCount, navigateToPedidos } = useStore()
   const { logout } = useAuthStore()
+  const [profileOpen, setProfileOpen] = useState(false)
+  const [preferencesOpen, setPreferencesOpen] = useState(false)
   const lowStockProducts = products.filter(p => p.stock <= p.reorderPoint && p.stock > 0).sort((a, b) => a.stock - b.stock)
   const outOfStockProducts = products.filter(p => p.stock === 0)
   const lowStockCount = lowStockProducts.length
@@ -376,13 +380,16 @@ export function Header() {
           <DropdownMenuContent align="end" className="w-48 lg:w-56">
             <DropdownMenuLabel className="text-sm lg:text-base">Mi Cuenta</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-sm lg:text-base">Perfil</DropdownMenuItem>
-            <DropdownMenuItem className="text-sm lg:text-base">Preferencias</DropdownMenuItem>
+            <DropdownMenuItem className="text-sm lg:text-base" onClick={() => setProfileOpen(true)}>Perfil</DropdownMenuItem>
+            <DropdownMenuItem className="text-sm lg:text-base" onClick={() => setPreferencesOpen(true)}>Preferencias</DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={logout} className="text-sm lg:text-base">Cerrar Sesión</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      <ProfileModal open={profileOpen} onClose={() => setProfileOpen(false)} />
+      <PreferencesModal open={preferencesOpen} onClose={() => setPreferencesOpen(false)} />
     </header>
   )
 }

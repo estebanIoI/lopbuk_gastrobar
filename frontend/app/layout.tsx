@@ -10,7 +10,7 @@ import './globals.css'
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
-  title: 'perfum mua - !Bienvenido a la mejor perfumeria de colombia!',
+  title: 'DAIMUZ - !Bienvenido al epicentro digital de colombia!',
   description: 'Sistema completo de gestión de inventario para tiendas',
   generator: 'v0.app',
   icons: {
