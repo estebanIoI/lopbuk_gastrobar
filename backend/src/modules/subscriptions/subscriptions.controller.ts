@@ -44,13 +44,8 @@ export async function subscribe(req: AuthRequest, res: Response): Promise<void> 
       return;
     }
 
-    const payerEmail = req.user?.email;
-    if (!payerEmail) {
-      res.status(400).json({ success: false, error: 'No se pudo obtener el email del usuario' });
-      return;
-    }
     const origin = req.headers.origin || process.env.FRONTEND_URL || 'http://localhost:3000';
-    const result = await svc.createSubscription(tenantId, plan, origin, payerEmail);
+    const result = await svc.createSubscription(tenantId, plan, origin);
     res.json({ success: true, data: result });
   } catch (err: any) {
     res.status(400).json({ success: false, error: err.message });

@@ -117,8 +117,7 @@ export async function syncPlans(frontendUrl: string): Promise<Record<PlanKey, st
 export async function createSubscription(
   tenantId: string,
   plan: PlanKey,
-  backUrl: string,
-  payerEmail: string
+  backUrl: string
 ): Promise<{ url: string }> {
   const client = await getClient();
   const preApprovalApi = new PreApproval(client);
@@ -134,7 +133,6 @@ export async function createSubscription(
       reason: PLAN_LABELS[plan],
       external_reference: `${tenantId}:${plan}`,
       back_url: backUrl,
-      payer_email: payerEmail,
       status: 'pending',
     } as any,
   });
