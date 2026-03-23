@@ -2,7 +2,7 @@
 -- BASE DE DATOS: StockPro Inventario Universal 3.0
 -- Sistema Multi-Tenant con roles: superadmin, comerciante, vendedor
 -- ============================================
--- ARQUITECTURA:
+-- ARQUITECTURA: parami
 --   superadmin  → Dueño de la plataforma, gestiona comerciantes y ve todo
 --   comerciante → Dueño de un negocio (tenant), gestiona su tienda
 --   vendedor    → Empleado de un comerciante, opera dentro del tenant
