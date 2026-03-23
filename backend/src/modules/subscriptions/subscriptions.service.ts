@@ -75,6 +75,7 @@ export async function getPlanIds(): Promise<Record<PlanKey, string | null>> {
  * Creates/recreates all three MP subscription plans using the prices
  * stored in platform_settings (plan_price_basico, etc.).
  * Always creates fresh plans to avoid MP restrictions on amount updates.
+ * Also saves each plan's init_point for the hosted checkout flow.
  */
 export async function syncPlans(frontendUrl: string): Promise<Record<PlanKey, string>> {
   const client = await getClient();
@@ -103,6 +104,13 @@ export async function syncPlans(frontendUrl: string): Promise<Record<PlanKey, st
 
     if (!plan.id) throw new Error(`MercadoPago no devolvió ID para el plan ${key}`);
     await saveSetting(`mp_plan_id_${key}`, plan.id);
+
+    // Save the plan's hosted checkout URL
+    const initPoint = (plan as any).init_point as string | undefined;
+    if (initPoint) {
+      await saveSetting(`mp_plan_init_${key}`, initPoint);
+    }
+
     result[key] = plan.id;
   }
 
@@ -110,9 +118,16 @@ export async function syncPlans(frontendUrl: string): Promise<Record<PlanKey, st
 }
 
 /**
- * Creates a preapproval (subscription instance) for a tenant.
- * The user is redirected to init_point to authorize recurring payments.
- * external_reference = "tenantId:plan" — used by the webhook to update the tenant.
+ * Returns the hosted MP checkout URL for a plan so the merchant can authorize
+ * the recurring charge directly on MercadoPago's page (no card tokenization
+ * needed on our side).
+ *
+ * Flow:
+ *  1. Merchant clicks "Suscribirse" → redirected to MP's hosted page
+ *  2. Merchant logs in with their MP account and authorizes the charge
+ *  3. MP sends webhook → handleWebhook updates the tenant plan
+ *
+ * The tenant is identified in the webhook via payer_email → users table.
  */
 export async function createSubscription(
   tenantId: string,
@@ -120,30 +135,38 @@ export async function createSubscription(
   backUrl: string
 ): Promise<{ url: string }> {
   const client = await getClient();
-  const preApprovalApi = new PreApproval(client);
 
   const planId = await getSetting(`mp_plan_id_${plan}`);
   if (!planId) {
-    throw new Error(`No hay un plan de suscripción para "${plan}". El superadmin debe sincronizar los planes primero.`);
+    throw new Error(`No hay un plan configurado para "${plan}". El superadmin debe sincronizar los planes primero.`);
   }
 
-  const sub = await preApprovalApi.create({
-    body: {
-      preapproval_plan_id: planId,
-      reason: PLAN_LABELS[plan],
-      external_reference: `${tenantId}:${plan}`,
-      back_url: backUrl,
-      status: 'pending',
-    } as any,
-  });
+  // Try the saved init_point first; if missing, fetch it from MP and cache it
+  let initPoint = await getSetting(`mp_plan_init_${plan}`);
 
-  if (!sub.init_point) throw new Error('MercadoPago no devolvió una URL de pago');
-  return { url: sub.init_point };
+  if (!initPoint) {
+    const planApi = new PreApprovalPlan(client);
+    const planDetails = await (planApi as any).get({ id: planId });
+    initPoint = (planDetails as any)?.init_point ?? null;
+    if (initPoint) {
+      await saveSetting(`mp_plan_init_${plan}`, initPoint);
+    }
+  }
+
+  if (!initPoint) {
+    throw new Error(
+      'No se pudo obtener la URL de suscripción de MercadoPago. ' +
+      'El superadmin debe volver a sincronizar los planes.'
+    );
+  }
+
+  return { url: initPoint };
 }
 
 /**
  * Processes MercadoPago subscription webhook notifications.
- * Updates tenant plan when subscription is authorized or cancelled.
+ * Identifies the tenant by payer_email (matches against users table)
+ * and the plan by matching preapproval_plan_id against stored plan IDs.
  */
 export async function handleWebhook(body: any): Promise<void> {
   // MP sends different notification types — only handle subscriptions
@@ -156,22 +179,47 @@ export async function handleWebhook(body: any): Promise<void> {
   const preApprovalApi = new PreApproval(client);
   const sub = await preApprovalApi.get({ id: String(preapprovalId) });
 
-  const externalRef = (sub as any).external_reference as string | undefined;
-  if (!externalRef || !externalRef.includes(':')) return;
-
-  const [tenantId, plan] = externalRef.split(':');
-  if (!tenantId || !plan) return;
-
   const status = (sub as any).status as string;
+  if (status !== 'authorized' && status !== 'cancelled') return;
 
+  // ── Identify tenant ────────────────────────────────────────────────────────
+  const payerEmail = (sub as any).payer_email as string | undefined;
+  if (!payerEmail) return;
+
+  const [userRows] = await db.execute<RowDataPacket[]>(
+    `SELECT tenant_id FROM users
+     WHERE email = ? AND role = 'comerciante' AND tenant_id IS NOT NULL
+     LIMIT 1`,
+    [payerEmail]
+  );
+  const tenantId = userRows[0]?.tenant_id as string | undefined;
+  if (!tenantId) return;
+
+  // ── Identify plan ──────────────────────────────────────────────────────────
+  const preapprovalPlanId = (sub as any).preapproval_plan_id as string | undefined;
+  let plan: PlanKey | undefined;
+
+  if (preapprovalPlanId) {
+    for (const key of ['basico', 'profesional', 'empresarial'] as PlanKey[]) {
+      const storedId = await getSetting(`mp_plan_id_${key}`);
+      if (storedId === preapprovalPlanId) {
+        plan = key;
+        break;
+      }
+    }
+  }
+
+  if (!plan) return;
+
+  // ── Update tenant ──────────────────────────────────────────────────────────
   if (status === 'authorized') {
-    const limits = PLAN_LIMITS[plan as PlanKey] ?? PLAN_LIMITS.basico;
+    const limits = PLAN_LIMITS[plan];
     await db.execute(
       `UPDATE tenants SET plan = ?, max_users = ?, max_products = ?, updated_at = NOW() WHERE id = ?`,
       [plan, limits.maxUsers, limits.maxProducts, tenantId]
     );
-  } else if (status === 'cancelled') {
-    // Downgrade to basico on cancellation
+  } else {
+    // cancelled → downgrade to basico
     await db.execute(
       `UPDATE tenants SET plan = 'basico', max_users = 3, max_products = 100, updated_at = NOW() WHERE id = ?`,
       [tenantId]
