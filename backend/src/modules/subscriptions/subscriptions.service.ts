@@ -53,6 +53,15 @@ export async function isMPConfigured(): Promise<boolean> {
   return !!token;
 }
 
+/** Returns stored plan prices (null if not configured) */
+export async function getPlanPrices(): Promise<Record<PlanKey, string | null>> {
+  return {
+    basico:      await getSetting('plan_price_basico'),
+    profesional: await getSetting('plan_price_profesional'),
+    empresarial: await getSetting('plan_price_empresarial'),
+  };
+}
+
 /** Returns stored plan IDs (null if not yet synced) */
 export async function getPlanIds(): Promise<Record<PlanKey, string | null>> {
   return {
@@ -108,7 +117,8 @@ export async function syncPlans(frontendUrl: string): Promise<Record<PlanKey, st
 export async function createSubscription(
   tenantId: string,
   plan: PlanKey,
-  backUrl: string
+  backUrl: string,
+  payerEmail: string
 ): Promise<{ url: string }> {
   const client = await getClient();
   const preApprovalApi = new PreApproval(client);
@@ -124,6 +134,7 @@ export async function createSubscription(
       reason: PLAN_LABELS[plan],
       external_reference: `${tenantId}:${plan}`,
       back_url: backUrl,
+      payer_email: payerEmail,
       status: 'pending',
     } as any,
   });

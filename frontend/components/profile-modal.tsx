@@ -117,19 +117,16 @@ export function ProfileModal({ open, onClose }: Props) {
 
   useEffect(() => {
     if (!open) return
-    Promise.all([
-      api.getPlatformSettings(),
-      api.getSubscriptionConfig(),
-    ]).then(([settingsRes, subRes]) => {
-      if (settingsRes.success && settingsRes.data) {
-        setPlanPrices({
-          basico: settingsRes.data.plan_price_basico || '',
-          profesional: settingsRes.data.plan_price_profesional || '',
-          empresarial: settingsRes.data.plan_price_empresarial || '',
-        })
-      }
-      if (subRes.success && subRes.data?.configured) {
-        setStripeConfigured(true)
+    api.getSubscriptionConfig().then((subRes) => {
+      if (subRes.success && subRes.data) {
+        if (subRes.data.configured) setStripeConfigured(true)
+        if (subRes.data.prices) {
+          setPlanPrices({
+            basico: subRes.data.prices.basico || '',
+            profesional: subRes.data.prices.profesional || '',
+            empresarial: subRes.data.prices.empresarial || '',
+          })
+        }
       }
     })
   }, [open])

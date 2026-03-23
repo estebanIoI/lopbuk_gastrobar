@@ -43,6 +43,9 @@ import { financesRoutes } from './modules/finances';
 
 const app = express();
 
+// Trust the reverse proxy (nginx) so that express-rate-limit can read the real client IP
+app.set('trust proxy', 1);
+
 // Security headers
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' }, // allow images from Cloudinary etc.

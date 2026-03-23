@@ -1526,7 +1526,7 @@ class ApiService {
   // ─── MercadoPago Suscripciones ────────────────────────────────────────────────
 
   async getSubscriptionConfig() {
-    return this.request<{ configured: boolean; planIds: Record<string, string | null> }>('/subscriptions/config')
+    return this.request<{ configured: boolean; planIds: Record<string, string | null>; prices: Record<string, string | null> }>('/subscriptions/config')
   }
 
   async createMPSubscription(plan: 'basico' | 'profesional' | 'empresarial') {
