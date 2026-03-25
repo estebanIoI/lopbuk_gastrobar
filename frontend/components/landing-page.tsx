@@ -7101,26 +7101,34 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
       {/* ========== LOCATION MODAL ========== */}
       {showLocationModal && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-background rounded-2xl shadow-2xl p-6 w-full max-w-sm">
-            <div className="flex flex-col items-center text-center mb-4">
-              <div className="h-10 w-10 rounded-full border border-border flex items-center justify-center mb-2">
-                <MapPin className="h-5 w-5 text-foreground" />
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 backdrop-blur-sm bg-black/40">
+          <div className="bg-white dark:bg-black border border-black/10 dark:border-white/10 rounded-2xl shadow-2xl w-full max-w-xs overflow-hidden">
+            {/* Header */}
+            <div className="flex flex-col items-center text-center px-7 pt-8 pb-6">
+              <div className="h-12 w-12 rounded-full bg-black dark:bg-white flex items-center justify-center mb-4">
+                <MapPin className="h-5 w-5 text-white dark:text-black" />
               </div>
-              <h2 className="font-semibold text-base">¿Dónde estás?</h2>
-              <p className="text-xs text-muted-foreground">Para mostrarte tiendas y domicilios disponibles en tu zona.</p>
+              <h2 className="font-semibold text-lg tracking-tight text-black dark:text-white">¿Dónde estás?</h2>
+              <p className="text-xs text-black/50 dark:text-white/50 mt-1 leading-relaxed">
+                Para mostrarte tiendas y domicilios disponibles en tu zona.
+              </p>
             </div>
-            <div className="space-y-3 mb-5">
+
+            {/* Divider */}
+            <div className="h-px bg-black/8 dark:bg-white/8" />
+
+            {/* Body */}
+            <div className="px-7 py-5 space-y-3">
               {detectedModalCity ? (
-                <div className="flex items-center justify-between px-4 py-3 border border-border bg-foreground/5 rounded-lg">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <MapPin className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                    <span className="text-sm truncate">{detectedModalCity}</span>
+                <div className="flex items-center justify-between px-4 py-3 bg-black/5 dark:bg-white/5 rounded-xl">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <MapPin className="h-4 w-4 text-black/40 dark:text-white/40 flex-shrink-0" />
+                    <span className="text-sm font-medium text-black dark:text-white truncate">{detectedModalCity}</span>
                   </div>
                   <button
                     type="button"
                     onClick={() => { setDetectedModalCity(''); setLocationMun(''); setLocationDept('') }}
-                    className="ml-3 text-xs text-muted-foreground hover:text-destructive transition-colors flex-shrink-0"
+                    className="ml-3 text-xs text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white transition-colors flex-shrink-0 font-medium"
                   >
                     Cambiar
                   </button>
@@ -7130,26 +7138,33 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   type="button"
                   onClick={handleModalLocation}
                   disabled={isLocatingModal}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 border border-border bg-background hover:bg-foreground/5 disabled:opacity-60 rounded-lg transition-colors"
+                  className="w-full flex items-center justify-center gap-2.5 px-4 py-3 border border-black/10 dark:border-white/10 bg-transparent hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-50 rounded-xl transition-colors"
                 >
                   {isLocatingModal ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
+                    <Loader2 className="h-4 w-4 animate-spin text-black dark:text-white" />
                   ) : (
-                    <Navigation className="h-5 w-5" />
+                    <Navigation className="h-4 w-4 text-black dark:text-white" />
                   )}
-                  <span className="font-medium text-sm">
+                  <span className="font-medium text-sm text-black dark:text-white">
                     {isLocatingModal ? 'Detectando ubicación...' : 'Usar mi ubicación'}
                   </span>
                 </button>
               )}
-              {locationModalError && <p className="text-xs text-red-500">{locationModalError}</p>}
+              {locationModalError && (
+                <p className="text-xs text-red-500 dark:text-red-400 text-center">{locationModalError}</p>
+              )}
             </div>
-            <div className="flex gap-2">
-              <button className="flex-1 py-2 px-3 text-sm border border-border rounded-lg hover:bg-foreground/5 transition-colors" onClick={skipClientLocation}>
-                Sin ubicación
+
+            {/* Footer */}
+            <div className="px-7 pb-7 flex gap-2.5">
+              <button
+                className="flex-1 py-2.5 px-4 text-sm font-medium border border-black/10 dark:border-white/10 rounded-xl text-black/60 dark:text-white/60 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                onClick={skipClientLocation}
+              >
+                Omitir
               </button>
               <button
-                className="flex-1 py-2 px-3 text-sm rounded-lg bg-foreground text-background disabled:opacity-40 transition-colors hover:opacity-90"
+                className="flex-1 py-2.5 px-4 text-sm font-medium rounded-xl bg-black dark:bg-white text-white dark:text-black disabled:opacity-30 transition-opacity hover:opacity-80"
                 disabled={!locationMun}
                 onClick={saveClientLocation}
               >
