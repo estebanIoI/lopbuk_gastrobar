@@ -6148,38 +6148,55 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       {/* ========== CLIENT LOGIN MODAL ========== */}
       {showClientLogin && !isAuthenticated && (
         <>
+          {/* Backdrop */}
           <div
-            className="fixed inset-0 z-[80] bg-black/60 backdrop-blur-sm"
+            className="fixed inset-0 z-[80] bg-black/70 backdrop-blur-sm"
             onClick={() => setShowClientLogin(false)}
           />
-          <div className="fixed inset-0 z-[81] flex items-center justify-center p-4 pointer-events-none">
+
+          {/* Desktop: centered · Mobile: bottom sheet */}
+          <div className="fixed inset-0 z-[81] flex items-end sm:items-center justify-center pointer-events-none">
             <div
-              className={`w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden pointer-events-auto border ${isLightBg ? 'bg-white border-black/10' : 'bg-[#111] border-white/10'}`}
+              className={`w-full sm:max-w-[400px] pointer-events-auto animate-in sm:fade-in slide-in-from-bottom sm:slide-in-from-bottom-0 duration-300 border-t sm:border ${
+                isLightBg
+                  ? 'bg-white border-black/12 sm:shadow-[0_32px_80px_rgba(0,0,0,0.18)]'
+                  : 'bg-[#0d0d0d] border-white/10 sm:shadow-[0_32px_80px_rgba(0,0,0,0.8)]'
+              }`}
               onClick={e => e.stopPropagation()}
             >
+              {/* Mobile drag handle */}
+              <div className={`sm:hidden flex justify-center pt-3 pb-1 ${isLightBg ? 'bg-white' : 'bg-[#0d0d0d]'}`}>
+                <div className={`w-10 h-1 rounded-full ${isLightBg ? 'bg-black/15' : 'bg-white/15'}`} />
+              </div>
+
               {/* Header */}
-              <div className={`relative px-6 pt-7 pb-5 text-center border-b ${isLightBg ? 'border-black/8' : 'border-white/8'}`}>
+              <div className={`relative px-8 pt-8 sm:pt-10 pb-6 border-b ${isLightBg ? 'border-black/8' : 'border-white/8'}`}>
                 <button
                   onClick={() => setShowClientLogin(false)}
-                  className={`absolute top-4 right-4 transition-colors ${isLightBg ? 'text-black/30 hover:text-black/70' : 'text-white/30 hover:text-white/70'}`}
+                  className={`absolute top-4 right-5 p-1 transition-colors ${isLightBg ? 'text-black/25 hover:text-black/60' : 'text-white/25 hover:text-white/60'}`}
+                  aria-label="Cerrar"
                 >
-                  <X className="w-5 h-5" />
+                  <X className="w-4 h-4" />
                 </button>
-                <div className={`w-12 h-12 rounded-xl border flex items-center justify-center mx-auto mb-3 ${isLightBg ? 'border-black/10 bg-black/4' : 'border-white/10 bg-white/4'}`}>
-                  <User className={`w-6 h-6 ${isLightBg ? 'text-black/60' : 'text-white/60'}`} />
+
+                {/* Logo mark */}
+                <div className={`w-10 h-10 border flex items-center justify-center mb-5 ${isLightBg ? 'border-black/15' : 'border-white/15'}`}>
+                  <User className={`w-4 h-4 ${isLightBg ? 'text-black/50' : 'text-white/50'}`} />
                 </div>
-                <h2 className={`text-lg font-semibold tracking-tight ${isLightBg ? 'text-black' : 'text-white'}`}>
+
+                <h2 className={`text-xl font-light tracking-tight ${isLightBg ? 'text-black' : 'text-white'}`}>
                   Inicia sesión
                 </h2>
-                <p className={`text-sm font-medium mt-1 ${isLightBg ? 'text-black/60' : 'text-white/60'}`}>
+                <p className={`text-[11px] uppercase tracking-[0.2em] mt-1 font-light ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>
                   Accede a tus pedidos y perfil
                 </p>
               </div>
 
-              {/* Form */}
-              <div className="px-6 py-5">
-                {/* Google login */}
-                <div ref={clientGoogleBtnRef} className="mb-4 w-full flex justify-center">
+              {/* Body */}
+              <div className="px-8 py-7 space-y-5">
+
+                {/* Google */}
+                <div ref={clientGoogleBtnRef} className="w-full flex justify-center">
                   <GoogleLogin
                     onSuccess={handleClientGoogleLogin}
                     onError={() => setClientLoginError('Error al conectar con Google')}
@@ -6192,29 +6209,35 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 </div>
 
                 {/* Divider */}
-                <div className="flex items-center gap-3 mb-4">
-                  <div className={`flex-1 h-px ${isLightBg ? 'bg-black/12' : 'bg-white/12'}`} />
-                  <span className={`text-[11px] font-semibold uppercase tracking-widest ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>o continúa con correo</span>
-                  <div className={`flex-1 h-px ${isLightBg ? 'bg-black/12' : 'bg-white/12'}`} />
+                <div className="flex items-center gap-4">
+                  <div className={`flex-1 h-px ${isLightBg ? 'bg-black/8' : 'bg-white/8'}`} />
+                  <span className={`text-[9px] uppercase tracking-[0.3em] font-light ${isLightBg ? 'text-black/30' : 'text-white/30'}`}>o continúa con correo</span>
+                  <div className={`flex-1 h-px ${isLightBg ? 'bg-black/8' : 'bg-white/8'}`} />
                 </div>
 
-                <form onSubmit={handleClientLogin} className="space-y-3">
-                  <div>
-                    <label className={`block text-xs font-bold mb-1.5 ${isLightBg ? 'text-black/70' : 'text-white/70'}`}>
-                      Correo electrónico <span className={isLightBg ? 'text-black' : 'text-white'}>*</span>
+                {/* Fields */}
+                <form onSubmit={handleClientLogin} className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label className={`block text-[9px] uppercase tracking-[0.25em] font-light ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>
+                      Correo electrónico
                     </label>
                     <input
                       type="email"
                       placeholder="correo@ejemplo.com"
                       value={clientLoginForm.email}
                       onChange={e => setClientLoginForm(p => ({ ...p, email: e.target.value }))}
-                      className={`w-full border rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none transition-all ${isLightBg ? 'bg-black/4 border-black/15 text-black placeholder-black/35 focus:border-black/50' : 'bg-white/6 border-white/15 text-white placeholder-white/30 focus:border-white/50'}`}
+                      className={`w-full border px-4 py-3 text-sm font-light focus:outline-none transition-colors bg-transparent ${
+                        isLightBg
+                          ? 'border-black/15 text-black placeholder-black/25 focus:border-black/50'
+                          : 'border-white/12 text-white placeholder-white/20 focus:border-white/50'
+                      }`}
                       required
                     />
                   </div>
-                  <div>
-                    <label className={`block text-xs font-bold mb-1.5 ${isLightBg ? 'text-black/70' : 'text-white/70'}`}>
-                      Contraseña <span className={isLightBg ? 'text-black' : 'text-white'}>*</span>
+
+                  <div className="space-y-1.5">
+                    <label className={`block text-[9px] uppercase tracking-[0.25em] font-light ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>
+                      Contraseña
                     </label>
                     <input
                       type="password"
@@ -6222,13 +6245,17 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       placeholder="••••••••"
                       value={clientLoginForm.password}
                       onChange={e => setClientLoginForm(p => ({ ...p, password: e.target.value }))}
-                      className={`w-full border rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none transition-all ${isLightBg ? 'bg-black/4 border-black/15 text-black placeholder-black/35 focus:border-black/50' : 'bg-white/6 border-white/15 text-white placeholder-white/30 focus:border-white/50'}`}
+                      className={`w-full border px-4 py-3 text-sm font-light focus:outline-none transition-colors bg-transparent ${
+                        isLightBg
+                          ? 'border-black/15 text-black placeholder-black/25 focus:border-black/50'
+                          : 'border-white/12 text-white placeholder-white/20 focus:border-white/50'
+                      }`}
                       required
                     />
                   </div>
 
                   {clientLoginError && (
-                    <p className="text-xs font-medium text-red-400 bg-red-400/10 border border-red-400/20 rounded-lg px-3 py-2">
+                    <p className={`text-[11px] font-light px-3 py-2 border border-red-500/30 bg-red-500/8 ${isLightBg ? 'text-red-600' : 'text-red-400'}`}>
                       {clientLoginError}
                     </p>
                   )}
@@ -6237,28 +6264,28 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     type="submit"
                     disabled={clientLoginLoading}
                     style={{ backgroundColor: isLightBg ? '#000' : '#fff', color: isLightBg ? '#fff' : '#000' }}
-                    className="w-full py-3 rounded-xl disabled:opacity-40 disabled:cursor-not-allowed text-sm font-bold tracking-wide transition-opacity hover:opacity-80 mt-1 flex items-center justify-center gap-2"
+                    className="w-full py-3.5 text-[11px] uppercase tracking-[0.3em] font-light disabled:opacity-40 disabled:cursor-not-allowed transition-opacity hover:opacity-75 flex items-center justify-center gap-2"
                   >
                     {clientLoginLoading ? (
-                      <span className={`w-4 h-4 border-2 rounded-full animate-spin ${isLightBg ? 'border-white/30 border-t-white' : 'border-black/30 border-t-black'}`} />
+                      <span className={`w-4 h-4 border border-current/30 border-t-current rounded-full animate-spin`} />
                     ) : (
                       'Entrar'
                     )}
                   </button>
                 </form>
+              </div>
 
-                {/* ¿Eres comerciante? */}
-                <div className={`mt-5 pt-4 border-t text-center ${isLightBg ? 'border-black/10' : 'border-white/10'}`}>
-                  <button
-                    onClick={() => { setShowClientLogin(false); onGoToLogin() }}
-                    className={`text-xs font-medium transition-colors ${isLightBg ? 'text-black/50 hover:text-black/80' : 'text-white/50 hover:text-white/80'}`}
-                  >
-                    ¿Eres comerciante?{' '}
-                    <span className={`font-bold underline underline-offset-2 ${isLightBg ? 'text-black/80 hover:text-black' : 'text-white/80 hover:text-white'}`}>
-                      Accede al panel
-                    </span>
-                  </button>
-                </div>
+              {/* Footer */}
+              <div className={`px-8 pb-8 sm:pb-6 pt-0 text-center border-t ${isLightBg ? 'border-black/6' : 'border-white/6'}`}>
+                <button
+                  onClick={() => { setShowClientLogin(false); onGoToLogin() }}
+                  className={`text-[10px] uppercase tracking-[0.2em] font-light transition-colors pt-5 block w-full ${isLightBg ? 'text-black/35 hover:text-black/70' : 'text-white/35 hover:text-white/70'}`}
+                >
+                  ¿Eres comerciante?{' '}
+                  <span className={`underline underline-offset-4 ${isLightBg ? 'text-black/60' : 'text-white/60'}`}>
+                    Accede al panel
+                  </span>
+                </button>
               </div>
             </div>
           </div>
