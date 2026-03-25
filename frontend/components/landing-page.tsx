@@ -5004,7 +5004,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
             <p className="text-amber-400/60 uppercase tracking-[0.5em] text-xs">
               {showStoresView && selectedStore === 'all' ? 'Epicentro' : 'Tienda Online'}
             </p>
-            <h2 className="text-3xl sm:text-4xl font-extralight tracking-tight">
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extralight tracking-tight">
               {showStoresView && selectedStore === 'all'
                 ? 'Productos & Servicios'
                 : selectedStore !== 'all'
@@ -5042,7 +5042,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       return (
                         <div
                           key={product.id}
-                          className="group relative overflow-hidden cursor-pointer hover:-translate-y-1 hover:shadow-2xl hover:shadow-black/60 transition-all duration-500 flex-shrink-0 w-48 sm:w-56"
+                          className="group relative overflow-hidden cursor-pointer hover:-translate-y-1 hover:shadow-2xl hover:shadow-black/60 transition-all duration-500 flex-shrink-0 w-36 sm:w-48 md:w-56"
                           onClick={() => openProductModal(product)}
                         >
                           <div className="relative aspect-[3/4] overflow-hidden bg-black/60">
@@ -5116,7 +5116,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       return (
                         <div
                           key={product.id}
-                          className="group relative overflow-hidden cursor-pointer hover:-translate-y-1 transition-all duration-500 flex-shrink-0 w-48 sm:w-56"
+                          className="group relative overflow-hidden cursor-pointer hover:-translate-y-1 transition-all duration-500 flex-shrink-0 w-36 sm:w-48 md:w-56"
                           onClick={() => openProductModal(product)}
                         >
                           <div className="relative aspect-[3/4] overflow-hidden bg-black/60">
@@ -5262,7 +5262,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         {visibleStores.length} Comercio{visibleStores.length !== 1 ? 's' : ''}
                       </span>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                       {visibleStores.map(store => {
                         const storeProducts = allProducts.filter(p => {
                           const matchStore = p.storeName === store.name || (p as any).storeSlug === store.slug || (p as any).tenantSlug === store.slug
@@ -5285,7 +5285,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                             )}
 
                             {/* Banner */}
-                            <div className="relative h-32 bg-gradient-to-br from-amber-500/8 via-black to-white/3 overflow-hidden flex items-center justify-center shrink-0">
+                            <div className="relative h-24 sm:h-32 bg-gradient-to-br from-amber-500/8 via-black to-white/3 overflow-hidden flex items-center justify-center shrink-0">
                               {store.logoUrl ? (
                                 // eslint-disable-next-line @next/next/no-img-element
                                 <img src={ensureAbsoluteUrl(store.logoUrl)} alt={store.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 opacity-80 group-hover:opacity-100" />
@@ -5294,21 +5294,21 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                               )}
                               <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-transparent" />
                               {/* Badges */}
-                              <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5">
-                                <span className="bg-black/70 border border-white/10 text-white/60 text-[9px] px-2 py-0.5 flex items-center gap-1">
-                                  <Package className="w-2.5 h-2.5" />{store.productCount}
+                              <div className="absolute top-2 right-2 flex items-center gap-1.5">
+                                <span className="bg-black/70 border border-white/10 text-white/60 text-[8px] sm:text-[9px] px-1.5 py-0.5 flex items-center gap-0.5 sm:gap-1">
+                                  <Package className="w-2 h-2 sm:w-2.5 sm:h-2.5" />{store.productCount}
                                 </span>
                               </div>
                             </div>
 
                             {/* Info */}
-                            <div className="px-4 pt-3 pb-2">
-                              <h3 className="text-sm font-light text-white group-hover:text-amber-400 transition-colors truncate">{store.name}</h3>
+                            <div className="px-3 sm:px-4 pt-2.5 pb-2">
+                              <h3 className="text-xs sm:text-sm font-light text-white group-hover:text-amber-400 transition-colors truncate">{store.name}</h3>
                               {store.businessType && (
-                                <p className="text-[10px] text-amber-500/50 uppercase tracking-widest mt-0.5">{store.businessType}</p>
+                                <p className="text-[9px] sm:text-[10px] text-amber-500/50 uppercase tracking-widest mt-0.5 truncate">{store.businessType}</p>
                               )}
                               {store.address && (
-                                <p className="text-[11px] text-white/25 font-light flex items-center gap-1 mt-1 truncate">
+                                <p className="hidden sm:flex text-[11px] text-white/25 font-light items-center gap-1 mt-1 truncate">
                                   <MapPin className="w-2.5 h-2.5 shrink-0" />{store.address}
                                 </p>
                               )}
@@ -5316,32 +5316,35 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
                             {/* Product previews */}
                             {loadingAllProducts ? (
-                              <div className="px-4 pb-3 flex gap-1.5">
-                                {[0,1,2].map(i => <div key={i} className="w-14 h-14 bg-white/5 animate-pulse" />)}
+                              <div className="px-3 sm:px-4 pb-3 flex gap-1">
+                                {[0,1,2].map(i => <div key={i} className="w-10 h-10 sm:w-14 sm:h-14 bg-white/5 animate-pulse" />)}
                               </div>
                             ) : storeProducts.length > 0 ? (
-                              <div className="px-4 pb-3 flex gap-1.5 flex-wrap">
+                              <div className="px-3 sm:px-4 pb-2 grid grid-cols-4 gap-1">
                                 {storeProducts.map(p => (
-                                  <div key={p.id} className="w-14 h-14 bg-white/5 border border-white/5 overflow-hidden shrink-0">
+                                  <div key={p.id} className="aspect-square bg-white/5 border border-white/5 overflow-hidden">
                                     {p.imageUrl ? (
                                       // eslint-disable-next-line @next/next/no-img-element
                                       <img src={ensureAbsoluteUrl(p.imageUrl)} alt={p.name} className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition-opacity" />
                                     ) : (
-                                      <div className="w-full h-full flex items-center justify-center"><Sparkles className="w-4 h-4 text-white/10" /></div>
+                                      <div className="w-full h-full flex items-center justify-center"><Sparkles className="w-3 h-3 text-white/10" /></div>
                                     )}
                                   </div>
                                 ))}
+                                {Array.from({ length: Math.max(0, 4 - storeProducts.length) }).map((_, i) => (
+                                  <div key={`ep-${i}`} className="aspect-square bg-white/[0.02]" />
+                                ))}
                               </div>
                             ) : (
-                              <div className="px-4 pb-3">
-                                <p className="text-[10px] text-white/15 italic">Sin productos publicados</p>
+                              <div className="px-3 sm:px-4 pb-3">
+                                <p className="text-[9px] text-white/15 italic">Sin productos publicados</p>
                               </div>
                             )}
 
                             {/* CTA */}
-                            <div className="px-4 pb-4 mt-auto flex items-center gap-1.5 text-amber-400/50 text-[10px] uppercase tracking-widest group-hover:text-amber-400/80 transition-colors">
-                              <span>Explorar tienda</span>
-                              <ArrowRight className="w-3 h-3" />
+                            <div className="px-3 sm:px-4 pb-3 mt-auto flex items-center gap-1 text-amber-400/50 text-[9px] sm:text-[10px] uppercase tracking-widest group-hover:text-amber-400/80 transition-colors">
+                              <span>Explorar</span>
+                              <ArrowRight className="w-2.5 h-2.5" />
                             </div>
                           </button>
                         )
@@ -6775,9 +6778,16 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       {globalSearchResults.map(product => {
                   const isOffer = product.isOnOffer && product.offerPrice
                   const inCart = carrito.find(c => c.id === product.id)
+                  const openFromSearch = () => {
+                    setMobileActiveTab(null)
+                    setGlobalSearchQuery('')
+                    setGlobalSearchResults([])
+                    setGlobalSearchStores([])
+                    openProductModal(product)
+                  }
                   return (
-                    <div key={product.id} className={`group relative bg-white/5 border ${isOffer ? 'border-orange-500/30' : 'border-white/10'} overflow-hidden`}>
-                      <div data-dark className="relative aspect-square bg-black/50 overflow-hidden cursor-pointer" onClick={() => openProductModal(product)}>
+                    <div key={product.id} className={`group relative bg-white/5 border ${isOffer ? 'border-orange-500/30' : 'border-white/10'} overflow-hidden cursor-pointer`} onClick={openFromSearch}>
+                      <div data-dark className="relative aspect-square bg-black/50 overflow-hidden">
                         {product.imageUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img src={ensureAbsoluteUrl(product.imageUrl)} alt={product.name} className="w-full h-full object-cover" />
