@@ -193,6 +193,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   const [productQuantity, setProductQuantity] = useState(1)
   const [activeImageIdx, setActiveImageIdx] = useState(0)
   const [viewersCount] = useState(() => Math.floor(Math.random() * 40) + 8)
+  const [ctaVisible, setCtaVisible] = useState(true)
+  const ctaRef = useRef<HTMLDivElement>(null)
 
   // ====== PRODUCT REVIEWS STATE ======
   const [productReviews, setProductReviews] = useState<any[]>([])
@@ -1097,6 +1099,18 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     setProductQuantity(1)
     window.history.replaceState({}, '', window.location.pathname)
   }
+
+  // Observe CTA visibility for sticky mobile bar
+  useEffect(() => {
+    const el = ctaRef.current
+    if (!el) return
+    const observer = new IntersectionObserver(
+      ([entry]) => setCtaVisible(entry.isIntersecting),
+      { threshold: 0.1 }
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [showProductModal, selectedProduct])
 
   // Detect ?product= on load and open modal
   useEffect(() => {
@@ -2614,7 +2628,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     </div>
 
                     {/* CTAs — side by side */}
-                    <div className="flex gap-3">
+                    <div ref={ctaRef} className="flex gap-3">
                       <button
                         onClick={addFromModal}
                         disabled={selectedProduct.stock === 0}
@@ -2724,6 +2738,42 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   </div>
                 </div>
               </div>
+
+              {/* ── Sticky mobile CTA bar ── */}
+              {!ctaVisible && (
+                <div
+                  className={`sm:hidden fixed bottom-0 left-0 right-0 z-50 flex gap-0 border-t shadow-2xl ${isLightBg ? 'bg-white border-black/10' : 'bg-black border-white/10'}`}
+                  style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+                >
+                  <button
+                    onClick={addFromModal}
+                    disabled={selectedProduct.stock === 0}
+                    className={`flex-1 py-4 text-sm uppercase tracking-[0.15em] font-semibold flex items-center justify-center gap-2 transition-all ${
+                      selectedProduct.stock === 0
+                        ? 'bg-white/5 text-white/20 cursor-not-allowed'
+                        : isLightBg
+                          ? 'border-r border-black/10 text-black hover:bg-black/5'
+                          : 'border-r border-white/10 text-white hover:bg-white/5'
+                    }`}
+                  >
+                    <ShoppingCart className="w-4 h-4 flex-shrink-0" />
+                    <span>{selectedProduct.stock === 0 ? 'Agotado' : 'Agregar al carrito'}</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (selectedProduct.stock === 0) return
+                      addFromModal()
+                      setShowCart(false)
+                      handleIrAlCheckout()
+                    }}
+                    disabled={selectedProduct.stock === 0}
+                    style={selectedProduct.stock > 0 ? { color: isLightBg ? '#ffffff' : '#000000', backgroundColor: isLightBg ? '#000000' : '#ffffff' } : undefined}
+                    className={`flex-1 py-4 text-sm uppercase tracking-[0.15em] font-semibold flex items-center justify-center transition-opacity ${selectedProduct.stock === 0 ? 'bg-white/10 text-white/20 cursor-not-allowed' : 'hover:opacity-80'}`}
+                  >
+                    Comprar ahora
+                  </button>
+                </div>
+              )}
 
               {/* ── Reviews section ── */}
               <div className="mt-20 pt-12 border-t border-white/5">
