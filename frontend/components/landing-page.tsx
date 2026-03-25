@@ -193,7 +193,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   const [productQuantity, setProductQuantity] = useState(1)
   const [activeImageIdx, setActiveImageIdx] = useState(0)
   const [viewersCount] = useState(() => Math.floor(Math.random() * 40) + 8)
-  const [ctaVisible, setCtaVisible] = useState(true)
+  const [ctaVisible, setCtaVisible] = useState(false)
   const ctaRef = useRef<HTMLDivElement>(null)
 
   // ====== PRODUCT REVIEWS STATE ======
@@ -1102,14 +1102,22 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
   // Observe CTA visibility for sticky mobile bar
   useEffect(() => {
-    const el = ctaRef.current
-    if (!el) return
-    const observer = new IntersectionObserver(
-      ([entry]) => setCtaVisible(entry.isIntersecting),
-      { threshold: 0.1 }
-    )
-    observer.observe(el)
-    return () => observer.disconnect()
+    if (!showProductModal) return
+    let observer: IntersectionObserver
+    const timer = setTimeout(() => {
+      const el = ctaRef.current
+      if (!el) return
+      observer = new IntersectionObserver(
+        ([entry]) => setCtaVisible(entry.isIntersecting),
+        { threshold: 0.1 }
+      )
+      observer.observe(el)
+    }, 100)
+    return () => {
+      clearTimeout(timer)
+      observer?.disconnect()
+      setCtaVisible(false)
+    }
   }, [showProductModal, selectedProduct])
 
   // Detect ?product= on load and open modal
