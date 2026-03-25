@@ -6171,7 +6171,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 <h2 className={`text-lg font-semibold tracking-tight ${isLightBg ? 'text-black' : 'text-white'}`}>
                   Inicia sesión
                 </h2>
-                <p className={`text-sm mt-1 ${isLightBg ? 'text-black/50' : 'text-white/50'}`}>
+                <p className={`text-sm font-medium mt-1 ${isLightBg ? 'text-black/60' : 'text-white/60'}`}>
                   Accede a tus pedidos y perfil
                 </p>
               </div>
@@ -6193,14 +6193,14 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
                 {/* Divider */}
                 <div className="flex items-center gap-3 mb-4">
-                  <div className={`flex-1 h-px ${isLightBg ? 'bg-black/10' : 'bg-white/10'}`} />
-                  <span className={`text-[11px] uppercase tracking-widest ${isLightBg ? 'text-black/30' : 'text-white/30'}`}>o continúa con correo</span>
-                  <div className={`flex-1 h-px ${isLightBg ? 'bg-black/10' : 'bg-white/10'}`} />
+                  <div className={`flex-1 h-px ${isLightBg ? 'bg-black/12' : 'bg-white/12'}`} />
+                  <span className={`text-[11px] font-semibold uppercase tracking-widest ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>o continúa con correo</span>
+                  <div className={`flex-1 h-px ${isLightBg ? 'bg-black/12' : 'bg-white/12'}`} />
                 </div>
 
                 <form onSubmit={handleClientLogin} className="space-y-3">
                   <div>
-                    <label className={`block text-xs font-medium mb-1.5 ${isLightBg ? 'text-black/50' : 'text-white/50'}`}>
+                    <label className={`block text-xs font-bold mb-1.5 ${isLightBg ? 'text-black/70' : 'text-white/70'}`}>
                       Correo electrónico <span className={isLightBg ? 'text-black' : 'text-white'}>*</span>
                     </label>
                     <input
@@ -6208,12 +6208,12 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       placeholder="correo@ejemplo.com"
                       value={clientLoginForm.email}
                       onChange={e => setClientLoginForm(p => ({ ...p, email: e.target.value }))}
-                      className={`w-full border rounded-xl px-4 py-2.5 text-sm focus:outline-none transition-all ${isLightBg ? 'bg-black/4 border-black/10 text-black placeholder-black/30 focus:border-black/40' : 'bg-white/5 border-white/10 text-white placeholder-white/25 focus:border-white/40'}`}
+                      className={`w-full border rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none transition-all ${isLightBg ? 'bg-black/4 border-black/15 text-black placeholder-black/35 focus:border-black/50' : 'bg-white/6 border-white/15 text-white placeholder-white/30 focus:border-white/50'}`}
                       required
                     />
                   </div>
                   <div>
-                    <label className={`block text-xs font-medium mb-1.5 ${isLightBg ? 'text-black/50' : 'text-white/50'}`}>
+                    <label className={`block text-xs font-bold mb-1.5 ${isLightBg ? 'text-black/70' : 'text-white/70'}`}>
                       Contraseña <span className={isLightBg ? 'text-black' : 'text-white'}>*</span>
                     </label>
                     <input
@@ -6222,13 +6222,13 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       placeholder="••••••••"
                       value={clientLoginForm.password}
                       onChange={e => setClientLoginForm(p => ({ ...p, password: e.target.value }))}
-                      className={`w-full border rounded-xl px-4 py-2.5 text-sm focus:outline-none transition-all ${isLightBg ? 'bg-black/4 border-black/10 text-black placeholder-black/30 focus:border-black/40' : 'bg-white/5 border-white/10 text-white placeholder-white/25 focus:border-white/40'}`}
+                      className={`w-full border rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none transition-all ${isLightBg ? 'bg-black/4 border-black/15 text-black placeholder-black/35 focus:border-black/50' : 'bg-white/6 border-white/15 text-white placeholder-white/30 focus:border-white/50'}`}
                       required
                     />
                   </div>
 
                   {clientLoginError && (
-                    <p className="text-xs text-red-400 bg-red-400/10 border border-red-400/20 rounded-lg px-3 py-2">
+                    <p className="text-xs font-medium text-red-400 bg-red-400/10 border border-red-400/20 rounded-lg px-3 py-2">
                       {clientLoginError}
                     </p>
                   )}
@@ -6237,7 +6237,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     type="submit"
                     disabled={clientLoginLoading}
                     style={{ backgroundColor: isLightBg ? '#000' : '#fff', color: isLightBg ? '#fff' : '#000' }}
-                    className="w-full py-3 rounded-xl disabled:opacity-40 disabled:cursor-not-allowed text-sm font-semibold tracking-wide transition-opacity hover:opacity-80 mt-1 flex items-center justify-center gap-2"
+                    className="w-full py-3 rounded-xl disabled:opacity-40 disabled:cursor-not-allowed text-sm font-bold tracking-wide transition-opacity hover:opacity-80 mt-1 flex items-center justify-center gap-2"
                   >
                     {clientLoginLoading ? (
                       <span className={`w-4 h-4 border-2 rounded-full animate-spin ${isLightBg ? 'border-white/30 border-t-white' : 'border-black/30 border-t-black'}`} />
@@ -6248,13 +6248,13 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 </form>
 
                 {/* ¿Eres comerciante? */}
-                <div className={`mt-5 pt-4 border-t text-center ${isLightBg ? 'border-black/8' : 'border-white/8'}`}>
+                <div className={`mt-5 pt-4 border-t text-center ${isLightBg ? 'border-black/10' : 'border-white/10'}`}>
                   <button
                     onClick={() => { setShowClientLogin(false); onGoToLogin() }}
-                    className={`text-xs transition-colors ${isLightBg ? 'text-black/40 hover:text-black/70' : 'text-white/40 hover:text-white/70'}`}
+                    className={`text-xs font-medium transition-colors ${isLightBg ? 'text-black/50 hover:text-black/80' : 'text-white/50 hover:text-white/80'}`}
                   >
                     ¿Eres comerciante?{' '}
-                    <span className={`underline underline-offset-2 ${isLightBg ? 'text-black/70 hover:text-black' : 'text-white/70 hover:text-white'}`}>
+                    <span className={`font-bold underline underline-offset-2 ${isLightBg ? 'text-black/80 hover:text-black' : 'text-white/80 hover:text-white'}`}>
                       Accede al panel
                     </span>
                   </button>
