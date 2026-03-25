@@ -51,6 +51,7 @@ import {
   CreditCard,
   Info,
   UtensilsCrossed,
+  Link,
 } from 'lucide-react'
 import { CheckoutView } from '@/components/checkout/CheckoutView'
 import { ServiceBookingModal } from '@/components/service-booking-modal'
@@ -420,7 +421,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   const [clientLoginError, setClientLoginError] = useState('')
   const [clientLoginLoading, setClientLoginLoading] = useState(false)
   const clientGoogleBtnRef = useRef<HTMLDivElement>(null)
-  const [clientGoogleBtnWidth, setClientGoogleBtnWidth] = useState(340)
+  const [clientGoogleBtnWidth, setClientGoogleBtnWidth] = useState(260)
   useEffect(() => {
     const el = clientGoogleBtnRef.current
     if (!el) return
@@ -1073,6 +1074,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     setActiveImageIdx(0)
     setShowProductModal(true)
     setProductReviews([])
+    window.history.pushState({}, '', `${window.location.pathname}?product=${product.id}`)
     setReviewSuccess(false)
     setShowReviewForm(false)
     setReviewForm({ reviewerName: '', reviewerEmail: '', rating: 5, title: '', body: '' })
@@ -1092,7 +1094,19 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     setShowProductModal(false)
     setSelectedProduct(null)
     setProductQuantity(1)
+    window.history.replaceState({}, '', window.location.pathname)
   }
+
+  // Detect ?product= on load and open modal
+  useEffect(() => {
+    if (products.length === 0) return
+    const params = new URLSearchParams(window.location.search)
+    const productId = params.get('product')
+    if (!productId) return
+    const match = products.find(p => String(p.id) === productId)
+    if (match) { setShowCatalog(true); openProductModal(match) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [products])
 
   const addFromModal = () => {
     if (!selectedProduct) return
@@ -2598,12 +2612,26 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       className={`w-full py-5 text-sm uppercase tracking-[0.2em] font-semibold transition-all duration-300 flex items-center justify-center gap-3 ${
                         selectedProduct.stock === 0
                           ? 'bg-white/5 text-white/20 cursor-not-allowed border border-white/10'
-                          : 'bg-amber-500 hover:bg-amber-400 text-black'
+                          : `border ${isLightBg ? 'border-black text-black bg-transparent hover:bg-black hover:text-white' : 'border-white text-white bg-transparent hover:bg-white hover:text-black'}`
                       }`}
                     >
                       <ShoppingCart className="w-5 h-5" />
                       {selectedProduct.stock === 0 ? 'Agotado' : 'Agregar al Carrito'}
                     </button>
+
+                    {selectedProduct.stock > 0 && (
+                      <button
+                        onClick={() => {
+                          addFromModal()
+                          setShowCart(false)
+                          handleIrAlCheckout()
+                        }}
+                        style={{ color: isLightBg ? '#ffffff' : '#000000', backgroundColor: isLightBg ? '#000000' : '#ffffff' }}
+                        className="w-full py-5 text-sm uppercase tracking-[0.2em] font-semibold flex items-center justify-center gap-3 hover:opacity-80 transition-opacity"
+                      >
+                        Comprar ahora
+                      </button>
+                    )}
 
                     {/* Trust badges */}
                     <div className="grid grid-cols-3 gap-2">
@@ -2619,6 +2647,31 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         <RotateCcw className="w-4 h-4 text-white/30" />
                         <p className="text-[10px] text-white/40 leading-tight">Devoluciones fáciles</p>
                       </div>
+                    </div>
+
+                    {/* Share */}
+                    <div className="flex flex-wrap items-center gap-2 pt-2">
+                      {storeConfig?.storeInfo?.socialWhatsapp && (
+                        <a
+                          href={`https://wa.me/${storeConfig.storeInfo.socialWhatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(`Hola, me interesa este producto: ${selectedProduct.name} — ${window.location.origin}${window.location.pathname}?product=${selectedProduct.id}`)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={`flex items-center gap-1.5 px-3 py-2 text-xs border rounded-lg transition-colors ${isLightBg ? 'border-black/10 text-black/60 hover:bg-black/5' : 'border-white/10 text-white/50 hover:bg-white/5'}`}
+                        >
+                          <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-current"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                          WhatsApp
+                        </a>
+                      )}
+                      <button
+                        onClick={() => {
+                          const url = `${window.location.origin}${window.location.pathname}?product=${selectedProduct.id}`
+                          navigator.clipboard.writeText(url).catch(() => {})
+                        }}
+                        className={`flex items-center gap-1.5 px-3 py-2 text-xs border rounded-lg transition-colors ${isLightBg ? 'border-black/10 text-black/60 hover:bg-black/5' : 'border-white/10 text-white/50 hover:bg-white/5'}`}
+                      >
+                        <Link className="w-3.5 h-3.5" />
+                        Copiar enlace
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -3089,48 +3142,48 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           <button
                             key={sede.id}
                             onClick={() => setActiveSede(sede.id)}
-                            className="group relative flex flex-col gap-5 p-6 bg-white/[0.03] border border-white/8 hover:border-amber-500/40 hover:bg-white/[0.06] transition-all duration-300 text-left rounded-2xl overflow-hidden"
+                            className={`group relative flex flex-col gap-5 p-6 bg-white/[0.03] border ${isLightBg ? 'border-black/10 hover:border-black/30 hover:bg-black/[0.03]' : 'border-white/8 hover:border-white/20 hover:bg-white/[0.06]'} transition-all duration-300 text-left rounded-2xl overflow-hidden`}
                           >
                             {/* Ambient glow on hover */}
-                            <div className="absolute inset-0 bg-gradient-to-br from-amber-500/0 to-amber-500/0 group-hover:from-amber-500/5 group-hover:to-transparent transition-all duration-500 rounded-2xl pointer-events-none" />
+                            <div className={`absolute inset-0 bg-gradient-to-br ${isLightBg ? 'group-hover:from-black/3' : 'group-hover:from-white/3'} to-transparent transition-all duration-500 rounded-2xl pointer-events-none`} />
                             {/* Corner number */}
-                            <span className="absolute top-4 right-5 text-[40px] font-bold text-white/[0.04] leading-none select-none group-hover:text-amber-500/10 transition-colors">
+                            <span className={`absolute top-4 right-5 text-[40px] font-bold ${isLightBg ? 'text-black/[0.04] group-hover:text-black/10' : 'text-white/[0.04] group-hover:text-white/10'} leading-none select-none transition-colors`}>
                               {String(idx + 1).padStart(2, '0')}
                             </span>
 
                             {/* Icon + arrow row */}
                             <div className="flex items-center justify-between w-full">
-                              <div className="w-11 h-11 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center group-hover:bg-amber-500/20 group-hover:border-amber-500/40 transition-all duration-300">
-                                <MapPin className="w-5 h-5 text-amber-400" />
+                              <div className={`w-11 h-11 rounded-xl ${isLightBg ? 'bg-black/5 border border-black/10 group-hover:bg-black/10 group-hover:border-black/20' : 'bg-white/5 border border-white/10 group-hover:bg-white/10 group-hover:border-white/20'} flex items-center justify-center transition-all duration-300`}>
+                                <MapPin className={`w-5 h-5 ${isLightBg ? 'text-black/60' : 'text-white/60'}`} />
                               </div>
-                              <div className="w-8 h-8 rounded-full border border-white/8 flex items-center justify-center group-hover:border-amber-500/40 group-hover:bg-amber-500/10 transition-all duration-300">
-                                <ArrowRight className="w-3.5 h-3.5 text-white/20 group-hover:text-amber-400 group-hover:translate-x-0.5 transition-all" />
+                              <div className={`w-8 h-8 rounded-full border ${isLightBg ? 'border-black/10 group-hover:border-black/30 group-hover:bg-black/5' : 'border-white/8 group-hover:border-white/30 group-hover:bg-white/5'} flex items-center justify-center transition-all duration-300`}>
+                                <ArrowRight className={`w-3.5 h-3.5 ${isLightBg ? 'text-black/20 group-hover:text-black group-hover:translate-x-0.5' : 'text-white/20 group-hover:text-white group-hover:translate-x-0.5'} transition-all`} />
                               </div>
                             </div>
 
                             {/* Name & address */}
                             <div className="flex-1">
-                              <p className="text-white font-semibold tracking-wide uppercase text-sm leading-tight">{sede.name}</p>
+                              <p className={`${isLightBg ? 'text-black' : 'text-white'} font-semibold tracking-wide uppercase text-sm leading-tight`}>{sede.name}</p>
                               {sede.address && (
-                                <p className="text-white/35 text-xs mt-1.5 leading-relaxed">{sede.address}</p>
+                                <p className={`${isLightBg ? 'text-black/40' : 'text-white/35'} text-xs mt-1.5 leading-relaxed`}>{sede.address}</p>
                               )}
                             </div>
 
                             {/* Stats divider */}
-                            <div className="flex items-center gap-0 border-t border-white/5 pt-4 w-full">
+                            <div className={`flex items-center gap-0 border-t ${isLightBg ? 'border-black/5' : 'border-white/5'} pt-4 w-full`}>
                               <div className="flex-1 text-center">
-                                <p className="text-amber-400 font-bold text-lg leading-none">{exclusiveCount}</p>
-                                <p className="text-white/25 text-[10px] mt-1 uppercase tracking-wider">Exclusivos</p>
+                                <p className={`${isLightBg ? 'text-black' : 'text-white'} font-bold text-lg leading-none`}>{exclusiveCount}</p>
+                                <p className={`${isLightBg ? 'text-black/25' : 'text-white/25'} text-[10px] mt-1 uppercase tracking-wider`}>Exclusivos</p>
                               </div>
-                              <div className="w-px h-8 bg-white/8 mx-2" />
+                              <div className={`w-px h-8 ${isLightBg ? 'bg-black/8' : 'bg-white/8'} mx-2`} />
                               <div className="flex-1 text-center">
-                                <p className="text-white/50 font-bold text-lg leading-none">{sharedCount}</p>
-                                <p className="text-white/25 text-[10px] mt-1 uppercase tracking-wider">Compartidos</p>
+                                <p className={`${isLightBg ? 'text-black/50' : 'text-white/50'} font-bold text-lg leading-none`}>{sharedCount}</p>
+                                <p className={`${isLightBg ? 'text-black/25' : 'text-white/25'} text-[10px] mt-1 uppercase tracking-wider`}>Compartidos</p>
                               </div>
-                              <div className="w-px h-8 bg-white/8 mx-2" />
+                              <div className={`w-px h-8 ${isLightBg ? 'bg-black/8' : 'bg-white/8'} mx-2`} />
                               <div className="flex-1 text-center">
-                                <p className="text-white/70 font-bold text-lg leading-none">{exclusiveCount + sharedCount}</p>
-                                <p className="text-white/25 text-[10px] mt-1 uppercase tracking-wider">Total</p>
+                                <p className={`${isLightBg ? 'text-black/70' : 'text-white/70'} font-bold text-lg leading-none`}>{exclusiveCount + sharedCount}</p>
+                                <p className={`${isLightBg ? 'text-black/25' : 'text-white/25'} text-[10px] mt-1 uppercase tracking-wider`}>Total</p>
                               </div>
                             </div>
                           </button>
@@ -5985,47 +6038,31 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       {showClientLogin && !isAuthenticated && (
         <>
           <div
-            className="fixed inset-0 z-[80] bg-black/70 backdrop-blur-md"
+            className="fixed inset-0 z-[80] bg-black/50 backdrop-blur-sm"
             onClick={() => setShowClientLogin(false)}
           />
           <div className="fixed inset-0 z-[81] flex items-center justify-center p-4 pointer-events-none">
             <div
-              className="w-full max-w-sm bg-[#141414] border border-white/15 rounded-2xl shadow-2xl overflow-hidden pointer-events-auto"
+              className="w-full max-w-sm bg-background border border-border rounded-2xl shadow-2xl overflow-hidden pointer-events-auto"
               onClick={e => e.stopPropagation()}
             >
               {/* Header */}
               <div className="relative px-6 pt-7 pb-5 text-center border-b border-white/10">
                 <button
                   onClick={() => setShowClientLogin(false)}
-                  className="absolute top-4 right-4 text-white/50 hover:text-white transition-colors"
+                  className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-colors"
                 >
                   <X className="w-5 h-5" />
                 </button>
-                <div className="w-12 h-12 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center mx-auto mb-3">
-                  <User className="w-6 h-6 text-amber-400" />
+                <div className="w-12 h-12 rounded-xl border border-border flex items-center justify-center mx-auto mb-3">
+                  <User className="w-6 h-6 text-foreground" />
                 </div>
-                <h2 className="text-lg font-semibold text-white tracking-tight">
-                  {clientLoginTab === 'login' ? 'Inicia sesión' : 'Crea tu cuenta'}
+                <h2 className="text-lg font-semibold text-foreground tracking-tight">
+                  Inicia sesión
                 </h2>
-                <p className="text-sm text-white/60 mt-1">
-                  {clientLoginTab === 'login' ? 'Accede a tus pedidos y perfil' : 'Regístrate para comprar fácil'}
+                <p className="text-sm text-muted-foreground mt-1">
+                  Accede a tus pedidos y perfil
                 </p>
-              </div>
-
-              {/* Tabs */}
-              <div className="flex border-b border-white/10">
-                <button
-                  onClick={() => { setClientLoginTab('login'); setClientLoginError('') }}
-                  className={`flex-1 py-3 text-xs font-semibold tracking-wider uppercase transition-colors ${clientLoginTab === 'login' ? 'text-amber-400 border-b-2 border-amber-400 -mb-px' : 'text-white/50 hover:text-white/80'}`}
-                >
-                  Ingresar
-                </button>
-                <button
-                  onClick={() => { setClientLoginTab('register'); setClientLoginError('') }}
-                  className={`flex-1 py-3 text-xs font-semibold tracking-wider uppercase transition-colors ${clientLoginTab === 'register' ? 'text-amber-400 border-b-2 border-amber-400 -mb-px' : 'text-white/50 hover:text-white/80'}`}
-                >
-                  Registrarse
-                </button>
               </div>
 
               {/* Form */}
@@ -6038,65 +6075,39 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     theme="filled_black"
                     size="large"
                     width={clientGoogleBtnWidth}
-                    text={clientLoginTab === 'login' ? 'signin_with' : 'signup_with'}
+                    text="signin_with"
                     shape="pill"
                   />
                 </div>
 
                 {/* Divider */}
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="flex-1 h-px bg-white/15" />
-                  <span className="text-[11px] text-white/50 uppercase tracking-widest">o continúa con correo</span>
-                  <div className="flex-1 h-px bg-white/15" />
+                  <div className="flex-1 h-px bg-border" />
+                  <span className="text-[11px] text-muted-foreground uppercase tracking-widest">o continúa con correo</span>
+                  <div className="flex-1 h-px bg-border" />
                 </div>
 
-                <form onSubmit={clientLoginTab === 'login' ? handleClientLogin : handleClientRegister} className="space-y-3">
-                  {clientLoginTab === 'register' && (
-                    <>
-                      <div>
-                        <label className="block text-xs text-white/70 font-medium mb-1.5">Nombre completo <span className="text-amber-400">*</span></label>
-                        <input
-                          type="text"
-                          placeholder="Tu nombre"
-                          value={clientLoginForm.name}
-                          onChange={e => setClientLoginForm(p => ({ ...p, name: e.target.value }))}
-                          className="w-full bg-white/8 border border-white/15 rounded-xl px-4 py-2.5 text-sm text-white placeholder-white/35 focus:outline-none focus:border-amber-400/60 focus:bg-white/10 transition-all"
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-white/70 font-medium mb-1.5">Cédula / Documento <span className="text-amber-400">*</span></label>
-                        <input
-                          type="text"
-                          placeholder="Número de documento"
-                          value={clientLoginForm.cedula}
-                          onChange={e => setClientLoginForm(p => ({ ...p, cedula: e.target.value }))}
-                          className="w-full bg-white/8 border border-white/15 rounded-xl px-4 py-2.5 text-sm text-white placeholder-white/35 focus:outline-none focus:border-amber-400/60 focus:bg-white/10 transition-all"
-                          required
-                        />
-                      </div>
-                    </>
-                  )}
+                <form onSubmit={handleClientLogin} className="space-y-3">
                   <div>
-                    <label className="block text-xs text-white/70 font-medium mb-1.5">Correo electrónico <span className="text-amber-400">*</span></label>
+                    <label className="block text-xs text-muted-foreground font-medium mb-1.5">Correo electrónico <span className="text-foreground">*</span></label>
                     <input
                       type="email"
                       placeholder="correo@ejemplo.com"
                       value={clientLoginForm.email}
                       onChange={e => setClientLoginForm(p => ({ ...p, email: e.target.value }))}
-                      className="w-full bg-white/8 border border-white/15 rounded-xl px-4 py-2.5 text-sm text-white placeholder-white/35 focus:outline-none focus:border-amber-400/60 focus:bg-white/10 transition-all"
+                      className="w-full bg-foreground/5 border border-border rounded-xl px-4 py-2.5 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:border-foreground/40 transition-all"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-xs text-white/70 font-medium mb-1.5">Contraseña <span className="text-amber-400">*</span></label>
+                    <label className="block text-xs text-muted-foreground font-medium mb-1.5">Contraseña <span className="text-foreground">*</span></label>
                     <input
                       type="password"
                       autoComplete="current-password"
                       placeholder="••••••••"
                       value={clientLoginForm.password}
                       onChange={e => setClientLoginForm(p => ({ ...p, password: e.target.value }))}
-                      className="w-full bg-white/8 border border-white/15 rounded-xl px-4 py-2.5 text-sm text-white placeholder-white/35 focus:outline-none focus:border-amber-400/60 focus:bg-white/10 transition-all"
+                      className="w-full bg-foreground/5 border border-border rounded-xl px-4 py-2.5 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:border-foreground/40 transition-all"
                       required
                     />
                   </div>
@@ -6115,7 +6126,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     {clientLoginLoading ? (
                       <span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
                     ) : (
-                      clientLoginTab === 'login' ? 'Entrar' : 'Crear cuenta'
+                      'Entrar'
                     )}
                   </button>
                 </form>
@@ -7090,28 +7101,26 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
       {/* ========== LOCATION MODAL ========== */}
       {showLocationModal && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 p-4">
           <div className="bg-background rounded-2xl shadow-2xl p-6 w-full max-w-sm">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="h-10 w-10 rounded-full bg-blue-500/15 flex items-center justify-center">
-                <MapPin className="h-5 w-5 text-blue-500" />
+            <div className="flex flex-col items-center text-center mb-4">
+              <div className="h-10 w-10 rounded-full border border-border flex items-center justify-center mb-2">
+                <MapPin className="h-5 w-5 text-foreground" />
               </div>
-              <div>
-                <h2 className="font-semibold text-base">¿Dónde estás?</h2>
-                <p className="text-xs text-muted-foreground">Para mostrarte tiendas y domicilios disponibles en tu zona.</p>
-              </div>
+              <h2 className="font-semibold text-base">¿Dónde estás?</h2>
+              <p className="text-xs text-muted-foreground">Para mostrarte tiendas y domicilios disponibles en tu zona.</p>
             </div>
             <div className="space-y-3 mb-5">
               {detectedModalCity ? (
-                <div className="flex items-center justify-between px-4 py-3 border border-green-300 bg-green-50 rounded-lg">
+                <div className="flex items-center justify-between px-4 py-3 border border-border bg-foreground/5 rounded-lg">
                   <div className="flex items-center gap-2 min-w-0">
-                    <MapPin className="h-4 w-4 text-green-600 flex-shrink-0" />
-                    <span className="text-sm text-green-800 truncate">{detectedModalCity}</span>
+                    <MapPin className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <span className="text-sm truncate">{detectedModalCity}</span>
                   </div>
                   <button
                     type="button"
                     onClick={() => { setDetectedModalCity(''); setLocationMun(''); setLocationDept('') }}
-                    className="ml-3 text-xs text-green-600 hover:text-red-500 transition-colors flex-shrink-0"
+                    className="ml-3 text-xs text-muted-foreground hover:text-destructive transition-colors flex-shrink-0"
                   >
                     Cambiar
                   </button>
@@ -7121,7 +7130,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   type="button"
                   onClick={handleModalLocation}
                   disabled={isLocatingModal}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-60 rounded-lg transition-colors"
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 border border-border bg-background hover:bg-foreground/5 disabled:opacity-60 rounded-lg transition-colors"
                 >
                   {isLocatingModal ? (
                     <Loader2 className="h-5 w-5 animate-spin" />
@@ -7136,12 +7145,16 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               {locationModalError && <p className="text-xs text-red-500">{locationModalError}</p>}
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" className="flex-1" onClick={skipClientLocation}>
-                Continuar sin ubicación
-              </Button>
-              <Button size="sm" className="flex-1" disabled={!locationMun} onClick={saveClientLocation}>
+              <button className="flex-1 py-2 px-3 text-sm border border-border rounded-lg hover:bg-foreground/5 transition-colors" onClick={skipClientLocation}>
+                Sin ubicación
+              </button>
+              <button
+                className="flex-1 py-2 px-3 text-sm rounded-lg bg-foreground text-background disabled:opacity-40 transition-colors hover:opacity-90"
+                disabled={!locationMun}
+                onClick={saveClientLocation}
+              >
                 Confirmar
-              </Button>
+              </button>
             </div>
           </div>
         </div>

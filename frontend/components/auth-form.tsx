@@ -606,29 +606,6 @@ export function AuthForm({ onGoBack }: AuthFormProps) {
             </div>
           )}
 
-          <div className="text-center pt-2">
-            {isLogin ? (
-              <button
-                type="button"
-                onClick={() => { setIsLogin(false); setError('') }}
-                className="text-sm text-muted-foreground hover:text-primary transition-colors font-medium"
-              >
-                ¿No tienes cuenta? Regístrate como cliente
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  setIsLogin(true)
-                  setError('')
-                }}
-                className="text-sm text-muted-foreground hover:text-primary transition-colors"
-              >
-                ¿Ya tienes cuenta? Inicia sesión
-              </button>
-            )}
-          </div>
-
           {/* About, Data Policy & Contact buttons */}
           <div className="flex items-center justify-center gap-2 pt-4 border-t border-border">
             <AboutModal />
