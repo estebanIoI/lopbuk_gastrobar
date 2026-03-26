@@ -66,9 +66,10 @@ export function DataPolicyModal() {
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-primary">
-          <ShieldCheck className="h-4 w-4" />
-          Tratamiento de Datos
+        <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground hover:text-primary text-xs px-2">
+          <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
+          <span className="hidden sm:inline">Tratamiento de Datos</span>
+          <span className="sm:hidden">Datos</span>
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto p-0 gap-0">

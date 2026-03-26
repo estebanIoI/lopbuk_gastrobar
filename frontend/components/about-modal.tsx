@@ -46,9 +46,10 @@ export function AboutModal() {
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-primary">
-          <Info className="h-4 w-4" />
-          Acerca de
+        <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground hover:text-primary text-xs px-2">
+          <Info className="h-3.5 w-3.5 shrink-0" />
+          <span className="hidden sm:inline">Acerca de</span>
+          <span className="sm:hidden">Info</span>
         </Button>
       </DialogTrigger>
 

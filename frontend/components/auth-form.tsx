@@ -614,23 +614,12 @@ export function AuthForm({ onGoBack }: AuthFormProps) {
             </button>
           </form>
 
-          {/* Toggle login / register */}
-          <p className="text-center text-[11px] text-white/25 font-light">
-            {isLogin ? '¿No tienes cuenta?' : '¿Ya tienes cuenta?'}{' '}
-            <button
-              onClick={() => { setIsLogin(!isLogin); setError('') }}
-              className="text-white/50 hover:text-white underline underline-offset-4 transition-colors"
-            >
-              {isLogin ? 'Regístrate' : 'Inicia sesión'}
-            </button>
-          </p>
-
           {/* Footer links */}
-          <div className="flex items-center justify-center gap-3 pt-2 border-t border-white/[0.06]">
+          <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 pt-2 border-t border-white/[0.06]">
             <AboutModal />
-            <span className="text-white/10">|</span>
+            <span className="text-white/10 hidden sm:inline">|</span>
             <DataPolicyModal />
-            <span className="text-white/10">|</span>
+            <span className="text-white/10 hidden sm:inline">|</span>
             <ContactModal />
           </div>
 
