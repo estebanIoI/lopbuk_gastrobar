@@ -225,165 +225,203 @@ export function AuthForm({ onGoBack }: AuthFormProps) {
   }
 
   return (
-    <div className="min-h-screen flex bg-background">
-      {/* Left side - GIF & Branding + Services */}
-      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
+    <div className="min-h-screen flex bg-[#0a0a0a]">
+
+      {/* ═══ LEFT — Branding panel ═══ */}
+      <div className="hidden lg:flex lg:w-[52%] relative overflow-hidden">
+        {/* Background image */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={loginBgUrl}
-          alt=""
-          className="absolute inset-0 w-full h-full object-cover"
-        />
-        <div className="absolute inset-0 bg-gradient-to-br from-black/80 via-black/60 to-emerald-900/50" />
+        <img src={loginBgUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />
+        <div className="absolute inset-0 bg-gradient-to-br from-black/90 via-black/75 to-black/60" />
+
         <div className="relative z-10 flex flex-col justify-between p-12 text-white w-full overflow-y-auto">
+          {/* Logo */}
           <div className="flex items-center gap-3">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/image/lopbukicon.png" alt="Lopbuk" width={48} height={48} className="rounded-lg" />
-            <span className="text-2xl font-bold tracking-tight">Lopbuk</span>
+            <img src="/image/lopbukicon.png" alt="Lopbuk" width={40} height={40} className="rounded-lg" />
+            <span className="text-lg font-light tracking-[0.15em] uppercase">Lopbuk</span>
           </div>
 
-          <div className="space-y-6 my-8">
-            <div>
-              <h1 className="text-3xl font-bold leading-tight">
-                Gestión de inventario
-                <br />
-                <span className="text-emerald-400">inteligente y simple</span>
+          {/* Hero copy */}
+          <div className="space-y-8 my-10">
+            <div className="space-y-3">
+              <p className="text-[10px] uppercase tracking-[0.4em] text-white/30 font-light">Plataforma integral</p>
+              <h1 className="text-4xl font-extralight leading-tight tracking-tight">
+                Gestión de<br />
+                <span className="font-light text-white/70">inventario & ventas</span>
               </h1>
-              <p className="mt-3 text-sm text-white/70 max-w-md">
-                Controla tu stock, gestiona ventas y haz crecer tu negocio desde un solo lugar.
+              <p className="text-sm text-white/40 font-light max-w-sm leading-relaxed">
+                Controla tu stock, gestiona ventas, domicilios y haz crecer tu negocio desde un solo lugar.
               </p>
             </div>
 
-            {/* DAIMUZ Services */}
+            {/* Services grid */}
             <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <span className="text-lg font-bold tracking-tight flex items-center gap-2">
-                  DAIMUZ <Sparkles className="w-4 h-4 text-emerald-400" />
+              <div className="flex items-center gap-3">
+                <div className="h-px flex-1 bg-white/10" />
+                <span className="text-[9px] uppercase tracking-[0.35em] text-white/25 font-light flex items-center gap-2">
+                  <Sparkles className="w-3 h-3" /> DAIMUZ · Soluciones digitales
                 </span>
-                <span className="text-[10px] text-white/40 uppercase tracking-widest">Soluciones digitales</span>
+                <div className="h-px flex-1 bg-white/10" />
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                {services.map((service) => {
-                  const colors = colorMap[service.color]
-                  return (
-                    <div
-                      key={service.title}
-                      className={`flex items-start gap-2 p-2.5 rounded-xl border ${colors.border} ${colors.bg} backdrop-blur-sm`}
-                    >
-                      <div className={`flex items-center justify-center w-7 h-7 rounded-lg ${colors.bg} shrink-0 mt-0.5`}>
-                        <service.icon className={`w-3.5 h-3.5 ${colors.icon}`} />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-[11px] font-semibold text-white/80 leading-tight">{service.title}</p>
-                        <p className="text-[9px] text-white/35 leading-snug mt-0.5">{service.description}</p>
-                      </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                {services.slice(0, 8).map((service) => (
+                  <div
+                    key={service.title}
+                    className="flex items-center gap-2.5 px-3 py-2.5 border border-white/[0.07] bg-white/[0.03] hover:bg-white/[0.06] transition-colors"
+                  >
+                    <service.icon className="w-3 h-3 text-white/25 shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-light text-white/60 leading-tight truncate">{service.title}</p>
+                      <p className="text-[8px] text-white/25 leading-snug mt-0.5 truncate">{service.description}</p>
                     </div>
-                  )
-                })}
+                  </div>
+                ))}
               </div>
               <a
                 href="https://api.whatsapp.com/message/56AISNOZMVW5N1?autoload=1&app_absent=0"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-semibold text-xs transition-all duration-300 hover:shadow-lg hover:shadow-emerald-500/20"
+                className="flex items-center justify-center gap-2 w-full py-3 border border-white/15 bg-white/5 hover:bg-white/10 text-white/70 hover:text-white text-[11px] uppercase tracking-[0.2em] font-light transition-all duration-300"
               >
-                <MessageCircle className="w-4 h-4" />
+                <MessageCircle className="w-3.5 h-3.5" />
                 Contáctanos por WhatsApp
-                <ArrowRight className="w-3.5 h-3.5" />
+                <ArrowRight className="w-3 h-3" />
               </a>
             </div>
           </div>
 
-          <p className="text-xs text-white/30">
-            © 2026 Lopbuk · <span className="font-medium text-white/40">DAIMUZ</span> · Desarrollo, Asesoría & Innovación
+          <p className="text-[9px] text-white/20 font-light uppercase tracking-widest">
+            © 2026 Lopbuk · DAIMUZ · Desarrollo, Asesoría & Innovación
           </p>
         </div>
       </div>
 
-      {/* Right side - Form */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-12">
-        <div className="w-full max-w-md space-y-8">
-          {/* Back button */}
+      {/* ═══ RIGHT — Form panel ═══ */}
+      <div className="w-full lg:w-[48%] flex flex-col bg-[#0a0a0a] border-l border-white/[0.06]">
+
+        {/* Top bar */}
+        <div className="flex items-center justify-between px-8 py-5 border-b border-white/[0.06]">
+          {/* Mobile logo */}
+          <div className="flex items-center gap-2.5 lg:hidden">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/image/lopbukicon.png" alt="Lopbuk" width={28} height={28} className="rounded-md" />
+            <span className="text-sm font-light text-white/70 tracking-widest uppercase">Lopbuk</span>
+          </div>
+          <div className="hidden lg:block" />
+
           {onGoBack && (
             <button
               onClick={onGoBack}
-              className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors"
+              className="flex items-center gap-1.5 text-[11px] text-white/30 hover:text-white/70 transition-colors uppercase tracking-widest font-light"
             >
-              <ArrowLeft className="w-4 h-4" />
-              Volver al inicio
+              <ArrowLeft className="w-3.5 h-3.5" />
+              Volver
             </button>
           )}
+        </div>
 
-          {/* Mobile logo */}
-          <div className="flex flex-col items-center lg:hidden space-y-4">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/image/lopbukicon.png" alt="Lopbuk" width={56} height={56} className="rounded-xl" />
-            <h1 className="text-2xl font-bold text-foreground">Lopbuk</h1>
-          </div>
+        {/* Scrollable form area */}
+        <div className="flex-1 overflow-y-auto flex items-start lg:items-center justify-center p-8 sm:p-12">
+          <div className="w-full max-w-sm space-y-8">
 
-          <div className="space-y-2">
-            <h2 className="text-3xl font-bold tracking-tight text-foreground">
-              {isLogin ? 'Bienvenido de vuelta' : 'Crear cuenta de cliente'}
-            </h2>
-            <p className="text-muted-foreground">
-              {isLogin ? 'Ingresa tus credenciales para continuar' : 'Completa tus datos para registrarte como cliente'}
-            </p>
-          </div>
+            {/* Heading */}
+            <div className="space-y-1.5">
+              <h2 className="text-2xl font-light text-white tracking-tight">
+                {isLogin ? 'Bienvenido de vuelta' : 'Crear cuenta'}
+              </h2>
+              <p className="text-[11px] uppercase tracking-[0.2em] text-white/30 font-light">
+                {isLogin ? 'Ingresa tus credenciales para continuar' : 'Completa tus datos para registrarte'}
+              </p>
+            </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Google first */}
+            {!lockUntil && (
+              <div className="w-full flex justify-center">
+                {googleLoading ? (
+                  <div className="flex items-center gap-2 text-[11px] text-white/30 py-2 font-light">
+                    <div className="w-3.5 h-3.5 border border-white/20 border-t-white/60 rounded-full animate-spin" />
+                    Conectando con Google...
+                  </div>
+                ) : (
+                  <div ref={googleBtnRef} className="w-full">
+                    <GoogleLogin
+                      onSuccess={handleGoogleSuccess}
+                      onError={() => setError('Error al conectar con Google')}
+                      theme="filled_black"
+                      size="large"
+                      width={googleBtnWidth}
+                      text={isLogin ? 'signin_with' : 'signup_with'}
+                      shape="rectangular"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Divider */}
+            {!lockUntil && (
+              <div className="flex items-center gap-4">
+                <div className="flex-1 h-px bg-white/[0.08]" />
+                <span className="text-[9px] uppercase tracking-[0.3em] text-white/20 font-light">o continúa con correo</span>
+                <div className="flex-1 h-px bg-white/[0.08]" />
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="space-y-5">
             {!isLogin && (
-              <div className="space-y-2">
-                <Label htmlFor="name" className="text-sm font-medium">Nombre Completo</Label>
+              <div className="space-y-1.5">
+                <Label htmlFor="name" className="text-[9px] uppercase tracking-[0.25em] text-white/30 font-light">Nombre Completo</Label>
                 <div className="relative">
-                  <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <User className="absolute left-3.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-white/20" />
                   <Input
                     id="name"
                     type="text"
                     placeholder="Tu nombre"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="pl-10 h-12 bg-secondary border-none rounded-xl"
+                    className="pl-10 h-11 bg-white/[0.04] border border-white/10 text-white placeholder-white/20 rounded-none focus:border-white/40 focus:ring-0 font-light text-sm"
                     required
                   />
                 </div>
               </div>
             )}
 
-            <div className="space-y-2">
-              <Label htmlFor="email" className="text-sm font-medium">Correo Electrónico</Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="email" className="text-[9px] uppercase tracking-[0.25em] text-white/30 font-light">Correo Electrónico</Label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Mail className="absolute left-3.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-white/20" />
                 <Input
                   id="email"
                   type="email"
                   placeholder="correo@ejemplo.com"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="pl-10 h-12 bg-secondary border-none rounded-xl"
+                  className="pl-10 h-11 bg-white/[0.04] border border-white/10 text-white placeholder-white/20 rounded-none focus:border-white/40 focus:ring-0 font-light text-sm"
                   required
                 />
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="password" className="text-sm font-medium">Contraseña</Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="password" className="text-[9px] uppercase tracking-[0.25em] text-white/30 font-light">Contraseña</Label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Lock className="absolute left-3.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-white/20" />
                 <Input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
                   placeholder="••••••••"
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  className="pl-10 pr-10 h-12 bg-secondary border-none rounded-xl"
+                  className="pl-10 pr-10 h-11 bg-white/[0.04] border border-white/10 text-white placeholder-white/20 rounded-none focus:border-white/40 focus:ring-0 font-light text-sm"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/20 hover:text-white/60 transition-colors"
                 >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {showPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                 </button>
               </div>
             </div>
@@ -565,54 +603,37 @@ export function AuthForm({ onGoBack }: AuthFormProps) {
               )
             )}
 
-            <Button type="submit" className="w-full h-12 rounded-xl text-base font-semibold" disabled={loading || googleLoading || !!lockUntil}>
-              {loading ? 'Cargando...' : isLogin ? 'Iniciar Sesión' : 'Crear Cuenta'}
-            </Button>
+            <button
+              type="submit"
+              disabled={loading || googleLoading || !!lockUntil}
+              className="w-full h-11 bg-white text-black text-[11px] uppercase tracking-[0.3em] font-light hover:bg-white/90 disabled:opacity-40 disabled:cursor-not-allowed transition-opacity flex items-center justify-center gap-2"
+            >
+              {loading
+                ? <><span className="w-3.5 h-3.5 border border-black/20 border-t-black rounded-full animate-spin" /> Cargando...</>
+                : isLogin ? 'Iniciar Sesión' : 'Crear Cuenta'}
+            </button>
           </form>
 
-          {/* Divider */}
-          {!lockUntil && (
-            <div className="relative my-2">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t border-border" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">o continúa con</span>
-              </div>
-            </div>
-          )}
+          {/* Toggle login / register */}
+          <p className="text-center text-[11px] text-white/25 font-light">
+            {isLogin ? '¿No tienes cuenta?' : '¿Ya tienes cuenta?'}{' '}
+            <button
+              onClick={() => { setIsLogin(!isLogin); setError('') }}
+              className="text-white/50 hover:text-white underline underline-offset-4 transition-colors"
+            >
+              {isLogin ? 'Regístrate' : 'Inicia sesión'}
+            </button>
+          </p>
 
-          {/* Google Login Button */}
-          {!lockUntil && (
-            <div className="flex justify-center w-full">
-              {googleLoading ? (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
-                  <div className="w-4 h-4 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin" />
-                  Conectando con Google...
-                </div>
-              ) : (
-                <div ref={googleBtnRef} className="w-full max-w-sm">
-                  <GoogleLogin
-                    onSuccess={handleGoogleSuccess}
-                    onError={() => setError('Error al conectar con Google')}
-                    theme="filled_black"
-                    size="large"
-                    width={googleBtnWidth}
-                    text={isLogin ? 'signin_with' : 'signup_with'}
-                    shape="pill"
-                  />
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* About, Data Policy & Contact buttons */}
-          <div className="flex items-center justify-center gap-2 pt-4 border-t border-border">
+          {/* Footer links */}
+          <div className="flex items-center justify-center gap-3 pt-2 border-t border-white/[0.06]">
             <AboutModal />
-            <span className="text-border">|</span>
+            <span className="text-white/10">|</span>
             <DataPolicyModal />
-            <span className="text-border">|</span>
+            <span className="text-white/10">|</span>
             <ContactModal />
+          </div>
+
           </div>
         </div>
       </div>
