@@ -1,5 +1,6 @@
 'use client'
 
+import * as XLSX from 'xlsx'
 import { useEffect, useState, useCallback } from 'react'
 import { useAuthStore } from '@/lib/auth-store'
 import { api } from '@/lib/api'
@@ -11,7 +12,7 @@ import {
   TableProperties, Edit2, X, Check, AlertCircle, TrendingUp,
   BookOpen, Search, ToggleLeft, ToggleRight, ChevronLeft,
   Banknote, CreditCard, Smartphone, ArrowLeftRight, Layers,
-  ChevronRight, User, DollarSign,
+  ChevronRight, User, DollarSign, FileText, Printer, TrendingDown, Download,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
@@ -1706,7 +1707,7 @@ function CajaTab() {
 
 // ─── REPORTES TAB ─────────────────────────────────────────────────────────────
 
-type Period = '1' | '7' | '30' | '90' | 'custom'
+type Period = '1' | '7' | '15' | '30' | '90' | 'custom'
 
 const DOW_LABEL = ['', 'Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
 const AREA_LABEL: Record<string, string> = { cocina: 'Cocina', bar: 'Bar', ambos: 'Ambos' }
@@ -1761,12 +1762,445 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   )
 }
 
+// ─── ReporteSocioView ─────────────────────────────────────────────────────────
+// Clean biweekly partner report combining restbar sales + finanzas expenses
+
+function ReporteSocioView({ from, to, onClose }: { from: string; to: string; onClose: () => void }) {
+  const { user } = useAuthStore()
+  const [sales,    setSales]    = useState<any>(null)
+  const [expenses, setExpenses] = useState<any[]>([])
+  const [loading,  setLoading]  = useState(true)
+
+  useEffect(() => {
+    async function load() {
+      setLoading(true)
+      const [sR, eR] = await Promise.all([
+        api.getRestbarAnalytics(from, to),
+        api.getFinanceTransactions({ type: 'egreso', from, to, limit: 200 }),
+      ])
+      if (sR.success) setSales(sR.data)
+      if (eR.success) setExpenses(Array.isArray(eR.data) ? eR.data : [])
+      setLoading(false)
+    }
+    load()
+  }, [from, to])
+
+  const totalExpenses = expenses.reduce((s: number, t: any) => s + Number(t.amount ?? 0), 0)
+  const totalSales    = sales?.kpi?.revenue ?? 0
+  const netProfit     = totalSales - totalExpenses
+  const profitMargin  = totalSales > 0 ? Math.round((netProfit / totalSales) * 100) : 0
+
+  // Group expenses by category
+  const expByCategory: Record<string, number> = {}
+  for (const t of expenses) {
+    const cat = t.categoryName ?? 'Sin categoría'
+    expByCategory[cat] = (expByCategory[cat] ?? 0) + Number(t.amount ?? 0)
+  }
+  const expCats = Object.entries(expByCategory).sort((a, b) => b[1] - a[1])
+
+  const printReport = () => {
+    const el = document.getElementById('reporte-socio-print')
+    if (!el) return
+    const win = window.open('', '_blank')
+    if (!win) return
+    win.document.write(`<!DOCTYPE html><html><head>
+      <meta charset="utf-8"/>
+      <title>Reporte Quincenal - ${user?.storeName ?? user?.name ?? 'Gastrobar'}</title>
+      <style>
+        body{font-family:sans-serif;color:#111;padding:32px;max-width:700px;margin:auto}
+        h1{font-size:22px;margin:0 0 4px}
+        .sub{color:#666;font-size:13px;margin-bottom:24px}
+        .kpi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px}
+        .kpi{border:1px solid #e5e7eb;border-radius:8px;padding:12px}
+        .kpi-label{font-size:11px;text-transform:uppercase;color:#6b7280;margin-bottom:4px}
+        .kpi-value{font-size:20px;font-weight:900}
+        .green{color:#16a34a}.red{color:#dc2626}.blue{color:#2563eb}
+        table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:20px}
+        th{text-align:left;padding:6px 8px;border-bottom:2px solid #e5e7eb;font-size:11px;text-transform:uppercase;color:#6b7280}
+        td{padding:6px 8px;border-bottom:1px solid #f3f4f6}
+        h2{font-size:15px;margin:20px 0 8px;border-bottom:1px solid #e5e7eb;padding-bottom:6px}
+        .footer{margin-top:32px;font-size:11px;color:#9ca3af;text-align:center}
+      </style>
+    </head><body>${el.innerHTML}</body></html>`)
+    win.document.close()
+    win.focus()
+    win.print()
+    win.close()
+  }
+
+  const fmtDate = (d: string) =>
+    new Date(d + 'T12:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'long', year: 'numeric' })
+
+  const exportToExcel = () => {
+    const storeName = user?.storeName ?? user?.name ?? 'Gastrobar'
+    const wb = XLSX.utils.book_new()
+
+    // ── helper: apply header style to a range ──
+    const styleHeader = (ws: XLSX.WorkSheet, range: string) => {
+      if (!ws['!cols']) ws['!cols'] = []
+      // SheetJS community edition doesn't support cell styles,
+      // but we set column widths and freeze panes for usability.
+    }
+
+    // ── HOJA 1: RESUMEN EJECUTIVO ──────────────────────────────────────────
+    const resumenRows = [
+      [`REPORTE QUINCENAL - ${storeName.toUpperCase()}`],
+      [`Período: ${fmtDate(from)} al ${fmtDate(to)}`],
+      [`Generado: ${new Date().toLocaleDateString('es-CO', { day: '2-digit', month: 'long', year: 'numeric' })}`],
+      [],
+      ['RESUMEN EJECUTIVO'],
+      ['Indicador', 'Valor', 'Nota'],
+      ['Total Ventas',       totalSales,    'Ingresos del período'],
+      ['Total Gastos',       totalExpenses, totalExpenses === 0 ? '⚠ Sin gastos registrados en Finanzas' : 'Egresos del módulo Finanzas'],
+      ['Ganancia Neta',      netProfit,     netProfit >= 0 ? `✓ Margen ${profitMargin}%` : `✗ Pérdida: gastos superan ventas en ${Math.abs(profitMargin)}%`],
+      ['Ticket Promedio',    sales?.kpi?.avgTicket ?? 0, 'Por comanda cerrada'],
+      ['Comandas Cerradas',  sales?.kpi?.closedOrders ?? 0, 'Comandas cobradas'],
+      ['Ítems Vendidos',     sales?.kpi?.itemsSold ?? 0,    'Total productos despachados'],
+      ['Tasa de Cierre',     `${sales?.kpi?.closeRate ?? 0}%`, 'Comandas cobradas / total abiertas'],
+    ]
+    const wsResumen = XLSX.utils.aoa_to_sheet(resumenRows)
+    wsResumen['!cols'] = [{ wch: 24 }, { wch: 18 }, { wch: 44 }]
+    wsResumen['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 2 } }]
+    XLSX.utils.book_append_sheet(wb, wsResumen, 'Resumen')
+
+    // ── HOJA 2: TOP PRODUCTOS ──────────────────────────────────────────────
+    if ((sales?.topItems?.length ?? 0) > 0) {
+      const prodRows: any[][] = [
+        [`TOP PRODUCTOS - ${storeName}`],
+        [`Período: ${from} al ${to}`],
+        [],
+        ['#', 'Producto', 'Área', 'Unidades Vendidas', 'Ingresos (COP)', '% del Total'],
+      ]
+      const totalRev = sales.topItems.reduce((s: number, i: any) => s + i.revenue, 0)
+      sales.topItems.forEach((item: any, idx: number) => {
+        prodRows.push([
+          idx + 1,
+          item.name,
+          AREA_LABEL[item.area] ?? item.area,
+          item.qty,
+          item.revenue,
+          totalRev > 0 ? `${Math.round((item.revenue / totalRev) * 100)}%` : '0%',
+        ])
+      })
+      prodRows.push([])
+      prodRows.push(['', 'TOTAL', '', sales.topItems.reduce((s: number, i: any) => s + i.qty, 0), totalRev, '100%'])
+      const wsProductos = XLSX.utils.aoa_to_sheet(prodRows)
+      wsProductos['!cols'] = [{ wch: 4 }, { wch: 32 }, { wch: 10 }, { wch: 18 }, { wch: 18 }, { wch: 12 }]
+      wsProductos['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 5 } }]
+      XLSX.utils.book_append_sheet(wb, wsProductos, 'Top Productos')
+    }
+
+    // ── HOJA 3: GASTOS POR CATEGORÍA ──────────────────────────────────────
+    const gastosRows: any[][] = [
+      [`GASTOS POR CATEGORÍA - ${storeName}`],
+      [`Período: ${from} al ${to}`],
+      [],
+      ['Categoría', 'Total (COP)', '% del Total Gastos'],
+    ]
+    if (expCats.length === 0) {
+      gastosRows.push(['Sin gastos registrados', '', ''])
+      gastosRows.push(['', '', ''])
+      gastosRows.push(['⚠ Registra tus egresos en Finanzas → Transacciones para ver la rentabilidad real.', '', ''])
+    } else {
+      expCats.forEach(([cat, amount]) => {
+        gastosRows.push([
+          cat,
+          amount,
+          totalExpenses > 0 ? `${Math.round((amount / totalExpenses) * 100)}%` : '0%',
+        ])
+      })
+      gastosRows.push([])
+      gastosRows.push(['TOTAL GASTOS', totalExpenses, '100%'])
+    }
+    const wsGastos = XLSX.utils.aoa_to_sheet(gastosRows)
+    wsGastos['!cols'] = [{ wch: 30 }, { wch: 18 }, { wch: 18 }]
+    wsGastos['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 2 } }]
+    XLSX.utils.book_append_sheet(wb, wsGastos, 'Gastos por Categoría')
+
+    // ── HOJA 4: VENTAS DIARIAS ─────────────────────────────────────────────
+    if ((sales?.daily?.length ?? 0) > 0) {
+      const dailyRows: any[][] = [
+        [`VENTAS DIARIAS - ${storeName}`],
+        [`Período: ${from} al ${to}`],
+        [],
+        ['Fecha', 'Ingresos (COP)', 'Comandas'],
+      ]
+      sales.daily.forEach((d: any) => {
+        dailyRows.push([d.day, d.revenue, d.orders])
+      })
+      dailyRows.push([])
+      dailyRows.push([
+        'TOTAL',
+        sales.daily.reduce((s: number, d: any) => s + d.revenue, 0),
+        sales.daily.reduce((s: number, d: any) => s + d.orders, 0),
+      ])
+      const wsDaily = XLSX.utils.aoa_to_sheet(dailyRows)
+      wsDaily['!cols'] = [{ wch: 14 }, { wch: 18 }, { wch: 12 }]
+      wsDaily['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 2 } }]
+      XLSX.utils.book_append_sheet(wb, wsDaily, 'Ventas por Día')
+    }
+
+    // ── HOJA 5: MÉTODOS DE PAGO ────────────────────────────────────────────
+    if ((sales?.byMethod?.length ?? 0) > 0) {
+      const methodRows: any[][] = [
+        [`MÉTODOS DE PAGO - ${storeName}`],
+        [`Período: ${from} al ${to}`],
+        [],
+        ['Método', 'Total (COP)', 'Nº Cobros', '% del Total'],
+      ]
+      const totalMet = sales.byMethod.reduce((s: number, m: any) => s + m.total, 0)
+      sales.byMethod.forEach((m: any) => {
+        methodRows.push([
+          METHOD_LABEL[m.method] ?? m.method,
+          m.total,
+          m.txn,
+          totalMet > 0 ? `${Math.round((m.total / totalMet) * 100)}%` : '0%',
+        ])
+      })
+      methodRows.push([])
+      methodRows.push(['TOTAL', totalMet, sales.byMethod.reduce((s: number, m: any) => s + m.txn, 0), '100%'])
+      const wsMetodos = XLSX.utils.aoa_to_sheet(methodRows)
+      wsMetodos['!cols'] = [{ wch: 16 }, { wch: 18 }, { wch: 12 }, { wch: 12 }]
+      wsMetodos['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 3 } }]
+      XLSX.utils.book_append_sheet(wb, wsMetodos, 'Métodos de Pago')
+    }
+
+    // ── HOJA 6: RENDIMIENTO MESEROS ────────────────────────────────────────
+    if ((sales?.waiters?.length ?? 0) > 0) {
+      const waiterRows: any[][] = [
+        [`RENDIMIENTO POR MESERO - ${storeName}`],
+        [`Período: ${from} al ${to}`],
+        [],
+        ['Mesero', 'Comandas', 'Ingresos (COP)', 'Ticket Prom. (COP)', 'Ítems Cancelados'],
+      ]
+      sales.waiters.forEach((w: any) => {
+        waiterRows.push([w.name, w.orders, w.revenue, w.avgTicket, w.cancelledItems])
+      })
+      const wsWaiters = XLSX.utils.aoa_to_sheet(waiterRows)
+      wsWaiters['!cols'] = [{ wch: 24 }, { wch: 12 }, { wch: 18 }, { wch: 20 }, { wch: 18 }]
+      wsWaiters['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 4 } }]
+      XLSX.utils.book_append_sheet(wb, wsWaiters, 'Rendimiento Meseros')
+    }
+
+    // ── HOJA 7: MESAS ─────────────────────────────────────────────────────
+    const activeTables = (sales?.tables ?? []).filter((t: any) => t.visits > 0)
+    if (activeTables.length > 0) {
+      const tableRows: any[][] = [
+        [`RENDIMIENTO POR MESA - ${storeName}`],
+        [`Período: ${from} al ${to}`],
+        [],
+        ['Mesa', 'Área', 'Visitas', 'Ingresos (COP)', 'Prom. Comensales', 'Tiempo Prom. (min)'],
+      ]
+      activeTables.forEach((t: any) => {
+        tableRows.push([
+          `Mesa ${t.number}`, t.area ?? '—', t.visits, t.revenue,
+          t.avgGuests > 0 ? t.avgGuests.toFixed(1) : '—',
+          t.avgMinutes > 0 ? Math.round(t.avgMinutes) : '—',
+        ])
+      })
+      const wsTables = XLSX.utils.aoa_to_sheet(tableRows)
+      wsTables['!cols'] = [{ wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 18 }, { wch: 18 }, { wch: 20 }]
+      wsTables['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 5 } }]
+      XLSX.utils.book_append_sheet(wb, wsTables, 'Mesas')
+    }
+
+    // ── Download ──────────────────────────────────────────────────────────
+    const fileName = `Reporte_${storeName.replace(/\s+/g, '_')}_${from}_al_${to}.xlsx`
+    XLSX.writeFile(wb, fileName)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur-sm overflow-auto">
+      {/* Toolbar */}
+      <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-border bg-card px-6 py-3 shadow-sm">
+        <div className="flex items-center gap-2">
+          <FileText className="h-5 w-5 text-primary" />
+          <span className="font-bold text-sm">Reporte para Socio</span>
+          <span className="text-xs text-muted-foreground ml-1">
+            {fmtDate(from)} → {fmtDate(to)}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={exportToExcel}
+            disabled={loading}
+            className="flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700 disabled:opacity-50 transition-colors">
+            <Download className="h-3.5 w-3.5" /> Excel
+          </button>
+          <button
+            onClick={printReport}
+            disabled={loading}
+            className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors">
+            <Printer className="h-3.5 w-3.5" /> Imprimir / PDF
+          </button>
+          <button onClick={onClose}
+            className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-accent transition-colors">
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="max-w-3xl mx-auto p-6">
+        {loading ? (
+          <div className="flex flex-col items-center gap-3 py-20 text-muted-foreground">
+            <RefreshCw className="h-6 w-6 animate-spin" />
+            <p className="text-sm">Generando reporte...</p>
+          </div>
+        ) : (
+          <div id="reporte-socio-print" className="space-y-6">
+
+            {/* Header */}
+            <div>
+              <h1 className="text-2xl font-black">{user?.storeName ?? user?.name ?? 'Gastrobar'}</h1>
+              <p className="text-sm text-muted-foreground mt-1">
+                Reporte Quincenal · {fmtDate(from)} al {fmtDate(to)}
+              </p>
+            </div>
+
+            {/* KPI strip */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {[
+                { label: 'Total Ventas',   value: formatCOP(totalSales),    color: 'text-green-400',  sub: 'ingresos del período' },
+                { label: 'Total Gastos',   value: formatCOP(totalExpenses), color: 'text-red-400',    sub: 'egresos registrados' },
+                { label: 'Ganancia Neta',  value: formatCOP(netProfit),     color: netProfit >= 0 ? 'text-green-400' : 'text-red-500', sub: `margen ${profitMargin}%` },
+                { label: 'Ticket Prom.',   value: formatCOP(sales?.kpi?.avgTicket ?? 0), color: 'text-blue-400', sub: 'por comanda' },
+                { label: 'Comandas',       value: String(sales?.kpi?.closedOrders ?? 0), color: 'text-violet-400', sub: 'pagadas' },
+                { label: 'Ítems vendidos', value: String(sales?.kpi?.itemsSold ?? 0),    color: 'text-amber-400',  sub: 'productos' },
+              ].map(k => (
+                <div key={k.label} className="rounded-2xl border border-border bg-card px-4 py-3.5">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{k.label}</p>
+                  <p className={cn('text-xl font-black mt-1 tabular-nums leading-none', k.color)}>{k.value}</p>
+                  <p className="text-[10px] text-muted-foreground/60 mt-1">{k.sub}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Profit indicator */}
+            <div className={cn(
+              'rounded-2xl border px-5 py-4 flex items-center gap-4',
+              netProfit >= 0
+                ? 'border-green-500/30 bg-green-500/5'
+                : 'border-red-500/30 bg-red-500/5',
+            )}>
+              {netProfit >= 0
+                ? <TrendingUp className="h-8 w-8 text-green-400 shrink-0" />
+                : <TrendingDown className="h-8 w-8 text-red-400 shrink-0" />
+              }
+              <div>
+                <p className={cn('text-2xl font-black tabular-nums', netProfit >= 0 ? 'text-green-400' : 'text-red-400')}>
+                  {netProfit >= 0 ? '+' : ''}{formatCOP(netProfit)}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {netProfit >= 0
+                    ? `Ganancia neta · Margen del ${profitMargin}% sobre ventas`
+                    : `Pérdida neta · Gastos superaron las ventas en ${profitMargin * -1}%`
+                  }
+                </p>
+                {totalExpenses === 0 && (
+                  <p className="text-[11px] text-amber-400 mt-1">
+                    No hay gastos registrados en Finanzas para este período. Registra tus egresos en el módulo Finanzas para ver la ganancia real.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+
+              {/* Top products */}
+              {(sales?.topItems?.length ?? 0) > 0 && (
+                <div className="rounded-2xl border border-border bg-card p-5">
+                  <h3 className="text-sm font-bold mb-4 flex items-center gap-2">
+                    <span className="h-1 w-4 rounded-full bg-primary inline-block" />
+                    Top productos
+                  </h3>
+                  <div className="space-y-2.5">
+                    {sales.topItems.slice(0, 8).map((item: any, i: number) => (
+                      <div key={i} className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-xs text-muted-foreground w-4 text-right shrink-0 font-bold">{i + 1}</span>
+                          <span className="text-sm font-medium truncate">{item.name}</span>
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0">
+                          <span className="text-[11px] text-muted-foreground">{item.qty} und</span>
+                          <span className="text-sm font-bold text-green-400 tabular-nums">{formatCOP(item.revenue)}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Gastos por categoría */}
+              <div className="rounded-2xl border border-border bg-card p-5">
+                <h3 className="text-sm font-bold mb-4 flex items-center gap-2">
+                  <span className="h-1 w-4 rounded-full bg-red-400 inline-block" />
+                  Gastos por categoría
+                </h3>
+                {expCats.length === 0 ? (
+                  <p className="text-xs text-muted-foreground py-4 text-center">
+                    Sin gastos registrados.<br />
+                    Usa el módulo Finanzas → Transacciones para registrar tus egresos.
+                  </p>
+                ) : (
+                  <div className="space-y-2.5">
+                    {expCats.map(([cat, amount]) => (
+                      <div key={cat} className="flex items-center justify-between gap-2">
+                        <span className="text-sm font-medium truncate">{cat}</span>
+                        <span className="text-sm font-bold text-red-400 tabular-nums shrink-0">{formatCOP(amount)}</span>
+                      </div>
+                    ))}
+                    <div className="flex items-center justify-between gap-2 border-t border-border pt-2 mt-2">
+                      <span className="text-sm font-bold">Total gastos</span>
+                      <span className="text-sm font-black text-red-400 tabular-nums">{formatCOP(totalExpenses)}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+            </div>
+
+            {/* Payment methods */}
+            {(sales?.byMethod?.length ?? 0) > 0 && (
+              <div className="rounded-2xl border border-border bg-card p-5">
+                <h3 className="text-sm font-bold mb-4 flex items-center gap-2">
+                  <span className="h-1 w-4 rounded-full bg-blue-400 inline-block" />
+                  Métodos de pago
+                </h3>
+                <div className="flex flex-wrap gap-3">
+                  {sales.byMethod.map((m: any) => (
+                    <div key={m.method} className="flex items-center gap-2 rounded-xl border border-border bg-background px-3 py-2">
+                      <span className="text-xs font-medium">{METHOD_LABEL[m.method] ?? m.method}</span>
+                      <span className="text-sm font-bold text-blue-400 tabular-nums">{formatCOP(m.total)}</span>
+                      <span className="text-[10px] text-muted-foreground">{m.txn} cobros</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Footer */}
+            <p className="text-[11px] text-muted-foreground text-center pt-2">
+              Generado el {new Date().toLocaleDateString('es-CO', { day: '2-digit', month: 'long', year: 'numeric' })} · LOPBUK Gastrobar
+            </p>
+
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── ReportesTab ─────────────────────────────────────────────────────────────
+
 function ReportesTab() {
-  const [data,    setData]    = useState<any>(null)
-  const [loading, setLoading] = useState(true)
-  const [period,  setPeriod]  = useState<Period>('1')
-  const [from,    setFrom]    = useState('')
-  const [to,      setTo]      = useState('')
+  const [data,           setData]           = useState<any>(null)
+  const [loading,        setLoading]        = useState(true)
+  const [period,         setPeriod]         = useState<Period>('1')
+  const [from,           setFrom]           = useState('')
+  const [to,             setTo]             = useState('')
+  const [showSocio,      setShowSocio]      = useState(false)
+  const [socioRange,     setSocioRange]     = useState<{ from: string; to: string } | null>(null)
 
   const getRange = useCallback(() => {
     const tz = 'America/Bogota'
@@ -1788,11 +2222,88 @@ function ReportesTab() {
 
   useEffect(() => { load() }, [load])
 
+  const exportAnalyticsExcel = () => {
+    if (!data) return
+    const { from: f, to: t } = getRange()
+    const wb = XLSX.utils.book_new()
+
+    // KPIs
+    const wsKpi = XLSX.utils.aoa_to_sheet([
+      ['ANALYTICS RESTBAR'],
+      [`Período: ${f} al ${t}`],
+      [],
+      ['Indicador', 'Valor'],
+      ['Ingresos (COP)', data.kpi.revenue],
+      ['Ticket Promedio (COP)', data.kpi.avgTicket],
+      ['Total Comandas', data.kpi.totalOrders],
+      ['Comandas Cerradas', data.kpi.closedOrders],
+      ['Ítems Vendidos', data.kpi.itemsSold],
+      ['Ítems Cancelados', data.kpi.itemsCancelled],
+      ['Tasa de Cierre', `${data.kpi.closeRate}%`],
+    ])
+    wsKpi['!cols'] = [{ wch: 26 }, { wch: 16 }]
+    wsKpi['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }]
+    XLSX.utils.book_append_sheet(wb, wsKpi, 'KPIs')
+
+    // Top productos
+    if (data.topItems.length > 0) {
+      const rows = [['Producto', 'Área', 'Unidades', 'Ingresos (COP)'],
+        ...data.topItems.map((i: any) => [i.name, AREA_LABEL[i.area] ?? i.area, i.qty, i.revenue])]
+      const ws = XLSX.utils.aoa_to_sheet(rows)
+      ws['!cols'] = [{ wch: 32 }, { wch: 10 }, { wch: 12 }, { wch: 16 }]
+      XLSX.utils.book_append_sheet(wb, ws, 'Top Productos')
+    }
+
+    // Ventas diarias
+    if (data.daily.length > 0) {
+      const rows = [['Fecha', 'Ingresos (COP)', 'Comandas'],
+        ...data.daily.map((d: any) => [d.day, d.revenue, d.orders])]
+      const ws = XLSX.utils.aoa_to_sheet(rows)
+      ws['!cols'] = [{ wch: 14 }, { wch: 16 }, { wch: 12 }]
+      XLSX.utils.book_append_sheet(wb, ws, 'Ventas por Día')
+    }
+
+    // Métodos de pago
+    if (data.byMethod.length > 0) {
+      const rows = [['Método', 'Total (COP)', 'Nº Cobros'],
+        ...data.byMethod.map((m: any) => [METHOD_LABEL[m.method] ?? m.method, m.total, m.txn])]
+      const ws = XLSX.utils.aoa_to_sheet(rows)
+      ws['!cols'] = [{ wch: 16 }, { wch: 16 }, { wch: 12 }]
+      XLSX.utils.book_append_sheet(wb, ws, 'Métodos de Pago')
+    }
+
+    // Meseros
+    if (data.waiters.length > 0) {
+      const rows = [['Mesero', 'Comandas', 'Ingresos (COP)', 'Ticket Prom.', 'Cancelados'],
+        ...data.waiters.map((w: any) => [w.name, w.orders, w.revenue, w.avgTicket, w.cancelledItems])]
+      const ws = XLSX.utils.aoa_to_sheet(rows)
+      ws['!cols'] = [{ wch: 24 }, { wch: 12 }, { wch: 16 }, { wch: 16 }, { wch: 12 }]
+      XLSX.utils.book_append_sheet(wb, ws, 'Meseros')
+    }
+
+    // Mesas
+    const activeTables = data.tables.filter((t: any) => t.visits > 0)
+    if (activeTables.length > 0) {
+      const rows = [['Mesa', 'Área', 'Visitas', 'Ingresos (COP)', 'Prom. Comensales', 'Tiempo Prom. (min)'],
+        ...activeTables.map((t: any) => [
+          `Mesa ${t.number}`, t.area ?? '—', t.visits, t.revenue,
+          t.avgGuests > 0 ? t.avgGuests.toFixed(1) : '—',
+          t.avgMinutes > 0 ? Math.round(t.avgMinutes) : '—',
+        ])]
+      const ws = XLSX.utils.aoa_to_sheet(rows)
+      ws['!cols'] = [{ wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 16 }, { wch: 18 }, { wch: 20 }]
+      XLSX.utils.book_append_sheet(wb, ws, 'Mesas')
+    }
+
+    XLSX.writeFile(wb, `Analytics_Restbar_${f}_al_${t}.xlsx`)
+  }
+
   const PERIODS: { id: Period; label: string }[] = [
-    { id: '1',  label: 'Hoy' },
-    { id: '7',  label: '7 días' },
-    { id: '30', label: '30 días' },
-    { id: '90', label: '90 días' },
+    { id: '1',      label: 'Hoy' },
+    { id: '7',      label: '7 días' },
+    { id: '15',     label: 'Quincena' },
+    { id: '30',     label: '30 días' },
+    { id: '90',     label: '90 días' },
     { id: 'custom', label: 'Personalizado' },
   ]
 
@@ -1823,11 +2334,36 @@ function ReportesTab() {
               className="rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary" />
           </div>
         )}
-        <button onClick={load}
-          className="ml-auto flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-accent transition-colors">
-          <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} /> Actualizar
-        </button>
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            onClick={() => {
+              const range = getRange()
+              setSocioRange(range)
+              setShowSocio(true)
+            }}
+            className="flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/20 transition-colors">
+            <FileText className="h-3.5 w-3.5" /> Reporte Socio
+          </button>
+          <button
+            onClick={exportAnalyticsExcel}
+            disabled={loading || !data}
+            className="flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700 disabled:opacity-40 transition-colors">
+            <Download className="h-3.5 w-3.5" /> Excel
+          </button>
+          <button onClick={load}
+            className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-accent transition-colors">
+            <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} /> Actualizar
+          </button>
+        </div>
       </div>
+
+      {showSocio && socioRange && (
+        <ReporteSocioView
+          from={socioRange.from}
+          to={socioRange.to}
+          onClose={() => setShowSocio(false)}
+        />
+      )}
 
       {loading ? (
         <div className="flex flex-col items-center gap-3 py-20 text-muted-foreground">

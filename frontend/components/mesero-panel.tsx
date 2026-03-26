@@ -9,7 +9,7 @@ import {
   UtensilsCrossed, Users, ShoppingCart, RefreshCw,
   Plus, Minus, X, Edit2, Clock, UserPlus, ChevronLeft,
   FileText, LogOut, ChefHat, Check,
-  Trash2, Search, ChevronUp, ChevronDown, Package,
+  Trash2, Search, ChevronUp, ChevronDown, Package, AlertTriangle,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
@@ -253,6 +253,7 @@ function OrderModal({
   const [editingNote, setEditingNote]       = useState<string | null>(null)
   const [noteText, setNoteText]             = useState('')
   const [savingNote, setSavingNote]         = useState(false)
+  const [cancelStep, setCancelStep]         = useState<0 | 1 | 2>(0)
 
   // ── Guest management ──────────────────────────────────────────────────────
   const [guests, setGuests]             = useState<Guest[]>([])
@@ -391,6 +392,14 @@ function OrderModal({
     setIsPerforming(false)
   }
 
+  const cancelOrder = async () => {
+    if (!order?.id) return; setIsPerforming(true)
+    const r = await api.cancelRestbarOrder(order.id)
+    if (r.success) { toast.success('Comanda cancelada'); onClose() }
+    else toast.error(r.error ?? 'Error al cancelar')
+    setCancelStep(0); setIsPerforming(false)
+  }
+
   const guestName = (num: number) => guests.find(g => g.number === num)?.name ?? `C${num}`
 
   const activeItems   = order?.items?.filter((i: any) => i.status !== 'cancelado' && i.status !== 'entregado') ?? []
@@ -432,6 +441,52 @@ function OrderModal({
 
         {order && (
           <p className="text-lg font-bold text-amber-400 shrink-0">{fmt(cartTotal)}</p>
+        )}
+
+        {/* Cancel mesa button — 2-step confirmation */}
+        {order && cancelStep === 0 && (
+          <button
+            onClick={() => setCancelStep(1)}
+            className="shrink-0 h-8 px-2.5 rounded-lg text-[11px] font-semibold text-rose-400 border border-rose-500/30 hover:bg-rose-500/10 transition-colors"
+          >
+            Cancelar mesa
+          </button>
+        )}
+        {order && cancelStep === 1 && (
+          <div className="shrink-0 flex items-center gap-1.5 animate-in fade-in duration-150">
+            <AlertTriangle className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+            <span className="text-[11px] text-amber-400 font-medium">¿Seguro?</span>
+            <button
+              onClick={() => setCancelStep(2)}
+              className="h-7 px-2 rounded text-[11px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30 hover:bg-amber-500/25 transition-colors"
+            >
+              Sí
+            </button>
+            <button
+              onClick={() => setCancelStep(0)}
+              className="h-7 px-2 rounded text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+            >
+              No
+            </button>
+          </div>
+        )}
+        {order && cancelStep === 2 && (
+          <div className="shrink-0 flex items-center gap-1.5 animate-in fade-in duration-150">
+            <AlertTriangle className="h-3.5 w-3.5 text-rose-500 shrink-0" />
+            <span className="text-[11px] text-rose-400 font-medium leading-tight">¿Confirmar<br/>cancelación?</span>
+            <button
+              onClick={cancelOrder}
+              className="h-7 px-2 rounded text-[11px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/40 hover:bg-rose-500/30 transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={() => setCancelStep(0)}
+              className="h-7 px-2 rounded text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Volver
+            </button>
+          </div>
         )}
       </div>
 

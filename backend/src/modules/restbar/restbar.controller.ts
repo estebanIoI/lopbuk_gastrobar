@@ -178,6 +178,13 @@ export class RestbarController {
     } catch (err) { next(err); }
   }
 
+  async cancelOrder(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      await restbarService.cancelOrder(req.user!.tenantId!, req.params.id);
+      res.json({ success: true, message: 'Comanda cancelada' });
+    } catch (err) { next(err); }
+  }
+
   async processPayment(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const user = req.user!;

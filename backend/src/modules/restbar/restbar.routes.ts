@@ -212,6 +212,13 @@ router.post(
   restbarController.sendToKitchen.bind(restbarController)
 );
 
+router.delete(
+  '/orders/:id',
+  authorize(...WAITER_ROLES),
+  [param('id').notEmpty(), validateRequest],
+  restbarController.cancelOrder.bind(restbarController)
+);
+
 // ── KITCHEN / BAR DISPLAY ─────────────────────────────────────────────────────
 router.get('/kitchen', authorize(...KITCHEN_ROLES, ...ADMIN_ROLES), restbarController.getKitchenDisplay.bind(restbarController));
 router.get('/bar',     authorize(...KITCHEN_ROLES, ...ADMIN_ROLES), restbarController.getBarDisplay.bind(restbarController));

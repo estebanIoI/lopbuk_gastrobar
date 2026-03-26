@@ -1615,6 +1615,9 @@ class ApiService {
   async updateRestbarOrderNotes(orderId: string, notes: string | null) {
     return this.request<any>(`/restbar/orders/${orderId}/notes`, { method: 'PATCH', body: JSON.stringify({ notes }) })
   }
+  async cancelRestbarOrder(orderId: string) {
+    return this.request<any>(`/restbar/orders/${orderId}`, { method: 'DELETE' })
+  }
   async getRestbarGuestBreakdown(orderId: string) {
     return this.request<any>(`/restbar/orders/${orderId}/guests`)
   }

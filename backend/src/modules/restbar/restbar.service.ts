@@ -366,6 +366,34 @@ class RestbarService {
     }
   }
 
+  async cancelOrder(tenantId: string, orderId: string) {
+    const [rows] = await db.execute<RowDataPacket[]>(
+      `SELECT id, table_id FROM rb_orders WHERE id = ? AND tenant_id = ? AND status NOT IN ('cerrada','cancelada')`,
+      [orderId, tenantId]
+    );
+    if (rows.length === 0) throw new AppError('Comanda no encontrada o ya cerrada', 404);
+    const tableId = rows[0].table_id;
+
+    const connection = await db.getConnection();
+    try {
+      await connection.beginTransaction();
+      await connection.execute(
+        `UPDATE rb_orders SET status = 'cancelada' WHERE id = ? AND tenant_id = ?`,
+        [orderId, tenantId]
+      );
+      await connection.execute(
+        `UPDATE rb_tables SET status = 'libre' WHERE id = ? AND tenant_id = ?`,
+        [tableId, tenantId]
+      );
+      await connection.commit();
+    } catch (err) {
+      await connection.rollback();
+      throw err;
+    } finally {
+      connection.release();
+    }
+  }
+
   async updateOrderNotes(tenantId: string, orderId: string, notes: string | null) {
     const [rows] = await db.execute<RowDataPacket[]>(
       `SELECT id FROM rb_orders WHERE id = ? AND tenant_id = ? AND status NOT IN ('cerrada','cancelada')`,
