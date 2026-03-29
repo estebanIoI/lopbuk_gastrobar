@@ -305,6 +305,17 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     }
   }, [])
 
+  // Handle ?store=slug URL param (QR/share link)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const storeSlug = params.get('store')
+    if (storeSlug) {
+      setSelectedStore(storeSlug)
+      setShowStoresView(false)
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+  }, [])
+
   // Handle MercadoPago return URL (?mp=success|failure|pending&order=<id>)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -3476,6 +3487,21 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   <div className="text-center py-20">
                     <div className="w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
                     <p className="text-white/40 text-sm font-light">Cargando productos...</p>
+                  </div>
+                ) : selectedStore !== 'all' && products.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-24 px-6 text-center">
+                    <div style={{ fontSize: '4rem', lineHeight: 1, marginBottom: '1.5rem' }}>🚧</div>
+                    <p style={{ color: '#fbbf24', fontSize: '1.5rem', fontWeight: 700, letterSpacing: '0.1em', marginBottom: '0.75rem' }}>
+                      PRÓXIMAMENTE
+                    </p>
+                    <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.9rem', maxWidth: '320px', lineHeight: 1.6 }}>
+                      Este comercio está preparando su catálogo. Vuelve pronto para descubrir sus productos.
+                    </p>
+                    <div style={{ marginTop: '2rem', display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <div style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#fbbf24', animation: 'pulse 1.5s infinite' }} />
+                      <div style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#fbbf24', animation: 'pulse 1.5s infinite 0.3s' }} />
+                      <div style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#fbbf24', animation: 'pulse 1.5s infinite 0.6s' }} />
+                    </div>
                   </div>
                 ) : catalogFilteredProducts.length === 0 ? (
                   <div className="text-center py-20">

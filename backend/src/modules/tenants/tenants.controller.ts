@@ -75,6 +75,19 @@ export class TenantsController {
     }
   }
 
+  async activateTrial(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const tenant = await tenantsService.activateTrial(req.params.id);
+      res.json({
+        success: true,
+        data: tenant,
+        message: 'Período de prueba de 7 días activado con plan empresarial',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async getStats(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const stats = await tenantsService.getStats();
@@ -102,6 +115,33 @@ export class TenantsController {
       const { key, value } = req.body;
       await tenantsService.updatePlatformSetting(key, value);
       res.json({ success: true, message: 'Configuración actualizada' });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getBusinessTypes(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const types = await tenantsService.getBusinessTypes();
+      res.json({ success: true, data: types });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async createBusinessType(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const types = await tenantsService.createBusinessType(req.body.name);
+      res.json({ success: true, data: types, message: 'Categoría creada' });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async deleteBusinessType(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const types = await tenantsService.deleteBusinessType(req.params.name);
+      res.json({ success: true, data: types, message: 'Categoría eliminada' });
     } catch (error) {
       next(error);
     }

@@ -751,6 +751,27 @@ class ApiService {
     })
   }
 
+  async activateTenantTrial(id: string) {
+    return this.request<any>(`/tenants/${id}/activate-trial`, { method: 'POST' })
+  }
+
+  async getBusinessTypes() {
+    return this.request<string[]>('/tenants/business-types')
+  }
+
+  async createBusinessType(name: string) {
+    return this.request<string[]>('/tenants/business-types', {
+      method: 'POST',
+      body: JSON.stringify({ name }),
+    })
+  }
+
+  async deleteBusinessType(name: string) {
+    return this.request<string[]>(`/tenants/business-types/${encodeURIComponent(name)}`, {
+      method: 'DELETE',
+    })
+  }
+
   // =============================================
   // Storefront management endpoints (authenticated)
   // =============================================

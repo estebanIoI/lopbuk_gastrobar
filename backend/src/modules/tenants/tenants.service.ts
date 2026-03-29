@@ -415,6 +415,49 @@ export class TenantsService {
       [key, value, value]
     );
   }
+
+  async activateTrial(id: string): Promise<TenantWithSummary> {
+    await this.findById(id);
+    const trialEnd = new Date();
+    trialEnd.setDate(trialEnd.getDate() + 7);
+    await db.execute(
+      'UPDATE tenants SET plan = ?, trial_ends_at = ? WHERE id = ?',
+      ['empresarial', trialEnd, id]
+    );
+    return this.findById(id);
+  }
+
+  async getBusinessTypes(): Promise<string[]> {
+    try {
+      const [rows] = await db.execute<RowDataPacket[]>(
+        "SELECT setting_value FROM platform_settings WHERE setting_key = 'business_types'"
+      );
+      if (rows.length > 0 && rows[0].setting_value) {
+        return JSON.parse(rows[0].setting_value) as string[];
+      }
+    } catch {
+      // fallback to defaults
+    }
+    return ['Restaurante', 'Cafetería', 'Bar', 'Panadería', 'Tienda', 'Otro'];
+  }
+
+  async createBusinessType(name: string): Promise<string[]> {
+    const types = await this.getBusinessTypes();
+    const normalized = name.trim();
+    if (!normalized) throw new AppError('Nombre inválido', 400);
+    if (types.includes(normalized)) throw new AppError('La categoría ya existe', 409);
+    types.push(normalized);
+    await this.updatePlatformSetting('business_types', JSON.stringify(types));
+    return types;
+  }
+
+  async deleteBusinessType(name: string): Promise<string[]> {
+    const types = await this.getBusinessTypes();
+    const filtered = types.filter((t) => t !== name);
+    if (filtered.length === types.length) throw new AppError('Categoría no encontrada', 404);
+    await this.updatePlatformSetting('business_types', JSON.stringify(filtered));
+    return filtered;
+  }
 }
 
 export const tenantsService = new TenantsService();

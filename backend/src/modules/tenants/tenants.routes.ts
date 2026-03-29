@@ -39,7 +39,24 @@ router.put(
   tenantsController.updatePlatformSettings.bind(tenantsController)
 );
 
-// GET /api/tenants/:id - Get tenant detail (MUST be after /platform-settings to avoid conflict)
+// GET /api/tenants/business-types - List business type categories (BEFORE /:id)
+router.get('/business-types', tenantsController.getBusinessTypes.bind(tenantsController));
+
+// POST /api/tenants/business-types - Create business type category (BEFORE /:id)
+router.post(
+  '/business-types',
+  [body('name').notEmpty().withMessage('El nombre es requerido'), validateRequest],
+  tenantsController.createBusinessType.bind(tenantsController)
+);
+
+// DELETE /api/tenants/business-types/:name - Delete business type category (BEFORE /:id)
+router.delete(
+  '/business-types/:name',
+  [param('name').notEmpty().withMessage('Nombre requerido'), validateRequest],
+  tenantsController.deleteBusinessType.bind(tenantsController)
+);
+
+// GET /api/tenants/:id - Get tenant detail (MUST be after static routes to avoid conflict)
 router.get(
   '/:id',
   [param('id').notEmpty().withMessage('ID requerido'), validateRequest],
@@ -106,6 +123,13 @@ router.patch(
   '/:id/toggle-status',
   [param('id').notEmpty().withMessage('ID requerido'), validateRequest],
   tenantsController.toggleStatus.bind(tenantsController)
+);
+
+// POST /api/tenants/:id/activate-trial - Activate 7-day empresarial trial
+router.post(
+  '/:id/activate-trial',
+  [param('id').notEmpty().withMessage('ID requerido'), validateRequest],
+  tenantsController.activateTrial.bind(tenantsController)
 );
 
 export default router;

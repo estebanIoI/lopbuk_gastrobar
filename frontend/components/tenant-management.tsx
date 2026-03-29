@@ -63,6 +63,8 @@ import {
   CreditCard,
   ShieldCheck,
   EyeOff,
+  Tags,
+  Zap,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -134,6 +136,14 @@ export function TenantManagement() {
     password: '',
     isGlobal: false,
   })
+
+  // Business types
+  const [businessTypes, setBusinessTypes] = useState<string[]>([])
+  const [newBusinessType, setNewBusinessType] = useState('')
+  const [isSavingBusinessType, setIsSavingBusinessType] = useState(false)
+
+  // Trial activation
+  const [activatingTrialId, setActivatingTrialId] = useState<string | null>(null)
 
   // Platform settings
   const [platformBgColor, setPlatformBgColor] = useState('#000000')
@@ -277,6 +287,47 @@ export function TenantManagement() {
     setIsSavingPass(false)
   }
 
+  const fetchBusinessTypes = useCallback(async () => {
+    const result = await api.getBusinessTypes()
+    if (result.success && result.data) setBusinessTypes(result.data)
+  }, [])
+
+  const handleCreateBusinessType = async () => {
+    if (!newBusinessType.trim()) return
+    setIsSavingBusinessType(true)
+    const result = await api.createBusinessType(newBusinessType.trim())
+    if (result.success && result.data) {
+      setBusinessTypes(result.data)
+      setNewBusinessType('')
+      toast.success('Categoría creada')
+    } else {
+      toast.error(result.error || 'Error al crear categoría')
+    }
+    setIsSavingBusinessType(false)
+  }
+
+  const handleDeleteBusinessType = async (name: string) => {
+    const result = await api.deleteBusinessType(name)
+    if (result.success && result.data) {
+      setBusinessTypes(result.data)
+      toast.success('Categoría eliminada')
+    } else {
+      toast.error(result.error || 'Error al eliminar categoría')
+    }
+  }
+
+  const handleActivateTrial = async (tenantId: string) => {
+    setActivatingTrialId(tenantId)
+    const result = await api.activateTenantTrial(tenantId)
+    if (result.success) {
+      toast.success('Trial de 7 días activado con plan Empresarial')
+      fetchTenants()
+    } else {
+      toast.error(result.error || 'Error al activar trial')
+    }
+    setActivatingTrialId(null)
+  }
+
   const fetchPlatformSettings = useCallback(async () => {
     const result = await api.getPlatformSettings()
     if (result.success && result.data) {
@@ -299,7 +350,8 @@ export function TenantManagement() {
     fetchStats()
     fetchPlatformSettings()
     fetchUsers()
-  }, [fetchTenants, fetchStats, fetchPlatformSettings, fetchUsers])
+    fetchBusinessTypes()
+  }, [fetchTenants, fetchStats, fetchPlatformSettings, fetchUsers, fetchBusinessTypes])
 
   const generateSlug = (name: string) => {
     return name
@@ -984,6 +1036,49 @@ export function TenantManagement() {
         </CardContent>
       </Card>
 
+      {/* Business Types */}
+      <Card className="border-border bg-card">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base lg:text-lg flex items-center gap-2">
+            <Tags className="h-5 w-5 text-muted-foreground" />
+            Categorías de Comercio
+          </CardTitle>
+          <CardDescription>Tipos de negocio disponibles al crear un comercio</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex gap-2">
+            <Input
+              placeholder="Nueva categoría (ej: Heladería)"
+              value={newBusinessType}
+              onChange={(e) => setNewBusinessType(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleCreateBusinessType() }}
+              className="flex-1 max-w-xs"
+            />
+            <Button size="sm" onClick={handleCreateBusinessType} disabled={isSavingBusinessType || !newBusinessType.trim()} className="gap-1">
+              <Plus className="h-4 w-4" />
+              Agregar
+            </Button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {businessTypes.map((type) => (
+              <div key={type} className="flex items-center gap-1 px-3 py-1.5 rounded-full border border-border bg-secondary text-secondary-foreground text-sm">
+                <span>{type}</span>
+                <button
+                  onClick={() => handleDeleteBusinessType(type)}
+                  className="ml-1 text-muted-foreground hover:text-destructive transition-colors"
+                  title="Eliminar"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
+            {businessTypes.length === 0 && (
+              <p className="text-sm text-muted-foreground">No hay categorías configuradas</p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Tenants Table */}
       <Card className="border-border bg-card">
         <CardHeader>
@@ -1074,6 +1169,16 @@ export function TenantManagement() {
                             title={tenant.status === 'activo' ? 'Suspender' : 'Activar'}
                           >
                             <Power className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-purple-500 hover:text-purple-600"
+                            onClick={() => handleActivateTrial(tenant.id)}
+                            disabled={activatingTrialId === tenant.id}
+                            title="Activar trial 7 días Empresarial"
+                          >
+                            <Zap className="h-4 w-4" />
                           </Button>
                         </div>
                       </TableCell>
@@ -1290,18 +1395,9 @@ export function TenantManagement() {
                     <SelectValue placeholder="Seleccionar categoría..." />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="perfumería">Perfumería</SelectItem>
-                    <SelectItem value="ropa">Ropa</SelectItem>
-                    <SelectItem value="tienda">Tienda</SelectItem>
-                    <SelectItem value="farmacia">Farmacia</SelectItem>
-                    <SelectItem value="ferreteria">Ferretería</SelectItem>
-                    <SelectItem value="restaurante">Restaurante</SelectItem>
-                    <SelectItem value="tecnologia">Tecnología</SelectItem>
-                    <SelectItem value="cosmetica">Cosmética</SelectItem>
-                    <SelectItem value="deportes">Deportes</SelectItem>
-                    <SelectItem value="mascotas">Mascotas</SelectItem>
-                    <SelectItem value="libreria">Librería</SelectItem>
-                    <SelectItem value="otros">Otros</SelectItem>
+                    {businessTypes.map((type) => (
+                      <SelectItem key={type} value={type}>{type}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -1421,18 +1517,9 @@ export function TenantManagement() {
                   <SelectValue placeholder="Seleccionar categoría..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="perfumería">Perfumería</SelectItem>
-                  <SelectItem value="ropa">Ropa</SelectItem>
-                  <SelectItem value="tienda">Tienda</SelectItem>
-                  <SelectItem value="farmacia">Farmacia</SelectItem>
-                  <SelectItem value="ferreteria">Ferretería</SelectItem>
-                  <SelectItem value="restaurante">Restaurante</SelectItem>
-                  <SelectItem value="tecnologia">Tecnología</SelectItem>
-                  <SelectItem value="cosmetica">Cosmética</SelectItem>
-                  <SelectItem value="deportes">Deportes</SelectItem>
-                  <SelectItem value="mascotas">Mascotas</SelectItem>
-                  <SelectItem value="libreria">Librería</SelectItem>
-                  <SelectItem value="otros">Otros</SelectItem>
+                  {businessTypes.map((type) => (
+                    <SelectItem key={type} value={type}>{type}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
