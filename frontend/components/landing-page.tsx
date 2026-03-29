@@ -389,12 +389,12 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   }
 
   const toggleFavorite = (productId: number) => {
-    if (!authUser?.id) return
+    const key = authUser?.id ? `storeFavorites_${authUser.id}` : 'storeFavorites_guest'
     setFavorites(prev => {
       const next = new Set(prev)
       if (next.has(productId)) next.delete(productId)
       else next.add(productId)
-      localStorage.setItem(`storeFavorites_${authUser.id}`, JSON.stringify([...next]))
+      localStorage.setItem(key, JSON.stringify([...next]))
       return next
     })
   }
@@ -410,7 +410,10 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         setFavorites(saved ? new Set(JSON.parse(saved)) : new Set())
       } catch { setFavorites(new Set()) }
     } else {
-      setFavorites(new Set())
+      try {
+        const saved = localStorage.getItem('storeFavorites_guest')
+        setFavorites(saved ? new Set(JSON.parse(saved)) : new Set())
+      } catch { setFavorites(new Set()) }
     }
   }, [authUser?.id])
 
@@ -2364,7 +2367,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 ) : (
                   <div className="w-full h-full flex items-center justify-center"><Sparkles className="w-16 h-16 text-white/10" /></div>
                 )}
-                {selectedProduct.isOnOffer && selectedProduct.offerPrice && (
+                {!!(selectedProduct.isOnOffer && selectedProduct.offerPrice) && (
                   <div className="absolute top-4 left-4 flex items-center gap-1.5 bg-gradient-to-r from-red-600 to-orange-500 text-white text-xs font-bold px-2.5 py-1 shadow-lg">
                     <Flame className="w-3.5 h-3.5" />
                     -{Math.round(((selectedProduct.salePrice - selectedProduct.offerPrice) / selectedProduct.salePrice) * 100)}% OFF
@@ -2482,14 +2485,14 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   <button
                     onClick={addFromModal}
                     disabled={selectedProduct.stock === 0}
-                    className={`w-full py-4 flex items-center justify-center gap-2.5 text-sm uppercase tracking-[0.15em] font-medium border rounded-xl transition-all ${
+                    className={`w-full py-4 flex items-center justify-center gap-2.5 text-sm uppercase tracking-[0.15em] font-medium rounded-xl transition-all ${
                       selectedProduct.stock === 0
-                        ? 'opacity-30 cursor-not-allowed border-white/10'
-                        : isLightBg ? 'border-black text-black hover:bg-black hover:text-white' : 'border-white/40 text-white hover:bg-white/10'
+                        ? 'opacity-30 cursor-not-allowed bg-black/10'
+                        : isLightBg ? 'bg-black text-white hover:opacity-90' : 'bg-white text-black hover:opacity-90'
                     }`}
                   >
-                    <Truck className="w-4 h-4 flex-shrink-0" />
-                    Pago contraentrega
+                    <ShoppingCart className="w-4 h-4 flex-shrink-0" />
+                    Añadir al carrito
                   </button>
                   <button
                     onClick={() => {
@@ -2649,7 +2652,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           // eslint-disable-next-line @next/next/no-img-element
                           <img key={activeUrl} src={ensureAbsoluteUrl(activeUrl)} alt={selectedProduct.name} className="w-full h-full object-contain transition-opacity duration-300" />
                         ) : <div className="w-full h-full flex items-center justify-center"><Sparkles className="w-20 h-20 text-white/10" /></div>}
-                        {selectedProduct.isOnOffer && selectedProduct.offerPrice && (
+                        {!!(selectedProduct.isOnOffer && selectedProduct.offerPrice) && (
                           <div className="absolute top-4 left-4 flex flex-col gap-2">
                             <div className="flex items-center gap-1.5 bg-gradient-to-r from-red-600 to-orange-600 text-white text-sm font-bold px-3 py-1.5 shadow-lg shadow-red-500/30">
                               <Flame className="w-4 h-4" />-{Math.round(((selectedProduct.salePrice - selectedProduct.offerPrice) / selectedProduct.salePrice) * 100)}% OFF
