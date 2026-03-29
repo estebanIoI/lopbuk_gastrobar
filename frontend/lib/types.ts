@@ -488,6 +488,7 @@ export interface User {
   // Tenant plan info (populated from JOIN on login/checkAuth)
   tenantPlan?: TenantPlan
   tenantName?: string
+  tenantSlug?: string
   tenantMaxUsers?: number
   tenantMaxProducts?: number
   createdAt: string

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/lib/auth-store'
 import { Button } from '@/components/ui/button'
@@ -35,7 +35,15 @@ import {
   Settings,
   Save,
   AlertCircle,
+  Share2,
+  Copy,
+  Check,
+  Download,
+  QrCode,
+  ExternalLink,
+  Link2,
 } from 'lucide-react'
+import { QRCodeSVG } from 'qrcode.react'
 import { StoreCustomization } from '@/components/store-customization'
 
 interface StoreProduct {
@@ -57,7 +65,7 @@ interface StoreProduct {
   launchDate: string | null
 }
 
-type ActiveTab = 'catalog' | 'new-launches' | 'order-bump'
+type ActiveTab = 'catalog' | 'new-launches' | 'order-bump' | 'share'
 
 interface OrderBumpConfig {
   isEnabled: boolean
@@ -103,6 +111,11 @@ export function Tienda() {
   const [savingBump, setSavingBump] = useState(false)
   const [bumpSaved, setBumpSaved] = useState(false)
   const [bumpError, setBumpError] = useState<string | null>(null)
+
+  // Share / QR state
+  const [copiedLink, setCopiedLink] = useState(false)
+  const [copiedSlug, setCopiedSlug] = useState(false)
+  const qrRef = useRef<HTMLDivElement>(null)
 
   // Offer modal state
   const [offerModal, setOfferModal] = useState<{ open: boolean; product: StoreProduct | null }>({ open: false, product: null })
@@ -786,6 +799,17 @@ export function Tienda() {
             <Badge className="ml-1 text-xs bg-amber-500 hover:bg-amber-600 text-white">ON</Badge>
           )}
         </button>
+        <button
+          onClick={() => setActiveTab('share')}
+          className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === 'share'
+              ? 'border-green-500 text-green-600'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <Share2 className="h-4 w-4" />
+          Compartir
+        </button>
       </div>
 
       {/* ========== CATALOG TAB ========== */}
@@ -1219,6 +1243,194 @@ export function Tienda() {
           )}
         </div>
       )}
+
+      {/* ========== SHARE TAB ========== */}
+      {activeTab === 'share' && (() => {
+        const slug = user?.tenantSlug
+        const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
+        const catalogUrl = slug ? `${baseUrl}/?store=${slug}` : null
+
+        const copyLink = async () => {
+          if (!catalogUrl) return
+          await navigator.clipboard.writeText(catalogUrl)
+          setCopiedLink(true)
+          setTimeout(() => setCopiedLink(false), 2500)
+        }
+
+        const copySlug = async () => {
+          if (!slug) return
+          await navigator.clipboard.writeText(slug)
+          setCopiedSlug(true)
+          setTimeout(() => setCopiedSlug(false), 2500)
+        }
+
+        const downloadQR = () => {
+          const svg = qrRef.current?.querySelector('svg')
+          if (!svg) return
+          const serializer = new XMLSerializer()
+          const svgStr = serializer.serializeToString(svg)
+          const canvas = document.createElement('canvas')
+          const size = 512
+          canvas.width = size
+          canvas.height = size
+          const ctx = canvas.getContext('2d')
+          if (!ctx) return
+          const img = new Image()
+          img.onload = () => {
+            ctx.fillStyle = '#ffffff'
+            ctx.fillRect(0, 0, size, size)
+            ctx.drawImage(img, 0, 0, size, size)
+            const link = document.createElement('a')
+            link.download = `qr-catalogo-${slug || 'tienda'}.png`
+            link.href = canvas.toDataURL('image/png')
+            link.click()
+          }
+          img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgStr)))
+        }
+
+        return (
+          <div className="max-w-2xl mx-auto space-y-6">
+            {/* Header */}
+            <div>
+              <h2 className="text-lg font-semibold flex items-center gap-2">
+                <Share2 className="h-5 w-5 text-green-600" />
+                Comparte tu catálogo
+              </h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                Genera un link o QR para que tus clientes accedan directamente a tu tienda.
+              </p>
+            </div>
+
+            {!slug ? (
+              <Card>
+                <CardContent className="p-6 text-center space-y-2">
+                  <AlertCircle className="h-8 w-8 text-amber-500 mx-auto" />
+                  <p className="text-sm font-medium">Tu tienda no tiene un identificador (slug) configurado.</p>
+                  <p className="text-xs text-muted-foreground">Contacta al administrador para activar tu página pública.</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <>
+                {/* QR Card */}
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <QrCode className="h-4 w-4" />
+                      Código QR del catálogo
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="flex flex-col sm:flex-row items-center gap-6">
+                    {/* QR */}
+                    <div ref={qrRef} className="p-4 bg-white border rounded-xl shadow-sm flex-shrink-0">
+                      <QRCodeSVG
+                        value={catalogUrl!}
+                        size={180}
+                        bgColor="#ffffff"
+                        fgColor="#000000"
+                        level="H"
+                        includeMargin={false}
+                        imageSettings={{
+                          src: '/image/lopbukicon.png',
+                          height: 32,
+                          width: 32,
+                          excavate: true,
+                        }}
+                      />
+                    </div>
+                    {/* Actions */}
+                    <div className="flex-1 space-y-3 w-full">
+                      <p className="text-sm text-muted-foreground">
+                        Imprime o comparte este QR para que tus clientes escaneen y abran tu tienda directamente desde su celular.
+                      </p>
+                      <Button variant="default" className="w-full sm:w-auto gap-2" onClick={downloadQR}>
+                        <Download className="h-4 w-4" />
+                        Descargar QR (PNG)
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Link Card */}
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <Link2 className="h-4 w-4" />
+                      Link directo al catálogo
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {/* URL completa */}
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">URL completa</label>
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 rounded-md border bg-muted/40 px-3 py-2 text-sm font-mono truncate select-all">
+                          {catalogUrl}
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="shrink-0 h-9 w-9"
+                          onClick={copyLink}
+                          title="Copiar link"
+                        >
+                          {copiedLink ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                        </Button>
+                        <a
+                          href={catalogUrl!}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          <Button variant="outline" size="icon" className="shrink-0 h-9 w-9" title="Abrir en nueva pestaña">
+                            <ExternalLink className="h-4 w-4" />
+                          </Button>
+                        </a>
+                      </div>
+                    </div>
+
+                    {/* Slug */}
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Identificador de tienda (slug)</label>
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 rounded-md border bg-muted/40 px-3 py-2 text-sm font-mono">
+                          {slug}
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="shrink-0 h-9 w-9"
+                          onClick={copySlug}
+                          title="Copiar slug"
+                        >
+                          {copiedSlug ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Puedes compartir solo el slug para usar en redes sociales o stickers.
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Share tips */}
+                <Card className="border-dashed">
+                  <CardContent className="p-4 space-y-2">
+                    <p className="text-sm font-medium flex items-center gap-2">
+                      <Globe className="h-4 w-4 text-blue-500" />
+                      Sugerencias para compartir
+                    </p>
+                    <ul className="text-xs text-muted-foreground space-y-1 pl-6 list-disc">
+                      <li>Imprime el QR y colócalo en tu local, empaque o tarjeta de presentación.</li>
+                      <li>Comparte el link en WhatsApp, Instagram o Facebook.</li>
+                      <li>Agrega el QR a tu menú o catálogo físico.</li>
+                      <li>Úsalo en historias de Instagram con enlace directo.</li>
+                    </ul>
+                  </CardContent>
+                </Card>
+              </>
+            )}
+          </div>
+        )
+      })()}
 
       {/* ========== OFFER MODAL ========== */}
       {offerModal.open && offerModal.product && (

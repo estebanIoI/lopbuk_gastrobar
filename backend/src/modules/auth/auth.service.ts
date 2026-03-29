@@ -335,7 +335,7 @@ export class AuthService {
               u.phone, u.cedula, u.department, u.municipality, u.address, u.neighborhood,
               u.delivery_latitude, u.delivery_longitude, u.profile_completed,
               u.created_at, u.updated_at,
-              t.plan AS tenant_plan, t.name AS tenant_name, t.max_users, t.max_products
+              t.plan AS tenant_plan, t.name AS tenant_name, t.slug AS tenant_slug, t.max_users, t.max_products
        FROM users u
        LEFT JOIN tenants t ON t.id = u.tenant_id
        WHERE u.id = ?`,
@@ -366,6 +366,7 @@ export class AuthService {
       profileCompleted: !!user.profile_completed,
       tenantPlan: user.tenant_plan || undefined,
       tenantName: user.tenant_name || undefined,
+      tenantSlug: user.tenant_slug || undefined,
       tenantMaxUsers: user.max_users ?? undefined,
       tenantMaxProducts: user.max_products ?? undefined,
       createdAt: user.created_at,
