@@ -193,7 +193,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   const [showProductModal, setShowProductModal] = useState(false)
   const [productQuantity, setProductQuantity] = useState(1)
   const [activeImageIdx, setActiveImageIdx] = useState(0)
-  const [viewersCount] = useState(() => Math.floor(Math.random() * 40) + 8)
+  const [viewersCount, setViewersCount] = useState(0)
+  const viewersIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const [ctaVisible, setCtaVisible] = useState(false)
   const ctaRef = useRef<HTMLDivElement>(null)
 
@@ -1094,6 +1095,17 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     setProductQuantity(1)
     setActiveImageIdx(0)
     setShowProductModal(true)
+    // Seed viewers count uniquely per product and fluctuate over time
+    const seed = (product.id * 2654435761) >>> 0
+    const base = 4 + (seed % 28)
+    setViewersCount(base)
+    if (viewersIntervalRef.current) clearInterval(viewersIntervalRef.current)
+    viewersIntervalRef.current = setInterval(() => {
+      setViewersCount(prev => {
+        const delta = Math.random() < 0.5 ? 1 : -1
+        return Math.max(2, Math.min(base + 12, prev + delta))
+      })
+    }, 3500 + Math.random() * 3000)
     setProductReviews([])
     window.history.pushState({}, '', `${window.location.pathname}?product=${product.id}`)
     setReviewSuccess(false)
@@ -1112,6 +1124,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   }
 
   const closeProductModal = () => {
+    if (viewersIntervalRef.current) { clearInterval(viewersIntervalRef.current); viewersIntervalRef.current = null }
     setShowProductModal(false)
     setSelectedProduct(null)
     setProductQuantity(1)
@@ -5409,11 +5422,11 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                       {[0,1,2,3,4,5].map(i => (
-                        <div key={i} className="bg-white/5 animate-pulse rounded overflow-hidden">
-                          <div className="h-24 sm:h-32 bg-white/5" />
+                        <div key={i} className="bg-white rounded-2xl overflow-hidden animate-pulse shadow-sm border border-gray-100">
+                          <div className="bg-gray-100" style={{ aspectRatio: '16/9' }} />
                           <div className="p-3 space-y-2">
-                            <div className="h-3 bg-white/8 rounded w-2/3" />
-                            <div className="h-2 bg-white/5 rounded w-1/3" />
+                            <div className="h-3 bg-gray-200 rounded w-2/3" />
+                            <div className="h-2 bg-gray-100 rounded w-1/3" />
                           </div>
                         </div>
                       ))}
@@ -5451,7 +5464,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           <button
                             key={store.id}
                             onClick={() => { setSelectedStore(store.slug); setShowStoresView(false); setActiveSede(null); setStoreSedes([]); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
-                            className="group relative bg-white/3 border border-white/8 hover:border-amber-500/30 transition-all duration-300 overflow-hidden text-left flex flex-col"
+                            className="group relative bg-white rounded-2xl overflow-hidden text-left flex flex-col shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-100 hover:border-amber-300/60"
                           >
                             {/* Services ribbon */}
                             {storesWithServices.has(store.slug) && (
@@ -5462,31 +5475,34 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                               </div>
                             )}
 
-                            {/* Banner */}
-                            <div className="relative h-24 sm:h-32 bg-gradient-to-br from-amber-500/8 via-black to-white/3 overflow-hidden flex items-center justify-center shrink-0">
+                            {/* Banner image — object-contain so logos no se recortan */}
+                            <div className="relative w-full bg-gray-50 overflow-hidden shrink-0" style={{ aspectRatio: '16/9' }}>
                               {store.logoUrl ? (
                                 // eslint-disable-next-line @next/next/no-img-element
-                                <img src={ensureAbsoluteUrl(store.logoUrl)} alt={store.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 opacity-80 group-hover:opacity-100" />
+                                <img
+                                  src={ensureAbsoluteUrl(store.logoUrl)}
+                                  alt={store.name}
+                                  className="w-full h-full object-contain p-3 group-hover:scale-105 transition-transform duration-500"
+                                />
                               ) : (
-                                <Store className="w-12 h-12 text-amber-500/15 group-hover:text-amber-500/30 transition-colors duration-500" />
+                                <div className="w-full h-full flex items-center justify-center">
+                                  <Store className="w-10 h-10 text-gray-200 group-hover:text-amber-300 transition-colors duration-500" />
+                                </div>
                               )}
-                              <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-transparent" />
-                              {/* Badges */}
-                              <div className="absolute top-2 right-2 flex items-center gap-1.5">
-                                <span className="bg-black/70 border border-white/10 text-white/60 text-[8px] sm:text-[9px] px-1.5 py-0.5 flex items-center gap-0.5 sm:gap-1">
-                                  <Package className="w-2 h-2 sm:w-2.5 sm:h-2.5" />{store.productCount}
-                                </span>
-                              </div>
+                              {/* Product count badge */}
+                              <span className="absolute top-2 right-2 bg-white/90 border border-gray-200 text-gray-500 text-[9px] font-medium px-1.5 py-0.5 rounded-full flex items-center gap-0.5 shadow-sm">
+                                <Package className="w-2.5 h-2.5" />{store.productCount}
+                              </span>
                             </div>
 
                             {/* Info */}
-                            <div className="px-3 sm:px-4 pt-2.5 pb-2">
-                              <h3 className="text-xs sm:text-sm font-light text-white group-hover:text-amber-400 transition-colors truncate">{store.name}</h3>
+                            <div className="px-3 pt-2.5 pb-2">
+                              <h3 className="text-xs sm:text-sm font-semibold text-gray-800 group-hover:text-amber-600 transition-colors truncate">{store.name}</h3>
                               {store.businessType && (
-                                <p className="text-[9px] sm:text-[10px] text-amber-500/50 uppercase tracking-widest mt-0.5 truncate">{store.businessType}</p>
+                                <p className="text-[9px] sm:text-[10px] text-amber-500 uppercase tracking-widest mt-0.5 font-medium truncate">{store.businessType}</p>
                               )}
                               {store.address && (
-                                <p className="hidden sm:flex text-[11px] text-white/25 font-light items-center gap-1 mt-1 truncate">
+                                <p className="hidden sm:flex text-[11px] text-gray-400 items-center gap-1 mt-1 truncate">
                                   <MapPin className="w-2.5 h-2.5 shrink-0" />{store.address}
                                 </p>
                               )}
@@ -5494,33 +5510,33 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
                             {/* Product previews */}
                             {loadingAllProducts ? (
-                              <div className="px-3 sm:px-4 pb-3 flex gap-1">
-                                {[0,1,2].map(i => <div key={i} className="w-10 h-10 sm:w-14 sm:h-14 bg-white/5 animate-pulse" />)}
+                              <div className="px-3 pb-3 flex gap-1">
+                                {[0,1,2,3].map(i => <div key={i} className="flex-1 aspect-square bg-gray-100 animate-pulse rounded-lg" />)}
                               </div>
                             ) : storeProducts.length > 0 ? (
-                              <div className="px-3 sm:px-4 pb-2 grid grid-cols-4 gap-1">
+                              <div className="px-3 pb-2 grid grid-cols-4 gap-1">
                                 {storeProducts.map(p => (
-                                  <div key={p.id} className="aspect-square bg-white/5 border border-white/5 overflow-hidden">
+                                  <div key={p.id} className="aspect-square bg-gray-50 border border-gray-100 overflow-hidden rounded-lg">
                                     {p.imageUrl ? (
                                       // eslint-disable-next-line @next/next/no-img-element
-                                      <img src={ensureAbsoluteUrl(p.imageUrl)} alt={p.name} className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition-opacity" />
+                                      <img src={ensureAbsoluteUrl(p.imageUrl)} alt={p.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                                     ) : (
-                                      <div className="w-full h-full flex items-center justify-center"><Sparkles className="w-3 h-3 text-white/10" /></div>
+                                      <div className="w-full h-full flex items-center justify-center"><Sparkles className="w-3 h-3 text-gray-200" /></div>
                                     )}
                                   </div>
                                 ))}
                                 {Array.from({ length: Math.max(0, 4 - storeProducts.length) }).map((_, i) => (
-                                  <div key={`ep-${i}`} className="aspect-square bg-white/[0.02]" />
+                                  <div key={`ep-${i}`} className="aspect-square bg-gray-50 rounded-lg border border-gray-100" />
                                 ))}
                               </div>
                             ) : (
-                              <div className="px-3 sm:px-4 pb-3">
-                                <p className="text-[9px] text-white/15 italic">Sin productos publicados</p>
+                              <div className="px-3 pb-3">
+                                <p className="text-[9px] text-gray-300 italic">Sin productos publicados</p>
                               </div>
                             )}
 
                             {/* CTA */}
-                            <div className="px-3 sm:px-4 pb-3 mt-auto flex items-center gap-1 text-amber-400/50 text-[9px] sm:text-[10px] uppercase tracking-widest group-hover:text-amber-400/80 transition-colors">
+                            <div className="px-3 pb-3 mt-auto flex items-center gap-1 text-amber-500/60 text-[9px] sm:text-[10px] uppercase tracking-widest group-hover:text-amber-500 transition-colors font-medium">
                               <span>Explorar</span>
                               <ArrowRight className="w-2.5 h-2.5" />
                             </div>
