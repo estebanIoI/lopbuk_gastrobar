@@ -3333,21 +3333,31 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
                             {/* Store cards for this type */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-                              {typeStores.map(store => {
+                              {typeStores
+                                .sort((a, b) => (b.productCount > 0 ? 1 : 0) - (a.productCount > 0 ? 1 : 0))
+                                .map(store => {
                                 const storeProds = allProducts.filter(p =>
                                   p.storeSlug === store.slug ||
                                   p.storeName === store.name
                                 )
                                 const preview = storeProds.slice(0, 4)
+                                const isDarkEmpty = store.productCount === 0
                                 return (
                                   <div
                                     key={store.id}
-                                    className="group bg-white/[0.03] border border-white/8 hover:border-amber-500/30 hover:bg-white/[0.05] transition-all duration-300 overflow-hidden cursor-pointer"
+                                    className={`group relative bg-white/[0.03] border border-white/8 transition-all duration-300 overflow-hidden ${isDarkEmpty ? 'cursor-default opacity-60' : 'hover:border-amber-500/30 hover:bg-white/[0.05] cursor-pointer'}`}
                                     onClick={() => {
+                                      if (isDarkEmpty) return
                                       setSelectedStore(store.slug)
                                       setBusinessTypeFilter('all')
                                     }}
                                   >
+                                    {isDarkEmpty && (
+                                      <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/50 backdrop-blur-[1px]">
+                                        <span style={{ fontSize: '1.4rem', lineHeight: 1, marginBottom: '0.3rem' }}>🚧</span>
+                                        <p style={{ color: '#fbbf24', fontSize: '0.55rem', fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase' }}>Próximamente</p>
+                                      </div>
+                                    )}
                                     {/* Store header */}
                                     <div className="flex items-center gap-3 px-4 pt-4 pb-3">
                                       <div className="w-9 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center overflow-hidden shrink-0">
@@ -5437,9 +5447,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
               {/* ── Store cards grid ── */}
               {(() => {
-                const visibleStores = stores.filter(s =>
-                  businessTypeFilter === 'all' || s.businessType === businessTypeFilter
-                )
+                const visibleStores = stores
+                  .filter(s => businessTypeFilter === 'all' || s.businessType === businessTypeFilter)
+                  .sort((a, b) => (b.productCount > 0 ? 1 : 0) - (a.productCount > 0 ? 1 : 0))
                 if (loadingStores) return (
                   <div>
                     <div className="flex items-center gap-2 mb-5">
@@ -5486,12 +5496,24 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           const matchCat = selectedCategory === 'all' || p.category === selectedCategory
                           return matchStore && matchCat
                         }).slice(0, 4)
+                        const isEmpty = store.productCount === 0
                         return (
                           <button
                             key={store.id}
-                            onClick={() => { setSelectedStore(store.slug); setShowStoresView(false); setActiveSede(null); setStoreSedes([]); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
-                            className="group relative bg-white rounded-2xl overflow-hidden text-left flex flex-col shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-100 hover:border-amber-300/60"
+                            onClick={() => {
+                              if (isEmpty) return
+                              setSelectedStore(store.slug); setShowStoresView(false); setActiveSede(null); setStoreSedes([]); window.scrollTo({ top: 0, behavior: 'smooth' })
+                            }}
+                            className={`group relative bg-white rounded-2xl overflow-hidden text-left flex flex-col shadow-sm transition-all duration-300 border ${isEmpty ? 'cursor-default border-gray-100 opacity-75' : 'hover:shadow-xl border-gray-100 hover:border-amber-300/60 cursor-pointer'}`}
                           >
+                            {/* Próximamente overlay for empty stores */}
+                            {isEmpty && (
+                              <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-white/80 backdrop-blur-[2px] rounded-2xl">
+                                <span style={{ fontSize: '1.6rem', lineHeight: 1, marginBottom: '0.4rem' }}>🚧</span>
+                                <p style={{ color: '#d97706', fontSize: '0.6rem', fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase' }}>Próximamente</p>
+                              </div>
+                            )}
+
                             {/* Services ribbon */}
                             {storesWithServices.has(store.slug) && (
                               <div style={{ position: 'absolute', top: 0, left: 0, width: 80, height: 80, zIndex: 30, pointerEvents: 'none', overflow: 'hidden' }}>
@@ -5508,11 +5530,11 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                                 <img
                                   src={ensureAbsoluteUrl(store.logoUrl)}
                                   alt={store.name}
-                                  className="w-full h-full object-contain p-3 group-hover:scale-105 transition-transform duration-500"
+                                  className={`w-full h-full object-contain p-3 ${isEmpty ? '' : 'group-hover:scale-105'} transition-transform duration-500`}
                                 />
                               ) : (
                                 <div className="w-full h-full flex items-center justify-center">
-                                  <Store className="w-10 h-10 text-gray-200 group-hover:text-amber-300 transition-colors duration-500" />
+                                  <Store className={`w-10 h-10 text-gray-200 ${isEmpty ? '' : 'group-hover:text-amber-300'} transition-colors duration-500`} />
                                 </div>
                               )}
                               {/* Product count badge */}
@@ -5523,7 +5545,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
                             {/* Info */}
                             <div className="px-3 pt-2.5 pb-2">
-                              <h3 className="text-xs sm:text-sm font-semibold text-gray-800 group-hover:text-amber-600 transition-colors truncate">{store.name}</h3>
+                              <h3 className={`text-xs sm:text-sm font-semibold text-gray-800 ${isEmpty ? '' : 'group-hover:text-amber-600'} transition-colors truncate`}>{store.name}</h3>
                               {store.businessType && (
                                 <p className="text-[9px] sm:text-[10px] text-amber-500 uppercase tracking-widest mt-0.5 font-medium truncate">{store.businessType}</p>
                               )}
@@ -5545,7 +5567,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                                   <div key={p.id} className="aspect-square bg-gray-50 border border-gray-100 overflow-hidden rounded-lg">
                                     {p.imageUrl ? (
                                       // eslint-disable-next-line @next/next/no-img-element
-                                      <img src={ensureAbsoluteUrl(p.imageUrl)} alt={p.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                                      <img src={ensureAbsoluteUrl(p.imageUrl)} alt={p.name} className={`w-full h-full object-cover ${isEmpty ? '' : 'group-hover:scale-110'} transition-transform duration-500`} />
                                     ) : (
                                       <div className="w-full h-full flex items-center justify-center"><Sparkles className="w-3 h-3 text-gray-200" /></div>
                                     )}
@@ -5562,10 +5584,12 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                             )}
 
                             {/* CTA */}
-                            <div className="px-3 pb-3 mt-auto flex items-center gap-1 text-amber-500/60 text-[9px] sm:text-[10px] uppercase tracking-widest group-hover:text-amber-500 transition-colors font-medium">
-                              <span>Explorar</span>
-                              <ArrowRight className="w-2.5 h-2.5" />
-                            </div>
+                            {!isEmpty && (
+                              <div className="px-3 pb-3 mt-auto flex items-center gap-1 text-amber-500/60 text-[9px] sm:text-[10px] uppercase tracking-widest group-hover:text-amber-500 transition-colors font-medium">
+                                <span>Explorar</span>
+                                <ArrowRight className="w-2.5 h-2.5" />
+                              </div>
+                            )}
                           </button>
                         )
                       })}
