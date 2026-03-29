@@ -2485,10 +2485,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   <button
                     onClick={addFromModal}
                     disabled={selectedProduct.stock === 0}
-                    className={`w-full py-4 flex items-center justify-center gap-2.5 text-sm uppercase tracking-[0.15em] font-medium rounded-xl transition-all ${
-                      selectedProduct.stock === 0
-                        ? 'opacity-30 cursor-not-allowed bg-black/10'
-                        : isLightBg ? 'bg-black text-white hover:opacity-90' : 'bg-white text-black hover:opacity-90'
+                    style={selectedProduct.stock > 0 ? { backgroundColor: isLightBg ? '#111111' : '#ffffff', color: isLightBg ? '#ffffff' : '#000000' } : undefined}
+                    className={`w-full py-4 flex items-center justify-center gap-2.5 text-sm uppercase tracking-[0.15em] font-medium rounded-xl transition-opacity ${
+                      selectedProduct.stock === 0 ? 'opacity-30 cursor-not-allowed bg-black/10 text-white/30' : 'hover:opacity-85'
                     }`}
                   >
                     <ShoppingCart className="w-4 h-4 flex-shrink-0" />
@@ -2502,8 +2501,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       handleIrAlCheckout()
                     }}
                     disabled={selectedProduct.stock === 0}
+                    style={selectedProduct.stock > 0 ? { backgroundColor: isLightBg ? '#111111' : '#ffffff', color: isLightBg ? '#ffffff' : '#000000' } : undefined}
                     className={`w-full py-4 flex items-center justify-center gap-2 text-sm uppercase tracking-[0.15em] font-semibold rounded-xl transition-opacity ${
-                      selectedProduct.stock === 0 ? 'opacity-30 cursor-not-allowed bg-white/10' : 'bg-amber-500 text-black hover:opacity-90'
+                      selectedProduct.stock === 0 ? 'opacity-30 cursor-not-allowed bg-black/10 text-white/30' : 'hover:opacity-85'
                     }`}
                   >
                     Comprar ahora
@@ -2812,24 +2812,28 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       </div>
 
                       {/* CTAs */}
-                      <div ref={ctaRef} className="flex gap-3">
+                      <div ref={ctaRef} className="flex gap-3 mt-2">
                         <button
                           onClick={addFromModal}
                           disabled={selectedProduct.stock === 0}
-                          className={`flex-1 py-4 text-sm uppercase tracking-[0.15em] font-semibold transition-all duration-300 flex items-center justify-center gap-2 ${
-                            selectedProduct.stock === 0 ? 'bg-white/5 text-white/20 cursor-not-allowed border border-white/10'
-                              : `border ${isLightBg ? 'border-black text-black bg-transparent hover:bg-black hover:text-white' : 'border-white text-white bg-transparent hover:bg-white hover:text-black'}`
+                          style={selectedProduct.stock > 0 ? { backgroundColor: isLightBg ? '#f5f5f5' : '#1a1a1a', color: isLightBg ? '#111111' : '#ffffff', border: `1px solid ${isLightBg ? '#d1d5db' : '#333333'}` } : undefined}
+                          className={`flex-1 py-4 text-sm uppercase tracking-[0.15em] font-medium transition-all duration-200 flex items-center justify-center gap-2 rounded-xl ${
+                            selectedProduct.stock === 0 ? 'bg-black/5 text-black/20 cursor-not-allowed border border-black/10' : 'hover:opacity-75'
                           }`}
                         >
-                          <Truck className="w-4 h-4 flex-shrink-0" />
-                          <span className="leading-tight">{selectedProduct.stock === 0 ? 'Agotado' : 'Contraentrega'}</span>
+                          <ShoppingCart className="w-4 h-4 flex-shrink-0" />
+                          <span className="leading-tight">{selectedProduct.stock === 0 ? 'Agotado' : 'Añadir al carrito'}</span>
                         </button>
                         <button
                           onClick={() => { if (selectedProduct.stock === 0) return; addFromModal(); setShowCart(false); handleIrAlCheckout() }}
                           disabled={selectedProduct.stock === 0}
-                          style={selectedProduct.stock > 0 ? { color: isLightBg ? '#ffffff' : '#000000', backgroundColor: isLightBg ? '#000000' : '#ffffff' } : undefined}
-                          className={`flex-1 py-4 text-sm uppercase tracking-[0.15em] font-semibold flex items-center justify-center gap-2 transition-opacity ${selectedProduct.stock === 0 ? 'bg-white/5 text-white/20 cursor-not-allowed border border-white/10' : 'hover:opacity-80'}`}
-                        >Comprar ahora</button>
+                          style={selectedProduct.stock > 0 ? { backgroundColor: isLightBg ? '#111111' : '#ffffff', color: isLightBg ? '#ffffff' : '#000000' } : undefined}
+                          className={`flex-1 py-4 text-sm uppercase tracking-[0.15em] font-semibold flex items-center justify-center gap-2 rounded-xl transition-opacity ${
+                            selectedProduct.stock === 0 ? 'bg-black/5 text-black/20 cursor-not-allowed border border-black/10' : 'hover:opacity-80'
+                          }`}
+                        >
+                          Comprar ahora
+                        </button>
                       </div>
 
                       {/* Trust badges */}
@@ -4485,11 +4489,11 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 businessTypeIconMap[type.toLowerCase()] ?? <Store className="w-4 h-4" />
               const types = Array.from(new Set(stores.map(s => s.businessType).filter(Boolean))) as string[]
               return (
-                <div className="flex gap-2 sm:gap-3 overflow-x-auto scrollbar-hide pb-1 justify-start sm:justify-center -mx-4 px-4 sm:mx-0 sm:px-0">
+                <div className="flex flex-wrap gap-2 sm:gap-3 justify-center">
                   {/* Todos */}
                   <button
                     onClick={() => { setBusinessTypeFilter('all'); scrollToPerfumes() }}
-                    className={`shrink-0 flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 border transition-all duration-200 text-xs sm:text-sm uppercase tracking-widest font-light ${
+                    className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-2 sm:py-3 rounded-full border transition-all duration-200 text-[11px] sm:text-sm uppercase tracking-wider font-light ${
                       businessTypeFilter === 'all'
                         ? 'bg-amber-500 border-amber-500 text-black'
                         : isLightBg
@@ -4497,14 +4501,14 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           : 'bg-transparent border-white/15 text-white/50 hover:border-white/40 hover:text-white/80'
                     }`}
                   >
-                    <Store className="w-4 h-4" />
+                    <Store className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     Todos
                   </button>
                   {types.map(type => (
                     <button
                       key={type}
                       onClick={() => { setBusinessTypeFilter(type); scrollToPerfumes() }}
-                      className={`shrink-0 flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 border transition-all duration-200 text-xs sm:text-sm uppercase tracking-widest font-light ${
+                      className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-2 sm:py-3 rounded-full border transition-all duration-200 text-[11px] sm:text-sm uppercase tracking-wider font-light ${
                         businessTypeFilter === type
                           ? 'bg-amber-500 border-amber-500 text-black'
                           : isLightBg
@@ -6901,7 +6905,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       {globalSearchStores.map(store => (
                         <button
                           key={store.id}
-                          onClick={() => { setSelectedStore(store.slug); setGlobalSearchQuery(''); setGlobalSearchResults([]); setGlobalSearchStores([]) }}
+                          onClick={() => { setSelectedStore(store.slug); setShowStoresView(false); setMobileActiveTab('tienda'); setGlobalSearchQuery(''); setGlobalSearchResults([]); setGlobalSearchStores([]); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
                           className="group flex items-center gap-4 px-1 py-3 border-b border-white/5 active:bg-white/4 transition-all text-left w-full"
                         >
                           <div className="shrink-0 w-11 h-11 rounded-sm overflow-hidden border border-white/8 bg-white/3 flex items-center justify-center">
@@ -7452,7 +7456,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       {/* ========== LOCATION CHANGE BUTTON (bottom of header) ========== */}
       {clientMunicipality && (
         <button
-          className="fixed top-20 left-4 z-50 flex items-center gap-1.5 bg-background/90 border rounded-full px-3 py-1.5 text-xs text-muted-foreground shadow hover:shadow-md transition-shadow"
+          className="fixed top-20 right-4 z-50 flex items-center gap-1.5 bg-background/90 border rounded-full px-3 py-1.5 text-xs text-muted-foreground shadow hover:shadow-md transition-shadow"
           onClick={() => {
             setLocationDept('')
             setLocationMun('')
