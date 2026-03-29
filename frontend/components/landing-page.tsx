@@ -5342,66 +5342,6 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
           {showStoresView && selectedStore === 'all' && (
             <div className="space-y-8 mt-2">
 
-              {/* ── Filter row ── */}
-              <div className="space-y-3">
-                {/* Business type pills */}
-                {stores.length > 0 && (
-                  <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1 -mx-4 px-4 sm:mx-0 sm:px-0">
-                    <button
-                      onClick={() => setBusinessTypeFilter('all')}
-                      className={`shrink-0 px-4 py-1.5 text-[11px] uppercase tracking-widest border transition-all ${
-                        businessTypeFilter === 'all'
-                          ? 'bg-amber-500 text-black border-amber-500'
-                          : 'bg-transparent text-white/40 border-white/10 hover:border-white/30 hover:text-white/70'
-                      }`}
-                    >
-                      Todos los comercios
-                    </button>
-                    {Array.from(new Set(stores.map(s => s.businessType).filter(Boolean))).map(type => (
-                      <button
-                        key={type}
-                        onClick={() => setBusinessTypeFilter(type!)}
-                        className={`shrink-0 px-4 py-1.5 text-[11px] uppercase tracking-widest border transition-all ${
-                          businessTypeFilter === type
-                            ? 'bg-amber-500 text-black border-amber-500'
-                            : 'bg-transparent text-white/40 border-white/10 hover:border-white/30 hover:text-white/70'
-                        }`}
-                      >
-                        {type}
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {/* Category pills */}
-                {categories.length > 0 && (
-                  <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1 -mx-4 px-4 sm:mx-0 sm:px-0">
-                    <button
-                      onClick={() => setSelectedCategory('all')}
-                      className={`shrink-0 px-3 py-1 text-[10px] uppercase tracking-widest border transition-all ${
-                        selectedCategory === 'all'
-                          ? 'border-white/40 text-white/80 bg-white/5'
-                          : 'border-white/8 text-white/30 hover:border-white/20 hover:text-white/50'
-                      }`}
-                    >
-                      Todas las categorías
-                    </button>
-                    {categories.map(cat => (
-                      <button
-                        key={cat}
-                        onClick={() => setSelectedCategory(cat)}
-                        className={`shrink-0 px-3 py-1 text-[10px] uppercase tracking-widest border transition-all ${
-                          selectedCategory === cat
-                            ? 'border-white/40 text-white/80 bg-white/5'
-                            : 'border-white/8 text-white/30 hover:border-white/20 hover:text-white/50'
-                        }`}
-                      >
-                        {cat}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
 
               {/* ── Store cards grid ── */}
               {(() => {
@@ -5510,37 +5450,69 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
               {/* ── All products across stores ── */}
               {(() => {
+                const allCats = Array.from(new Set(allProducts.map(p => p.category).filter(Boolean))) as string[]
                 const filtered = allProducts.filter(p => {
                   const matchType = businessTypeFilter === 'all' || stores.find(s => (s.name === p.storeName || (s as any).slug === (p as any).storeSlug || (s as any).slug === (p as any).tenantSlug) && s.businessType === businessTypeFilter)
                   const matchCat = selectedCategory === 'all' || p.category === selectedCategory
-                  const matchSearch = !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.brand?.toLowerCase().includes(searchQuery.toLowerCase())
-                  return matchType && matchCat && matchSearch
+                  return matchType && matchCat
                 })
                 if (filtered.length === 0 && !loadingAllProducts) return null
                 return (
                   <div>
-                    <div className="flex items-center gap-2 mb-5">
-                      <Package className="w-3.5 h-3.5 text-amber-500/60" />
-                      <span className="text-[10px] uppercase tracking-widest text-white/30 font-light">
-                        {loadingAllProducts ? 'Cargando productos...' : `${filtered.length} Producto${filtered.length !== 1 ? 's' : ''}`}
-                      </span>
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2">
+                        <Package className="w-3.5 h-3.5 text-amber-500/60" />
+                        <span className="text-[10px] uppercase tracking-widest text-white/30 font-light">
+                          {loadingAllProducts ? 'Cargando productos...' : 'Productos destacados'}
+                        </span>
+                      </div>
                     </div>
+
+                    {/* Category filter pills */}
+                    {allCats.length > 0 && (
+                      <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-3 -mx-4 px-4 sm:mx-0 sm:px-0">
+                        <button
+                          onClick={() => setSelectedCategory('all')}
+                          className={`shrink-0 px-3 py-1.5 text-[10px] uppercase tracking-widest rounded-full border transition-all ${
+                            selectedCategory === 'all'
+                              ? 'bg-amber-500 text-black border-amber-500'
+                              : 'border-white/15 text-white/40 hover:border-white/30 hover:text-white/70'
+                          }`}
+                        >
+                          Todos
+                        </button>
+                        {allCats.map(cat => (
+                          <button
+                            key={cat}
+                            onClick={() => setSelectedCategory(selectedCategory === cat ? 'all' : cat)}
+                            className={`shrink-0 px-3 py-1.5 text-[10px] uppercase tracking-widest rounded-full border transition-all ${
+                              selectedCategory === cat
+                                ? 'bg-amber-500 text-black border-amber-500'
+                                : 'border-white/15 text-white/40 hover:border-white/30 hover:text-white/70'
+                            }`}
+                          >
+                            {cat}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
                     {loadingAllProducts ? (
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                        {[0,1,2,3,4,5,6,7,8,9].map(i => (
-                          <div key={i} className="bg-white/5 animate-pulse aspect-[3/4]" />
+                      <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2">
+                        {[0,1,2,3,4].map(i => (
+                          <div key={i} className="bg-white/5 animate-pulse aspect-[3/4] flex-shrink-0 w-36 sm:w-44" />
                         ))}
                       </div>
                     ) : (
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                        {filtered.slice(0, 40).map(product => {
-                          const isOffer = product.isOnOffer && product.offerPrice
+                      <div className="flex gap-3 overflow-x-auto scrollbar-hide scroll-smooth pb-2 -mx-4 px-4 sm:mx-0 sm:px-0">
+                        {filtered.slice(0, 5).map(product => {
+                          const isOffer = !!(product.isOnOffer && product.offerPrice)
                           const inCart = carrito.find(c => c.id === product.id)
                           return (
                             <button
                               key={product.id}
                               onClick={() => openProductModal(product)}
-                              className="group relative bg-white/3 border border-white/8 hover:border-amber-500/30 overflow-hidden transition-all duration-300 text-left"
+                              className="group relative bg-white/3 border border-white/8 hover:border-amber-500/30 overflow-hidden transition-all duration-300 text-left flex-shrink-0 w-36 sm:w-44"
                             >
                               <div className="relative aspect-[3/4] bg-black/50 overflow-hidden">
                                 {product.imageUrl ? (
