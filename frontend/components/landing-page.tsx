@@ -4364,82 +4364,140 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         </div>
       )}
 
-      {/* ========== HERO 2 — Categorías ========== */}
-      {(() => {
-        const heroCategories: Array<{ name: string; displayName?: string; imageUrl: string | null }> =
-          storeConfig && storeConfig.categories.length > 0
-            ? storeConfig.categories
-            : categories.length > 0
-              ? categories.map(c => ({ name: c, imageUrl: null }))
-              : []
-        const categoryGradients = [
-          'from-red-900/60 to-red-950/80',
-          'from-amber-900/60 to-yellow-950/80',
-          'from-red-900/60 to-red-950/80',
-          'from-emerald-900/60 to-teal-950/80',
-        ]
-        return heroCategories.length > 0 ? (
-          <RevealSection className="pt-2 pb-6 sm:pt-3 sm:pb-10 landing-section-bg relative">
-            <div className="relative">
-              {/* Mobile left arrow */}
-              <button
-                onClick={() => carouselCategoriesRef.current?.scrollBy({ left: -600, behavior: 'smooth' })}
-                className="absolute left-2 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-black/80 border border-white/20 flex items-center justify-center text-white hover:bg-amber-500 hover:border-amber-500 hover:text-black transition-all shadow-lg flex sm:hidden"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              {/* Mobile: horizontal scroll — Desktop: equal columns like the example */}
-              <div ref={carouselCategoriesRef} className="flex gap-2 sm:gap-3 overflow-x-auto sm:overflow-visible scrollbar-hide scroll-smooth px-2 sm:px-3">
-                {heroCategories.map((cat, idx) => (
+      {/* ========== HERO 2 — Quick store-type selector (platform) / Categorías (store) ========== */}
+      {(showStoresView && selectedStore === 'all' && stores.length > 0) ? (
+        <RevealSection className="py-5 sm:py-8 landing-section-bg relative">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            {/* Label */}
+            <p className={`text-center text-[10px] uppercase tracking-[0.4em] mb-4 ${isLightBg ? 'text-black/30' : 'text-white/30'}`}>
+              ¿Qué estás buscando?
+            </p>
+            {/* Business-type pills */}
+            {(() => {
+              const businessTypeIconMap: Record<string, React.ReactNode> = {
+                restaurante: <UtensilsCrossed className="w-4 h-4" />,
+                comida: <UtensilsCrossed className="w-4 h-4" />,
+                tecnologia: <Zap className="w-4 h-4" />,
+                tecnología: <Zap className="w-4 h-4" />,
+                ropa: <Tag className="w-4 h-4" />,
+                moda: <Tag className="w-4 h-4" />,
+                drogueria: <Package className="w-4 h-4" />,
+                droguería: <Package className="w-4 h-4" />,
+                farmacia: <Package className="w-4 h-4" />,
+                fruver: <Sparkles className="w-4 h-4" />,
+                supermercado: <Store className="w-4 h-4" />,
+              }
+              const getIcon = (type: string) =>
+                businessTypeIconMap[type.toLowerCase()] ?? <Store className="w-4 h-4" />
+              const types = Array.from(new Set(stores.map(s => s.businessType).filter(Boolean))) as string[]
+              return (
+                <div className="flex gap-2 sm:gap-3 overflow-x-auto scrollbar-hide pb-1 justify-start sm:justify-center -mx-4 px-4 sm:mx-0 sm:px-0">
+                  {/* Todos */}
                   <button
-                    key={cat.name}
-                    onClick={() => {
-                      setCatalogSelectedCategories(new Set([cat.name]))
-                      setShowCatalog(true)
-                      setShowDrop(false)
-                      window.scrollTo({ top: 0, behavior: 'smooth' })
-                    }}
-                    className="group flex flex-col flex-shrink-0 w-[42vw] sm:flex-1 sm:w-auto transition-all duration-300"
+                    onClick={() => { setBusinessTypeFilter('all'); scrollToPerfumes() }}
+                    className={`shrink-0 flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 border transition-all duration-200 text-xs sm:text-sm uppercase tracking-widest font-light ${
+                      businessTypeFilter === 'all'
+                        ? 'bg-amber-500 border-amber-500 text-black'
+                        : isLightBg
+                          ? 'bg-transparent border-black/15 text-black/50 hover:border-black/40 hover:text-black/80'
+                          : 'bg-transparent border-white/15 text-white/50 hover:border-white/40 hover:text-white/80'
+                    }`}
                   >
-                    {/* Image — data-dark solo en la imagen para preservar colores internos */}
-                    <div data-dark className="relative overflow-hidden w-full aspect-square sm:aspect-auto sm:h-[380px]">
-                      {cat.imageUrl ? (
-                        <>
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <Store className="w-4 h-4" />
+                    Todos
+                  </button>
+                  {types.map(type => (
+                    <button
+                      key={type}
+                      onClick={() => { setBusinessTypeFilter(type); scrollToPerfumes() }}
+                      className={`shrink-0 flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 border transition-all duration-200 text-xs sm:text-sm uppercase tracking-widest font-light ${
+                        businessTypeFilter === type
+                          ? 'bg-amber-500 border-amber-500 text-black'
+                          : isLightBg
+                            ? 'bg-transparent border-black/15 text-black/50 hover:border-black/40 hover:text-black/80'
+                            : 'bg-transparent border-white/15 text-white/50 hover:border-white/40 hover:text-white/80'
+                      }`}
+                    >
+                      {getIcon(type)}
+                      {type}
+                    </button>
+                  ))}
+                </div>
+              )
+            })()}
+          </div>
+        </RevealSection>
+      ) : (
+        /* Original image carousel — only shown inside individual store */
+        (() => {
+          const heroCategories: Array<{ name: string; displayName?: string; imageUrl: string | null }> =
+            storeConfig && storeConfig.categories.length > 0
+              ? storeConfig.categories
+              : categories.length > 0
+                ? categories.map(c => ({ name: c, imageUrl: null }))
+                : []
+          const categoryGradients = [
+            'from-red-900/60 to-red-950/80',
+            'from-amber-900/60 to-yellow-950/80',
+            'from-red-900/60 to-red-950/80',
+            'from-emerald-900/60 to-teal-950/80',
+          ]
+          return heroCategories.length > 0 ? (
+            <RevealSection className="pt-2 pb-6 sm:pt-3 sm:pb-10 landing-section-bg relative">
+              <div className="relative">
+                <button
+                  onClick={() => carouselCategoriesRef.current?.scrollBy({ left: -600, behavior: 'smooth' })}
+                  className="absolute left-2 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-black/80 border border-white/20 flex items-center justify-center text-white hover:bg-amber-500 hover:border-amber-500 hover:text-black transition-all shadow-lg flex sm:hidden"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <div ref={carouselCategoriesRef} className="flex gap-2 sm:gap-3 overflow-x-auto sm:overflow-visible scrollbar-hide scroll-smooth px-2 sm:px-3">
+                  {heroCategories.map((cat, idx) => (
+                    <button
+                      key={cat.name}
+                      onClick={() => {
+                        setCatalogSelectedCategories(new Set([cat.name]))
+                        setShowCatalog(true)
+                        setShowDrop(false)
+                        window.scrollTo({ top: 0, behavior: 'smooth' })
+                      }}
+                      className="group flex flex-col flex-shrink-0 w-[42vw] sm:flex-1 sm:w-auto transition-all duration-300"
+                    >
+                      <div data-dark className="relative overflow-hidden w-full aspect-square sm:aspect-auto sm:h-[380px]">
+                        {cat.imageUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
                           <img
                             src={cat.imageUrl}
                             alt={cat.name}
                             className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
                           />
-                        </>
-                      ) : (
-                        <div className={`absolute inset-0 bg-gradient-to-br ${categoryGradients[idx % categoryGradients.length]} group-hover:scale-105 transition-transform duration-700`}>
-                          <div className="absolute inset-0 flex items-center justify-center opacity-10">
-                            <Sparkles className="w-20 h-20 text-white" />
+                        ) : (
+                          <div className={`absolute inset-0 bg-gradient-to-br ${categoryGradients[idx % categoryGradients.length]} group-hover:scale-105 transition-transform duration-700`}>
+                            <div className="absolute inset-0 flex items-center justify-center opacity-10">
+                              <Sparkles className="w-20 h-20 text-white" />
+                            </div>
                           </div>
-                        </div>
-                      )}
-                    </div>
-                    {/* Nombre debajo — responde al fondo claro/oscuro */}
-                    <div className="py-3 text-center">
-                      <h3 className={`text-[11px] sm:text-sm font-light uppercase tracking-[0.2em] transition-colors group-hover:text-amber-500 ${isLightBg ? 'text-black/70' : 'text-white/80'}`}>
-                        {cat.displayName || cat.name}
-                      </h3>
-                    </div>
-                  </button>
-                ))}
+                        )}
+                      </div>
+                      <div className="py-3 text-center">
+                        <h3 className={`text-[11px] sm:text-sm font-light uppercase tracking-[0.2em] transition-colors group-hover:text-amber-500 ${isLightBg ? 'text-black/70' : 'text-white/80'}`}>
+                          {cat.displayName || cat.name}
+                        </h3>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={() => carouselCategoriesRef.current?.scrollBy({ left: 600, behavior: 'smooth' })}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-black/80 border border-white/20 flex items-center justify-center text-white hover:bg-amber-500 hover:border-amber-500 hover:text-black transition-all shadow-lg flex sm:hidden"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
               </div>
-              {/* Mobile right arrow */}
-              <button
-                onClick={() => carouselCategoriesRef.current?.scrollBy({ left: 600, behavior: 'smooth' })}
-                className="absolute right-2 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-black/80 border border-white/20 flex items-center justify-center text-white hover:bg-amber-500 hover:border-amber-500 hover:text-black transition-all shadow-lg flex sm:hidden"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-          </RevealSection>
-        ) : null
-      })()}
+            </RevealSection>
+          ) : null
+        })()
+      )}
 
       {/* ========== HERO 3 — Productos Tendencia ========== */}
       {storeConfig && storeConfig.trendingProducts.length > 0 && (
@@ -5274,7 +5332,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         return (
                           <button
                             key={store.id}
-                            onClick={() => { setSelectedStore(store.slug); setShowStoresView(false); setActiveSede(null); setStoreSedes([]) }}
+                            onClick={() => { setSelectedStore(store.slug); setShowStoresView(false); setActiveSede(null); setStoreSedes([]); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
                             className="group relative bg-white/3 border border-white/8 hover:border-amber-500/30 transition-all duration-300 overflow-hidden text-left flex flex-col"
                           >
                             {/* Services ribbon */}
