@@ -143,6 +143,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   const [allProducts, setAllProducts] = useState<StorefrontProduct[]>([])
   const [loadingAllProducts, setLoadingAllProducts] = useState(false)
   const [storesWithServices, setStoresWithServices] = useState<Set<string>>(new Set())
+  const [loadingStores, setLoadingStores] = useState(true)
 
   // ====== SEDES STATE ======
   const [storeSedes, setStoreSedes] = useState<{ id: string; name: string; address?: string }[]>([])
@@ -782,11 +783,14 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
   // ====== FETCH STORES ======
   useEffect(() => {
+    let cancelled = false
     const fetchStores = async () => {
+      setLoadingStores(true)
       try {
         // Always fetch all active stores (no municipality filter) — products are filtered separately
         const res = await fetch(`${API_URL}/storefront/stores`)
         const json = await res.json()
+        if (cancelled) return
         if (json.success && json.data) {
           setStores(json.data)
           // Only auto-select when there's truly a single store on the entire platform
@@ -794,24 +798,28 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
             setSelectedStore(json.data[0].slug)
             setShowStoresView(false)
           }
-          // Check which stores have published services (parallel)
-          const results = await Promise.allSettled(
+          // Check which stores have published services (non-blocking — runs after stores are shown)
+          Promise.allSettled(
             json.data.map((s: { slug: string }) =>
               fetch(`${API_URL}/services/public?store=${s.slug}`)
                 .then(r => r.json())
                 .then(j => j.success && j.data?.length > 0 ? s.slug : null)
                 .catch(() => null)
             )
-          )
-          const slugsWithServices = new Set<string>(
-            results
-              .map(r => r.status === 'fulfilled' ? r.value : null)
-              .filter((v): v is string => !!v)
-          )
-          setStoresWithServices(slugsWithServices)
+          ).then(results => {
+            if (cancelled) return
+            const slugsWithServices = new Set<string>(
+              results
+                .map(r => r.status === 'fulfilled' ? r.value : null)
+                .filter((v): v is string => !!v)
+            )
+            setStoresWithServices(slugsWithServices)
+          })
         }
       } catch (e) {
         console.error('Error fetching stores:', e)
+      } finally {
+        if (!cancelled) setLoadingStores(false)
       }
     }
     fetchStores()
@@ -821,6 +829,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       try {
         const res = await fetch(`${API_URL}/storefront/platform-settings`)
         const json = await res.json()
+        if (cancelled) return
         if (json.success && json.data) {
           if (json.data.bg_color) setPlatformBgColor(json.data.bg_color)
           if (json.data.hero_image_url) setPlatformHeroUrl(json.data.hero_image_url)
@@ -836,11 +845,15 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       try {
         const res = await fetch(`${API_URL}/storefront/platform-featured`)
         const json = await res.json()
+        if (cancelled) return
         if (json.success && json.data) setPlatformFeatured(json.data)
       } catch {}
     }
     fetchPlatformFeatured()
-  }, [clientMunicipality])
+
+    return () => { cancelled = true }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // ====== FETCH OFFERS ======
   useEffect(() => {
@@ -3204,6 +3217,42 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               {/* Products Grid */}
               <div className="px-4 sm:px-6 lg:px-8 py-6">
 
+                {/* ── Mobile category quick-filter (only inside a specific store, sidebar is hidden on mobile) ── */}
+                {selectedStore !== 'all' && !sedesViewMode && categories.length > 0 && (
+                  <div className="lg:hidden mb-4 -mx-4 px-4 overflow-x-auto scrollbar-hide">
+                    <div className="flex gap-2 pb-2">
+                      <button
+                        onClick={() => setCatalogSelectedCategories(new Set())}
+                        className={`shrink-0 px-3 py-1.5 text-[11px] uppercase tracking-widest rounded-full border transition-all ${
+                          catalogSelectedCategories.size === 0
+                            ? 'bg-amber-500 border-amber-500 text-black font-medium'
+                            : 'border-white/20 text-white/50 hover:border-white/40 hover:text-white'
+                        }`}
+                      >
+                        Todos
+                      </button>
+                      {categories.map(cat => (
+                        <button
+                          key={cat}
+                          onClick={() => {
+                            const next = new Set<string>([cat])
+                            setCatalogSelectedCategories(
+                              catalogSelectedCategories.has(cat) && catalogSelectedCategories.size === 1 ? new Set() : next
+                            )
+                          }}
+                          className={`shrink-0 px-3 py-1.5 text-[11px] uppercase tracking-widest rounded-full border transition-all ${
+                            catalogSelectedCategories.has(cat)
+                              ? 'bg-amber-500 border-amber-500 text-black font-medium'
+                              : 'border-white/20 text-white/50 hover:border-white/40 hover:text-white'
+                          }`}
+                        >
+                          {cat}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* ── ALL-STORES CATALOG: grouped by business type ── */}
                 {selectedStore === 'all' && !sedesViewMode ? (
                   <div className="space-y-10">
@@ -5352,7 +5401,38 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 const visibleStores = stores.filter(s =>
                   businessTypeFilter === 'all' || s.businessType === businessTypeFilter
                 )
-                return visibleStores.length === 0 ? null : (
+                if (loadingStores) return (
+                  <div>
+                    <div className="flex items-center gap-2 mb-5">
+                      <Store className="w-3.5 h-3.5 text-amber-500/60" />
+                      <span className="text-[10px] uppercase tracking-widest text-white/30 font-light">Cargando comercios...</span>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                      {[0,1,2,3,4,5].map(i => (
+                        <div key={i} className="bg-white/5 animate-pulse rounded overflow-hidden">
+                          <div className="h-24 sm:h-32 bg-white/5" />
+                          <div className="p-3 space-y-2">
+                            <div className="h-3 bg-white/8 rounded w-2/3" />
+                            <div className="h-2 bg-white/5 rounded w-1/3" />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+                if (visibleStores.length === 0) return (
+                  <div className="text-center py-16 space-y-4">
+                    <Store className="w-12 h-12 text-white/10 mx-auto" />
+                    <p className="text-white/30 text-sm font-light">No hay comercios disponibles</p>
+                    <button
+                      onClick={() => window.location.reload()}
+                      className="text-xs text-amber-400 border border-amber-400/30 px-4 py-2 hover:bg-amber-400/10 transition-colors"
+                    >
+                      Reintentar
+                    </button>
+                  </div>
+                )
+                return (
                   <div>
                     <div className="flex items-center gap-2 mb-5">
                       <Store className="w-3.5 h-3.5 text-amber-500/60" />
@@ -5553,13 +5633,13 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
             </div>
           )}
           {/* Category filter — only when a store is selected */}
-          {!(showStoresView && selectedStore === 'all') && (
-            <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-2 sm:pb-0 sm:flex-wrap sm:justify-center mb-6 sm:mb-10 -mx-4 px-4 sm:mx-0 sm:px-0">
+          {!(showStoresView && selectedStore === 'all') && categories.length > 0 && (
+            <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-2 mb-6 sm:mb-10 -mx-4 px-4">
               <button
                 onClick={() => setSelectedCategory('all')}
-                className={`shrink-0 px-4 py-2 text-xs uppercase tracking-wider border transition-all duration-300 ${selectedCategory === 'all'
+                className={`shrink-0 px-3 sm:px-4 py-1.5 sm:py-2 text-[11px] sm:text-xs uppercase tracking-wider rounded-full border transition-all duration-300 ${selectedCategory === 'all'
                   ? 'bg-amber-500 text-black border-amber-500'
-                  : 'bg-transparent text-white/50 border-white/10 hover:border-white/30'
+                  : 'bg-transparent text-white/50 border-white/15 hover:border-white/30'
                   }`}
               >
                 Todos
@@ -5568,9 +5648,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 <button
                   key={cat}
                   onClick={() => setSelectedCategory(cat)}
-                  className={`shrink-0 px-4 py-2 text-xs uppercase tracking-wider border transition-all duration-300 ${selectedCategory === cat
+                  className={`shrink-0 px-3 sm:px-4 py-1.5 sm:py-2 text-[11px] sm:text-xs uppercase tracking-wider rounded-full border transition-all duration-300 ${selectedCategory === cat
                     ? 'bg-amber-500 text-black border-amber-500'
-                    : 'bg-transparent text-white/50 border-white/10 hover:border-white/30'
+                    : 'bg-transparent text-white/50 border-white/15 hover:border-white/30'
                     }`}
                 >
                   {cat}
