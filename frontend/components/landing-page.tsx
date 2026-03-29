@@ -6214,7 +6214,10 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 <div className="text-center py-16">
                   <ShoppingCart className="w-12 h-12 text-white/10 mx-auto mb-4" />
                   <p className="text-white/40 text-sm font-light">Tu carrito está vacío</p>
-                  <button onClick={() => { setShowCart(false); scrollToPerfumes() }} className="mt-4 text-amber-400 text-sm font-light hover:text-amber-300 transition-colors underline underline-offset-4">
+                  <button
+                    onClick={() => { setShowCart(false); scrollToPerfumes() }}
+                    className={`mt-4 w-full bg-black text-white/90 text-sm font-light py-2 transition-colors ${isLightBg ? 'border border-black/20 hover:border-black/40' : 'border border-white/20 hover:border-white/40'} hover:text-white`}
+                  >
                     Explorar perfumes
                   </button>
                 </div>
@@ -6259,11 +6262,17 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                             )}
                           </div>
                           <div className="flex items-center gap-2 mt-2">
-                            <button onClick={() => actualizarCantidad(item.id, -1, item.tempId)} className="w-7 h-7 border border-white/10 text-white/50 flex items-center justify-center hover:border-white/30 hover:text-white transition-colors">
+                            <button
+                              onClick={() => actualizarCantidad(item.id, -1, item.tempId)}
+                              className={`w-7 h-7 bg-black text-white flex items-center justify-center transition-colors ${isLightBg ? 'border border-black/20 hover:border-black/40' : 'border border-white/20 hover:border-white/40'}`}
+                            >
                               <Minus className="w-3 h-3" />
                             </button>
                             <span className="text-sm text-white font-light w-6 text-center">{item.cantidad}</span>
-                            <button onClick={() => actualizarCantidad(item.id, 1, item.tempId)} className="w-7 h-7 border border-white/10 text-white/50 flex items-center justify-center hover:border-white/30 hover:text-white transition-colors">
+                            <button
+                              onClick={() => actualizarCantidad(item.id, 1, item.tempId)}
+                              className={`w-7 h-7 bg-black text-white flex items-center justify-center transition-colors ${isLightBg ? 'border border-black/20 hover:border-black/40' : 'border border-white/20 hover:border-white/40'}`}
+                            >
                               <Plus className="w-3 h-3" />
                             </button>
                           </div>
@@ -6298,10 +6307,16 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     <span className="text-sm text-white/50 font-light uppercase tracking-wider">Total</span>
                     <span className="text-xl text-white font-light">{formatCOP(totalCarrito)}</span>
                   </div>
-                  <button onClick={() => { setShowCart(false); handleIrAlCheckout() }} className="w-full bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black py-4 font-medium uppercase tracking-[0.2em] text-xs transition-all duration-300">
+                  <button
+                    onClick={() => { setShowCart(false); handleIrAlCheckout() }}
+                    className={`w-full bg-black text-white py-4 font-medium uppercase tracking-[0.2em] text-xs transition-all duration-300 hover:bg-neutral-900 ${isLightBg ? 'border border-black/20 hover:border-black/40' : 'border border-white/20 hover:border-white/40'}`}
+                  >
                     {carritoTieneDelivery ? 'Pedir Domicilio' : 'Finalizar Compra'}
                   </button>
-                  <button onClick={() => { setShowCart(false); scrollToPerfumes() }} className="w-full text-center text-white/40 text-xs font-light hover:text-white/60 transition-colors py-2">
+                  <button
+                    onClick={() => { setShowCart(false); scrollToPerfumes() }}
+                    className={`w-full text-center bg-black text-white/90 text-xs font-light hover:text-white transition-colors py-2 ${isLightBg ? 'border border-black/20 hover:border-black/40' : 'border border-white/20 hover:border-white/40'}`}
+                  >
                     Seguir comprando
                   </button>
                 </div>

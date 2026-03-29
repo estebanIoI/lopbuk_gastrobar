@@ -60,6 +60,9 @@ interface AppState {
   sidebarOpen: boolean
   setSidebarOpen: (open: boolean) => void
   toggleSidebar: () => void
+  sidebarCollapsed: boolean
+  setSidebarCollapsed: (collapsed: boolean) => void
+  toggleSidebarCollapsed: () => void
 
   // Customer Selection for POS
   selectedCustomer: CustomerFull | null
@@ -123,6 +126,7 @@ export const useStore = create<AppState>()(
       },
       activeSection: 'dashboard',
       sidebarOpen: false,
+      sidebarCollapsed: false,
       selectedCustomer: null,
       categories: [],
       isLoadingCategories: false,
@@ -344,6 +348,8 @@ export const useStore = create<AppState>()(
       setActiveSection: (section) => set({ activeSection: section, sidebarOpen: false }),
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
       toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
+      setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
+      toggleSidebarCollapsed: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
 
       // Customer Selection
       setSelectedCustomer: (customer) => set({ selectedCustomer: customer }),
@@ -426,6 +432,7 @@ export const useStore = create<AppState>()(
         storeInfo: state.storeInfo,
         activeSection: state.activeSection,
         preferredCameraDeviceId: state.preferredCameraDeviceId,
+        sidebarCollapsed: state.sidebarCollapsed,
       })
     }
   )
