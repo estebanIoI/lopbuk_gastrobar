@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { useStore } from '@/lib/store'
 import { useAuthStore } from '@/lib/auth-store'
 import { Input } from '@/components/ui/input'
@@ -216,7 +216,7 @@ function GlobalSearch() {
 
 export function Header() {
   const { activeSection, products, toggleSidebar, navigateToInventory, pendingOrdersCount, fetchPendingOrdersCount, navigateToPedidos } = useStore()
-  const { logout } = useAuthStore()
+  const { user, logout } = useAuthStore()
   const [profileOpen, setProfileOpen] = useState(false)
   const [preferencesOpen, setPreferencesOpen] = useState(false)
   const lowStockProducts = products.filter(p => p.stock <= p.reorderPoint && p.stock > 0).sort((a, b) => a.stock - b.stock)
@@ -224,6 +224,16 @@ export function Header() {
   const lowStockCount = lowStockProducts.length
   const outOfStockCount = outOfStockProducts.length
   const alertCount = lowStockCount + outOfStockCount + Number(pendingOrdersCount)
+
+  const trialDaysLeft = useMemo(() => {
+    if (user?.role !== 'comerciante' || !user?.tenantTrialEndsAt) return null
+    const endsAt = new Date(user.tenantTrialEndsAt)
+    if (Number.isNaN(endsAt.getTime())) return null
+    const msLeft = endsAt.getTime() - Date.now()
+    return Math.ceil(msLeft / (1000 * 60 * 60 * 24))
+  }, [user?.role, user?.tenantTrialEndsAt])
+
+  const trialExpired = trialDaysLeft !== null && trialDaysLeft <= 0
 
   useEffect(() => {
     fetchPendingOrdersCount()
@@ -242,9 +252,22 @@ export function Header() {
         >
           <Menu className="h-5 w-5" />
         </Button>
-        <h1 className="text-lg font-semibold text-foreground sm:text-xl lg:text-2xl">
-          {sectionTitles[activeSection] || 'Dashboard'}
-        </h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-lg font-semibold text-foreground sm:text-xl lg:text-2xl">
+            {sectionTitles[activeSection] || 'Dashboard'}
+          </h1>
+          {trialDaysLeft !== null && (
+            trialExpired ? (
+              <span className="inline-flex items-center rounded-full border border-destructive/30 bg-destructive/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-widest text-destructive">
+                Periodo de prueba terminado. Para acceder al modulo Tienda, actualizate al plan empresarial
+              </span>
+            ) : (
+              <span className="inline-flex items-center rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-widest text-amber-500">
+                Prueba gratis: {trialDaysLeft} dia{trialDaysLeft === 1 ? '' : 's'} restantes
+              </span>
+            )
+          )}
+        </div>
       </div>
 
       <div className="flex items-center gap-3 lg:gap-4">

@@ -331,11 +331,12 @@ export class AuthService {
 
   async getProfile(userId: string): Promise<Omit<User, 'password'>> {
     const [rows] = await db.execute<UserRow[]>(
-      `SELECT u.id, u.tenant_id, u.email, u.name, u.role, u.avatar, u.is_active,
+            `SELECT u.id, u.tenant_id, u.email, u.name, u.role, u.avatar, u.is_active,
               u.phone, u.cedula, u.department, u.municipality, u.address, u.neighborhood,
               u.delivery_latitude, u.delivery_longitude, u.profile_completed,
               u.created_at, u.updated_at,
-              t.plan AS tenant_plan, t.name AS tenant_name, t.slug AS tenant_slug, t.max_users, t.max_products
+              t.plan AS tenant_plan, t.name AS tenant_name, t.slug AS tenant_slug, t.max_users, t.max_products,
+              t.trial_ends_at AS tenant_trial_ends_at
        FROM users u
        LEFT JOIN tenants t ON t.id = u.tenant_id
        WHERE u.id = ?`,
@@ -369,6 +370,7 @@ export class AuthService {
       tenantSlug: user.tenant_slug || undefined,
       tenantMaxUsers: user.max_users ?? undefined,
       tenantMaxProducts: user.max_products ?? undefined,
+      tenantTrialEndsAt: user.tenant_trial_ends_at ?? undefined,
       createdAt: user.created_at,
       updatedAt: user.updated_at,
     } as any;
