@@ -53,10 +53,11 @@ export const authenticate = async (req: AuthRequest, res: Response, next: NextFu
       return;
     }
 
-    // Verify tenant is still active (for non-superadmin)
+    // Verify tenant is still active + load plan (for non-superadmin)
+    let tenantPlan: JWTPayload['tenantPlan'] | undefined;
     if (decoded.tenantId && decoded.role !== 'superadmin') {
       const [tenantRows] = await db.execute<RowDataPacket[]>(
-        'SELECT status FROM tenants WHERE id = ?',
+        'SELECT status, plan FROM tenants WHERE id = ?',
         [decoded.tenantId]
       );
       if (tenantRows.length > 0 && tenantRows[0].status !== 'activo') {
@@ -66,6 +67,9 @@ export const authenticate = async (req: AuthRequest, res: Response, next: NextFu
           error: 'Tu comercio ha sido suspendido. Contacta al administrador.',
         });
         return;
+      }
+      if (tenantRows.length > 0) {
+        tenantPlan = tenantRows[0].plan as JWTPayload['tenantPlan'];
       }
     }
 
@@ -78,7 +82,7 @@ export const authenticate = async (req: AuthRequest, res: Response, next: NextFu
       } catch { permissions = []; }
     }
 
-    req.user = { ...decoded, permissions };
+    req.user = { ...decoded, permissions, tenantPlan };
     next();
   } catch {
     audit.tokenInvalid(req.ip);
@@ -139,6 +143,41 @@ export const requirePermission = (...perms: Permission[]) => {
       res.status(403).json({
         success: false,
         error: `Acceso denegado. Tu cargo no tiene el permiso requerido: ${perms.join(', ')}`,
+      });
+      return;
+    }
+
+    next();
+  };
+};
+
+/**
+ * Middleware de plan de tenant.
+ * Requiere que authenticate haya corrido antes (req.user.tenantPlan debe estar cargado).
+ * - superadmin pasa siempre.
+ * - Devuelve 403 con un mensaje neutro que NO dispara el logout del front
+ *   (no contiene "suspendido", "desactivada", ni "permiso para iniciar").
+ *
+ * Uso: router.put('/customization', authenticate, requirePlan('empresarial'), handler)
+ */
+export const requirePlan = (...plans: Array<'basico' | 'profesional' | 'empresarial'>) => {
+  return (req: AuthRequest, res: Response, next: NextFunction): void => {
+    if (!req.user) {
+      res.status(401).json({ success: false, error: 'No autenticado' });
+      return;
+    }
+
+    // Superadmin siempre pasa
+    if (req.user.role === 'superadmin') {
+      next();
+      return;
+    }
+
+    if (!req.user.tenantPlan || !plans.includes(req.user.tenantPlan)) {
+      res.status(403).json({
+        success: false,
+        error: 'Esta funcionalidad requiere el plan empresarial. Actualiza tu plan para acceder.',
+        code: 'PLAN_REQUIRED',
       });
       return;
     }

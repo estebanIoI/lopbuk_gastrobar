@@ -6194,35 +6194,39 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       {showCart && (
         <>
           <div className="fixed inset-0 z-[65] bg-black/60 backdrop-blur-sm" onClick={() => setShowCart(false)} />
-          <div className="fixed top-0 right-0 h-full w-full max-w-md z-[65] landing-sidebar border-l border-white/10 shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
+          <div className="fixed top-0 right-0 h-full w-full max-w-md z-[65] bg-[#0a0a0a] border-l border-white/10 shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
+
             {/* Header */}
-            <div className="flex items-center justify-between p-6 border-b border-white/10">
+            <div className="flex items-center justify-between px-6 py-5 border-b border-white/10">
               <div className="flex items-center gap-3">
-                <ShoppingCart className="w-5 h-5 text-amber-400" />
-                <h2 className="text-lg font-light tracking-wide text-white">
-                  Mi Carrito <span className="text-white/40 text-sm">({totalItems})</span>
+                <ShoppingCart className="w-5 h-5 text-white" />
+                <h2 className="text-base font-semibold tracking-wide text-white">
+                  Mi Carrito
+                  <span className="ml-2 text-sm font-normal text-white/50">({totalItems})</span>
                 </h2>
               </div>
-              <button onClick={() => setShowCart(false)} className="p-2 text-white/40 hover:text-white transition-colors">
-                <X className="w-5 h-5" />
+              <button
+                onClick={() => setShowCart(false)}
+                className="flex items-center justify-center w-8 h-8 rounded-full border border-white/20 text-white/60 hover:text-white hover:border-white/50 transition-colors"
+              >
+                <X className="w-4 h-4" />
               </button>
             </div>
 
             {/* Items */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-1">
               {carrito.length === 0 ? (
-                <div className="text-center py-16">
-                  <ShoppingCart className="w-12 h-12 text-white/10 mx-auto mb-4" />
-                  <p className="text-white/40 text-sm font-light">Tu carrito está vacío</p>
+                <div className="text-center py-20">
+                  <ShoppingCart className="w-12 h-12 text-white/15 mx-auto mb-4" />
+                  <p className="text-white/50 text-sm mb-6">Tu carrito está vacío</p>
                   <button
                     onClick={() => { setShowCart(false); scrollToPerfumes() }}
-                    className={`mt-4 w-full bg-black text-white/90 text-sm font-light py-2 transition-colors ${isLightBg ? 'border border-black/20 hover:border-black/40' : 'border border-white/20 hover:border-white/40'} hover:text-white`}
+                    className="w-full bg-white text-black text-sm font-semibold py-3 uppercase tracking-widest hover:bg-white/90 transition-colors"
                   >
-                    Explorar perfumes
+                    Explorar productos
                   </button>
                 </div>
               ) : (() => {
-                // Group items by store for display
                 const storeGroups = new Map<string, ProductoCarrito[]>()
                 for (const item of carrito) {
                   const key = item.storeName || 'Tienda'
@@ -6234,54 +6238,68 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 return Array.from(storeGroups.entries()).map(([storeName, items]) => (
                   <div key={storeName}>
                     {hasMultipleStores && (
-                      <div className="flex items-center gap-2 mb-3 pb-2 border-b border-amber-500/20">
-                        <Store className="w-3.5 h-3.5 text-amber-400" />
-                        <span className="text-[11px] text-amber-400 uppercase tracking-wider font-medium">{storeName}</span>
+                      <div className="flex items-center gap-2 mb-3 pb-2 border-b border-white/10">
+                        <Store className="w-3.5 h-3.5 text-white/50" />
+                        <span className="text-[11px] text-white/50 uppercase tracking-wider font-medium">{storeName}</span>
                       </div>
                     )}
                     {items.map((item, index) => (
-                      <div key={`${item.id}-${index}`} className="flex gap-4 pb-4 border-b border-white/5 last:border-0 mb-2">
-                        <div className="w-16 h-16 bg-white/5 flex-shrink-0 overflow-hidden">
+                      <div key={`${item.id}-${index}`} className="flex gap-4 py-4 border-b border-white/8 last:border-0">
+                        {/* Imagen */}
+                        <div className="w-16 h-16 bg-white/5 border border-white/10 flex-shrink-0 overflow-hidden">
                           {item.imagen ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img src={ensureAbsoluteUrl(item.imagen)} alt={item.nombre} className="w-full h-full object-cover" />
                           ) : (
-                            <div className="w-full h-full flex items-center justify-center"><Sparkles className="w-4 h-4 text-white/10" /></div>
+                            <div className="w-full h-full flex items-center justify-center">
+                              <Sparkles className="w-4 h-4 text-white/20" />
+                            </div>
                           )}
                         </div>
+
+                        {/* Info */}
                         <div className="flex-1 min-w-0">
-                          <h4 className="text-sm font-light text-white truncate">{item.nombre}</h4>
-                          {item.perfumeSeleccionado && <p className="text-xs text-white/50">Perfume: {item.perfumeSeleccionado}</p>}
+                          <h4 className="text-sm font-medium text-white leading-snug truncate">{item.nombre}</h4>
+                          {item.perfumeSeleccionado && (
+                            <p className="text-xs text-white/40 mt-0.5">Perfume: {item.perfumeSeleccionado}</p>
+                          )}
                           <div className="flex items-center gap-2 mt-1">
-                            <span className="text-xs text-amber-400/70">{formatCOP(item.precio)} c/u</span>
+                            <span className="text-xs text-white/60">{formatCOP(item.precio)} c/u</span>
                             {item.precioOriginal && item.precioOriginal > item.precio && (
                               <span className="text-[10px] text-white/30 line-through">{formatCOP(item.precioOriginal)}</span>
                             )}
                             {item.descuentoPorcentaje && item.descuentoPorcentaje > 0 && (
-                              <span className="text-[10px] text-green-400">-{item.descuentoPorcentaje}%</span>
+                              <span className="text-[10px] text-emerald-400 font-medium">-{item.descuentoPorcentaje}%</span>
                             )}
                           </div>
-                          <div className="flex items-center gap-2 mt-2">
+
+                          {/* Cantidad */}
+                          <div className="flex items-center gap-0 mt-2 border border-white/20 w-fit">
                             <button
                               onClick={() => actualizarCantidad(item.id, -1, item.tempId)}
-                              className={`w-7 h-7 bg-black text-white flex items-center justify-center transition-colors ${isLightBg ? 'border border-black/20 hover:border-black/40' : 'border border-white/20 hover:border-white/40'}`}
+                              className="w-8 h-8 bg-black text-white flex items-center justify-center hover:bg-white/10 transition-colors border-r border-white/20"
                             >
                               <Minus className="w-3 h-3" />
                             </button>
-                            <span className="text-sm text-white font-light w-6 text-center">{item.cantidad}</span>
+                            <span className="text-sm text-white font-medium w-9 text-center select-none">{item.cantidad}</span>
                             <button
                               onClick={() => actualizarCantidad(item.id, 1, item.tempId)}
-                              className={`w-7 h-7 bg-black text-white flex items-center justify-center transition-colors ${isLightBg ? 'border border-black/20 hover:border-black/40' : 'border border-white/20 hover:border-white/40'}`}
+                              className="w-8 h-8 bg-black text-white flex items-center justify-center hover:bg-white/10 transition-colors border-l border-white/20"
                             >
                               <Plus className="w-3 h-3" />
                             </button>
                           </div>
                         </div>
+
+                        {/* Precio y eliminar */}
                         <div className="flex flex-col items-end justify-between">
-                          <button onClick={() => removerProducto(item)} className="p-1 text-white/20 hover:text-red-400 transition-colors">
+                          <button
+                            onClick={() => removerProducto(item)}
+                            className="flex items-center justify-center w-6 h-6 text-white/30 hover:text-red-400 transition-colors"
+                          >
                             <X className="w-4 h-4" />
                           </button>
-                          <span className="text-sm font-light text-white">{formatCOP(item.precio * item.cantidad)}</span>
+                          <span className="text-sm font-semibold text-white">{formatCOP(item.precio * item.cantidad)}</span>
                         </div>
                       </div>
                     ))}
@@ -6295,27 +6313,27 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               const uniqueStores = new Set(carrito.map(i => i.tenantId).filter(Boolean))
               const multiStore = uniqueStores.size > 1
               return (
-                <div className="border-t border-white/10 p-6 space-y-4">
+                <div className="border-t border-white/10 px-6 py-5 space-y-3 bg-black">
                   {multiStore && (
-                    <div className="bg-amber-500/10 border border-amber-500/20 p-3 text-center">
-                      <p className="text-[11px] text-amber-400">
-                        Tienes productos de {uniqueStores.size} tiendas. Se crearán pedidos separados por tienda.
+                    <div className="bg-white/5 border border-white/10 px-3 py-2 text-center">
+                      <p className="text-[11px] text-white/60">
+                        Productos de {uniqueStores.size} tiendas — se crearán pedidos separados.
                       </p>
                     </div>
                   )}
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-white/50 font-light uppercase tracking-wider">Total</span>
-                    <span className="text-xl text-white font-light">{formatCOP(totalCarrito)}</span>
+                  <div className="flex items-center justify-between py-1">
+                    <span className="text-xs text-white/50 uppercase tracking-widest font-medium">Total</span>
+                    <span className="text-xl font-bold text-white">{formatCOP(totalCarrito)}</span>
                   </div>
                   <button
                     onClick={() => { setShowCart(false); handleIrAlCheckout() }}
-                    className={`w-full bg-black text-white py-4 font-medium uppercase tracking-[0.2em] text-xs transition-all duration-300 hover:bg-neutral-900 ${isLightBg ? 'border border-black/20 hover:border-black/40' : 'border border-white/20 hover:border-white/40'}`}
+                    className="w-full bg-white text-black py-4 font-bold uppercase tracking-[0.2em] text-xs transition-all duration-200 hover:bg-white/90 active:scale-[0.98]"
                   >
                     {carritoTieneDelivery ? 'Pedir Domicilio' : 'Finalizar Compra'}
                   </button>
                   <button
                     onClick={() => { setShowCart(false); scrollToPerfumes() }}
-                    className={`w-full text-center bg-black text-white/90 text-xs font-light hover:text-white transition-colors py-2 ${isLightBg ? 'border border-black/20 hover:border-black/40' : 'border border-white/20 hover:border-white/40'}`}
+                    className="w-full text-center border border-white/20 text-white text-xs font-medium hover:bg-white/5 transition-colors py-3 uppercase tracking-widest"
                   >
                     Seguir comprando
                   </button>

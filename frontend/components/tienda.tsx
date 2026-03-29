@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { api } from '@/lib/api'
+import { useAuthStore } from '@/lib/auth-store'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -77,6 +78,9 @@ interface BumpProduct {
 }
 
 export function Tienda() {
+  const { user } = useAuthStore()
+  const isEmpresarial = user?.tenantPlan === 'empresarial' || user?.role === 'superadmin'
+
   const [products, setProducts] = useState<StoreProduct[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
@@ -607,6 +611,20 @@ export function Tienda() {
           )}
         </CardContent>
       </Card>
+    )
+  }
+
+  if (!isEmpresarial) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-center p-8">
+        <div className="rounded-full bg-amber-400/10 p-5">
+          <Store className="h-10 w-10 text-amber-400" />
+        </div>
+        <h2 className="text-xl font-bold">Plan empresarial requerido</h2>
+        <p className="text-muted-foreground max-w-sm">
+          El módulo Tienda está disponible únicamente en el plan empresarial. Actualiza tu plan para publicar productos, gestionar pedidos, crear cupones y personalizar tu página.
+        </p>
+      </div>
     )
   }
 

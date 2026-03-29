@@ -134,7 +134,34 @@ export default function Home() {
     return <AuthForm onGoBack={() => setShowLogin(false)} />
   }
 
+  // Guard: secciones de Tienda requieren plan empresarial
+  const isEmpresarial = user?.tenantPlan === 'empresarial' || user?.role === 'superadmin'
+  const TIENDA_SECTIONS = ['tienda', 'pedidos', 'cupones', 'reviews', 'services']
+
   const renderSection = () => {
+    // Redirect a dashboard si intenta acceder a Tienda sin plan
+    if (TIENDA_SECTIONS.includes(activeSection) && !isEmpresarial) {
+      return (
+        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-center p-8">
+          <div className="rounded-full bg-amber-400/10 p-5">
+            <svg className="h-10 w-10 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+            </svg>
+          </div>
+          <h2 className="text-xl font-bold">Plan empresarial requerido</h2>
+          <p className="text-muted-foreground max-w-sm">
+            El módulo Tienda está disponible únicamente en el plan empresarial. Actualiza tu plan para publicar productos, gestionar pedidos, crear cupones y personalizar tu página.
+          </p>
+          <button
+            onClick={() => setActiveSection('dashboard')}
+            className="mt-2 rounded-md bg-primary px-5 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+          >
+            Volver al Dashboard
+          </button>
+        </div>
+      )
+    }
+
     switch (activeSection) {
       case 'superadmin':
         return user?.role === 'superadmin' ? <TenantManagement /> : <Dashboard />

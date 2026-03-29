@@ -127,10 +127,14 @@ export function Sidebar() {
   const isTiendaActive = TIENDA_CHILD_IDS.includes(activeSection)
   const [tiendaOpen, setTiendaOpen] = useState(isTiendaActive)
 
-  const filterItem = (item: { adminOnly: boolean; superadminOnly: boolean; merchantOnly: boolean }) => {
+  const isEmpresarial = user?.tenantPlan === 'empresarial'
+
+  const filterItem = (item: { adminOnly: boolean; superadminOnly: boolean; merchantOnly: boolean; id?: string }) => {
     if (item.superadminOnly && !isSuperadmin) return false
     if (item.merchantOnly && isSuperadmin) return false
     if (item.adminOnly && !isAdmin) return false
+    // Tienda y sus hijos requieren plan empresarial
+    if (item.id === 'tienda' && !isSuperadmin && !isEmpresarial) return false
     return true
   }
 

@@ -2,7 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { query, param, body } from 'express-validator';
 import { validateRequest } from '../../utils/validators';
 import pool from '../../config/database';
-import { authenticate } from '../../common/middleware';
+import { authenticate, requirePlan } from '../../common/middleware';
 
 const router: ReturnType<typeof Router> = Router();
 
@@ -317,6 +317,7 @@ router.get('/platform-settings', async (_req: Request, res: Response) => {
 router.put(
   '/publish/:productId',
   authenticate,
+  requirePlan('empresarial'),
   async (req: Request, res: Response) => {
     try {
       const tenantId = (req as any).user.tenantId;
@@ -354,6 +355,7 @@ router.put(
 router.put(
   '/delivery/:productId',
   authenticate,
+  requirePlan('empresarial'),
   async (req: Request, res: Response) => {
     try {
       const tenantId = (req as any).user.tenantId;
@@ -388,6 +390,7 @@ router.put(
 router.put(
   '/publish-bulk',
   authenticate,
+  requirePlan('empresarial'),
   [
     body('productIds').isArray({ min: 1 }).withMessage('Se requiere al menos un producto'),
     body('published').isBoolean().withMessage('Estado de publicación requerido'),
@@ -419,6 +422,7 @@ router.put(
 router.get(
   '/my-published',
   authenticate,
+  requirePlan('empresarial'),
   async (req: Request, res: Response) => {
     try {
       const tenantId = (req as any).user.tenantId;
@@ -501,6 +505,7 @@ router.get(
 router.put(
   '/offer/:productId',
   authenticate,
+  requirePlan('empresarial'),
   async (req: Request, res: Response) => {
     try {
       const tenantId = (req as any).user.tenantId;
@@ -900,7 +905,7 @@ router.get('/payment-config/:storeSlug', async (req: Request, res: Response) => 
 });
 
 // GET /api/storefront/customization — Authenticated: config para admin
-router.get('/customization', authenticate, async (req: Request, res: Response) => {
+router.get('/customization', authenticate, requirePlan('empresarial'), async (req: Request, res: Response) => {
   try {
     const tenantId = (req as any).user.tenantId;
 
@@ -1038,7 +1043,7 @@ router.get('/customization', authenticate, async (req: Request, res: Response) =
 });
 
 // PUT /api/storefront/banners — Create/update banner
-router.put('/banners', authenticate, async (req: Request, res: Response) => {
+router.put('/banners', authenticate, requirePlan('empresarial'), async (req: Request, res: Response) => {
   try {
     const user = (req as any).user;
     // Superadmin can pass tenantId in body; regular users use their own
@@ -1090,7 +1095,7 @@ router.put('/banners', authenticate, async (req: Request, res: Response) => {
 });
 
 // DELETE /api/storefront/banners/:id — Delete banner
-router.delete('/banners/:id', authenticate, async (req: Request, res: Response) => {
+router.delete('/banners/:id', authenticate, requirePlan('empresarial'), async (req: Request, res: Response) => {
   try {
     const user = (req as any).user;
     const tenantId = user.role === 'superadmin' ? (req.body.tenantId || user.tenantId) : user.tenantId;
@@ -1114,7 +1119,7 @@ router.delete('/banners/:id', authenticate, async (req: Request, res: Response) 
 });
 
 // PUT /api/storefront/categories/:id/image — Update category image
-router.put('/categories/:id/image', authenticate, async (req: Request, res: Response) => {
+router.put('/categories/:id/image', authenticate, requirePlan('empresarial'), async (req: Request, res: Response) => {
   try {
     const tenantId = (req as any).user.tenantId;
     const { id } = req.params;
@@ -1138,7 +1143,7 @@ router.put('/categories/:id/image', authenticate, async (req: Request, res: Resp
 });
 
 // PUT /api/storefront/categories/:id/visibility — Toggle hidden_in_store
-router.put('/categories/:id/visibility', authenticate, async (req: Request, res: Response) => {
+router.put('/categories/:id/visibility', authenticate, requirePlan('empresarial'), async (req: Request, res: Response) => {
   try {
     const tenantId = (req as any).user.tenantId;
     const { id } = req.params;
@@ -1157,7 +1162,7 @@ router.put('/categories/:id/visibility', authenticate, async (req: Request, res:
 });
 
 // POST /api/storefront/featured-products — Add featured product
-router.post('/featured-products', authenticate, async (req: Request, res: Response) => {
+router.post('/featured-products', authenticate, requirePlan('empresarial'), async (req: Request, res: Response) => {
   try {
     const tenantId = (req as any).user.tenantId;
     const { productId } = req.body;
@@ -1200,7 +1205,7 @@ router.post('/featured-products', authenticate, async (req: Request, res: Respon
 });
 
 // DELETE /api/storefront/featured-products/:productId — Remove featured product
-router.delete('/featured-products/:productId', authenticate, async (req: Request, res: Response) => {
+router.delete('/featured-products/:productId', authenticate, requirePlan('empresarial'), async (req: Request, res: Response) => {
   try {
     const tenantId = (req as any).user.tenantId;
     const { productId } = req.params;
@@ -1223,7 +1228,7 @@ router.delete('/featured-products/:productId', authenticate, async (req: Request
 });
 
 // PUT /api/storefront/store-extended-info — Update extended store info
-router.put('/store-extended-info', authenticate, async (req: Request, res: Response) => {
+router.put('/store-extended-info', authenticate, requirePlan('empresarial'), async (req: Request, res: Response) => {
   try {
     const tenantId = (req as any).user.tenantId;
     const {
@@ -1305,7 +1310,7 @@ router.put('/store-extended-info', authenticate, async (req: Request, res: Respo
 // =============================================
 
 // PUT /api/storefront/announcement-bar — Update announcement bar
-router.put('/announcement-bar', authenticate, async (req: Request, res: Response) => {
+router.put('/announcement-bar', authenticate, requirePlan('empresarial'), async (req: Request, res: Response) => {
   try {
     const tenantId = (req as any).user.tenantId;
     const { text, linkUrl, bgColor, textColor, isActive } = req.body;
@@ -1339,7 +1344,7 @@ router.put('/announcement-bar', authenticate, async (req: Request, res: Response
 // =============================================
 
 // GET /api/storefront/drops — List drops (superadmin: all; merchant: own)
-router.get('/drops', authenticate, async (req: Request, res: Response) => {
+router.get('/drops', authenticate, requirePlan('empresarial'), async (req: Request, res: Response) => {
   try {
     const user = (req as any).user;
     const isSuperadmin = user.role === 'superadmin';
@@ -1372,7 +1377,7 @@ router.get('/drops', authenticate, async (req: Request, res: Response) => {
 });
 
 // POST /api/storefront/drops — Create drop
-router.post('/drops', authenticate, async (req: Request, res: Response) => {
+router.post('/drops', authenticate, requirePlan('empresarial'), async (req: Request, res: Response) => {
   try {
     const user = (req as any).user;
     const tenantId = user.role === 'superadmin' ? null : user.tenantId;
@@ -1392,7 +1397,7 @@ router.post('/drops', authenticate, async (req: Request, res: Response) => {
 });
 
 // PUT /api/storefront/drops/:id — Update drop
-router.put('/drops/:id', authenticate, async (req: Request, res: Response) => {
+router.put('/drops/:id', authenticate, requirePlan('empresarial'), async (req: Request, res: Response) => {
   try {
     const user = (req as any).user;
     const isSuperadmin = user.role === 'superadmin';
@@ -1421,7 +1426,7 @@ router.put('/drops/:id', authenticate, async (req: Request, res: Response) => {
 });
 
 // DELETE /api/storefront/drops/:id — Delete drop
-router.delete('/drops/:id', authenticate, async (req: Request, res: Response) => {
+router.delete('/drops/:id', authenticate, requirePlan('empresarial'), async (req: Request, res: Response) => {
   try {
     const user = (req as any).user;
     if (user.role === 'superadmin') {
@@ -1437,7 +1442,7 @@ router.delete('/drops/:id', authenticate, async (req: Request, res: Response) =>
 });
 
 // POST /api/storefront/drops/:id/products — Add product to drop
-router.post('/drops/:id/products', authenticate, async (req: Request, res: Response) => {
+router.post('/drops/:id/products', authenticate, requirePlan('empresarial'), async (req: Request, res: Response) => {
   try {
     const tenantId = (req as any).user.tenantId;
     const dropId = req.params.id;
@@ -1461,7 +1466,7 @@ router.post('/drops/:id/products', authenticate, async (req: Request, res: Respo
 });
 
 // DELETE /api/storefront/drops/:id/products/:productId — Remove product from drop
-router.delete('/drops/:id/products/:productId', authenticate, async (req: Request, res: Response) => {
+router.delete('/drops/:id/products/:productId', authenticate, requirePlan('empresarial'), async (req: Request, res: Response) => {
   try {
     const tenantId = (req as any).user.tenantId;
     const { id: dropId, productId } = req.params;
@@ -1518,7 +1523,7 @@ router.get('/drop/:dropId', async (req: Request, res: Response) => {
 // =============================================
 
 // GET /api/storefront/order-bump-config — Authenticated: get merchant config
-router.get('/order-bump-config', authenticate, async (req: Request, res: Response) => {
+router.get('/order-bump-config', authenticate, requirePlan('empresarial'), async (req: Request, res: Response) => {
   try {
     const tenantId = (req as any).user.tenantId;
 
@@ -1572,7 +1577,7 @@ router.get('/order-bump-config', authenticate, async (req: Request, res: Respons
 });
 
 // PUT /api/storefront/order-bump-config — Authenticated: save config
-router.put('/order-bump-config', authenticate, async (req: Request, res: Response) => {
+router.put('/order-bump-config', authenticate, requirePlan('empresarial'), async (req: Request, res: Response) => {
   try {
     const tenantId = (req as any).user.tenantId;
     const { isEnabled, mode, title, maxItems, productIds } = req.body;
@@ -1754,6 +1759,7 @@ router.get('/order-bump', async (req: Request, res: Response) => {
 router.put(
   '/new-launch/:productId',
   authenticate,
+  requirePlan('empresarial'),
   async (req: Request, res: Response) => {
     try {
       const tenantId = (req as any).user.tenantId;

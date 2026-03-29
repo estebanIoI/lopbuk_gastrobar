@@ -308,4 +308,6 @@ export interface JWTPayload {
   tenantId: string | null;
   /** Permisos del cargo asignado. Cargados desde la BD en cada request (no en el JWT). */
   permissions?: string[];
+  /** Plan del tenant. Cargado desde la BD en cada request (no en el JWT). */
+  tenantPlan?: 'basico' | 'profesional' | 'empresarial';
 }
