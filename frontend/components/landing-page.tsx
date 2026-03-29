@@ -6194,34 +6194,38 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       {showCart && (
         <>
           <div className="fixed inset-0 z-[65] bg-black/60 backdrop-blur-sm" onClick={() => setShowCart(false)} />
-          <div className="fixed top-0 right-0 h-full w-full max-w-md z-[65] bg-[#0a0a0a] border-l border-white/10 shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
-
+          <div
+            className="fixed top-0 right-0 h-full w-full max-w-md z-[65] flex flex-col shadow-2xl animate-in slide-in-from-right duration-300"
+            style={{ backgroundColor: '#111111', borderLeft: '1px solid rgba(255,255,255,0.12)' }}
+          >
             {/* Header */}
-            <div className="flex items-center justify-between px-6 py-5 border-b border-white/10">
-              <div className="flex items-center gap-3">
-                <ShoppingCart className="w-5 h-5 text-white" />
-                <h2 className="text-base font-semibold tracking-wide text-white">
+            <div style={{ borderBottom: '1px solid rgba(255,255,255,0.12)', padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#111111' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <ShoppingCart style={{ width: 18, height: 18, color: '#ffffff' }} />
+                <span style={{ fontSize: 15, fontWeight: 600, color: '#ffffff', letterSpacing: '0.02em' }}>
                   Mi Carrito
-                  <span className="ml-2 text-sm font-normal text-white/50">({totalItems})</span>
-                </h2>
+                </span>
+                <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.45)', fontWeight: 400 }}>
+                  ({totalItems})
+                </span>
               </div>
               <button
                 onClick={() => setShowCart(false)}
-                className="flex items-center justify-center w-8 h-8 rounded-full border border-white/20 text-white/60 hover:text-white hover:border-white/50 transition-colors"
+                style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', color: 'rgba(255,255,255,0.7)', cursor: 'pointer' }}
               >
-                <X className="w-4 h-4" />
+                <X style={{ width: 15, height: 15 }} />
               </button>
             </div>
 
             {/* Items */}
-            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-1">
+            <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0', backgroundColor: '#111111' }}>
               {carrito.length === 0 ? (
-                <div className="text-center py-20">
-                  <ShoppingCart className="w-12 h-12 text-white/15 mx-auto mb-4" />
-                  <p className="text-white/50 text-sm mb-6">Tu carrito está vacío</p>
+                <div style={{ textAlign: 'center', padding: '60px 24px' }}>
+                  <ShoppingCart style={{ width: 44, height: 44, color: 'rgba(255,255,255,0.15)', margin: '0 auto 16px' }} />
+                  <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 14, marginBottom: 20 }}>Tu carrito está vacío</p>
                   <button
                     onClick={() => { setShowCart(false); scrollToPerfumes() }}
-                    className="w-full bg-white text-black text-sm font-semibold py-3 uppercase tracking-widest hover:bg-white/90 transition-colors"
+                    style={{ width: '100%', backgroundColor: '#ffffff', color: '#000000', fontSize: 12, fontWeight: 700, padding: '12px', textTransform: 'uppercase', letterSpacing: '0.15em', cursor: 'pointer', border: 'none' }}
                   >
                     Explorar productos
                   </button>
@@ -6238,68 +6242,75 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 return Array.from(storeGroups.entries()).map(([storeName, items]) => (
                   <div key={storeName}>
                     {hasMultipleStores && (
-                      <div className="flex items-center gap-2 mb-3 pb-2 border-b border-white/10">
-                        <Store className="w-3.5 h-3.5 text-white/50" />
-                        <span className="text-[11px] text-white/50 uppercase tracking-wider font-medium">{storeName}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '8px 24px 4px', paddingBottom: 8, borderBottom: '1px solid rgba(255,255,255,0.12)' }}>
+                        <Store style={{ width: 13, height: 13, color: 'rgba(255,255,255,0.5)' }} />
+                        <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>{storeName}</span>
                       </div>
                     )}
                     {items.map((item, index) => (
-                      <div key={`${item.id}-${index}`} className="flex gap-4 py-4 border-b border-white/8 last:border-0">
+                      <div
+                        key={`${item.id}-${index}`}
+                        style={{ display: 'flex', gap: 14, padding: '14px 24px', borderBottom: '1px solid rgba(255,255,255,0.08)', backgroundColor: '#111111' }}
+                      >
                         {/* Imagen */}
-                        <div className="w-16 h-16 bg-white/5 border border-white/10 flex-shrink-0 overflow-hidden">
+                        <div style={{ width: 64, height: 64, flexShrink: 0, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.15)', backgroundColor: 'rgba(255,255,255,0.06)' }}>
                           {item.imagen ? (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img src={ensureAbsoluteUrl(item.imagen)} alt={item.nombre} className="w-full h-full object-cover" />
+                            <img src={ensureAbsoluteUrl(item.imagen)} alt={item.nombre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                           ) : (
-                            <div className="w-full h-full flex items-center justify-center">
-                              <Sparkles className="w-4 h-4 text-white/20" />
+                            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <Sparkles style={{ width: 16, height: 16, color: 'rgba(255,255,255,0.2)' }} />
                             </div>
                           )}
                         </div>
 
                         {/* Info */}
-                        <div className="flex-1 min-w-0">
-                          <h4 className="text-sm font-medium text-white leading-snug truncate">{item.nombre}</h4>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ fontSize: 13, fontWeight: 600, color: '#ffffff', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: 0 }}>
+                            {item.nombre}
+                          </p>
                           {item.perfumeSeleccionado && (
-                            <p className="text-xs text-white/40 mt-0.5">Perfume: {item.perfumeSeleccionado}</p>
+                            <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', margin: '2px 0 0' }}>Perfume: {item.perfumeSeleccionado}</p>
                           )}
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className="text-xs text-white/60">{formatCOP(item.precio)} c/u</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                            <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)' }}>{formatCOP(item.precio)} c/u</span>
                             {item.precioOriginal && item.precioOriginal > item.precio && (
-                              <span className="text-[10px] text-white/30 line-through">{formatCOP(item.precioOriginal)}</span>
+                              <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', textDecoration: 'line-through' }}>{formatCOP(item.precioOriginal)}</span>
                             )}
                             {item.descuentoPorcentaje && item.descuentoPorcentaje > 0 && (
-                              <span className="text-[10px] text-emerald-400 font-medium">-{item.descuentoPorcentaje}%</span>
+                              <span style={{ fontSize: 10, color: '#34d399', fontWeight: 600 }}>-{item.descuentoPorcentaje}%</span>
                             )}
                           </div>
 
                           {/* Cantidad */}
-                          <div className="flex items-center gap-0 mt-2 border border-white/20 w-fit">
+                          <div style={{ display: 'flex', alignItems: 'center', marginTop: 8, border: '1px solid rgba(255,255,255,0.25)', width: 'fit-content' }}>
                             <button
                               onClick={() => actualizarCantidad(item.id, -1, item.tempId)}
-                              className="w-8 h-8 bg-black text-white flex items-center justify-center hover:bg-white/10 transition-colors border-r border-white/20"
+                              style={{ width: 30, height: 30, backgroundColor: '#000000', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', borderRight: '1px solid rgba(255,255,255,0.25)', cursor: 'pointer' }}
                             >
-                              <Minus className="w-3 h-3" />
+                              <Minus style={{ width: 11, height: 11 }} />
                             </button>
-                            <span className="text-sm text-white font-medium w-9 text-center select-none">{item.cantidad}</span>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: '#ffffff', width: 32, textAlign: 'center' }}>{item.cantidad}</span>
                             <button
                               onClick={() => actualizarCantidad(item.id, 1, item.tempId)}
-                              className="w-8 h-8 bg-black text-white flex items-center justify-center hover:bg-white/10 transition-colors border-l border-white/20"
+                              style={{ width: 30, height: 30, backgroundColor: '#000000', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', borderLeft: '1px solid rgba(255,255,255,0.25)', cursor: 'pointer' }}
                             >
-                              <Plus className="w-3 h-3" />
+                              <Plus style={{ width: 11, height: 11 }} />
                             </button>
                           </div>
                         </div>
 
-                        {/* Precio y eliminar */}
-                        <div className="flex flex-col items-end justify-between">
+                        {/* Precio total y eliminar */}
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'space-between', flexShrink: 0 }}>
                           <button
                             onClick={() => removerProducto(item)}
-                            className="flex items-center justify-center w-6 h-6 text-white/30 hover:text-red-400 transition-colors"
+                            style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', cursor: 'pointer', padding: 2 }}
+                            onMouseEnter={e => (e.currentTarget.style.color = '#f87171')}
+                            onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.3)')}
                           >
-                            <X className="w-4 h-4" />
+                            <X style={{ width: 14, height: 14 }} />
                           </button>
-                          <span className="text-sm font-semibold text-white">{formatCOP(item.precio * item.cantidad)}</span>
+                          <span style={{ fontSize: 14, fontWeight: 700, color: '#ffffff' }}>{formatCOP(item.precio * item.cantidad)}</span>
                         </div>
                       </div>
                     ))}
@@ -6313,27 +6324,27 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               const uniqueStores = new Set(carrito.map(i => i.tenantId).filter(Boolean))
               const multiStore = uniqueStores.size > 1
               return (
-                <div className="border-t border-white/10 px-6 py-5 space-y-3 bg-black">
+                <div style={{ borderTop: '1px solid rgba(255,255,255,0.12)', padding: '20px 24px', backgroundColor: '#000000', display: 'flex', flexDirection: 'column', gap: 12 }}>
                   {multiStore && (
-                    <div className="bg-white/5 border border-white/10 px-3 py-2 text-center">
-                      <p className="text-[11px] text-white/60">
+                    <div style={{ backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '8px 12px', textAlign: 'center' }}>
+                      <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', margin: 0 }}>
                         Productos de {uniqueStores.size} tiendas — se crearán pedidos separados.
                       </p>
                     </div>
                   )}
-                  <div className="flex items-center justify-between py-1">
-                    <span className="text-xs text-white/50 uppercase tracking-widest font-medium">Total</span>
-                    <span className="text-xl font-bold text-white">{formatCOP(totalCarrito)}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 0' }}>
+                    <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 600 }}>Total</span>
+                    <span style={{ fontSize: 22, fontWeight: 800, color: '#ffffff' }}>{formatCOP(totalCarrito)}</span>
                   </div>
                   <button
                     onClick={() => { setShowCart(false); handleIrAlCheckout() }}
-                    className="w-full bg-white text-black py-4 font-bold uppercase tracking-[0.2em] text-xs transition-all duration-200 hover:bg-white/90 active:scale-[0.98]"
+                    style={{ width: '100%', backgroundColor: '#ffffff', color: '#000000', padding: '15px', fontWeight: 800, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.18em', border: 'none', cursor: 'pointer' }}
                   >
                     {carritoTieneDelivery ? 'Pedir Domicilio' : 'Finalizar Compra'}
                   </button>
                   <button
                     onClick={() => { setShowCart(false); scrollToPerfumes() }}
-                    className="w-full text-center border border-white/20 text-white text-xs font-medium hover:bg-white/5 transition-colors py-3 uppercase tracking-widest"
+                    style={{ width: '100%', backgroundColor: 'transparent', border: '1px solid rgba(255,255,255,0.25)', color: '#ffffff', padding: '11px', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', cursor: 'pointer' }}
                   >
                     Seguir comprando
                   </button>
