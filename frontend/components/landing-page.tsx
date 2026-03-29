@@ -106,7 +106,13 @@ interface StorefrontProduct {
 }
 
 export function LandingPage({ onGoToLogin }: LandingPageProps) {
-  const [showCatalog, setShowCatalog] = useState(false)
+  const [showCatalog, setShowCatalog] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      return Boolean(params.get('store') || params.get('product'))
+    }
+    return false
+  })
   const [isMobile, setIsMobile] = useState(false)
   useEffect(() => { setIsMobile(window.innerWidth < 640) }, [])
   // Theme
@@ -137,8 +143,19 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [loadingProducts, setLoadingProducts] = useState(false)
   const [stores, setStores] = useState<{ id: string; name: string; slug: string; businessType: string | null; logoUrl: string | null; address: string | null; productCount: number }[]>([])
-  const [selectedStore, setSelectedStore] = useState<string>('all')
-  const [showStoresView, setShowStoresView] = useState(true)
+  const [selectedStore, setSelectedStore] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return new URLSearchParams(window.location.search).get('store') || 'all'
+    }
+    return 'all'
+  })
+  const [showStoresView, setShowStoresView] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      return !(params.get('store') || params.get('product'))
+    }
+    return true
+  })
   const [businessTypeFilter, setBusinessTypeFilter] = useState<string>('all')
   const [allProducts, setAllProducts] = useState<StorefrontProduct[]>([])
   const [loadingAllProducts, setLoadingAllProducts] = useState(false)
@@ -311,6 +328,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     const storeSlug = params.get('store')
     if (storeSlug) {
       setSelectedStore(storeSlug)
+      setShowCatalog(true)
       setShowStoresView(false)
       window.history.replaceState({}, '', window.location.pathname)
     }
