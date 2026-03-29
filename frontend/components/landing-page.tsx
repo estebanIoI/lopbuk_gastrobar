@@ -7533,6 +7533,18 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         </div>
       )}
 
+      {/* ========== FLOATING BACK TO STORES BUTTON ========== */}
+      {selectedStore !== 'all' && stores.length > 1 && !showProductModal && (
+        <button
+          onClick={() => { setSelectedStore('all'); setShowStoresView(true); setShowCatalog(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
+          className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[55] flex items-center gap-2 px-4 py-2.5 rounded-full shadow-lg shadow-black/40 border border-white/15 backdrop-blur-md bg-black/70 text-white text-xs font-medium uppercase tracking-widest hover:bg-black/90 transition-all duration-200 whitespace-nowrap md:bottom-6"
+          style={{ animation: 'none' }}
+        >
+          <ArrowLeft className="w-3.5 h-3.5 flex-shrink-0" />
+          Ver todas las tiendas
+        </button>
+      )}
+
       {/* ========== LOCATION CHANGE BUTTON (bottom of header) ========== */}
       {clientMunicipality && (
         <button
