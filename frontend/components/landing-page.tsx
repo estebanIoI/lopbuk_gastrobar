@@ -6264,36 +6264,36 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
           <div className="fixed inset-0 z-[65] bg-black/60 backdrop-blur-sm" onClick={() => setShowCart(false)} />
           <div
             className="fixed top-0 right-0 h-full w-full max-w-md z-[65] flex flex-col shadow-2xl animate-in slide-in-from-right duration-300"
-            style={{ backgroundColor: '#111111', borderLeft: '1px solid rgba(255,255,255,0.12)' }}
+            style={{ backgroundColor: '#ffffff', borderLeft: '1px solid rgba(0,0,0,0.12)' }}
           >
             {/* Header */}
-            <div style={{ borderBottom: '1px solid rgba(255,255,255,0.12)', padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#111111' }}>
+            <div style={{ borderBottom: '1px solid rgba(0,0,0,0.12)', padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#ffffff' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <ShoppingCart style={{ width: 18, height: 18, color: '#ffffff' }} />
-                <span style={{ fontSize: 15, fontWeight: 600, color: '#ffffff', letterSpacing: '0.02em' }}>
+                <ShoppingCart style={{ width: 18, height: 18, color: '#000000' }} />
+                <span style={{ fontSize: 15, fontWeight: 600, color: '#000000', letterSpacing: '0.02em' }}>
                   Mi Carrito
                 </span>
-                <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.45)', fontWeight: 400 }}>
+                <span style={{ fontSize: 13, color: 'rgba(0,0,0,0.45)', fontWeight: 400 }}>
                   ({totalItems})
                 </span>
               </div>
               <button
                 onClick={() => setShowCart(false)}
-                style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', color: 'rgba(255,255,255,0.7)', cursor: 'pointer' }}
+                style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid rgba(0,0,0,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', color: 'rgba(0,0,0,0.7)', cursor: 'pointer' }}
               >
                 <X style={{ width: 15, height: 15 }} />
               </button>
             </div>
 
             {/* Items */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0', backgroundColor: '#111111' }}>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0', backgroundColor: '#ffffff' }}>
               {carrito.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '60px 24px' }}>
-                  <ShoppingCart style={{ width: 44, height: 44, color: 'rgba(255,255,255,0.15)', margin: '0 auto 16px' }} />
-                  <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 14, marginBottom: 20 }}>Tu carrito está vacío</p>
+                  <ShoppingCart style={{ width: 44, height: 44, color: 'rgba(0,0,0,0.15)', margin: '0 auto 16px' }} />
+                  <p style={{ color: 'rgba(0,0,0,0.5)', fontSize: 14, marginBottom: 20 }}>Tu carrito está vacío</p>
                   <button
                     onClick={() => { setShowCart(false); scrollToPerfumes() }}
-                    style={{ width: '100%', backgroundColor: '#ffffff', color: '#000000', fontSize: 12, fontWeight: 700, padding: '12px', textTransform: 'uppercase', letterSpacing: '0.15em', cursor: 'pointer', border: 'none' }}
+                    style={{ width: '100%', backgroundColor: '#000000', color: '#ffffff', fontSize: 12, fontWeight: 700, padding: '12px', textTransform: 'uppercase', letterSpacing: '0.15em', cursor: 'pointer', border: 'none' }}
                   >
                     Explorar productos
                   </button>
@@ -6310,40 +6310,40 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 return Array.from(storeGroups.entries()).map(([storeName, items]) => (
                   <div key={storeName}>
                     {hasMultipleStores && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '8px 24px 4px', paddingBottom: 8, borderBottom: '1px solid rgba(255,255,255,0.12)' }}>
-                        <Store style={{ width: 13, height: 13, color: 'rgba(255,255,255,0.5)' }} />
-                        <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>{storeName}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '8px 24px 4px', paddingBottom: 8, borderBottom: '1px solid rgba(0,0,0,0.12)' }}>
+                        <Store style={{ width: 13, height: 13, color: 'rgba(0,0,0,0.5)' }} />
+                        <span style={{ fontSize: 11, color: 'rgba(0,0,0,0.5)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>{storeName}</span>
                       </div>
                     )}
                     {items.map((item, index) => (
                       <div
                         key={`${item.id}-${index}`}
-                        style={{ display: 'flex', gap: 14, padding: '14px 24px', borderBottom: '1px solid rgba(255,255,255,0.08)', backgroundColor: '#111111' }}
+                        style={{ display: 'flex', gap: 14, padding: '14px 24px', borderBottom: '1px solid rgba(0,0,0,0.08)', backgroundColor: '#ffffff' }}
                       >
                         {/* Imagen */}
-                        <div style={{ width: 64, height: 64, flexShrink: 0, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.15)', backgroundColor: 'rgba(255,255,255,0.06)' }}>
+                        <div style={{ width: 64, height: 64, flexShrink: 0, overflow: 'hidden', border: '1px solid rgba(0,0,0,0.15)', backgroundColor: 'rgba(0,0,0,0.04)' }}>
                           {item.imagen ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img src={ensureAbsoluteUrl(item.imagen)} alt={item.nombre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                           ) : (
                             <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                              <Sparkles style={{ width: 16, height: 16, color: 'rgba(255,255,255,0.2)' }} />
+                              <Sparkles style={{ width: 16, height: 16, color: 'rgba(0,0,0,0.2)' }} />
                             </div>
                           )}
                         </div>
 
                         {/* Info */}
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <p style={{ fontSize: 13, fontWeight: 600, color: '#ffffff', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: 0 }}>
+                          <p style={{ fontSize: 13, fontWeight: 600, color: '#000000', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: 0 }}>
                             {item.nombre}
                           </p>
                           {item.perfumeSeleccionado && (
-                            <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', margin: '2px 0 0' }}>Perfume: {item.perfumeSeleccionado}</p>
+                            <p style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)', margin: '2px 0 0' }}>Perfume: {item.perfumeSeleccionado}</p>
                           )}
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
-                            <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)' }}>{formatCOP(item.precio)} c/u</span>
+                            <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.65)' }}>{formatCOP(item.precio)} c/u</span>
                             {item.precioOriginal && item.precioOriginal > item.precio && (
-                              <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', textDecoration: 'line-through' }}>{formatCOP(item.precioOriginal)}</span>
+                              <span style={{ fontSize: 10, color: 'rgba(0,0,0,0.35)', textDecoration: 'line-through' }}>{formatCOP(item.precioOriginal)}</span>
                             )}
                             {item.descuentoPorcentaje && item.descuentoPorcentaje > 0 && (
                               <span style={{ fontSize: 10, color: '#34d399', fontWeight: 600 }}>-{item.descuentoPorcentaje}%</span>
@@ -6351,17 +6351,17 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           </div>
 
                           {/* Cantidad */}
-                          <div style={{ display: 'flex', alignItems: 'center', marginTop: 8, border: '1px solid rgba(255,255,255,0.25)', width: 'fit-content' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', marginTop: 8, border: '1px solid rgba(0,0,0,0.25)', width: 'fit-content' }}>
                             <button
                               onClick={() => actualizarCantidad(item.id, -1, item.tempId)}
-                              style={{ width: 30, height: 30, backgroundColor: '#000000', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', borderRight: '1px solid rgba(255,255,255,0.25)', cursor: 'pointer' }}
+                              style={{ width: 30, height: 30, backgroundColor: '#000000', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', borderRight: '1px solid rgba(0,0,0,0.25)', cursor: 'pointer' }}
                             >
                               <Minus style={{ width: 11, height: 11 }} />
                             </button>
-                            <span style={{ fontSize: 13, fontWeight: 700, color: '#ffffff', width: 32, textAlign: 'center' }}>{item.cantidad}</span>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: '#000000', width: 32, textAlign: 'center' }}>{item.cantidad}</span>
                             <button
                               onClick={() => actualizarCantidad(item.id, 1, item.tempId)}
-                              style={{ width: 30, height: 30, backgroundColor: '#000000', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', borderLeft: '1px solid rgba(255,255,255,0.25)', cursor: 'pointer' }}
+                              style={{ width: 30, height: 30, backgroundColor: '#000000', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', borderLeft: '1px solid rgba(0,0,0,0.25)', cursor: 'pointer' }}
                             >
                               <Plus style={{ width: 11, height: 11 }} />
                             </button>
@@ -6372,13 +6372,13 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'space-between', flexShrink: 0 }}>
                           <button
                             onClick={() => removerProducto(item)}
-                            style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', cursor: 'pointer', padding: 2 }}
+                            style={{ background: 'none', border: 'none', color: 'rgba(0,0,0,0.3)', cursor: 'pointer', padding: 2 }}
                             onMouseEnter={e => (e.currentTarget.style.color = '#f87171')}
-                            onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.3)')}
+                            onMouseLeave={e => (e.currentTarget.style.color = 'rgba(0,0,0,0.3)')}
                           >
                             <X style={{ width: 14, height: 14 }} />
                           </button>
-                          <span style={{ fontSize: 14, fontWeight: 700, color: '#ffffff' }}>{formatCOP(item.precio * item.cantidad)}</span>
+                          <span style={{ fontSize: 14, fontWeight: 700, color: '#000000' }}>{formatCOP(item.precio * item.cantidad)}</span>
                         </div>
                       </div>
                     ))}
@@ -6392,27 +6392,27 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               const uniqueStores = new Set(carrito.map(i => i.tenantId).filter(Boolean))
               const multiStore = uniqueStores.size > 1
               return (
-                <div style={{ borderTop: '1px solid rgba(255,255,255,0.12)', padding: '20px 24px', backgroundColor: '#000000', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div style={{ borderTop: '1px solid rgba(0,0,0,0.12)', padding: '20px 24px', backgroundColor: '#ffffff', display: 'flex', flexDirection: 'column', gap: 12 }}>
                   {multiStore && (
-                    <div style={{ backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '8px 12px', textAlign: 'center' }}>
-                      <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', margin: 0 }}>
+                    <div style={{ backgroundColor: 'rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.1)', padding: '8px 12px', textAlign: 'center' }}>
+                      <p style={{ fontSize: 11, color: 'rgba(0,0,0,0.6)', margin: 0 }}>
                         Productos de {uniqueStores.size} tiendas — se crearán pedidos separados.
                       </p>
                     </div>
                   )}
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 0' }}>
-                    <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 600 }}>Total</span>
-                    <span style={{ fontSize: 22, fontWeight: 800, color: '#ffffff' }}>{formatCOP(totalCarrito)}</span>
+                    <span style={{ fontSize: 11, color: 'rgba(0,0,0,0.5)', textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 600 }}>Total</span>
+                    <span style={{ fontSize: 22, fontWeight: 800, color: '#000000' }}>{formatCOP(totalCarrito)}</span>
                   </div>
                   <button
                     onClick={() => { setShowCart(false); handleIrAlCheckout() }}
-                    style={{ width: '100%', backgroundColor: '#ffffff', color: '#000000', padding: '15px', fontWeight: 800, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.18em', border: 'none', cursor: 'pointer' }}
+                    style={{ width: '100%', backgroundColor: '#000000', color: '#ffffff', padding: '15px', fontWeight: 800, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.18em', border: 'none', cursor: 'pointer' }}
                   >
                     {carritoTieneDelivery ? 'Pedir Domicilio' : 'Finalizar Compra'}
                   </button>
                   <button
                     onClick={() => { setShowCart(false); scrollToPerfumes() }}
-                    style={{ width: '100%', backgroundColor: 'transparent', border: '1px solid rgba(255,255,255,0.25)', color: '#ffffff', padding: '11px', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', cursor: 'pointer' }}
+                    style={{ width: '100%', backgroundColor: 'transparent', border: '1px solid rgba(0,0,0,0.25)', color: '#000000', padding: '11px', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', cursor: 'pointer' }}
                   >
                     Seguir comprando
                   </button>
