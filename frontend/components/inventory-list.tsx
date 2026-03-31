@@ -54,6 +54,7 @@ import {
   ChevronDown,
   Settings2,
   FileDown,
+  ImageIcon,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { BarcodeScanner } from '@/components/barcode-scanner'
@@ -73,6 +74,9 @@ export function InventoryList() {
   const [isCategoryDialogOpen, setIsCategoryDialogOpen] = useState(false)
   const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false)
   const [isSedeDialogOpen, setIsSedeDialogOpen] = useState(false)
+  const [isImageDialogOpen, setIsImageDialogOpen] = useState(false)
+  const [imageDialogData, setImageDialogData] = useState<{ imageUrl: string; images: string[] }>({ imageUrl: '', images: ['', '', '', ''] })
+  const [isSavingImages, setIsSavingImages] = useState(false)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [isExporting, setIsExporting] = useState(false)
 
@@ -176,6 +180,39 @@ export function InventoryList() {
   const handleDelete = (product: Product) => {
     setSelectedProduct(product)
     setIsDeleteDialogOpen(true)
+  }
+
+  const handleOpenImageDialog = (product: Product) => {
+    const imagesArr = Array.isArray(product.images) ? product.images : []
+    setSelectedProduct(product)
+    setImageDialogData({
+      imageUrl: product.imageUrl || imagesArr[0] || '',
+      images: [
+        product.imageUrl || imagesArr[0] || '',
+        imagesArr[1] || '',
+        imagesArr[2] || '',
+        imagesArr[3] || '',
+      ],
+    })
+    setIsImageDialogOpen(true)
+  }
+
+  const handleSaveImages = async () => {
+    if (!selectedProduct) return
+    setIsSavingImages(true)
+    const trimmed = imageDialogData.images.map(u => u.trim())
+    const result = await updateProduct(selectedProduct.id, {
+      imageUrl: trimmed[0],
+      images: trimmed,
+    })
+    setIsSavingImages(false)
+    if (result.success) {
+      setIsImageDialogOpen(false)
+      setSelectedProduct(null)
+      toast.success('Imágenes actualizadas')
+    } else {
+      toast.error('Error al guardar imágenes')
+    }
   }
 
   const confirmDelete = async () => {
@@ -427,6 +464,15 @@ export function InventoryList() {
                           <Button
                             variant="ghost"
                             size="icon"
+                            onClick={() => handleOpenImageDialog(product)}
+                            className="h-8 w-8 lg:h-9 lg:w-9 text-muted-foreground hover:text-foreground"
+                            title="Gestionar imágenes"
+                          >
+                            <ImageIcon className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             onClick={() => handleEdit(product)}
                             className="h-8 w-8 lg:h-9 lg:w-9"
                           >
@@ -512,6 +558,47 @@ export function InventoryList() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Quick Image Upload Dialog */}
+      {selectedProduct && (
+        <Dialog open={isImageDialogOpen} onOpenChange={(open) => { setIsImageDialogOpen(open); if (!open) setSelectedProduct(null) }}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Imágenes del Producto</DialogTitle>
+              <DialogDescription>
+                {selectedProduct.name} — Cargue hasta 4 imágenes. La primera es la imagen principal.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid grid-cols-2 gap-3 py-2">
+              {[0, 1, 2, 3].map((idx) => (
+                <div key={idx} className="rounded-lg border border-border p-2 bg-secondary/20">
+                  <p className="text-xs font-medium text-muted-foreground mb-2">
+                    {idx === 0 ? 'Imagen principal ★' : `Imagen ${idx + 1}`}
+                  </p>
+                  <CloudinaryUpload
+                    value={imageDialogData.images[idx] || ''}
+                    onChange={(url) => {
+                      const next = [...imageDialogData.images]
+                      next[idx] = url
+                      setImageDialogData({ imageUrl: next[0] || '', images: next })
+                    }}
+                    previewClassName="h-20 w-full object-cover rounded border"
+                    accept="image/*,image/gif"
+                  />
+                </div>
+              ))}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setIsImageDialogOpen(false); setSelectedProduct(null) }}>
+                Cancelar
+              </Button>
+              <Button onClick={handleSaveImages} disabled={isSavingImages}>
+                {isSavingImages ? 'Guardando...' : 'Guardar Imágenes'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Create Category Dialog */}
       <Dialog open={isCategoryDialogOpen} onOpenChange={setIsCategoryDialogOpen}>
