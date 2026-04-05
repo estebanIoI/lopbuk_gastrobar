@@ -56,6 +56,7 @@ import {
 import { CheckoutView } from '@/components/checkout/CheckoutView'
 import { ServiceBookingModal } from '@/components/service-booking-modal'
 import { ChatWidget } from '@/components/ChatWidget'
+import { ContactModal } from '@/components/contact-modal'
 import { ensureAbsoluteUrl } from '@/utils/url'
 import { departamentosMunicipios } from '@/constants'
 import { useAuthStore } from '@/lib/auth-store'
@@ -2133,6 +2134,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 </button>
               </>
             ) : null}
+            <div className="hidden md:flex [&_button]:text-white/70 [&_button:hover]:text-white">
+              <ContactModal />
+            </div>
             <button
               onClick={() => { setShowDesktopSearch(s => !s); setTimeout(() => desktopSearchInputRef.current?.focus(), 50) }}
               className="hidden md:flex p-2 text-white/70 hover:text-white transition-colors"

@@ -26,15 +26,15 @@ async function getCloudinaryConfig(): Promise<{ cloudName: string; uploadPreset:
   // 2. Try fetching from backend (platform_settings — set by superadmin)
   try {
     const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null
-    const res = await fetch(`${API_URL}/chatbot/superadmin/integrations`, {
+    const res = await fetch(`${API_URL}/chatbot/cloudinary-config`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     })
     if (res.ok) {
       const json = await res.json()
-      if (json.success && json.data?.cloudinaryCloudName) {
+      if (json.success && json.data?.cloudName) {
         _cloudinaryCache = {
-          cloudName: json.data.cloudinaryCloudName,
-          uploadPreset: json.data.cloudinaryUploadPreset,
+          cloudName: json.data.cloudName,
+          uploadPreset: json.data.uploadPreset,
         }
         return _cloudinaryCache
       }

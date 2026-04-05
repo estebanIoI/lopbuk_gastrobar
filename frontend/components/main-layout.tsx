@@ -18,7 +18,7 @@ export function MainLayout({ children }: MainLayoutProps) {
       <Sidebar />
       <div className={cn(
         "transition-all duration-300 ease-in-out",
-        sidebarCollapsed ? "md:pl-16" : "md:pl-60"
+        sidebarCollapsed ? "md:pl-[90px]" : "md:pl-[252px]"
       )}>
         <Header />
         <main className="p-4 sm:p-6 lg:p-8 xl:p-10 max-w-[1920px] mx-auto">

@@ -172,22 +172,28 @@ export function Sidebar() {
         />
       )}
 
-      <aside className={cn(
-        "fixed left-0 top-0 z-50 flex h-screen flex-col border-r border-sidebar-border bg-sidebar transition-all duration-300 ease-in-out",
-        sidebarCollapsed ? "w-16" : "w-60",
-        "md:translate-x-0",
-        sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
-      )}>
+      <aside
+        className={cn(
+          "fixed left-4 top-1/2 z-50 flex flex-col rounded-[28px] max-h-[90vh] overflow-hidden",
+          "transition-all duration-300",
+          sidebarCollapsed
+            ? "w-[58px] shadow-[0_4px_24px_rgba(0,0,0,0.10)]"
+            : "w-[220px] shadow-[0_12px_48px_rgba(0,0,0,0.18),0_2px_8px_rgba(0,0,0,0.08)]",
+          "md:translate-x-0 -translate-y-1/2",
+          sidebarOpen ? "translate-x-0" : "-translate-x-[calc(100%+16px)] md:translate-x-0"
+        )}
+        style={{ background: 'rgba(245, 246, 250, 0.98)', backdropFilter: 'blur(24px)' }}
+      >
 
         {/* ── Logo + collapse toggle ── */}
-        <div className="flex h-14 shrink-0 items-center border-b border-sidebar-border px-3">
+        <div className="flex h-14 shrink-0 items-center border-b border-black/[0.06] px-3">
           <div className={cn("flex items-center gap-2.5 min-w-0", sidebarCollapsed && "justify-center w-full")}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/image/lopbukicon.png" alt="Lopbuk" width={30} height={30} className="rounded-md shrink-0" />
             {!sidebarCollapsed && (
               <div className="flex flex-col leading-none min-w-0">
-                <span className="text-sm font-bold text-sidebar-foreground tracking-tight">Lopbuk</span>
-                <span className="text-[10px] text-muted-foreground">Gestión de Inventario</span>
+                <span className="text-sm font-bold text-gray-900 tracking-tight">Lopbuk</span>
+                <span className="text-[10px] text-gray-400">Gestión de Inventario</span>
               </div>
             )}
           </div>
@@ -197,7 +203,7 @@ export function Sidebar() {
             <Button
               variant="ghost"
               size="icon"
-              className="md:hidden ml-auto h-7 w-7 text-muted-foreground hover:text-sidebar-foreground shrink-0"
+              className="md:hidden ml-auto h-7 w-7 text-gray-400 hover:text-gray-900 shrink-0"
               onClick={() => setSidebarOpen(false)}
             >
               <X className="h-4 w-4" />
@@ -209,7 +215,7 @@ export function Sidebar() {
             variant="ghost"
             size="icon"
             className={cn(
-              "hidden md:flex h-7 w-7 text-muted-foreground hover:text-sidebar-foreground shrink-0",
+              "hidden md:flex h-7 w-7 text-gray-400 hover:text-gray-900 shrink-0",
               sidebarCollapsed ? "mx-auto" : "ml-auto"
             )}
             onClick={toggleSidebarCollapsed}
@@ -223,19 +229,19 @@ export function Sidebar() {
         </div>
 
         {/* ── Navigation ── */}
-        <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5 scrollbar-thin scrollbar-thumb-sidebar-border scrollbar-track-transparent">
+        <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5 scrollbar-thin scrollbar-thumb-black/10 scrollbar-track-transparent">
           {groups.map(group => {
             const items = filteredNavigation.filter(i => i.group === group.key)
             if (items.length === 0) return null
             return (
               <div key={group.key} className="mb-1">
                 {group.label && !sidebarCollapsed && (
-                  <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60 select-none">
+                  <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-gray-400/80 select-none">
                     {group.label}
                   </p>
                 )}
                 {group.label && sidebarCollapsed && (
-                  <div className="mx-3 my-1 border-t border-sidebar-border/40" />
+                  <div className="mx-3 my-1 border-t border-black/[0.06]" />
                 )}
 
                 {items.map(item => {
@@ -252,10 +258,10 @@ export function Sidebar() {
                           <button
                             onClick={handleTiendaClick}
                             className={cn(
-                              "group relative flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-all duration-150",
+                              "group relative flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium transition-all duration-150",
                               isParentActive
-                                ? "bg-primary/10 text-primary"
-                                : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                                ? "bg-[#141928] text-white"
+                                : sidebarCollapsed ? "text-gray-400 hover:bg-black/[0.06] hover:text-gray-900" : "text-gray-600 hover:bg-black/[0.06] hover:text-gray-900",
                               sidebarCollapsed && "justify-center px-0"
                             )}
                           >
@@ -264,7 +270,7 @@ export function Sidebar() {
                             )}
                             <item.icon className={cn(
                               "h-4 w-4 shrink-0 transition-colors",
-                              isParentActive ? "text-primary" : "text-muted-foreground/70 group-hover:text-sidebar-foreground"
+                              isParentActive ? "text-primary" : "text-gray-400 group-hover:text-gray-900"
                             )} />
                             {!sidebarCollapsed && (
                               <>
@@ -278,7 +284,7 @@ export function Sidebar() {
                           </button>
                           {/* Tooltip when collapsed */}
                           {sidebarCollapsed && (
-                            <span className="absolute left-full ml-2 top-1/2 -translate-y-1/2 z-[60] px-2 py-1 text-xs bg-popover text-popover-foreground rounded-md border border-border shadow-lg opacity-0 group-hover/tip:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                            <span className="absolute left-full ml-2 top-1/2 -translate-y-1/2 z-[60] px-2 py-1 text-xs bg-gray-900 text-white rounded-md shadow-lg opacity-0 group-hover/tip:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
                               {item.name}
                             </span>
                           )}
@@ -286,7 +292,7 @@ export function Sidebar() {
 
                         {/* Children submenu — only when expanded */}
                         {!sidebarCollapsed && tiendaOpen && (
-                          <div className="mt-0.5 ml-3 pl-3 border-l border-sidebar-border/50 space-y-0.5">
+                          <div className="mt-0.5 ml-3 pl-3 border-l border-black/[0.08] space-y-0.5">
                             {visibleChildren.map(child => {
                               const isChildActive = activeSection === child.id
                               return (
@@ -294,18 +300,18 @@ export function Sidebar() {
                                   <button
                                     onClick={() => navigate(child.id)}
                                     className={cn(
-                                      "group relative flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-sm font-medium transition-all duration-150",
+                                      "group relative flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-sm font-medium transition-all duration-150",
                                       isChildActive
-                                        ? "bg-primary/10 text-primary"
-                                        : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                                        ? "bg-[#141928] text-white"
+                                        : "text-gray-600 hover:bg-black/[0.06] hover:text-gray-900"
                                     )}
                                   >
                                     {isChildActive && (
-                                      <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 bg-primary rounded-r-full" />
+                                      <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-4 bg-primary rounded-r-full" />
                                     )}
                                     <child.icon className={cn(
                                       "h-3.5 w-3.5 shrink-0",
-                                      isChildActive ? "text-primary" : "text-muted-foreground/60 group-hover:text-sidebar-foreground"
+                                      isChildActive ? "text-primary" : "text-gray-400 group-hover:text-gray-900"
                                     )} />
                                     <span className="truncate">{child.name}</span>
                                   </button>
@@ -325,19 +331,19 @@ export function Sidebar() {
                       <button
                         onClick={() => navigate(item.id)}
                         className={cn(
-                          "group relative flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-all duration-150",
+                          "group relative flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium transition-all duration-150",
                           isActive
-                            ? "bg-primary/10 text-primary shadow-sm"
-                            : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                            ? "bg-[#141928] text-white shadow-sm"
+                            : sidebarCollapsed ? "text-gray-400 hover:bg-black/[0.06] hover:text-gray-900" : "text-gray-600 hover:bg-black/[0.06] hover:text-gray-900",
                           sidebarCollapsed && "justify-center px-0"
                         )}
                       >
                         {isActive && !sidebarCollapsed && (
-                          <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-primary rounded-r-full" />
+                          <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-primary rounded-r-full" />
                         )}
                         <item.icon className={cn(
                           "h-4 w-4 shrink-0 transition-colors",
-                          isActive ? "text-primary" : "text-muted-foreground/70 group-hover:text-sidebar-foreground"
+                          isActive ? "text-primary" : "text-gray-400 group-hover:text-gray-900"
                         )} />
                         {!sidebarCollapsed && (
                           <>
@@ -348,7 +354,7 @@ export function Sidebar() {
                       </button>
                       {/* Tooltip when collapsed */}
                       {sidebarCollapsed && (
-                        <span className="absolute left-full ml-2 top-1/2 -translate-y-1/2 z-[60] px-2 py-1 text-xs bg-popover text-popover-foreground rounded-md border border-border shadow-lg opacity-0 group-hover/tip:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                        <span className="absolute left-full ml-2 top-1/2 -translate-y-1/2 z-[60] px-2 py-1 text-xs bg-gray-900 text-white rounded-md shadow-lg opacity-0 group-hover/tip:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
                           {item.name}
                         </span>
                       )}
@@ -357,7 +363,7 @@ export function Sidebar() {
                 })}
 
                 {group.key !== 'config' && items.length > 0 && !sidebarCollapsed && (
-                  <div className="mx-3 mt-2 mb-1 border-t border-sidebar-border/40" />
+                  <div className="mx-3 mt-2 mb-1 border-t border-black/[0.06]" />
                 )}
               </div>
             )
@@ -365,7 +371,7 @@ export function Sidebar() {
         </nav>
 
         {/* ── Footer ── */}
-        <div className={cn("shrink-0 border-t border-sidebar-border p-3 space-y-2", sidebarCollapsed && "px-2")}>
+        <div className={cn("shrink-0 border-t border-black/[0.06] p-3 space-y-2", sidebarCollapsed && "px-2")}>
           {!sidebarCollapsed ? (
             <>
               {/* User info */}
@@ -374,8 +380,8 @@ export function Sidebar() {
                   {user?.name?.charAt(0).toUpperCase() ?? '?'}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-sidebar-foreground truncate">{user?.name ?? '—'}</p>
-                  <p className="text-[10px] text-muted-foreground truncate">{user?.email ?? ''}</p>
+                  <p className="text-xs font-medium text-gray-900 truncate">{user?.name ?? '—'}</p>
+                  <p className="text-[10px] text-gray-400 truncate">{user?.email ?? ''}</p>
                 </div>
               </div>
               {/* Role badge */}
@@ -385,7 +391,7 @@ export function Sidebar() {
               {/* Logout */}
               <button
                 onClick={logout}
-                className="flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-xs text-muted-foreground hover:bg-sidebar-accent hover:text-red-400 transition-colors"
+                className="flex w-full items-center gap-2 rounded-xl px-3 py-1.5 text-xs text-gray-400 hover:bg-black/[0.06] hover:text-red-500 transition-colors"
               >
                 <LogOut className="h-3.5 w-3.5" />
                 Cerrar sesión
@@ -398,18 +404,18 @@ export function Sidebar() {
                 <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/15 text-primary text-xs font-bold cursor-default">
                   {user?.name?.charAt(0).toUpperCase() ?? '?'}
                 </div>
-                <span className="absolute left-full ml-2 top-1/2 -translate-y-1/2 z-[60] px-2 py-1 text-xs bg-popover text-popover-foreground rounded-md border border-border shadow-lg opacity-0 group-hover/tip:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                <span className="absolute left-full ml-2 top-1/2 -translate-y-1/2 z-[60] px-2 py-1 text-xs bg-gray-900 text-white rounded-md shadow-lg opacity-0 group-hover/tip:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
                   {user?.name ?? '—'}
                 </span>
               </div>
               <div className="relative group/tip">
                 <button
                   onClick={logout}
-                  className="flex items-center justify-center h-7 w-7 rounded-md text-muted-foreground hover:bg-sidebar-accent hover:text-red-400 transition-colors"
+                  className="flex items-center justify-center h-7 w-7 rounded-xl text-gray-400 hover:bg-black/[0.06] hover:text-red-500 transition-colors"
                 >
                   <LogOut className="h-3.5 w-3.5" />
                 </button>
-                <span className="absolute left-full ml-2 top-1/2 -translate-y-1/2 z-[60] px-2 py-1 text-xs bg-popover text-popover-foreground rounded-md border border-border shadow-lg opacity-0 group-hover/tip:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                <span className="absolute left-full ml-2 top-1/2 -translate-y-1/2 z-[60] px-2 py-1 text-xs bg-gray-900 text-white rounded-md shadow-lg opacity-0 group-hover/tip:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
                   Cerrar sesión
                 </span>
               </div>

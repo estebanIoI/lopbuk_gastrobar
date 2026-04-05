@@ -465,6 +465,34 @@ router.put('/notifications/read', authenticate, async (req: Request, res: Respon
 });
 
 // =============================================
+// PUBLIC (authenticated): GET Cloudinary config
+// GET /api/chatbot/cloudinary-config
+// =============================================
+router.get('/cloudinary-config', authenticate, async (req: Request, res: Response) => {
+  try {
+    const [rows] = await pool.query(
+      "SELECT setting_key, setting_value FROM platform_settings WHERE setting_key IN ('cloudinary_cloud_name','cloudinary_upload_preset')"
+    ) as any;
+
+    const settings: Record<string, string> = {};
+    for (const row of (rows as any[])) {
+      settings[row.setting_key] = row.setting_value || '';
+    }
+
+    res.json({
+      success: true,
+      data: {
+        cloudName: settings['cloudinary_cloud_name'] || '',
+        uploadPreset: settings['cloudinary_upload_preset'] || '',
+      },
+    });
+  } catch (error) {
+    console.error('Cloudinary config GET error:', error);
+    res.status(500).json({ success: false, error: 'Error al obtener configuración de Cloudinary' });
+  }
+});
+
+// =============================================
 // SUPERADMIN: GET integrations (Cloudinary + OpenAI)
 // GET /api/chatbot/superadmin/integrations
 // =============================================
