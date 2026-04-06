@@ -717,12 +717,7 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
                 si.social_tiktok as socialTiktok, si.social_whatsapp as socialWhatsapp,
                 si.product_card_style as productCardStyle,
                 si.show_info_module as showInfoModule,
-                si.info_module_description as infoModuleDescription,
-                si.contact_page_enabled as contactPageEnabled,
-                si.contact_page_title as contactPageTitle,
-                si.contact_page_description as contactPageDescription,
-                si.contact_page_image as contactPageImage,
-                si.contact_page_links as contactPageLinks
+                si.info_module_description as infoModuleDescription
          FROM store_info si
          WHERE si.tenant_id = ?`,
         [tenantId]
@@ -739,6 +734,22 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
         ) as any;
         storeInfoData = storeInfo[0] || null;
       } catch { /* ignore */ }
+    }
+
+    // Contact page fields (separate query — columns may not exist yet)
+    if (storeInfoData) {
+      try {
+        const [contactRows] = await pool.query(
+          `SELECT contact_page_enabled as contactPageEnabled,
+                  contact_page_title as contactPageTitle,
+                  contact_page_description as contactPageDescription,
+                  contact_page_image as contactPageImage,
+                  contact_page_links as contactPageLinks
+           FROM store_info WHERE tenant_id = ?`,
+          [tenantId]
+        ) as any;
+        if (contactRows[0]) Object.assign(storeInfoData, contactRows[0]);
+      } catch { /* columns not migrated yet — skip */ }
     }
 
     // Announcement bar
@@ -958,13 +969,7 @@ router.get('/customization', authenticate, requirePlan('empresarial'), async (re
                 si.product_card_style as productCardStyle,
                 si.allow_contraentrega as allowContraentrega,
                 si.show_info_module as showInfoModule,
-                si.info_module_description as infoModuleDescription,
-                si.contact_page_enabled as contactPageEnabled,
-                si.contact_page_title as contactPageTitle,
-                si.contact_page_description as contactPageDescription,
-                si.contact_page_image as contactPageImage,
-                si.contact_page_products as contactPageProducts,
-                si.contact_page_links as contactPageLinks
+                si.info_module_description as infoModuleDescription
          FROM store_info si
          WHERE si.tenant_id = ?`,
         [tenantId]
@@ -986,6 +991,23 @@ router.get('/customization', authenticate, requirePlan('empresarial'), async (re
         ) as any;
         storeInfoRow = (siRows as any[])[0] || null;
       } catch { /* ignore */ }
+    }
+
+    // Contact page fields (separate — columns may not exist yet)
+    if (storeInfoRow) {
+      try {
+        const [contactRows] = await pool.query(
+          `SELECT contact_page_enabled as contactPageEnabled,
+                  contact_page_title as contactPageTitle,
+                  contact_page_description as contactPageDescription,
+                  contact_page_image as contactPageImage,
+                  contact_page_products as contactPageProducts,
+                  contact_page_links as contactPageLinks
+           FROM store_info WHERE tenant_id = ?`,
+          [tenantId]
+        ) as any;
+        if (contactRows[0]) Object.assign(storeInfoRow, contactRows[0]);
+      } catch { /* columns not migrated yet */ }
     }
 
     // Published products for featured selection (stock filter removed so admins can feature any published product)
@@ -1334,25 +1356,49 @@ router.put('/contact-page', authenticate, requirePlan('empresarial'), async (req
     const tenantId = (req as any).user.tenantId;
     const { contactPageEnabled, contactPageTitle, contactPageDescription, contactPageImage, contactPageProducts, contactPageLinks } = req.body;
 
-    await pool.query(
-      `UPDATE store_info SET
-        contact_page_enabled = ?,
-        contact_page_title = ?,
-        contact_page_description = ?,
-        contact_page_image = ?,
-        contact_page_products = ?,
-        contact_page_links = ?
-       WHERE tenant_id = ?`,
-      [
-        contactPageEnabled ? 1 : 0,
-        contactPageTitle || null,
-        contactPageDescription || null,
-        contactPageImage || null,
-        contactPageProducts ? JSON.stringify(contactPageProducts) : null,
-        contactPageLinks ? JSON.stringify(contactPageLinks) : null,
-        tenantId,
-      ]
-    );
+    const values = [
+      contactPageEnabled ? 1 : 0,
+      contactPageTitle || null,
+      contactPageDescription || null,
+      contactPageImage || null,
+      contactPageProducts ? JSON.stringify(contactPageProducts) : null,
+      contactPageLinks ? JSON.stringify(contactPageLinks) : null,
+      tenantId,
+    ];
+
+    try {
+      await pool.query(
+        `UPDATE store_info SET
+          contact_page_enabled = ?,
+          contact_page_title = ?,
+          contact_page_description = ?,
+          contact_page_image = ?,
+          contact_page_products = ?,
+          contact_page_links = ?
+         WHERE tenant_id = ?`,
+        values
+      );
+    } catch {
+      // Columns don't exist yet — run migration automatically
+      await pool.query(`ALTER TABLE store_info
+        ADD COLUMN IF NOT EXISTS contact_page_enabled  TINYINT(1)   NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS contact_page_title     VARCHAR(255)          DEFAULT NULL,
+        ADD COLUMN IF NOT EXISTS contact_page_description TEXT                DEFAULT NULL,
+        ADD COLUMN IF NOT EXISTS contact_page_image     VARCHAR(500)          DEFAULT NULL,
+        ADD COLUMN IF NOT EXISTS contact_page_products  TEXT                  DEFAULT NULL,
+        ADD COLUMN IF NOT EXISTS contact_page_links     TEXT                  DEFAULT NULL`);
+      await pool.query(
+        `UPDATE store_info SET
+          contact_page_enabled = ?,
+          contact_page_title = ?,
+          contact_page_description = ?,
+          contact_page_image = ?,
+          contact_page_products = ?,
+          contact_page_links = ?
+         WHERE tenant_id = ?`,
+        values
+      );
+    }
 
     res.json({ success: true });
   } catch (error) {
