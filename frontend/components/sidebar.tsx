@@ -32,8 +32,6 @@ import {
   Star,
   UtensilsCrossed,
   Wallet,
-  PanelLeftClose,
-  PanelLeftOpen,
   Paintbrush,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -240,8 +238,7 @@ export function Sidebar() {
                     return (
                       <div key={item.id}>
                         {/* Parent button */}
-                        <div className="relative group/tip">
-                          <button
+                        <button
                             onClick={handleTiendaClick}
                             className={cn(
                               "group relative flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium transition-all duration-150",
@@ -267,14 +264,7 @@ export function Sidebar() {
                                 }
                               </>
                             )}
-                          </button>
-                          {/* Tooltip when collapsed */}
-                          {!isExpanded && (
-                            <span className="absolute left-full ml-2 top-1/2 -translate-y-1/2 z-[60] px-2 py-1 text-xs bg-gray-900 text-white rounded-md shadow-lg opacity-0 group-hover/tip:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-                              {item.name}
-                            </span>
-                          )}
-                        </div>
+                        </button>
 
                         {/* Children submenu — only when expanded */}
                         {isExpanded && tiendaOpen && (
@@ -282,7 +272,7 @@ export function Sidebar() {
                             {visibleChildren.map(child => {
                               const isChildActive = activeSection === child.id
                               return (
-                                <div key={child.id} className="relative group/tip">
+                                <div key={child.id}>
                                   <button
                                     onClick={() => navigate(child.id)}
                                     className={cn(
@@ -313,7 +303,7 @@ export function Sidebar() {
                   // Regular item
                   const isActive = activeSection === item.id
                   return (
-                    <div key={item.id} className="relative group/tip">
+                    <div key={item.id}>
                       <button
                         onClick={() => navigate(item.id)}
                         className={cn(
@@ -338,12 +328,6 @@ export function Sidebar() {
                           </>
                         )}
                       </button>
-                      {/* Tooltip when collapsed */}
-                      {!isExpanded && (
-                        <span className="absolute left-full ml-2 top-1/2 -translate-y-1/2 z-[60] px-2 py-1 text-xs bg-gray-900 text-white rounded-md shadow-lg opacity-0 group-hover/tip:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-                          {item.name}
-                        </span>
-                      )}
                     </div>
                   )
                 })}
@@ -386,25 +370,15 @@ export function Sidebar() {
           ) : (
             /* Collapsed footer — just avatar + logout icon */
             <div className="flex flex-col items-center gap-2">
-              <div className="relative group/tip">
-                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/15 text-primary text-xs font-bold cursor-default">
-                  {user?.name?.charAt(0).toUpperCase() ?? '?'}
-                </div>
-                <span className="absolute left-full ml-2 top-1/2 -translate-y-1/2 z-[60] px-2 py-1 text-xs bg-gray-900 text-white rounded-md shadow-lg opacity-0 group-hover/tip:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-                  {user?.name ?? '—'}
-                </span>
+              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/15 text-primary text-xs font-bold cursor-default">
+                {user?.name?.charAt(0).toUpperCase() ?? '?'}
               </div>
-              <div className="relative group/tip">
-                <button
-                  onClick={logout}
-                  className="flex items-center justify-center h-7 w-7 rounded-xl text-gray-400 hover:bg-black/[0.06] hover:text-red-500 transition-colors"
-                >
-                  <LogOut className="h-3.5 w-3.5" />
-                </button>
-                <span className="absolute left-full ml-2 top-1/2 -translate-y-1/2 z-[60] px-2 py-1 text-xs bg-gray-900 text-white rounded-md shadow-lg opacity-0 group-hover/tip:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-                  Cerrar sesión
-                </span>
-              </div>
+              <button
+                onClick={logout}
+                className="flex items-center justify-center h-7 w-7 rounded-xl text-gray-400 hover:bg-black/[0.06] hover:text-red-500 transition-colors"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+              </button>
             </div>
           )}
         </div>
