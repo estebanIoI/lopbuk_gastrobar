@@ -130,6 +130,7 @@ export function Tienda() {
   const [contactDescription, setContactDescription] = useState('')
   const [contactImage, setContactImage] = useState('')
   const [contactLinks, setContactLinks] = useState<{ label: string; url: string }[]>([])
+  const [contactProductIds, setContactProductIds] = useState<string[]>([])
   const [loadingContact, setLoadingContact] = useState(false)
   const [savingContact, setSavingContact] = useState(false)
   const [contactSaved, setContactSaved] = useState(false)
@@ -201,6 +202,9 @@ export function Tienda() {
         try {
           setContactLinks(si.contactPageLinks ? JSON.parse(si.contactPageLinks) : [])
         } catch { setContactLinks([]) }
+        try {
+          setContactProductIds(si.contactPageProducts ? JSON.parse(si.contactPageProducts) : [])
+        } catch { setContactProductIds([]) }
       }
     } catch { /* ignore */ } finally {
       setLoadingContact(false)
@@ -217,6 +221,7 @@ export function Tienda() {
         contactPageDescription: contactDescription,
         contactPageImage: contactImage,
         contactPageLinks: contactLinks,
+        contactPageProducts: contactProductIds,
       })
       if (result.success) {
         setContactSaved(true)
@@ -1642,6 +1647,78 @@ export function Tienda() {
                     <PlusCircle className="h-4 w-4" />
                     Agregar canal
                   </Button>
+                </CardContent>
+              </Card>
+
+              {/* Productos para Shop */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <ShoppingBag className="h-4 w-4 text-blue-500" />
+                    Productos en Shop
+                    <Badge variant="secondary" className="ml-auto">
+                      {contactProductIds.length} seleccionados
+                    </Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Elige qué productos publicados aparecen en la pestaña Shop de tu página de links. Si no seleccionas ninguno, se mostrarán todos los publicados.
+                  </p>
+                  {products.filter(p => p.publishedInStore).length === 0 ? (
+                    <div className="text-center py-6 text-muted-foreground text-sm">
+                      <Package className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                      No tienes productos publicados
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                      {products.filter(p => p.publishedInStore).map(p => {
+                        const isSelected = contactProductIds.includes(p.id)
+                        return (
+                          <label
+                            key={p.id}
+                            className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
+                              isSelected ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20' : 'border-input hover:bg-muted'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => {
+                                setContactProductIds(prev =>
+                                  isSelected ? prev.filter(id => id !== p.id) : [...prev, p.id]
+                                )
+                              }}
+                              className="accent-blue-500 h-4 w-4 flex-shrink-0"
+                            />
+                            {p.imageUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={p.imageUrl} alt={p.name} className="h-10 w-10 object-cover rounded-lg flex-shrink-0" />
+                            ) : (
+                              <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
+                                <Package className="h-5 w-5 text-muted-foreground" />
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">{p.name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {p.category} · {new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(p.salePrice)}
+                              </p>
+                            </div>
+                            {isSelected && <Check className="h-4 w-4 text-blue-500 flex-shrink-0" />}
+                          </label>
+                        )
+                      })}
+                    </div>
+                  )}
+                  {contactProductIds.length > 0 && (
+                    <button
+                      onClick={() => setContactProductIds([])}
+                      className="mt-2 text-xs text-muted-foreground hover:text-destructive transition-colors"
+                    >
+                      Limpiar selección (mostrar todos)
+                    </button>
+                  )}
                 </CardContent>
               </Card>
 

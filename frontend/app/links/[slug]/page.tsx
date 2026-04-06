@@ -2,10 +2,28 @@
 
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
+import { formatCOP } from '@/lib/utils'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'
 
 interface LinkItem { label: string; url: string; color?: string }
+
+interface ShopProduct {
+  id: number
+  name: string
+  category?: string | null
+  brand?: string | null
+  description?: string | null
+  salePrice: number
+  imageUrl?: string | null
+  images?: string[]
+  stock?: number | null
+  color?: string | null
+  size?: string | null
+  isOnOffer?: number | boolean | null
+  offerPrice?: number | null
+  offerLabel?: string | null
+}
 
 interface StoreData {
   slug: string
@@ -21,6 +39,7 @@ interface StoreData {
   contactPageDescription: string | null
   contactPageImage: string | null
   contactPageLinks: string | null
+  shopProducts: ShopProduct[]
 }
 
 function TikTokIcon() {
@@ -63,6 +82,16 @@ export default function LinksPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [activeTab, setActiveTab] = useState<'links' | 'shop'>('links')
+  const [selectedProduct, setSelectedProduct] = useState<ShopProduct | null>(null)
+
+  useEffect(() => {
+    if (!selectedProduct) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setSelectedProduct(null)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [selectedProduct])
 
   useEffect(() => {
     if (!slug) return
@@ -90,6 +119,8 @@ export default function LinksPage() {
 
   let links: LinkItem[] = []
   try { links = data.contactPageLinks ? JSON.parse(data.contactPageLinks) : [] } catch { links = [] }
+
+  const products = data.shopProducts || []
 
   const hasSocials = data.socialInstagram || data.socialFacebook || data.socialTiktok || data.socialWhatsapp
   const catalogUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/?store=${slug}`
@@ -198,9 +229,59 @@ export default function LinksPage() {
           </div>
         )}
 
-        {/* Shop tab — redirect to catalog */}
+        {/* Shop tab */}
         {activeTab === 'shop' && (
-          <div className="w-full mt-4 space-y-3">
+          <div className="w-full mt-4 space-y-4">
+            {products.length === 0 ? (
+              <p className="text-center text-sm text-gray-400 py-8">Sin productos configurados</p>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                {products.map(product => {
+                  const mainImage = (product.images && product.images[0]) || product.imageUrl || ''
+                  const isOffer = Boolean(product.isOnOffer && product.offerPrice)
+                  return (
+                    <button
+                      key={product.id}
+                      type="button"
+                      onClick={() => setSelectedProduct(product)}
+                      className="text-left rounded-2xl border border-gray-200 bg-white overflow-hidden shadow-sm hover:shadow-md active:scale-[0.98] transition-all"
+                    >
+                      <div className="relative w-full h-28 bg-gray-100">
+                        {mainImage ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={mainImage} alt={product.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-xs text-gray-400">
+                            Sin imagen
+                          </div>
+                        )}
+                        {isOffer && (
+                          <span className="absolute top-2 left-2 text-[10px] px-2 py-0.5 rounded-full bg-black text-white uppercase tracking-wide">
+                            {product.offerLabel || 'Oferta'}
+                          </span>
+                        )}
+                      </div>
+                      <div className="p-3 space-y-1">
+                        <p className="text-sm font-semibold text-gray-900 line-clamp-2">
+                          {product.name}
+                        </p>
+                        <div className="text-xs text-gray-500">
+                          {isOffer ? (
+                            <div className="flex items-center gap-2">
+                              <span className="text-gray-900 font-semibold">{formatCOP(product.offerPrice || 0)}</span>
+                              <span className="line-through">{formatCOP(product.salePrice)}</span>
+                            </div>
+                          ) : (
+                            <span className="text-gray-900 font-semibold">{formatCOP(product.salePrice)}</span>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+
             <a
               href={catalogUrl}
               className="block w-full text-center py-4 px-6 rounded-2xl bg-gray-900 text-white text-sm font-semibold tracking-wide uppercase shadow-sm hover:bg-gray-800 active:scale-[0.98] transition-all"
@@ -210,6 +291,88 @@ export default function LinksPage() {
           </div>
         )}
       </div>
+
+      {selectedProduct && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/40"
+            aria-label="Cerrar"
+            onClick={() => setSelectedProduct(null)}
+          />
+          <div className="relative w-full max-w-sm bg-white rounded-t-3xl sm:rounded-3xl shadow-xl overflow-hidden">
+            <div className="relative h-56 bg-gray-100">
+              {((selectedProduct.images && selectedProduct.images[0]) || selectedProduct.imageUrl) ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={(selectedProduct.images && selectedProduct.images[0]) || selectedProduct.imageUrl || ''}
+                  alt={selectedProduct.name}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-sm text-gray-400">
+                  Sin imagen
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => setSelectedProduct(null)}
+                className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/90 text-gray-700 shadow flex items-center justify-center"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="p-5 space-y-3">
+              <div className="space-y-1">
+                <h2 className="text-lg font-bold text-gray-900">{selectedProduct.name}</h2>
+                {(selectedProduct.brand || selectedProduct.category) && (
+                  <p className="text-xs text-gray-500">
+                    {[selectedProduct.brand, selectedProduct.category].filter(Boolean).join(' • ')}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                {Boolean(selectedProduct.isOnOffer && selectedProduct.offerPrice) ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg font-semibold text-gray-900">{formatCOP(selectedProduct.offerPrice || 0)}</span>
+                    <span className="text-sm text-gray-400 line-through">{formatCOP(selectedProduct.salePrice)}</span>
+                    {selectedProduct.offerLabel && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-black text-white uppercase tracking-wide">
+                        {selectedProduct.offerLabel}
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <span className="text-lg font-semibold text-gray-900">{formatCOP(selectedProduct.salePrice)}</span>
+                )}
+              </div>
+
+              {selectedProduct.description && (
+                <p className="text-sm text-gray-600 leading-relaxed">
+                  {selectedProduct.description}
+                </p>
+              )}
+
+              {(selectedProduct.color || selectedProduct.size) && (
+                <div className="text-xs text-gray-500">
+                  {selectedProduct.color && <span>Color: {selectedProduct.color}</span>}
+                  {selectedProduct.color && selectedProduct.size && <span className="mx-2">|</span>}
+                  {selectedProduct.size && <span>Talla: {selectedProduct.size}</span>}
+                </div>
+              )}
+
+              <a
+                href={catalogUrl}
+                className="block w-full text-center py-3 px-4 rounded-2xl bg-gray-900 text-white text-sm font-semibold tracking-wide uppercase shadow-sm hover:bg-gray-800 active:scale-[0.98] transition-all"
+              >
+                Ir al catálogo
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Footer */}
       <div className="fixed bottom-0 inset-x-0 py-3 text-center bg-gray-50/80 backdrop-blur">

@@ -2127,12 +2127,54 @@ router.get('/links/:slug', async (req: Request, res: Response) => {
                 contact_page_title as contactPageTitle,
                 contact_page_description as contactPageDescription,
                 contact_page_image as contactPageImage,
-                contact_page_links as contactPageLinks
+                contact_page_links as contactPageLinks,
+                contact_page_products as contactPageProducts
          FROM store_info WHERE tenant_id = ? LIMIT 1`,
         [tenantId]
       ) as any;
       contactData = (cRows as any[])[0] || {};
     } catch { /* columns not migrated */ }
+
+    // Shop products — use selected IDs or all published
+    let shopProducts: any[] = [];
+    try {
+      let productIds: number[] = [];
+      try { productIds = contactData.contactPageProducts ? JSON.parse(contactData.contactPageProducts).map(Number) : []; } catch { productIds = []; }
+
+      if (productIds.length > 0) {
+        const placeholders = productIds.map(() => '?').join(',');
+        const [rows] = await pool.query(
+          `SELECT id, name, category, brand, description,
+                  sale_price as salePrice, image_url as imageUrl, image_urls as images,
+                  stock, color, size,
+                  is_on_offer as isOnOffer, offer_price as offerPrice, offer_label as offerLabel
+           FROM products
+           WHERE tenant_id = ? AND published_in_store = 1 AND id IN (${placeholders})
+           ORDER BY FIELD(id, ${placeholders})`,
+          [tenantId, ...productIds, ...productIds]
+        ) as any;
+        shopProducts = rows;
+      } else {
+        const [rows] = await pool.query(
+          `SELECT id, name, category, brand, description,
+                  sale_price as salePrice, image_url as imageUrl, image_urls as images,
+                  stock, color, size,
+                  is_on_offer as isOnOffer, offer_price as offerPrice, offer_label as offerLabel
+           FROM products
+           WHERE tenant_id = ? AND published_in_store = 1 AND stock > 0
+           ORDER BY updated_at DESC LIMIT 50`,
+          [tenantId]
+        ) as any;
+        shopProducts = rows;
+      }
+    } catch { shopProducts = []; }
+
+    // Parse images for each product
+    shopProducts = shopProducts.map((p: any) => {
+      let images: string[] = [];
+      try { images = p.images ? JSON.parse(p.images) : []; } catch { images = []; }
+      return { ...p, images };
+    });
 
     res.json({
       success: true,
@@ -2150,6 +2192,7 @@ router.get('/links/:slug', async (req: Request, res: Response) => {
         contactPageDescription: contactData.contactPageDescription || null,
         contactPageImage: contactData.contactPageImage || null,
         contactPageLinks: contactData.contactPageLinks || null,
+        shopProducts,
       },
     });
   } catch (error) {
