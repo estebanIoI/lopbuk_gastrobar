@@ -42,9 +42,15 @@ import {
   QrCode,
   ExternalLink,
   Link2,
+  MessageCircle,
+  Phone,
+  Mail,
+  Trash2,
+  PlusCircle,
 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { StoreCustomization } from '@/components/store-customization'
+import { CloudinaryUpload } from '@/components/ui/cloudinary-upload'
 
 interface StoreProduct {
   id: string
@@ -65,7 +71,7 @@ interface StoreProduct {
   launchDate: string | null
 }
 
-type ActiveTab = 'catalog' | 'new-launches' | 'order-bump' | 'share'
+type ActiveTab = 'catalog' | 'new-launches' | 'order-bump' | 'share' | 'contact'
 
 interface OrderBumpConfig {
   isEnabled: boolean
@@ -116,6 +122,17 @@ export function Tienda() {
   const [copiedLink, setCopiedLink] = useState(false)
   const [copiedSlug, setCopiedSlug] = useState(false)
   const qrRef = useRef<HTMLDivElement>(null)
+
+  // Contact page state
+  const [contactEnabled, setContactEnabled] = useState(false)
+  const [contactTitle, setContactTitle] = useState('')
+  const [contactDescription, setContactDescription] = useState('')
+  const [contactImage, setContactImage] = useState('')
+  const [contactLinks, setContactLinks] = useState<{ label: string; url: string }[]>([])
+  const [loadingContact, setLoadingContact] = useState(false)
+  const [savingContact, setSavingContact] = useState(false)
+  const [contactSaved, setContactSaved] = useState(false)
+  const [contactError, setContactError] = useState<string | null>(null)
 
   // Offer modal state
   const [offerModal, setOfferModal] = useState<{ open: boolean; product: StoreProduct | null }>({ open: false, product: null })
@@ -168,6 +185,49 @@ export function Tienda() {
       setLoadingBump(false)
     }
   }, [])
+
+  const fetchContactConfig = useCallback(async () => {
+    setLoadingContact(true)
+    try {
+      const result = await api.getStoreCustomization()
+      if (result.success && result.data?.storeInfo) {
+        const si = result.data.storeInfo
+        setContactEnabled(!!si.contactPageEnabled)
+        setContactTitle(si.contactPageTitle || '')
+        setContactDescription(si.contactPageDescription || '')
+        setContactImage(si.contactPageImage || '')
+        try {
+          setContactLinks(si.contactPageLinks ? JSON.parse(si.contactPageLinks) : [])
+        } catch { setContactLinks([]) }
+      }
+    } catch { /* ignore */ } finally {
+      setLoadingContact(false)
+    }
+  }, [])
+
+  const handleSaveContact = async () => {
+    setSavingContact(true)
+    setContactError(null)
+    try {
+      const result = await api.updateStoreExtendedInfo({
+        contactPageEnabled: contactEnabled,
+        contactPageTitle: contactTitle,
+        contactPageDescription: contactDescription,
+        contactPageImage: contactImage,
+        contactPageLinks: contactLinks,
+      })
+      if (result.success) {
+        setContactSaved(true)
+        setTimeout(() => setContactSaved(false), 3000)
+      } else {
+        setContactError(result.error || 'Error al guardar')
+      }
+    } catch {
+      setContactError('Error de conexión al guardar')
+    } finally {
+      setSavingContact(false)
+    }
+  }
 
   const handleSaveBumpConfig = async () => {
     setSavingBump(true)
@@ -810,6 +870,20 @@ export function Tienda() {
           <Share2 className="h-4 w-4" />
           Compartir
         </button>
+        <button
+          onClick={() => { setActiveTab('contact'); fetchContactConfig() }}
+          className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === 'contact'
+              ? 'border-blue-500 text-blue-600'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <MessageCircle className="h-4 w-4" />
+          Contacto
+          {contactEnabled && (
+            <Badge className="ml-1 text-xs bg-blue-500 hover:bg-blue-600 text-white">ON</Badge>
+          )}
+        </button>
       </div>
 
       {/* ========== CATALOG TAB ========== */}
@@ -1431,6 +1505,167 @@ export function Tienda() {
           </div>
         )
       })()}
+
+      {/* ========== CONTACT TAB ========== */}
+      {activeTab === 'contact' && (
+        <div className="max-w-2xl mx-auto space-y-6">
+          {/* Header */}
+          <div>
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <MessageCircle className="h-5 w-5 text-blue-600" />
+              Página de Contacto
+            </h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              Configura la información de contacto que verán tus clientes en la tienda.
+            </p>
+          </div>
+
+          {loadingContact ? (
+            <Card>
+              <CardContent className="p-6 flex items-center justify-center">
+                <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
+              </CardContent>
+            </Card>
+          ) : (
+            <>
+              {/* Enable toggle */}
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium">Activar página de contacto</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Muestra una sección de contacto visible a tus clientes
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setContactEnabled(prev => !prev)}
+                      className="flex items-center gap-2 transition-colors"
+                    >
+                      {contactEnabled
+                        ? <ToggleRight className="h-8 w-8 text-blue-500" />
+                        : <ToggleLeft className="h-8 w-8 text-muted-foreground" />
+                      }
+                    </button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Fields */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Settings className="h-4 w-4" />
+                    Contenido de la página
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Título</label>
+                    <Input
+                      placeholder="Ej: Contáctanos"
+                      value={contactTitle}
+                      onChange={e => setContactTitle(e.target.value)}
+                      maxLength={255}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Descripción</label>
+                    <textarea
+                      placeholder="Escribe una descripción para la sección de contacto..."
+                      value={contactDescription}
+                      onChange={e => setContactDescription(e.target.value)}
+                      rows={3}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Imagen de portada</label>
+                    <CloudinaryUpload
+                      value={contactImage}
+                      onChange={setContactImage}
+                      previewClassName="h-24 w-full object-cover rounded-lg border"
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Custom links */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Phone className="h-4 w-4" />
+                    Canales de contacto personalizados
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {contactLinks.map((link, i) => (
+                    <div key={i} className="flex gap-2 items-start">
+                      <div className="flex-1 space-y-2">
+                        <Input
+                          placeholder="Etiqueta (ej: WhatsApp, Email...)"
+                          value={link.label}
+                          onChange={e => {
+                            const updated = [...contactLinks]
+                            updated[i] = { ...updated[i], label: e.target.value }
+                            setContactLinks(updated)
+                          }}
+                        />
+                        <Input
+                          placeholder="URL o número (ej: https://wa.me/...)"
+                          value={link.url}
+                          onChange={e => {
+                            const updated = [...contactLinks]
+                            updated[i] = { ...updated[i], url: e.target.value }
+                            setContactLinks(updated)
+                          }}
+                        />
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="shrink-0 text-muted-foreground hover:text-destructive"
+                        onClick={() => setContactLinks(prev => prev.filter((_, j) => j !== i))}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full gap-2"
+                    onClick={() => setContactLinks(prev => [...prev, { label: '', url: '' }])}
+                  >
+                    <PlusCircle className="h-4 w-4" />
+                    Agregar canal
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* Save */}
+              {contactError && (
+                <p className="text-sm text-destructive flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4" />{contactError}
+                </p>
+              )}
+              <Button
+                className="w-full gap-2"
+                onClick={handleSaveContact}
+                disabled={savingContact}
+              >
+                {savingContact
+                  ? <RefreshCw className="h-4 w-4 animate-spin" />
+                  : contactSaved
+                  ? <Check className="h-4 w-4 text-green-400" />
+                  : <Save className="h-4 w-4" />
+                }
+                {savingContact ? 'Guardando...' : contactSaved ? '¡Guardado!' : 'Guardar configuración'}
+              </Button>
+            </>
+          )}
+        </div>
+      )}
 
       {/* ========== OFFER MODAL ========== */}
       {offerModal.open && offerModal.product && (

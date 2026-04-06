@@ -953,7 +953,13 @@ router.get('/customization', authenticate, requirePlan('empresarial'), async (re
                 si.product_card_style as productCardStyle,
                 si.allow_contraentrega as allowContraentrega,
                 si.show_info_module as showInfoModule,
-                si.info_module_description as infoModuleDescription
+                si.info_module_description as infoModuleDescription,
+                si.contact_page_enabled as contactPageEnabled,
+                si.contact_page_title as contactPageTitle,
+                si.contact_page_description as contactPageDescription,
+                si.contact_page_image as contactPageImage,
+                si.contact_page_products as contactPageProducts,
+                si.contact_page_links as contactPageLinks
          FROM store_info si
          WHERE si.tenant_id = ?`,
         [tenantId]
@@ -1236,10 +1242,13 @@ router.put('/store-extended-info', authenticate, requirePlan('empresarial'), asy
       socialInstagram, socialFacebook, socialTiktok, socialWhatsapp,
       department, municipality, productCardStyle, allowContraentrega,
       showInfoModule, infoModuleDescription,
+      contactPageEnabled, contactPageTitle, contactPageDescription,
+      contactPageImage, contactPageProducts, contactPageLinks,
     } = req.body;
 
     const allowCod = allowContraentrega === false ? 0 : 1;
     const infoModule = showInfoModule ? 1 : 0;
+    const contactEnabled = contactPageEnabled ? 1 : 0;
 
     let result: any;
     try {
@@ -1250,14 +1259,21 @@ router.put('/store-extended-info', authenticate, requirePlan('empresarial'), asy
           payment_methods = ?, social_instagram = ?, social_facebook = ?,
           social_tiktok = ?, social_whatsapp = ?,
           department = ?, municipality = ?, product_card_style = ?, allow_contraentrega = ?,
-          show_info_module = ?, info_module_description = ?
+          show_info_module = ?, info_module_description = ?,
+          contact_page_enabled = ?, contact_page_title = ?, contact_page_description = ?,
+          contact_page_image = ?, contact_page_products = ?, contact_page_links = ?
          WHERE tenant_id = ?`,
         [
           logoUrl || null, schedule || null, locationMapUrl || null, termsContent || null, privacyContent || null, shippingTerms || null,
           paymentMethods || null, socialInstagram || null, socialFacebook || null,
           socialTiktok || null, socialWhatsapp || null,
           department || null, municipality || null, productCardStyle || 'style1', allowCod,
-          infoModule, infoModuleDescription || null, tenantId,
+          infoModule, infoModuleDescription || null,
+          contactEnabled, contactPageTitle || null, contactPageDescription || null,
+          contactPageImage || null,
+          contactPageProducts ? JSON.stringify(contactPageProducts) : null,
+          contactPageLinks ? JSON.stringify(contactPageLinks) : null,
+          tenantId,
         ]
       ) as any;
     } catch {

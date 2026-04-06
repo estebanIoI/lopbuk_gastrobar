@@ -116,9 +116,12 @@ export function Sidebar() {
   const {
     activeSection, setActiveSection,
     sidebarOpen, setSidebarOpen,
-    sidebarCollapsed, toggleSidebarCollapsed,
   } = useStore()
   const { user, logout } = useAuthStore()
+
+  const [isHovered, setIsHovered] = useState(false)
+  // Expanded = hovering on desktop OR open overlay on mobile
+  const isExpanded = isHovered || sidebarOpen
 
   const isSuperadmin = user?.role === 'superadmin'
   const isAdmin = user?.role === 'comerciante' || isSuperadmin
@@ -133,7 +136,6 @@ export function Sidebar() {
     if (item.superadminOnly && !isSuperadmin) return false
     if (item.merchantOnly && isSuperadmin) return false
     if (item.adminOnly && !isAdmin) return false
-    // Tienda y sus hijos requieren plan empresarial
     if (item.id === 'tienda' && !isSuperadmin && !isEmpresarial) return false
     return true
   }
@@ -153,13 +155,7 @@ export function Sidebar() {
   }
 
   const handleTiendaClick = () => {
-    if (sidebarCollapsed) {
-      // Expand sidebar first so user can see submenu
-      toggleSidebarCollapsed()
-      setTiendaOpen(true)
-    } else {
-      setTiendaOpen(prev => !prev)
-    }
+    setTiendaOpen(prev => !prev)
   }
 
   return (
@@ -173,24 +169,26 @@ export function Sidebar() {
       )}
 
       <aside
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
         className={cn(
           "fixed left-4 top-1/2 z-50 flex flex-col rounded-[28px] max-h-[90vh] overflow-hidden",
           "transition-all duration-300",
-          sidebarCollapsed
-            ? "w-[58px] shadow-[0_4px_24px_rgba(0,0,0,0.10)]"
-            : "w-[220px] shadow-[0_12px_48px_rgba(0,0,0,0.18),0_2px_8px_rgba(0,0,0,0.08)]",
-          "md:translate-x-0 -translate-y-1/2",
+          isExpanded
+            ? "w-[220px] shadow-[0_12px_48px_rgba(0,0,0,0.18),0_2px_8px_rgba(0,0,0,0.08)]"
+            : "w-[58px] shadow-[0_4px_24px_rgba(0,0,0,0.10)]",
+          "-translate-y-1/2 md:translate-x-0",
           sidebarOpen ? "translate-x-0" : "-translate-x-[calc(100%+16px)] md:translate-x-0"
         )}
         style={{ background: 'rgba(245, 246, 250, 0.98)', backdropFilter: 'blur(24px)' }}
       >
 
-        {/* ── Logo + collapse toggle ── */}
+        {/* ── Logo ── */}
         <div className="flex h-14 shrink-0 items-center border-b border-black/[0.06] px-3">
-          <div className={cn("flex items-center gap-2.5 min-w-0", sidebarCollapsed && "justify-center w-full")}>
+          <div className={cn("flex items-center gap-2.5 min-w-0", !isExpanded && "justify-center w-full")}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/image/lopbukicon.png" alt="Lopbuk" width={30} height={30} className="rounded-md shrink-0" />
-            {!sidebarCollapsed && (
+            {isExpanded && (
               <div className="flex flex-col leading-none min-w-0">
                 <span className="text-sm font-bold text-gray-900 tracking-tight">Lopbuk</span>
                 <span className="text-[10px] text-gray-400">Gestión de Inventario</span>
@@ -198,8 +196,8 @@ export function Sidebar() {
             )}
           </div>
 
-          {/* Close on mobile */}
-          {!sidebarCollapsed && (
+          {/* Close on mobile only */}
+          {isExpanded && (
             <Button
               variant="ghost"
               size="icon"
@@ -209,38 +207,26 @@ export function Sidebar() {
               <X className="h-4 w-4" />
             </Button>
           )}
-
-          {/* Collapse toggle — desktop only */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className={cn(
-              "hidden md:flex h-7 w-7 text-gray-400 hover:text-gray-900 shrink-0",
-              sidebarCollapsed ? "mx-auto" : "ml-auto"
-            )}
-            onClick={toggleSidebarCollapsed}
-            title={sidebarCollapsed ? "Expandir barra" : "Colapsar barra"}
-          >
-            {sidebarCollapsed
-              ? <PanelLeftOpen className="h-4 w-4" />
-              : <PanelLeftClose className="h-4 w-4" />
-            }
-          </Button>
         </div>
 
         {/* ── Navigation ── */}
-        <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5 scrollbar-thin scrollbar-thumb-black/10 scrollbar-track-transparent">
+        <nav className={cn(
+          "flex-1 overflow-y-auto px-2 py-3 space-y-0.5",
+          isExpanded
+            ? "scrollbar-thin scrollbar-thumb-black/10 scrollbar-track-transparent"
+            : "[&::-webkit-scrollbar]:hidden"
+        )}>
           {groups.map(group => {
             const items = filteredNavigation.filter(i => i.group === group.key)
             if (items.length === 0) return null
             return (
               <div key={group.key} className="mb-1">
-                {group.label && !sidebarCollapsed && (
+                {group.label && isExpanded && (
                   <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-gray-400/80 select-none">
                     {group.label}
                   </p>
                 )}
-                {group.label && sidebarCollapsed && (
+                {group.label && !isExpanded && (
                   <div className="mx-3 my-1 border-t border-black/[0.06]" />
                 )}
 
@@ -261,18 +247,18 @@ export function Sidebar() {
                               "group relative flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium transition-all duration-150",
                               isParentActive
                                 ? "bg-[#141928] text-white"
-                                : sidebarCollapsed ? "text-gray-400 hover:bg-black/[0.06] hover:text-gray-900" : "text-gray-600 hover:bg-black/[0.06] hover:text-gray-900",
-                              sidebarCollapsed && "justify-center px-0"
+                                : !isExpanded ? "text-gray-400 hover:bg-black/[0.06] hover:text-gray-900" : "text-gray-600 hover:bg-black/[0.06] hover:text-gray-900",
+                              !isExpanded && "justify-center px-0"
                             )}
                           >
-                            {isParentActive && !sidebarCollapsed && (
+                            {isParentActive && isExpanded && (
                               <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-primary rounded-r-full" />
                             )}
                             <item.icon className={cn(
                               "h-4 w-4 shrink-0 transition-colors",
                               isParentActive ? "text-primary" : "text-gray-400 group-hover:text-gray-900"
                             )} />
-                            {!sidebarCollapsed && (
+                            {isExpanded && (
                               <>
                                 <span className="truncate flex-1 text-left">{item.name}</span>
                                 {tiendaOpen
@@ -283,7 +269,7 @@ export function Sidebar() {
                             )}
                           </button>
                           {/* Tooltip when collapsed */}
-                          {sidebarCollapsed && (
+                          {!isExpanded && (
                             <span className="absolute left-full ml-2 top-1/2 -translate-y-1/2 z-[60] px-2 py-1 text-xs bg-gray-900 text-white rounded-md shadow-lg opacity-0 group-hover/tip:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
                               {item.name}
                             </span>
@@ -291,7 +277,7 @@ export function Sidebar() {
                         </div>
 
                         {/* Children submenu — only when expanded */}
-                        {!sidebarCollapsed && tiendaOpen && (
+                        {isExpanded && tiendaOpen && (
                           <div className="mt-0.5 ml-3 pl-3 border-l border-black/[0.08] space-y-0.5">
                             {visibleChildren.map(child => {
                               const isChildActive = activeSection === child.id
@@ -334,18 +320,18 @@ export function Sidebar() {
                           "group relative flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium transition-all duration-150",
                           isActive
                             ? "bg-[#141928] text-white shadow-sm"
-                            : sidebarCollapsed ? "text-gray-400 hover:bg-black/[0.06] hover:text-gray-900" : "text-gray-600 hover:bg-black/[0.06] hover:text-gray-900",
-                          sidebarCollapsed && "justify-center px-0"
+                            : !isExpanded ? "text-gray-400 hover:bg-black/[0.06] hover:text-gray-900" : "text-gray-600 hover:bg-black/[0.06] hover:text-gray-900",
+                          !isExpanded && "justify-center px-0"
                         )}
                       >
-                        {isActive && !sidebarCollapsed && (
+                        {isActive && isExpanded && (
                           <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-primary rounded-r-full" />
                         )}
                         <item.icon className={cn(
                           "h-4 w-4 shrink-0 transition-colors",
                           isActive ? "text-primary" : "text-gray-400 group-hover:text-gray-900"
                         )} />
-                        {!sidebarCollapsed && (
+                        {isExpanded && (
                           <>
                             <span className="truncate">{item.name}</span>
                             {isActive && <ChevronRight className="ml-auto h-3 w-3 text-primary/60" />}
@@ -353,7 +339,7 @@ export function Sidebar() {
                         )}
                       </button>
                       {/* Tooltip when collapsed */}
-                      {sidebarCollapsed && (
+                      {!isExpanded && (
                         <span className="absolute left-full ml-2 top-1/2 -translate-y-1/2 z-[60] px-2 py-1 text-xs bg-gray-900 text-white rounded-md shadow-lg opacity-0 group-hover/tip:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
                           {item.name}
                         </span>
@@ -362,7 +348,7 @@ export function Sidebar() {
                   )
                 })}
 
-                {group.key !== 'config' && items.length > 0 && !sidebarCollapsed && (
+                {group.key !== 'config' && items.length > 0 && isExpanded && (
                   <div className="mx-3 mt-2 mb-1 border-t border-black/[0.06]" />
                 )}
               </div>
@@ -371,8 +357,8 @@ export function Sidebar() {
         </nav>
 
         {/* ── Footer ── */}
-        <div className={cn("shrink-0 border-t border-black/[0.06] p-3 space-y-2", sidebarCollapsed && "px-2")}>
-          {!sidebarCollapsed ? (
+        <div className={cn("shrink-0 border-t border-black/[0.06] p-3 space-y-2", !isExpanded && "px-2")}>
+          {isExpanded ? (
             <>
               {/* User info */}
               <div className="flex items-center gap-2.5 px-1">
