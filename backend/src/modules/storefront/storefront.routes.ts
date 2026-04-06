@@ -717,7 +717,12 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
                 si.social_tiktok as socialTiktok, si.social_whatsapp as socialWhatsapp,
                 si.product_card_style as productCardStyle,
                 si.show_info_module as showInfoModule,
-                si.info_module_description as infoModuleDescription
+                si.info_module_description as infoModuleDescription,
+                si.contact_page_enabled as contactPageEnabled,
+                si.contact_page_title as contactPageTitle,
+                si.contact_page_description as contactPageDescription,
+                si.contact_page_image as contactPageImage,
+                si.contact_page_links as contactPageLinks
          FROM store_info si
          WHERE si.tenant_id = ?`,
         [tenantId]
@@ -1318,6 +1323,41 @@ router.put('/store-extended-info', authenticate, requirePlan('empresarial'), asy
   } catch (error) {
     console.error('Update store extended info error:', error);
     res.status(500).json({ success: false, error: 'Error al actualizar información de tienda' });
+  }
+});
+
+// =============================================
+// PUT /api/storefront/contact-page — Update contact page fields only
+// =============================================
+router.put('/contact-page', authenticate, requirePlan('empresarial'), async (req: Request, res: Response) => {
+  try {
+    const tenantId = (req as any).user.tenantId;
+    const { contactPageEnabled, contactPageTitle, contactPageDescription, contactPageImage, contactPageProducts, contactPageLinks } = req.body;
+
+    await pool.query(
+      `UPDATE store_info SET
+        contact_page_enabled = ?,
+        contact_page_title = ?,
+        contact_page_description = ?,
+        contact_page_image = ?,
+        contact_page_products = ?,
+        contact_page_links = ?
+       WHERE tenant_id = ?`,
+      [
+        contactPageEnabled ? 1 : 0,
+        contactPageTitle || null,
+        contactPageDescription || null,
+        contactPageImage || null,
+        contactPageProducts ? JSON.stringify(contactPageProducts) : null,
+        contactPageLinks ? JSON.stringify(contactPageLinks) : null,
+        tenantId,
+      ]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Contact page update error:', error);
+    res.status(500).json({ success: false, error: 'Error al guardar página de contacto' });
   }
 });
 

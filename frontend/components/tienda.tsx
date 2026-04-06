@@ -209,7 +209,7 @@ export function Tienda() {
     setSavingContact(true)
     setContactError(null)
     try {
-      const result = await api.updateStoreExtendedInfo({
+      const result = await api.updateContactPage({
         contactPageEnabled: contactEnabled,
         contactPageTitle: contactTitle,
         contactPageDescription: contactDescription,

@@ -4,6 +4,7 @@ import { useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Upload, X, Loader2, Image as ImageIcon } from 'lucide-react'
+import { api } from '@/lib/api'
 
 interface CloudinaryUploadProps {
   value: string
@@ -25,9 +26,10 @@ async function getCloudinaryConfig(): Promise<{ cloudName: string; uploadPreset:
   }
   // 2. Try fetching from backend (platform_settings — set by superadmin)
   try {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null
+    const token = api.getToken()
     const res = await fetch(`${API_URL}/chatbot/cloudinary-config`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
+      credentials: 'include',
     })
     if (res.ok) {
       const json = await res.json()

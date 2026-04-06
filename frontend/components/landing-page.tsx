@@ -194,6 +194,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       paymentMethods: string | null; socialInstagram: string | null; socialFacebook: string | null
       socialTiktok: string | null; socialWhatsapp: string | null; productCardStyle?: string | null
       showInfoModule?: boolean | null; infoModuleDescription?: string | null
+      contactPageEnabled?: boolean | number | null
+      contactPageTitle?: string | null; contactPageDescription?: string | null
+      contactPageImage?: string | null; contactPageLinks?: string | null
     } | null
     announcementBar: { text: string; linkUrl: string | null; bgColor: string; textColor: string; isActive: boolean } | null
     activeDrop: {
@@ -5894,6 +5897,106 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       )}
 
 
+
+      {/* ========== SECCIÓN DE CONTACTO ========== */}
+      {storeConfig?.storeInfo?.contactPageEnabled && selectedStore !== 'all' && (
+        <RevealSection className="py-12 sm:py-20 landing-section-bg border-t border-white/5">
+          <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+            {/* Header */}
+            <div className="text-center mb-10 space-y-3">
+              <p className="text-amber-400/60 uppercase tracking-[0.5em] text-xs">Contacto</p>
+              <h2 className="text-2xl sm:text-3xl font-extralight tracking-tight text-white">
+                {storeConfig.storeInfo.contactPageTitle || 'Contáctanos'}
+              </h2>
+              {storeConfig.storeInfo.contactPageDescription && (
+                <p className="text-white/50 text-sm font-light max-w-lg mx-auto leading-relaxed">
+                  {storeConfig.storeInfo.contactPageDescription}
+                </p>
+              )}
+            </div>
+
+            {/* Imagen */}
+            {storeConfig.storeInfo.contactPageImage && (
+              <div className="mb-10 rounded-2xl overflow-hidden max-h-64">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={storeConfig.storeInfo.contactPageImage}
+                  alt="Contacto"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            )}
+
+            {/* Canales personalizados */}
+            {(() => {
+              let links: { label: string; url: string }[] = []
+              try { links = storeConfig.storeInfo.contactPageLinks ? JSON.parse(storeConfig.storeInfo.contactPageLinks) : [] } catch { links = [] }
+              if (links.length === 0) return null
+              return (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {links.map((link, i) => (
+                    <a
+                      key={i}
+                      href={link.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-3 p-4 rounded-xl border border-white/10 bg-white/3 hover:bg-white/8 hover:border-amber-500/30 transition-all duration-200 group"
+                    >
+                      <div className="w-9 h-9 rounded-lg bg-amber-500/15 flex items-center justify-center shrink-0">
+                        <Phone className="w-4 h-4 text-amber-400" />
+                      </div>
+                      <span className="text-white/80 text-sm font-light group-hover:text-white transition-colors">
+                        {link.label || link.url}
+                      </span>
+                    </a>
+                  ))}
+                </div>
+              )
+            })()}
+
+            {/* Fallback: datos de contacto de store_info */}
+            {(() => {
+              let links: { label: string; url: string }[] = []
+              try { links = storeConfig.storeInfo.contactPageLinks ? JSON.parse(storeConfig.storeInfo.contactPageLinks) : [] } catch { links = [] }
+              if (links.length > 0) return null
+              const { phone, email, socialWhatsapp } = storeConfig.storeInfo
+              if (!phone && !email && !socialWhatsapp) return null
+              return (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {(socialWhatsapp || phone) && (
+                    <a
+                      href={socialWhatsapp || `tel:${phone}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-3 p-4 rounded-xl border border-white/10 bg-white/3 hover:bg-white/8 hover:border-amber-500/30 transition-all duration-200 group"
+                    >
+                      <div className="w-9 h-9 rounded-lg bg-green-500/15 flex items-center justify-center shrink-0">
+                        <Phone className="w-4 h-4 text-green-400" />
+                      </div>
+                      <span className="text-white/80 text-sm font-light group-hover:text-white transition-colors">
+                        {socialWhatsapp ? 'WhatsApp' : phone}
+                      </span>
+                    </a>
+                  )}
+                  {email && (
+                    <a
+                      href={`mailto:${email}`}
+                      className="flex items-center gap-3 p-4 rounded-xl border border-white/10 bg-white/3 hover:bg-white/8 hover:border-amber-500/30 transition-all duration-200 group"
+                    >
+                      <div className="w-9 h-9 rounded-lg bg-blue-500/15 flex items-center justify-center shrink-0">
+                        <Mail className="w-4 h-4 text-blue-400" />
+                      </div>
+                      <span className="text-white/80 text-sm font-light group-hover:text-white transition-colors">
+                        {email}
+                      </span>
+                    </a>
+                  )}
+                </div>
+              )
+            })()}
+          </div>
+        </RevealSection>
+      )}
 
       {/* ========== HERO 6 — Footer con Logo, Info, Enlaces Legales, Contacto ========== */}
       {!showProductModal && <footer className="border-t border-white/10 landing-footer py-16">
