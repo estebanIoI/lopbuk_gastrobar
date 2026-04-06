@@ -2117,6 +2117,14 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 Menú
               </a>
             )}
+            {storeConfig?.storeInfo?.contactPageEnabled && selectedStore !== 'all' && (
+              <button
+                onClick={() => { document.getElementById('seccion-contacto')?.scrollIntoView({ behavior: 'smooth' }) }}
+                className="text-white/50 hover:text-white transition-colors uppercase text-xs tracking-[0.2em]"
+              >
+                Contacto
+              </button>
+            )}
           </div>
           <div className="flex items-center gap-3">
             {isAuthenticated && authUser ? (
@@ -2350,6 +2358,14 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   <UtensilsCrossed className="w-4 h-4" />
                   Menú
                 </a>
+              )}
+              {storeConfig?.storeInfo?.contactPageEnabled && selectedStore !== 'all' && (
+                <button
+                  onClick={() => { setMobileMenuOpen(false); setTimeout(() => document.getElementById('seccion-contacto')?.scrollIntoView({ behavior: 'smooth' }), 100) }}
+                  className="text-left py-2 text-white/50 hover:text-white transition-colors uppercase border-b border-white/5"
+                >
+                  Contacto
+                </button>
               )}
               {isAuthenticated && authUser ? (
                 <>
@@ -5900,7 +5916,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
       {/* ========== SECCIÓN DE CONTACTO ========== */}
       {storeConfig?.storeInfo?.contactPageEnabled && selectedStore !== 'all' && (
-        <RevealSection className="py-12 sm:py-20 landing-section-bg border-t border-white/5">
+        <RevealSection id="seccion-contacto" className="py-12 sm:py-20 landing-section-bg border-t border-white/5">
           <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
             {/* Header */}
             <div className="text-center mb-10 space-y-3">

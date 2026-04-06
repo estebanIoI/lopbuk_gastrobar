@@ -122,6 +122,7 @@ export function Tienda() {
   const [copiedLink, setCopiedLink] = useState(false)
   const [copiedSlug, setCopiedSlug] = useState(false)
   const qrRef = useRef<HTMLDivElement>(null)
+  const contactQrRef = useRef<HTMLDivElement>(null)
 
   // Contact page state
   const [contactEnabled, setContactEnabled] = useState(false)
@@ -133,6 +134,7 @@ export function Tienda() {
   const [savingContact, setSavingContact] = useState(false)
   const [contactSaved, setContactSaved] = useState(false)
   const [contactError, setContactError] = useState<string | null>(null)
+  const [copiedContactLink, setCopiedContactLink] = useState(false)
 
   // Offer modal state
   const [offerModal, setOfferModal] = useState<{ open: boolean; product: StoreProduct | null }>({ open: false, product: null })
@@ -1642,6 +1644,82 @@ export function Tienda() {
                   </Button>
                 </CardContent>
               </Card>
+
+              {/* Share — URL + QR de la página de links */}
+              {(() => {
+                const slug = user?.tenantSlug
+                if (!slug) return null
+                const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
+                const linksUrl = `${baseUrl}/links/${slug}`
+
+                const copyLink = async () => {
+                  await navigator.clipboard.writeText(linksUrl)
+                  setCopiedContactLink(true)
+                  setTimeout(() => setCopiedContactLink(false), 2500)
+                }
+
+                const downloadQR = () => {
+                  const svg = contactQrRef.current?.querySelector('svg')
+                  if (!svg) return
+                  const svgStr = new XMLSerializer().serializeToString(svg)
+                  const canvas = document.createElement('canvas')
+                  canvas.width = 512; canvas.height = 512
+                  const ctx = canvas.getContext('2d')
+                  if (!ctx) return
+                  const img = new Image()
+                  img.onload = () => {
+                    ctx.fillStyle = '#ffffff'
+                    ctx.fillRect(0, 0, 512, 512)
+                    ctx.drawImage(img, 0, 0, 512, 512)
+                    const a = document.createElement('a')
+                    a.download = `links-${slug}.png`
+                    a.href = canvas.toDataURL('image/png')
+                    a.click()
+                  }
+                  img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgStr)))
+                }
+
+                return (
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <Share2 className="h-4 w-4 text-blue-500" />
+                        Compartir página de links
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {/* URL */}
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 rounded-md border bg-muted/40 px-3 py-2 text-sm font-mono truncate select-all">
+                          {linksUrl}
+                        </div>
+                        <Button variant="outline" size="icon" className="shrink-0 h-9 w-9" onClick={copyLink} title="Copiar link">
+                          {copiedContactLink ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                        </Button>
+                        <a href={linksUrl} target="_blank" rel="noopener noreferrer">
+                          <Button variant="outline" size="icon" className="shrink-0 h-9 w-9" title="Abrir">
+                            <ExternalLink className="h-4 w-4" />
+                          </Button>
+                        </a>
+                      </div>
+                      {/* QR */}
+                      <div className="flex flex-col sm:flex-row items-center gap-4">
+                        <div ref={contactQrRef} className="p-3 bg-white border rounded-xl shadow-sm shrink-0">
+                          <QRCodeSVG value={linksUrl} size={140} bgColor="#ffffff" fgColor="#000000" level="H" includeMargin={false}
+                            imageSettings={{ src: '/image/lopbukicon.png', height: 24, width: 24, excavate: true }} />
+                        </div>
+                        <div className="space-y-2 w-full">
+                          <p className="text-xs text-muted-foreground">Comparte este QR para que tus clientes accedan a tus links directamente.</p>
+                          <Button variant="outline" size="sm" className="w-full gap-2" onClick={downloadQR}>
+                            <Download className="h-4 w-4" />
+                            Descargar QR
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )
+              })()}
 
               {/* Save */}
               {contactError && (

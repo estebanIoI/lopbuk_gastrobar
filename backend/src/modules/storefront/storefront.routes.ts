@@ -1269,26 +1269,20 @@ router.put('/store-extended-info', authenticate, requirePlan('empresarial'), asy
       socialInstagram, socialFacebook, socialTiktok, socialWhatsapp,
       department, municipality, productCardStyle, allowContraentrega,
       showInfoModule, infoModuleDescription,
-      contactPageEnabled, contactPageTitle, contactPageDescription,
-      contactPageImage, contactPageProducts, contactPageLinks,
     } = req.body;
 
     const allowCod = allowContraentrega === false ? 0 : 1;
     const infoModule = showInfoModule ? 1 : 0;
-    const contactEnabled = contactPageEnabled ? 1 : 0;
 
     let result: any;
     try {
-      // Full update with all columns
       [result] = await pool.query(
         `UPDATE store_info SET
           logo_url = ?, schedule = ?, location_map_url = ?, terms_url = ?, privacy_url = ?, shipping_terms = ?,
           payment_methods = ?, social_instagram = ?, social_facebook = ?,
           social_tiktok = ?, social_whatsapp = ?,
           department = ?, municipality = ?, product_card_style = ?, allow_contraentrega = ?,
-          show_info_module = ?, info_module_description = ?,
-          contact_page_enabled = ?, contact_page_title = ?, contact_page_description = ?,
-          contact_page_image = ?, contact_page_products = ?, contact_page_links = ?
+          show_info_module = ?, info_module_description = ?
          WHERE tenant_id = ?`,
         [
           logoUrl || null, schedule || null, locationMapUrl || null, termsContent || null, privacyContent || null, shippingTerms || null,
@@ -1296,25 +1290,21 @@ router.put('/store-extended-info', authenticate, requirePlan('empresarial'), asy
           socialTiktok || null, socialWhatsapp || null,
           department || null, municipality || null, productCardStyle || 'style1', allowCod,
           infoModule, infoModuleDescription || null,
-          contactEnabled, contactPageTitle || null, contactPageDescription || null,
-          contactPageImage || null,
-          contactPageProducts ? JSON.stringify(contactPageProducts) : null,
-          contactPageLinks ? JSON.stringify(contactPageLinks) : null,
           tenantId,
         ]
       ) as any;
     } catch {
-      // Fallback: some columns may not exist in running DB yet
+      // Fallback: some columns may not exist
       try {
         [result] = await pool.query(
           `UPDATE store_info SET
-            logo_url = ?, schedule = ?, location_map_url = ?, terms_url = ?, privacy_url = ?,
+            logo_url = ?, schedule = ?, location_map_url = ?, terms_url = ?, privacy_url = ?, shipping_terms = ?,
             payment_methods = ?, social_instagram = ?, social_facebook = ?,
             social_tiktok = ?, social_whatsapp = ?,
             department = ?, municipality = ?
            WHERE tenant_id = ?`,
           [
-            logoUrl || null, schedule || null, locationMapUrl || null, termsContent || null, privacyContent || null,
+            logoUrl || null, schedule || null, locationMapUrl || null, termsContent || null, privacyContent || null, shippingTerms || null,
             paymentMethods || null, socialInstagram || null, socialFacebook || null,
             socialTiktok || null, socialWhatsapp || null,
             department || null, municipality || null, tenantId,
@@ -2093,6 +2083,78 @@ router.put('/platform-featured', authenticate, async (req: Request, res: Respons
   } catch (error) {
     console.error('Update platform featured error:', error);
     res.status(500).json({ success: false, error: 'Error al actualizar productos destacados' });
+  }
+});
+
+// =============================================
+// GET /api/storefront/links/:slug — Public: link-in-bio page data
+// =============================================
+router.get('/links/:slug', async (req: Request, res: Response) => {
+  try {
+    const { slug } = req.params;
+
+    const [tenants] = await pool.query(
+      'SELECT id FROM tenants WHERE status = ? AND slug = ? LIMIT 1',
+      ['activo', slug]
+    ) as any;
+
+    if (!tenants || tenants.length === 0) {
+      res.status(404).json({ success: false, error: 'Tienda no encontrada' });
+      return;
+    }
+
+    const tenantId = tenants[0].id;
+
+    // Base store info
+    const [siRows] = await pool.query(
+      `SELECT si.name, si.email, si.phone,
+              si.logo_url as logoUrl,
+              si.social_instagram as socialInstagram,
+              si.social_facebook as socialFacebook,
+              si.social_tiktok as socialTiktok,
+              si.social_whatsapp as socialWhatsapp
+       FROM store_info si WHERE si.tenant_id = ? LIMIT 1`,
+      [tenantId]
+    ) as any;
+
+    const storeInfo = (siRows as any[])[0] || null;
+
+    // Contact page fields (may not exist yet)
+    let contactData: any = {};
+    try {
+      const [cRows] = await pool.query(
+        `SELECT contact_page_enabled as contactPageEnabled,
+                contact_page_title as contactPageTitle,
+                contact_page_description as contactPageDescription,
+                contact_page_image as contactPageImage,
+                contact_page_links as contactPageLinks
+         FROM store_info WHERE tenant_id = ? LIMIT 1`,
+        [tenantId]
+      ) as any;
+      contactData = (cRows as any[])[0] || {};
+    } catch { /* columns not migrated */ }
+
+    res.json({
+      success: true,
+      data: {
+        slug,
+        name: storeInfo?.name || '',
+        logoUrl: storeInfo?.logoUrl || null,
+        email: storeInfo?.email || null,
+        phone: storeInfo?.phone || null,
+        socialInstagram: storeInfo?.socialInstagram || null,
+        socialFacebook: storeInfo?.socialFacebook || null,
+        socialTiktok: storeInfo?.socialTiktok || null,
+        socialWhatsapp: storeInfo?.socialWhatsapp || null,
+        contactPageTitle: contactData.contactPageTitle || null,
+        contactPageDescription: contactData.contactPageDescription || null,
+        contactPageImage: contactData.contactPageImage || null,
+        contactPageLinks: contactData.contactPageLinks || null,
+      },
+    });
+  } catch (error) {
+    console.error('Links page error:', error);
+    res.status(500).json({ success: false, error: 'Error al cargar datos' });
   }
 });
 
