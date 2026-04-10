@@ -129,7 +129,8 @@ export function Tienda() {
   const [contactTitle, setContactTitle] = useState('')
   const [contactDescription, setContactDescription] = useState('')
   const [contactImage, setContactImage] = useState('')
-  const [contactLinks, setContactLinks] = useState<{ label: string; url: string }[]>([])
+  const [contactLinks, setContactLinks] = useState<{ label: string; url: string; image?: string }[]>([])
+  const [contactLinkTheme, setContactLinkTheme] = useState<'theme1' | 'theme2'>('theme1')
   const [contactProductIds, setContactProductIds] = useState<string[]>([])
   const [loadingContact, setLoadingContact] = useState(false)
   const [savingContact, setSavingContact] = useState(false)
@@ -202,6 +203,7 @@ export function Tienda() {
         try {
           setContactLinks(si.contactPageLinks ? JSON.parse(si.contactPageLinks) : [])
         } catch { setContactLinks([]) }
+        setContactLinkTheme((si as any).contactPageLinkTheme === 'theme2' ? 'theme2' : 'theme1')
         try {
           setContactProductIds(si.contactPageProducts ? JSON.parse(si.contactPageProducts) : [])
         } catch { setContactProductIds([]) }
@@ -222,6 +224,7 @@ export function Tienda() {
         contactPageImage: contactImage,
         contactPageLinks: contactLinks,
         contactPageProducts: contactProductIds,
+        contactPageLinkTheme: contactLinkTheme,
       })
       if (result.success) {
         setContactSaved(true)
@@ -1597,6 +1600,73 @@ export function Tienda() {
                 </CardContent>
               </Card>
 
+              {/* Link theme selector */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Settings className="h-4 w-4" />
+                    Tema de presentación de links
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Elige cómo se verán los links en tu página pública.
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* Theme 1 */}
+                    <button
+                      type="button"
+                      onClick={() => setContactLinkTheme('theme1')}
+                      className={`relative rounded-xl border-2 p-3 text-left transition-all ${
+                        contactLinkTheme === 'theme1' ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-input hover:border-gray-300'
+                      }`}
+                    >
+                      {contactLinkTheme === 'theme1' && (
+                        <span className="absolute top-2 right-2 w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center">
+                          <Check className="h-2.5 w-2.5 text-white" />
+                        </span>
+                      )}
+                      {/* Mini preview Theme 1 */}
+                      <div className="w-full rounded-lg bg-white border border-gray-200 space-y-1.5 p-2 mb-2">
+                        {['Link 1', 'Link 2', 'Link 3'].map(l => (
+                          <div key={l} className="w-full rounded-lg border border-gray-200 bg-white py-1 text-center text-[9px] text-gray-600 font-semibold uppercase">
+                            {l}
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-xs font-semibold text-gray-700">Básico</p>
+                      <p className="text-[10px] text-muted-foreground leading-tight">Botones simples, limpio y minimalista</p>
+                    </button>
+
+                    {/* Theme 2 */}
+                    <button
+                      type="button"
+                      onClick={() => setContactLinkTheme('theme2')}
+                      className={`relative rounded-xl border-2 p-3 text-left transition-all ${
+                        contactLinkTheme === 'theme2' ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-input hover:border-gray-300'
+                      }`}
+                    >
+                      {contactLinkTheme === 'theme2' && (
+                        <span className="absolute top-2 right-2 w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center">
+                          <Check className="h-2.5 w-2.5 text-white" />
+                        </span>
+                      )}
+                      {/* Mini preview Theme 2 */}
+                      <div className="w-full rounded-lg bg-black space-y-1.5 p-2 mb-2">
+                        {['Link 1', 'Link 2', 'Link 3'].map(l => (
+                          <div key={l} className="w-full rounded-lg bg-gray-700 py-2 text-center text-[9px] text-white font-semibold uppercase relative overflow-hidden">
+                            <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/60" />
+                            <span className="relative">{l}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-xs font-semibold text-gray-700">Con imágenes</p>
+                      <p className="text-[10px] text-muted-foreground leading-tight">Tarjetas con foto, oscuro y profesional</p>
+                    </button>
+                  </div>
+                </CardContent>
+              </Card>
+
               {/* Custom links */}
               <Card>
                 <CardHeader className="pb-3">
@@ -1627,6 +1697,20 @@ export function Tienda() {
                             setContactLinks(updated)
                           }}
                         />
+                        {contactLinkTheme === 'theme2' && (
+                          <div className="space-y-1">
+                            <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Imagen de fondo del link</p>
+                            <CloudinaryUpload
+                              value={link.image || ''}
+                              onChange={val => {
+                                const updated = [...contactLinks]
+                                updated[i] = { ...updated[i], image: val }
+                                setContactLinks(updated)
+                              }}
+                              previewClassName="h-20 w-full object-cover rounded-lg border"
+                            />
+                          </div>
+                        )}
                       </div>
                       <Button
                         variant="ghost"

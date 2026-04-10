@@ -917,7 +917,8 @@ class ApiService {
 
   async updateContactPage(data: {
     contactPageEnabled: boolean; contactPageTitle?: string; contactPageDescription?: string;
-    contactPageImage?: string; contactPageProducts?: string[]; contactPageLinks?: { label: string; url: string }[];
+    contactPageImage?: string; contactPageProducts?: string[]; contactPageLinks?: { label: string; url: string; image?: string }[];
+    contactPageLinkTheme?: string;
   }) {
     return this.request<any>('/storefront/contact-page', {
       method: 'PUT',

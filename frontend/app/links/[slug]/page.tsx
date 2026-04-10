@@ -6,7 +6,7 @@ import { formatCOP } from '@/lib/utils'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'
 
-interface LinkItem { label: string; url: string; color?: string }
+interface LinkItem { label: string; url: string; color?: string; image?: string }
 
 interface ShopProduct {
   id: number
@@ -39,6 +39,7 @@ interface StoreData {
   contactPageDescription: string | null
   contactPageImage: string | null
   contactPageLinks: string | null
+  contactPageLinkTheme: string | null
   shopProducts: ShopProduct[]
 }
 
@@ -121,12 +122,14 @@ export default function LinksPage() {
   try { links = data.contactPageLinks ? JSON.parse(data.contactPageLinks) : [] } catch { links = [] }
 
   const products = data.shopProducts || []
+  const linkTheme = data.contactPageLinkTheme || 'theme1'
+  const isTheme2 = linkTheme === 'theme2'
 
   const hasSocials = data.socialInstagram || data.socialFacebook || data.socialTiktok || data.socialWhatsapp
   const catalogUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/?store=${slug}`
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center pb-16">
+    <div className={`min-h-screen flex flex-col items-center pb-16 ${isTheme2 ? 'bg-black' : 'bg-gray-50'}`}>
       <div className="w-full max-w-sm mx-auto px-4 pt-10 flex flex-col items-center">
 
         {/* Avatar / Logo */}
@@ -146,13 +149,13 @@ export default function LinksPage() {
         </div>
 
         {/* Name */}
-        <h1 className="text-lg font-bold text-gray-900 tracking-wide uppercase text-center">
+        <h1 className={`text-lg font-bold tracking-wide uppercase text-center ${isTheme2 ? 'text-white' : 'text-gray-900'}`}>
           {data.contactPageTitle || data.name}
         </h1>
 
         {/* Description */}
         {data.contactPageDescription && (
-          <p className="text-sm text-gray-500 text-center mt-1 leading-snug">
+          <p className={`text-sm text-center mt-1 leading-snug ${isTheme2 ? 'text-gray-400' : 'text-gray-500'}`}>
             {data.contactPageDescription}
           </p>
         )}
@@ -162,25 +165,25 @@ export default function LinksPage() {
           <div className="flex items-center gap-4 mt-4">
             {data.socialTiktok && (
               <a href={data.socialTiktok} target="_blank" rel="noopener noreferrer"
-                className="text-gray-700 hover:text-black transition-colors">
+                className={`transition-colors ${isTheme2 ? 'text-gray-400 hover:text-white' : 'text-gray-700 hover:text-black'}`}>
                 <TikTokIcon />
               </a>
             )}
             {data.socialInstagram && (
               <a href={data.socialInstagram} target="_blank" rel="noopener noreferrer"
-                className="text-gray-700 hover:text-pink-600 transition-colors">
+                className={`transition-colors ${isTheme2 ? 'text-gray-400 hover:text-pink-400' : 'text-gray-700 hover:text-pink-600'}`}>
                 <InstagramIcon />
               </a>
             )}
             {data.socialFacebook && (
               <a href={data.socialFacebook} target="_blank" rel="noopener noreferrer"
-                className="text-gray-700 hover:text-blue-600 transition-colors">
+                className={`transition-colors ${isTheme2 ? 'text-gray-400 hover:text-blue-400' : 'text-gray-700 hover:text-blue-600'}`}>
                 <FacebookIcon />
               </a>
             )}
             {data.socialWhatsapp && (
               <a href={data.socialWhatsapp} target="_blank" rel="noopener noreferrer"
-                className="text-gray-700 hover:text-green-500 transition-colors">
+                className={`transition-colors ${isTheme2 ? 'text-gray-400 hover:text-green-400' : 'text-gray-700 hover:text-green-500'}`}>
                 <WhatsAppIcon />
               </a>
             )}
@@ -188,11 +191,13 @@ export default function LinksPage() {
         )}
 
         {/* Tab selector */}
-        <div className="flex w-full mt-6 rounded-full bg-gray-100 p-1 gap-1">
+        <div className={`flex w-full mt-6 rounded-full p-1 gap-1 ${isTheme2 ? 'bg-white/10' : 'bg-gray-100'}`}>
           <button
             onClick={() => setActiveTab('links')}
             className={`flex-1 py-2 rounded-full text-sm font-semibold transition-all ${
-              activeTab === 'links' ? 'bg-gray-900 text-white shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              activeTab === 'links'
+                ? isTheme2 ? 'bg-white text-black shadow-sm' : 'bg-gray-900 text-white shadow-sm'
+                : isTheme2 ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-700'
             }`}
           >
             Links
@@ -200,7 +205,9 @@ export default function LinksPage() {
           <button
             onClick={() => setActiveTab('shop')}
             className={`flex-1 py-2 rounded-full text-sm font-semibold transition-all ${
-              activeTab === 'shop' ? 'bg-gray-900 text-white shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              activeTab === 'shop'
+                ? isTheme2 ? 'bg-white text-black shadow-sm' : 'bg-gray-900 text-white shadow-sm'
+                : isTheme2 ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-700'
             }`}
           >
             Shop
@@ -211,8 +218,46 @@ export default function LinksPage() {
         {activeTab === 'links' && (
           <div className="w-full mt-4 space-y-3">
             {links.length === 0 ? (
-              <p className="text-center text-sm text-gray-400 py-8">Sin links configurados</p>
+              <p className={`text-center text-sm py-8 ${isTheme2 ? 'text-gray-500' : 'text-gray-400'}`}>Sin links configurados</p>
+            ) : isTheme2 ? (
+              /* ── Theme 2: image cards ── */
+              links.map((link, i) => (
+                <a
+                  key={i}
+                  href={link.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="relative block w-full rounded-2xl overflow-hidden active:scale-[0.98] transition-all"
+                  style={{ height: '140px' }}
+                >
+                  {/* Background image or fallback gradient */}
+                  {link.image ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={link.image}
+                      alt={link.label}
+                      className="absolute inset-0 w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="absolute inset-0 bg-gradient-to-br from-gray-700 to-gray-900" />
+                  )}
+                  {/* Dark overlay */}
+                  <div className="absolute inset-0 bg-black/40" />
+                  {/* Link icon top-left */}
+                  <div className="absolute top-3 left-3 w-7 h-7 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-white">
+                      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                    </svg>
+                  </div>
+                  {/* Label bottom */}
+                  <div className="absolute bottom-0 inset-x-0 px-4 pb-4 pt-8 bg-gradient-to-t from-black/80 to-transparent">
+                    <p className="text-white text-sm font-bold tracking-wide uppercase">{link.label || link.url}</p>
+                  </div>
+                </a>
+              ))
             ) : (
+              /* ── Theme 1: simple buttons ── */
               links.map((link, i) => (
                 <a
                   key={i}
@@ -375,8 +420,8 @@ export default function LinksPage() {
       )}
 
       {/* Footer */}
-      <div className="fixed bottom-0 inset-x-0 py-3 text-center bg-gray-50/80 backdrop-blur">
-        <p className="text-[11px] text-gray-300 uppercase tracking-widest">Powered by Lopbuk</p>
+      <div className={`fixed bottom-0 inset-x-0 py-3 text-center backdrop-blur ${isTheme2 ? 'bg-black/80' : 'bg-gray-50/80'}`}>
+        <p className={`text-[11px] uppercase tracking-widest ${isTheme2 ? 'text-gray-600' : 'text-gray-300'}`}>Powered by Lopbuk</p>
       </div>
     </div>
   )

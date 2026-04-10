@@ -744,7 +744,8 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
                   contact_page_title as contactPageTitle,
                   contact_page_description as contactPageDescription,
                   contact_page_image as contactPageImage,
-                  contact_page_links as contactPageLinks
+                  contact_page_links as contactPageLinks,
+                  contact_page_link_theme as contactPageLinkTheme
            FROM store_info WHERE tenant_id = ?`,
           [tenantId]
         ) as any;
@@ -1002,7 +1003,8 @@ router.get('/customization', authenticate, requirePlan('empresarial'), async (re
                   contact_page_description as contactPageDescription,
                   contact_page_image as contactPageImage,
                   contact_page_products as contactPageProducts,
-                  contact_page_links as contactPageLinks
+                  contact_page_links as contactPageLinks,
+                  contact_page_link_theme as contactPageLinkTheme
            FROM store_info WHERE tenant_id = ?`,
           [tenantId]
         ) as any;
@@ -1344,7 +1346,7 @@ router.put('/store-extended-info', authenticate, requirePlan('empresarial'), asy
 router.put('/contact-page', authenticate, requirePlan('empresarial'), async (req: Request, res: Response) => {
   try {
     const tenantId = (req as any).user.tenantId;
-    const { contactPageEnabled, contactPageTitle, contactPageDescription, contactPageImage, contactPageProducts, contactPageLinks } = req.body;
+    const { contactPageEnabled, contactPageTitle, contactPageDescription, contactPageImage, contactPageProducts, contactPageLinks, contactPageLinkTheme } = req.body;
 
     const values = [
       contactPageEnabled ? 1 : 0,
@@ -1353,6 +1355,7 @@ router.put('/contact-page', authenticate, requirePlan('empresarial'), async (req
       contactPageImage || null,
       contactPageProducts ? JSON.stringify(contactPageProducts) : null,
       contactPageLinks ? JSON.stringify(contactPageLinks) : null,
+      contactPageLinkTheme || 'theme1',
       tenantId,
     ];
 
@@ -1364,7 +1367,8 @@ router.put('/contact-page', authenticate, requirePlan('empresarial'), async (req
           contact_page_description = ?,
           contact_page_image = ?,
           contact_page_products = ?,
-          contact_page_links = ?
+          contact_page_links = ?,
+          contact_page_link_theme = ?
          WHERE tenant_id = ?`,
         values
       );
@@ -1376,7 +1380,8 @@ router.put('/contact-page', authenticate, requirePlan('empresarial'), async (req
         ADD COLUMN IF NOT EXISTS contact_page_description TEXT                DEFAULT NULL,
         ADD COLUMN IF NOT EXISTS contact_page_image     VARCHAR(500)          DEFAULT NULL,
         ADD COLUMN IF NOT EXISTS contact_page_products  TEXT                  DEFAULT NULL,
-        ADD COLUMN IF NOT EXISTS contact_page_links     TEXT                  DEFAULT NULL`);
+        ADD COLUMN IF NOT EXISTS contact_page_links     TEXT                  DEFAULT NULL,
+        ADD COLUMN IF NOT EXISTS contact_page_link_theme VARCHAR(20)          DEFAULT 'theme1'`);
       await pool.query(
         `UPDATE store_info SET
           contact_page_enabled = ?,
@@ -1384,7 +1389,8 @@ router.put('/contact-page', authenticate, requirePlan('empresarial'), async (req
           contact_page_description = ?,
           contact_page_image = ?,
           contact_page_products = ?,
-          contact_page_links = ?
+          contact_page_links = ?,
+          contact_page_link_theme = ?
          WHERE tenant_id = ?`,
         values
       );
@@ -2128,7 +2134,8 @@ router.get('/links/:slug', async (req: Request, res: Response) => {
                 contact_page_description as contactPageDescription,
                 contact_page_image as contactPageImage,
                 contact_page_links as contactPageLinks,
-                contact_page_products as contactPageProducts
+                contact_page_products as contactPageProducts,
+                contact_page_link_theme as contactPageLinkTheme
          FROM store_info WHERE tenant_id = ? LIMIT 1`,
         [tenantId]
       ) as any;
@@ -2192,6 +2199,7 @@ router.get('/links/:slug', async (req: Request, res: Response) => {
         contactPageDescription: contactData.contactPageDescription || null,
         contactPageImage: contactData.contactPageImage || null,
         contactPageLinks: contactData.contactPageLinks || null,
+        contactPageLinkTheme: contactData.contactPageLinkTheme || 'theme1',
         shopProducts,
       },
     });
