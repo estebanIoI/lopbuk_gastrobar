@@ -324,7 +324,7 @@ export class CreditsService {
         paymentMethod: data.paymentMethod,
         receiptNumber,
         notes: data.notes,
-        receivedBy: userId,
+        receivedBy: userId ?? undefined,
         createdAt: new Date(),
       };
     } catch (error) {

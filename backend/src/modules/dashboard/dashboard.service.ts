@@ -191,9 +191,7 @@ export class DashboardService {
     `, params);
 
     return rows.map((row) => ({
-      date: row.date instanceof Date
-        ? row.date.toISOString().split('T')[0]
-        : String(row.date).split('T')[0],
+      date: String(row.date).split('T')[0],
       total: Number(row.total),
       count: Number(row.count),
       fiadoTotal: Number(row.fiado_total),

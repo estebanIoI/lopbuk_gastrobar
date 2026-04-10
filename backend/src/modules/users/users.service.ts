@@ -86,7 +86,7 @@ export class UsersService {
     }
   }
 
-  async findById(id: string): Promise<Omit<User, 'password'> & { cargoId?: string; cargoName?: string }> {
+  async findById(id: string): Promise<Omit<User, 'password'> & { cargoId?: string; cargoName?: string; canLogin: boolean }> {
     const [rows] = await db.execute<UserRow[]>(
       `SELECT u.id, u.tenant_id, u.email, u.name, u.role, u.avatar, u.is_active, u.can_login, u.cargo_id, ec.name AS cargo_name, u.created_at, u.updated_at
        FROM users u LEFT JOIN employee_cargos ec ON u.cargo_id = ec.id WHERE u.id = ?`,

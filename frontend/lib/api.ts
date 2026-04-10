@@ -1758,6 +1758,35 @@ class ApiService {
   async deleteFinanceBudget(id: string) {
     return this.request<any>(`/finances/budgets/${id}`, { method: 'DELETE' })
   }
+
+  // ── Portfolio DAIMUZ ──────────────────────────────────────────────────────
+  async getPortfolioPublic() {
+    return this.request<any>('/portfolio/public')
+  }
+
+  async getPortfolioConfig() {
+    return this.request<any>('/portfolio/config')
+  }
+
+  async updatePortfolioConfig(data: {
+    heroTitle?: string
+    heroSubtitle?: string
+    heroImageUrl?: string
+    brandDescription?: string
+    showPricing?: boolean
+    showFeaturedStores?: boolean
+    featuredTenantIds?: string[]
+    contactEmail?: string
+    contactWhatsapp?: string
+    contactInstagram?: string
+    accentColor?: string
+    isPublished?: boolean
+  }) {
+    return this.request<any>('/portfolio/config', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  }
 }
 
 export const api = new ApiService()

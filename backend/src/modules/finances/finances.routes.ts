@@ -3,13 +3,14 @@ import { body, param, query } from 'express-validator';
 import { financesController } from './finances.controller';
 import { authenticate, authorize } from '../../common/middleware';
 import { validateRequest } from '../../utils/validators';
+import { UserRole } from '../../common/types';
 
 const router: ReturnType<typeof Router> = Router();
 
 router.use(authenticate);
 
-const ADMIN_ROLES   = ['superadmin', 'comerciante', 'administrador_rb'];
-const ALL_STAFF     = [...ADMIN_ROLES, 'cajero'];
+const ADMIN_ROLES: UserRole[] = ['superadmin', 'comerciante', 'administrador_rb'];
+const ALL_STAFF: UserRole[]   = [...ADMIN_ROLES, 'cajero'];
 
 // ── CATEGORIES ────────────────────────────────────────────────────────────────
 

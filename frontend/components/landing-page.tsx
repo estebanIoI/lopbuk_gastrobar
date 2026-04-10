@@ -319,11 +319,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     setClientMunicipality(saved)
     const skipped = sessionStorage.getItem('locationSkipped') === '1'
     setLocationSkipped(skipped)
-    // Show location modal only once per session if location not set
-    if (!saved && !skipped) {
-      const timer = setTimeout(() => setShowLocationModal(true), 800)
-      return () => clearTimeout(timer)
-    }
+    // Location modal is shown only when a specific store has domicilio items (see FETCH PRODUCTS)
   }, [])
 
   // Handle ?store=slug URL param (QR/share link)
@@ -771,6 +767,18 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         const json = await res.json()
         if (json.success && json.data?.products) {
           setProducts(json.data.products)
+          // Show location modal only if the current store has at least one active domicilio item
+          // and the user hasn't set their location yet and hasn't skipped
+          if (selectedStore !== 'all') {
+            const hasDomicilio = json.data.products.some(
+              (p: any) => p.deliveryType === 'domicilio' || p.deliveryType === 'ambos'
+            )
+            const savedMun = localStorage.getItem('clientMunicipality')
+            const wasSkipped = sessionStorage.getItem('locationSkipped') === '1'
+            if (hasDomicilio && !savedMun && !wasSkipped) {
+              setShowLocationModal(true)
+            }
+          }
         }
       } catch (e) {
         console.error('Error fetching storefront products:', e)

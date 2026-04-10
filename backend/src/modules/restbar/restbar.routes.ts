@@ -4,6 +4,7 @@ import { restbarController } from './restbar.controller';
 import { authenticate, authorize } from '../../common/middleware';
 import { validateRequest } from '../../utils/validators';
 import pool from '../../config/database';
+import { UserRole } from '../../common/types';
 
 const router: ReturnType<typeof Router> = Router();
 
@@ -57,12 +58,12 @@ router.get('/public-menu/:slug', async (req: Request, res: Response) => {
 
 router.use(authenticate);
 
-const ADMIN_ROLES   = ['superadmin', 'comerciante', 'administrador_rb'];
+const ADMIN_ROLES: UserRole[]   = ['superadmin', 'comerciante', 'administrador_rb'];
 // vendedor tiene los mismos permisos que mesero dentro del módulo RestBar
-const WAITER_ROLES  = [...ADMIN_ROLES, 'mesero', 'vendedor'];
-const KITCHEN_ROLES = [...ADMIN_ROLES, 'cocinero', 'bartender'];
-const CASHIER_ROLES = [...ADMIN_ROLES, 'cajero', 'vendedor'];
-const ALL_RB_ROLES  = [...new Set([...WAITER_ROLES, ...KITCHEN_ROLES, ...CASHIER_ROLES])];
+const WAITER_ROLES: UserRole[]  = [...ADMIN_ROLES, 'mesero', 'vendedor'];
+const KITCHEN_ROLES: UserRole[] = [...ADMIN_ROLES, 'cocinero', 'bartender'];
+const CASHIER_ROLES: UserRole[] = [...ADMIN_ROLES, 'cajero', 'vendedor'];
+const ALL_RB_ROLES: UserRole[]  = [...new Set([...WAITER_ROLES, ...KITCHEN_ROLES, ...CASHIER_ROLES])];
 
 // ── TABLES ────────────────────────────────────────────────────────────────────
 router.get('/tables', authorize(...ALL_RB_ROLES), restbarController.getTables.bind(restbarController));

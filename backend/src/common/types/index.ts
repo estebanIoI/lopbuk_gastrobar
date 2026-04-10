@@ -6,7 +6,18 @@ export type StockStatus = 'suficiente' | 'bajo' | 'agotado';
 export type SaleStatus = 'completada' | 'anulada';
 export type CreditStatus = 'pendiente' | 'parcial' | 'pagado';
 export type StockMovementType = 'entrada' | 'salida' | 'ajuste' | 'venta' | 'devolucion';
-export type UserRole = 'superadmin' | 'comerciante' | 'vendedor' | 'cliente' | 'repartidor' | 'auxiliar_bodega';
+export type UserRole =
+  | 'superadmin'
+  | 'comerciante'
+  | 'vendedor'
+  | 'cliente'
+  | 'repartidor'
+  | 'auxiliar_bodega'
+  | 'administrador_rb'
+  | 'cajero'
+  | 'mesero'
+  | 'cocinero'
+  | 'bartender';
 export type TenantStatus = 'activo' | 'suspendido' | 'cancelado';
 export type TenantPlan = 'basico' | 'profesional' | 'empresarial';
 export type ProductType = 'general' | 'alimentos' | 'bebidas' | 'ropa' | 'electronica' | 'farmacia' | 'ferreteria' | 'libreria' | 'juguetes' | 'cosmetica' | 'perfumes' | 'deportes' | 'hogar' | 'mascotas' | 'otros';
@@ -40,6 +51,7 @@ export interface User {
   role: UserRole;
   avatar?: string;
   isActive: boolean;
+  canLogin?: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -129,6 +141,8 @@ export interface Product {
   packageDimensions?: string;
   packageContents?: string;
   safetyWarnings?: string;
+  // Sede / sucursal
+  sedeId?: string;
   // Timestamps
   createdAt: Date;
   updatedAt: Date;

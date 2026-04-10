@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { api } from '@/lib/api'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -45,8 +45,18 @@ import {
   KeyRound,
   BadgeDollarSign,
   ShieldCheck,
+  Briefcase,
+  Globe,
+  QrCode,
+  Copy,
+  ExternalLink,
+  Phone,
+  Mail,
+  Instagram,
+  Building2,
 } from 'lucide-react'
 import { CloudinaryUpload, clearCloudinaryCache } from '@/components/ui/cloudinary-upload'
+import { QRCodeSVG } from 'qrcode.react'
 import { toast } from 'sonner'
 import { formatCOP } from '@/lib/utils'
 
@@ -83,6 +93,9 @@ interface TenantTimeline {
   timeline: { date: string; revenue: number; orderCount: number }[]
 }
 
+// ── Portafolio ──
+interface PortfolioTenant { id: string; name: string; slug: string; plan: string; logoUrl?: string }
+
 // ── Colors for tenants ──
 const TENANT_COLORS = [
   '#f59e0b', '#3b82f6', '#10b981', '#8b5cf6', '#ef4444',
@@ -91,7 +104,7 @@ const TENANT_COLORS = [
 
 export function SuperadminHome() {
   // ── Tab state ──
-  const [activeTab, setActiveTab] = useState<'pagina' | 'timeline' | 'destacados' | 'integraciones' | 'pagos'>('pagina')
+  const [activeTab, setActiveTab] = useState<'pagina' | 'timeline' | 'destacados' | 'integraciones' | 'pagos' | 'portafolio'>('pagina')
 
   // ── Hero settings ──
   const [heroUrl, setHeroUrl] = useState('')
@@ -102,6 +115,27 @@ export function SuperadminHome() {
   // ── Login image settings ──
   const [loginImageUrl, setLoginImageUrl] = useState('')
   const [isSavingLogin, setIsSavingLogin] = useState(false)
+
+  // ── Portafolio DAIMUZ ──
+  const [pfHeroTitle, setPfHeroTitle] = useState('DAIMUZ')
+  const [pfHeroSubtitle, setPfHeroSubtitle] = useState('')
+  const [pfHeroImage, setPfHeroImage] = useState('')
+  const [pfBrandDescription, setPfBrandDescription] = useState('')
+  const [pfShowPricing, setPfShowPricing] = useState(true)
+  const [pfShowStores, setPfShowStores] = useState(true)
+  const [pfFeaturedIds, setPfFeaturedIds] = useState<string[]>([])
+  const [pfContactEmail, setPfContactEmail] = useState('')
+  const [pfContactWhatsapp, setPfContactWhatsapp] = useState('')
+  const [pfContactInstagram, setPfContactInstagram] = useState('')
+  const [pfAccentColor, setPfAccentColor] = useState('#6366f1')
+  const [pfIsPublished, setPfIsPublished] = useState(true)
+  const [pfTenants, setPfTenants] = useState<PortfolioTenant[]>([])
+  const [pfLoading, setPfLoading] = useState(false)
+  const [pfSaving, setPfSaving] = useState(false)
+  const [pfSaved, setPfSaved] = useState(false)
+  const [pfShowQr, setPfShowQr] = useState(false)
+  const pfQrRef = useRef<HTMLDivElement>(null)
+  const pfUrl = typeof window !== 'undefined' ? `${window.location.origin}/portfolio` : '/portfolio'
 
   // ── Offers (products with isOnOffer) ──
   const [offers, setOffers] = useState<any[]>([])
@@ -278,11 +312,75 @@ export function SuperadminHome() {
         if (res.success && res.data?.planIds) setMpPlanIds(res.data.planIds)
       })
     }
+    if (activeTab === 'portafolio') fetchPortfolioConfig()
   }, [activeTab, timelinePeriod, fetchTimeline, fetchIntegrations, fetchChatbotTenants])
 
   useEffect(() => {
     if (activeTab === 'destacados') fetchFeatured()
   }, [activeTab, fetchFeatured])
+
+  // ── Portafolio helpers ──────────────────────────────────────────────────────
+  const fetchPortfolioConfig = async () => {
+    setPfLoading(true)
+    const res = await api.getPortfolioConfig()
+    if (res.success && res.data) {
+      const d = res.data
+      setPfHeroTitle(d.heroTitle || 'DAIMUZ')
+      setPfHeroSubtitle(d.heroSubtitle || '')
+      setPfHeroImage(d.heroImageUrl || '')
+      setPfBrandDescription(d.brandDescription || '')
+      setPfShowPricing(d.showPricing ?? true)
+      setPfShowStores(d.showFeaturedStores ?? true)
+      setPfFeaturedIds(d.featuredTenantIds || [])
+      setPfContactEmail(d.contactEmail || '')
+      setPfContactWhatsapp(d.contactWhatsapp || '')
+      setPfContactInstagram(d.contactInstagram || '')
+      setPfAccentColor(d.accentColor || '#6366f1')
+      setPfIsPublished(d.isPublished ?? true)
+      setPfTenants(d.tenants || [])
+    }
+    setPfLoading(false)
+  }
+
+  const handleSavePortfolio = async () => {
+    setPfSaving(true)
+    const res = await api.updatePortfolioConfig({
+      heroTitle: pfHeroTitle,
+      heroSubtitle: pfHeroSubtitle,
+      heroImageUrl: pfHeroImage,
+      brandDescription: pfBrandDescription,
+      showPricing: pfShowPricing,
+      showFeaturedStores: pfShowStores,
+      featuredTenantIds: pfFeaturedIds,
+      contactEmail: pfContactEmail,
+      contactWhatsapp: pfContactWhatsapp,
+      contactInstagram: pfContactInstagram,
+      accentColor: pfAccentColor,
+      isPublished: pfIsPublished,
+    })
+    if (res.success) {
+      setPfSaved(true)
+      toast.success('Portafolio guardado')
+      setTimeout(() => setPfSaved(false), 3000)
+    } else {
+      toast.error(res.error || 'Error al guardar')
+    }
+    setPfSaving(false)
+  }
+
+  const handleDownloadQr = () => {
+    if (!pfQrRef.current) return
+    const svg = pfQrRef.current.querySelector('svg')
+    if (!svg) return
+    const svgData = new XMLSerializer().serializeToString(svg)
+    const blob = new Blob([svgData], { type: 'image/svg+xml' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'portafolio-daimuz-qr.svg'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   // Search products for featured
   const handleFeaturedSearch = async (q: string) => {
@@ -463,6 +561,7 @@ export function SuperadminHome() {
           { id: 'destacados', label: 'Productos Destacados', icon: Star },
           { id: 'integraciones', label: 'Integraciones', icon: Plug },
           { id: 'pagos', label: 'Suscripciones', icon: CreditCard },
+          { id: 'portafolio', label: 'Portafolio', icon: Briefcase },
         ].map(tab => {
           const Icon = tab.icon
           return (
@@ -1472,6 +1571,294 @@ export function SuperadminHome() {
             </div>
           )}
 
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════
+          TAB: PORTAFOLIO DAIMUZ
+      ══════════════════════════════════════ */}
+      {activeTab === 'portafolio' && (
+        <div className="space-y-6">
+
+          {/* ── Encabezado + Link compartir ── */}
+          <Card className="border-border bg-card">
+            <CardHeader className="pb-3">
+              <div className="flex items-start justify-between gap-4 flex-wrap">
+                <div>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Globe className="h-4 w-4 text-indigo-500" />
+                    Portafolio DAIMUZ
+                  </CardTitle>
+                  <CardDescription className="mt-1">
+                    Vista pública del portafolio de servicios. Comparte el link o QR con clientes potenciales.
+                  </CardDescription>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${pfIsPublished ? 'bg-green-500/15 text-green-400' : 'bg-muted text-muted-foreground'}`}>
+                    {pfIsPublished ? '● Publicado' : '○ Oculto'}
+                  </span>
+                  <a
+                    href="/portfolio"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                  >
+                    <ExternalLink className="h-3 w-3" /> Ver portafolio
+                  </a>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {/* URL + QR */}
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-muted border border-border">
+                <code className="flex-1 text-xs text-muted-foreground truncate">{pfUrl}</code>
+                <button
+                  onClick={() => { navigator.clipboard.writeText(pfUrl); toast.success('URL copiada') }}
+                  className="flex items-center gap-1 text-xs text-foreground bg-background border border-border rounded px-2 py-1 hover:bg-muted transition-colors"
+                >
+                  <Copy className="h-3 w-3" /> Copiar
+                </button>
+                <button
+                  onClick={() => setPfShowQr(v => !v)}
+                  className="flex items-center gap-1 text-xs text-foreground bg-background border border-border rounded px-2 py-1 hover:bg-muted transition-colors"
+                >
+                  <QrCode className="h-3 w-3" /> QR
+                </button>
+              </div>
+              {pfShowQr && (
+                <div className="mt-4 flex items-start gap-4">
+                  <div ref={pfQrRef} className="p-3 bg-white rounded-xl inline-block">
+                    <QRCodeSVG value={pfUrl} size={140} />
+                  </div>
+                  <div className="space-y-2 pt-1">
+                    <p className="text-xs text-muted-foreground">Escanea para abrir el portafolio</p>
+                    <Button size="sm" variant="outline" onClick={handleDownloadQr}>
+                      Descargar QR
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {pfLoading ? (
+            <div className="flex justify-center py-10">
+              <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <>
+              {/* ── Contenido Hero ── */}
+              <Card className="border-border bg-card">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <ImageIcon className="h-4 w-4" /> Hero del portafolio
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Título de marca</Label>
+                      <Input
+                        value={pfHeroTitle}
+                        onChange={e => setPfHeroTitle(e.target.value)}
+                        placeholder="DAIMUZ"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Subtítulo</Label>
+                      <Input
+                        value={pfHeroSubtitle}
+                        onChange={e => setPfHeroSubtitle(e.target.value)}
+                        placeholder="Soluciones de gestión para tu negocio"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Descripción de la marca</Label>
+                    <textarea
+                      value={pfBrandDescription}
+                      onChange={e => setPfBrandDescription(e.target.value)}
+                      placeholder="Describe tu propuesta de valor..."
+                      rows={3}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Imagen / logo del hero</Label>
+                    <CloudinaryUpload
+                      value={pfHeroImage}
+                      onChange={(url: string) => setPfHeroImage(url)}
+                      label="Subir imagen del hero"
+                    />
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Label className="text-xs">Color de acento</Label>
+                    <input
+                      type="color"
+                      value={pfAccentColor}
+                      onChange={e => setPfAccentColor(e.target.value)}
+                      className="w-9 h-9 rounded-lg border border-border cursor-pointer"
+                    />
+                    <code className="text-xs text-muted-foreground">{pfAccentColor}</code>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* ── Visibilidad ── */}
+              <Card className="border-border bg-card">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Eye className="h-4 w-4" /> Visibilidad
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {[
+                    { label: 'Portafolio publicado (visible al público)', value: pfIsPublished, set: setPfIsPublished },
+                    { label: 'Mostrar sección de precios', value: pfShowPricing, set: setPfShowPricing },
+                    { label: 'Mostrar comercios integrados', value: pfShowStores, set: setPfShowStores },
+                  ].map(({ label, value, set }) => (
+                    <label key={label} className="flex items-center justify-between cursor-pointer group">
+                      <span className="text-sm">{label}</span>
+                      <button
+                        onClick={() => set(!value)}
+                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${value ? 'bg-indigo-500' : 'bg-muted'}`}
+                      >
+                        <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${value ? 'translate-x-4' : 'translate-x-1'}`} />
+                      </button>
+                    </label>
+                  ))}
+                </CardContent>
+              </Card>
+
+              {/* ── Contacto ── */}
+              <Card className="border-border bg-card">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Phone className="h-4 w-4" /> Información de contacto
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="grid sm:grid-cols-3 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs flex items-center gap-1"><Mail className="h-3 w-3" /> Email</Label>
+                      <Input
+                        value={pfContactEmail}
+                        onChange={e => setPfContactEmail(e.target.value)}
+                        placeholder="hola@daimuz.com"
+                        type="email"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs flex items-center gap-1"><Phone className="h-3 w-3" /> WhatsApp</Label>
+                      <Input
+                        value={pfContactWhatsapp}
+                        onChange={e => setPfContactWhatsapp(e.target.value)}
+                        placeholder="+573001234567"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs flex items-center gap-1"><Instagram className="h-3 w-3" /> Instagram URL</Label>
+                      <Input
+                        value={pfContactInstagram}
+                        onChange={e => setPfContactInstagram(e.target.value)}
+                        placeholder="https://instagram.com/daimuz"
+                      />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* ── Comercios destacados ── */}
+              <Card className="border-border bg-card">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Building2 className="h-4 w-4" /> Comercios destacados
+                    <span className="ml-auto text-xs text-muted-foreground font-normal">
+                      {pfFeaturedIds.length} seleccionados
+                    </span>
+                  </CardTitle>
+                  <CardDescription>
+                    Elige qué negocios mostrar en la sección "Clientes que confían en DAIMUZ".
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {pfTenants.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-4">No hay comercios activos</p>
+                  ) : (
+                    <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                      {pfTenants.map(t => {
+                        const isSelected = pfFeaturedIds.includes(t.id)
+                        return (
+                          <label
+                            key={t.id}
+                            className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
+                              isSelected
+                                ? 'border-indigo-400 bg-indigo-500/10'
+                                : 'border-input hover:bg-muted'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() =>
+                                setPfFeaturedIds(prev =>
+                                  isSelected ? prev.filter(x => x !== t.id) : [...prev, t.id]
+                                )
+                              }
+                              className="rounded"
+                            />
+                            {t.logoUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={t.logoUrl} alt={t.name} className="w-7 h-7 rounded-full object-cover border border-border" />
+                            ) : (
+                              <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center text-xs font-bold">
+                                {t.name.charAt(0)}
+                              </div>
+                            )}
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-medium truncate">{t.name}</p>
+                              <p className="text-xs text-muted-foreground capitalize">{t.plan} · {t.slug}</p>
+                            </div>
+                          </label>
+                        )
+                      })}
+                    </div>
+                  )}
+                  {pfFeaturedIds.length > 0 && (
+                    <button
+                      onClick={() => setPfFeaturedIds([])}
+                      className="mt-2 text-xs text-muted-foreground hover:text-destructive transition-colors"
+                    >
+                      Limpiar selección
+                    </button>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* ── Guardar ── */}
+              <div className="flex items-center gap-3">
+                <Button
+                  onClick={handleSavePortfolio}
+                  disabled={pfSaving}
+                  className="flex items-center gap-2"
+                >
+                  {pfSaving
+                    ? <><RefreshCw className="h-4 w-4 animate-spin" /> Guardando…</>
+                    : pfSaved
+                      ? <><Check className="h-4 w-4" /> Guardado</>
+                      : <><Save className="h-4 w-4" /> Guardar portafolio</>}
+                </Button>
+                <a
+                  href="/portfolio"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 text-sm text-indigo-400 hover:text-indigo-300 transition-colors"
+                >
+                  <ExternalLink className="h-4 w-4" /> Vista previa
+                </a>
+              </div>
+            </>
+          )}
         </div>
       )}
 

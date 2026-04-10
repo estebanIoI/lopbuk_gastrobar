@@ -439,7 +439,7 @@ export class AuthService {
       throw new AppError('Usuario no encontrado', 404);
     }
 
-    const isValidPassword = await bcrypt.compare(currentPassword, rows[0].password);
+    const isValidPassword = await bcrypt.compare(currentPassword, rows[0].password ?? '');
 
     if (!isValidPassword) {
       throw new AppError('Contrasena actual incorrecta', 401);

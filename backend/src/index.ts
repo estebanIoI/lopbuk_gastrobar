@@ -40,6 +40,7 @@ import { syncRoutes, startSyncScheduler } from './modules/sync';
 import { subscriptionsRoutes } from './modules/subscriptions/subscriptions.routes';
 import { restbarRoutes } from './modules/restbar';
 import { financesRoutes } from './modules/finances';
+import { portfolioRoutes } from './modules/portfolio';
 
 const app = express();
 
@@ -144,6 +145,7 @@ app.use(`${apiPrefix}/sync`, syncRoutes);
 app.use(`${apiPrefix}/subscriptions`, subscriptionsRoutes);
 app.use(`${apiPrefix}/restbar`, restbarRoutes);
 app.use(`${apiPrefix}/finances`, financesRoutes);
+app.use(`${apiPrefix}/portfolio`, portfolioRoutes);
 
 // Error handling
 app.use(notFoundHandler);
