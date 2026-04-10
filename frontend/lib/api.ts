@@ -1787,6 +1787,28 @@ class ApiService {
       body: JSON.stringify(data),
     })
   }
+
+  // ── Portfolio Team Cards ──
+  async getPortfolioTeamAll() {
+    return this.request<any[]>('/portfolio/team/all')
+  }
+  async createPortfolioTeamCard(data: {
+    name: string; role?: string; bio?: string; photoUrl?: string
+    accentColor?: string; sortOrder?: number; isActive?: boolean
+    githubUrl?: string; linkedinUrl?: string
+  }) {
+    return this.request<any>('/portfolio/team', { method: 'POST', body: JSON.stringify(data) })
+  }
+  async updatePortfolioTeamCard(id: number, data: {
+    name: string; role?: string; bio?: string; photoUrl?: string
+    accentColor?: string; sortOrder?: number; isActive?: boolean
+    githubUrl?: string; linkedinUrl?: string
+  }) {
+    return this.request<any>(`/portfolio/team/${id}`, { method: 'PUT', body: JSON.stringify(data) })
+  }
+  async deletePortfolioTeamCard(id: number) {
+    return this.request<any>(`/portfolio/team/${id}`, { method: 'DELETE' })
+  }
 }
 
 export const api = new ApiService()

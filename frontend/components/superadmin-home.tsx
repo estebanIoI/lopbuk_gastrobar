@@ -54,6 +54,10 @@ import {
   Mail,
   Instagram,
   Building2,
+  UserRound,
+  Github,
+  Linkedin,
+  GripVertical,
 } from 'lucide-react'
 import { CloudinaryUpload, clearCloudinaryCache } from '@/components/ui/cloudinary-upload'
 import { QRCodeSVG } from 'qrcode.react'
@@ -96,6 +100,24 @@ interface TenantTimeline {
 // ── Portafolio ──
 interface PortfolioTenant { id: string; name: string; slug: string; plan: string; logoUrl?: string }
 
+// ── Team Cards ──
+interface TeamCard {
+  id: number
+  name: string
+  role: string
+  bio: string
+  photo_url: string
+  accent_color: string
+  sort_order: number
+  is_active: boolean
+  github_url: string
+  linkedin_url: string
+}
+const emptyTeamCard = (): Omit<TeamCard, 'id'> => ({
+  name: '', role: '', bio: '', photo_url: '', accent_color: '#06b6d4',
+  sort_order: 0, is_active: true, github_url: '', linkedin_url: '',
+})
+
 // ── Colors for tenants ──
 const TENANT_COLORS = [
   '#f59e0b', '#3b82f6', '#10b981', '#8b5cf6', '#ef4444',
@@ -136,6 +158,15 @@ export function SuperadminHome() {
   const [pfShowQr, setPfShowQr] = useState(false)
   const pfQrRef = useRef<HTMLDivElement>(null)
   const pfUrl = typeof window !== 'undefined' ? `${window.location.origin}/portfolio` : '/portfolio'
+
+  // ── Team Cards ──
+  const [teamCards, setTeamCards] = useState<TeamCard[]>([])
+  const [teamLoading, setTeamLoading] = useState(false)
+  const [teamDialog, setTeamDialog] = useState(false)
+  const [editingCard, setEditingCard] = useState<TeamCard | null>(null)
+  const [teamForm, setTeamForm] = useState<Omit<TeamCard, 'id'>>(emptyTeamCard())
+  const [teamSaving, setTeamSaving] = useState(false)
+  const [teamDeletingId, setTeamDeletingId] = useState<number | null>(null)
 
   // ── Offers (products with isOnOffer) ──
   const [offers, setOffers] = useState<any[]>([])
@@ -312,7 +343,7 @@ export function SuperadminHome() {
         if (res.success && res.data?.planIds) setMpPlanIds(res.data.planIds)
       })
     }
-    if (activeTab === 'portafolio') fetchPortfolioConfig()
+    if (activeTab === 'portafolio') { fetchPortfolioConfig(); fetchTeamCards() }
   }, [activeTab, timelinePeriod, fetchTimeline, fetchIntegrations, fetchChatbotTenants])
 
   useEffect(() => {
@@ -366,6 +397,61 @@ export function SuperadminHome() {
       toast.error(res.error || 'Error al guardar')
     }
     setPfSaving(false)
+  }
+
+  // ── Team Cards helpers ──────────────────────────────────────────────────────
+  const fetchTeamCards = async () => {
+    setTeamLoading(true)
+    const res = await api.getPortfolioTeamAll()
+    if (res.success && res.data) setTeamCards(res.data as TeamCard[])
+    setTeamLoading(false)
+  }
+
+  const openNewCard = () => {
+    setEditingCard(null)
+    setTeamForm(emptyTeamCard())
+    setTeamDialog(true)
+  }
+
+  const openEditCard = (card: TeamCard) => {
+    setEditingCard(card)
+    setTeamForm({
+      name: card.name, role: card.role, bio: card.bio,
+      photo_url: card.photo_url, accent_color: card.accent_color,
+      sort_order: card.sort_order, is_active: Boolean(card.is_active),
+      github_url: card.github_url, linkedin_url: card.linkedin_url,
+    })
+    setTeamDialog(true)
+  }
+
+  const handleSaveTeamCard = async () => {
+    if (!teamForm.name.trim()) { toast.error('El nombre es requerido'); return }
+    setTeamSaving(true)
+    const payload = {
+      name: teamForm.name, role: teamForm.role, bio: teamForm.bio,
+      photoUrl: teamForm.photo_url, accentColor: teamForm.accent_color,
+      sortOrder: teamForm.sort_order, isActive: teamForm.is_active,
+      githubUrl: teamForm.github_url, linkedinUrl: teamForm.linkedin_url,
+    }
+    const res = editingCard
+      ? await api.updatePortfolioTeamCard(editingCard.id, payload)
+      : await api.createPortfolioTeamCard(payload)
+    if (res.success) {
+      toast.success(editingCard ? 'Tarjeta actualizada' : 'Tarjeta creada')
+      setTeamDialog(false)
+      fetchTeamCards()
+    } else {
+      toast.error(res.error || 'Error al guardar')
+    }
+    setTeamSaving(false)
+  }
+
+  const handleDeleteTeamCard = async (id: number) => {
+    setTeamDeletingId(id)
+    const res = await api.deletePortfolioTeamCard(id)
+    if (res.success) { toast.success('Tarjeta eliminada'); fetchTeamCards() }
+    else toast.error(res.error || 'Error al eliminar')
+    setTeamDeletingId(null)
   }
 
   const handleDownloadQr = () => {
@@ -1835,6 +1921,93 @@ export function SuperadminHome() {
                 </CardContent>
               </Card>
 
+              {/* ── Equipo / Carnets ── */}
+              <Card className="border-border bg-card">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <UserRound className="h-4 w-4 text-cyan-400" /> Tarjetas del equipo
+                    </CardTitle>
+                    <Button size="sm" onClick={openNewCard} className="flex items-center gap-1.5">
+                      <Plus className="h-4 w-4" /> Nueva tarjeta
+                    </Button>
+                  </div>
+                  <CardDescription>
+                    Carnets 3D interactivos que aparecen en el carrusel del portafolio público.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {teamLoading ? (
+                    <div className="flex justify-center py-6"><RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+                  ) : teamCards.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground text-sm">
+                      <UserRound className="h-10 w-10 mx-auto mb-2 opacity-20" />
+                      Sin tarjetas — crea la primera para mostrarla en el portafolio
+                    </div>
+                  ) : (
+                    <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {teamCards.map(card => (
+                        <div
+                          key={card.id}
+                          className="relative rounded-2xl border border-border overflow-hidden"
+                          style={{ background: `linear-gradient(135deg, #0f0f1a 0%, ${card.accent_color}18 100%)` }}
+                        >
+                          {/* mini carnet preview */}
+                          <div className="p-4 flex gap-3 items-start">
+                            <div
+                              className="w-14 h-14 rounded-xl overflow-hidden flex-shrink-0 border-2"
+                              style={{ borderColor: card.accent_color }}
+                            >
+                              {card.photo_url ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={card.photo_url} alt={card.name} className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-xl font-bold"
+                                  style={{ background: `${card.accent_color}33`, color: card.accent_color }}>
+                                  {card.name.charAt(0).toUpperCase()}
+                                </div>
+                              )}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="font-bold text-sm text-white truncate">{card.name}</p>
+                              <p className="text-xs truncate" style={{ color: card.accent_color }}>{card.role}</p>
+                              {card.bio && <p className="text-xs text-gray-500 mt-1 line-clamp-2">{card.bio}</p>}
+                              <div className="flex items-center gap-2 mt-1.5">
+                                {card.github_url && <Github className="h-3 w-3 text-gray-500" />}
+                                {card.linkedin_url && <Linkedin className="h-3 w-3 text-gray-500" />}
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${card.is_active ? 'bg-green-500/15 text-green-400' : 'bg-muted text-muted-foreground'}`}>
+                                  {card.is_active ? 'Activa' : 'Oculta'}
+                                </span>
+                                <span className="text-[10px] text-muted-foreground ml-auto flex items-center gap-0.5">
+                                  <GripVertical className="h-3 w-3" /> {card.sort_order}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex border-t border-border">
+                            <button
+                              onClick={() => openEditCard(card)}
+                              className="flex-1 flex items-center justify-center gap-1.5 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                            >
+                              <Pencil className="h-3 w-3" /> Editar
+                            </button>
+                            <button
+                              onClick={() => handleDeleteTeamCard(card.id)}
+                              disabled={teamDeletingId === card.id}
+                              className="flex-1 flex items-center justify-center gap-1.5 py-2 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors border-l border-border"
+                            >
+                              {teamDeletingId === card.id
+                                ? <RefreshCw className="h-3 w-3 animate-spin" />
+                                : <><Trash2 className="h-3 w-3" /> Eliminar</>}
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
               {/* ── Guardar ── */}
               <div className="flex items-center gap-3">
                 <Button
@@ -1861,6 +2034,133 @@ export function SuperadminHome() {
           )}
         </div>
       )}
+
+      {/* ══════════════════════════════════════
+          DIALOG: CREAR / EDITAR TARJETA
+      ══════════════════════════════════════ */}
+      <Dialog open={teamDialog} onOpenChange={setTeamDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserRound className="h-4 w-4 text-cyan-400" />
+              {editingCard ? 'Editar tarjeta' : 'Nueva tarjeta de equipo'}
+            </DialogTitle>
+            <DialogDescription>
+              Este carnet aparece como una tarjeta 3D flotante en el portafolio público.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2 max-h-[70vh] overflow-y-auto pr-1">
+            {/* Foto */}
+            <div className="space-y-1.5">
+              <Label className="text-xs">Foto del ingeniero</Label>
+              <CloudinaryUpload
+                value={teamForm.photo_url}
+                onChange={(url: string) => setTeamForm(f => ({ ...f, photo_url: url }))}
+                label="Subir foto"
+              />
+            </div>
+
+            {/* Nombre + Rol */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Nombre *</Label>
+                <Input
+                  value={teamForm.name}
+                  onChange={e => setTeamForm(f => ({ ...f, name: e.target.value }))}
+                  placeholder="Jhon Esteban"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Rol / Cargo</Label>
+                <Input
+                  value={teamForm.role}
+                  onChange={e => setTeamForm(f => ({ ...f, role: e.target.value }))}
+                  placeholder="Desarrollador Full Stack"
+                />
+              </div>
+            </div>
+
+            {/* Bio */}
+            <div className="space-y-1.5">
+              <Label className="text-xs">Bio corta</Label>
+              <textarea
+                value={teamForm.bio}
+                onChange={e => setTeamForm(f => ({ ...f, bio: e.target.value }))}
+                placeholder="Especialista en React, Node.js y arquitectura cloud..."
+                rows={2}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+
+            {/* Color acento + Orden */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Color de acento</Label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={teamForm.accent_color}
+                    onChange={e => setTeamForm(f => ({ ...f, accent_color: e.target.value }))}
+                    className="w-9 h-9 rounded-lg border border-border cursor-pointer"
+                  />
+                  <code className="text-xs text-muted-foreground">{teamForm.accent_color}</code>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Orden</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={teamForm.sort_order}
+                  onChange={e => setTeamForm(f => ({ ...f, sort_order: Number(e.target.value) }))}
+                />
+              </div>
+            </div>
+
+            {/* GitHub + LinkedIn */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs flex items-center gap-1"><Github className="h-3 w-3" /> GitHub URL</Label>
+                <Input
+                  value={teamForm.github_url}
+                  onChange={e => setTeamForm(f => ({ ...f, github_url: e.target.value }))}
+                  placeholder="https://github.com/user"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs flex items-center gap-1"><Linkedin className="h-3 w-3" /> LinkedIn URL</Label>
+                <Input
+                  value={teamForm.linkedin_url}
+                  onChange={e => setTeamForm(f => ({ ...f, linkedin_url: e.target.value }))}
+                  placeholder="https://linkedin.com/in/user"
+                />
+              </div>
+            </div>
+
+            {/* Activa */}
+            <label className="flex items-center justify-between cursor-pointer">
+              <span className="text-sm">Tarjeta activa (visible en el portafolio)</span>
+              <button
+                type="button"
+                onClick={() => setTeamForm(f => ({ ...f, is_active: !f.is_active }))}
+                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${teamForm.is_active ? 'bg-cyan-500' : 'bg-muted'}`}
+              >
+                <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${teamForm.is_active ? 'translate-x-4' : 'translate-x-1'}`} />
+              </button>
+            </label>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTeamDialog(false)}>Cancelar</Button>
+            <Button onClick={handleSaveTeamCard} disabled={teamSaving} className="flex items-center gap-2">
+              {teamSaving
+                ? <><RefreshCw className="h-4 w-4 animate-spin" /> Guardando…</>
+                : <><Save className="h-4 w-4" /> {editingCard ? 'Actualizar' : 'Crear tarjeta'}</>}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
     </div>
   )

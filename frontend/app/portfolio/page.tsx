@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'
@@ -13,6 +13,18 @@ interface FeaturedStore {
   storeName: string | null
   logoUrl: string | null
   description: string | null
+}
+
+interface TeamCard {
+  id: number
+  name: string
+  role: string
+  bio: string
+  photo_url: string
+  accent_color: string
+  sort_order: number
+  github_url: string
+  linkedin_url: string
 }
 
 interface PortfolioData {
@@ -83,96 +95,339 @@ const FEATURES = [
   { icon: '👥', title: 'Multi-sede & Roles', desc: 'Sucursales, cargos y permisos granulares por empleado.' },
 ]
 
-// ─── Componente CSS Lanyard 3D ────────────────────────────────────────────────
-function LanyardCard({ accentColor, title }: { accentColor: string; title: string }) {
+// ─── Carnet 3D interactivo ─────────────────────────────────────────────────────
+function EngineerCard({ card, brandTitle, isActive }: {
+  card: TeamCard
+  brandTitle: string
+  isActive: boolean
+}) {
+  const cardRef = useRef<HTMLDivElement>(null)
+  const [rot, setRot] = useState({ x: 0, y: 0 })
+  const [isHovered, setIsHovered] = useState(false)
+  const accent = card.accent_color || '#06b6d4'
+
+  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const el = cardRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    const cx = rect.left + rect.width / 2
+    const cy = rect.top + rect.height / 2
+    const dx = (e.clientX - cx) / (rect.width / 2)
+    const dy = (e.clientY - cy) / (rect.height / 2)
+    setRot({ x: -dy * 16, y: dx * 16 })
+  }, [])
+
+  const handleMouseLeave = useCallback(() => {
+    setIsHovered(false)
+    setRot({ x: 0, y: 0 })
+  }, [])
+
+  const passiveRot = isActive && !isHovered
+    ? `rotateY(${Math.sin(Date.now() / 1800) * 10}deg) rotateX(${Math.cos(Date.now() / 2200) * 4}deg)`
+    : undefined
+
   return (
-    <div className="flex flex-col items-center select-none">
-      {/* Cuerda */}
-      <div
-        style={{
+    <div className="flex flex-col items-center select-none" style={{ perspective: '900px' }}>
+      {/* Clip / cuerda */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        {/* Gancho metálico */}
+        <div style={{
+          width: 18, height: 14,
+          borderRadius: '50% 50% 0 0 / 100% 100% 0 0',
+          border: '3px solid #888',
+          borderBottom: 'none',
+          marginBottom: -1,
+        }} />
+        {/* Cuerda */}
+        <div style={{
           width: 2,
-          height: 80,
-          background: `linear-gradient(to bottom, #888, ${accentColor})`,
-          borderRadius: 1,
-        }}
-      />
-      {/* Tarjeta 3D */}
+          height: 64,
+          background: `linear-gradient(to bottom, #666, ${accent}cc)`,
+        }} />
+      </div>
+
+      {/* Tarjeta */}
       <div
-        className="lanyard-card"
-        style={
-          {
-            '--accent': accentColor,
-          } as React.CSSProperties
-        }
+        ref={cardRef}
+        onMouseMove={(e) => { setIsHovered(true); handleMouseMove(e) }}
+        onMouseLeave={handleMouseLeave}
+        style={{
+          width: 180,
+          height: 260,
+          transformStyle: 'preserve-3d',
+          transform: isHovered
+            ? `rotateX(${rot.x}deg) rotateY(${rot.y}deg) scale(1.04)`
+            : passiveRot || 'rotateX(0deg) rotateY(0deg)',
+          transition: isHovered ? 'none' : 'transform 0.8s cubic-bezier(.23,1,.32,1)',
+          animation: isActive && !isHovered ? 'carnet-float 4s ease-in-out infinite' : 'none',
+          cursor: 'pointer',
+          borderRadius: 20,
+          boxShadow: `0 24px 60px rgba(0,0,0,0.7), 0 0 40px ${accent}44`,
+        }}
       >
-        <div className="lanyard-card-inner">
-          {/* Frente */}
-          <div className="lanyard-card-face lanyard-front">
-            <div
-              className="absolute inset-0 rounded-2xl"
-              style={{ background: `linear-gradient(135deg, #1a1a2e 0%, #16213e 60%, ${accentColor}33 100%)` }}
-            />
-            <div className="relative z-10 flex flex-col h-full justify-between p-4">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white"
-                  style={{ background: accentColor }}>D</div>
-                <span className="text-white font-bold text-sm tracking-widest">DAIMUZ</span>
-              </div>
-              <div>
-                <div className="h-6 w-10 rounded mb-2" style={{ background: `${accentColor}88` }} />
-                <p className="text-gray-400 text-[10px] uppercase tracking-widest">Plataforma SaaS</p>
-                <p className="text-white text-xs font-semibold mt-0.5">{title}</p>
-              </div>
+        {/* Frente */}
+        <div style={{
+          position: 'absolute', inset: 0,
+          borderRadius: 20,
+          overflow: 'hidden',
+          background: `linear-gradient(160deg, #0d0d1f 0%, #111827 50%, ${accent}22 100%)`,
+          border: `1.5px solid ${accent}55`,
+          backfaceVisibility: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+        }}>
+          {/* Header de marca */}
+          <div style={{
+            padding: '10px 12px 8px',
+            background: `linear-gradient(90deg, ${accent}22 0%, transparent 100%)`,
+            borderBottom: `1px solid ${accent}33`,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+          }}>
+            <div style={{
+              width: 24, height: 24, borderRadius: '50%',
+              background: accent,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 10, fontWeight: 900, color: '#fff',
+            }}>
+              {brandTitle.charAt(0)}
+            </div>
+            <div>
+              <p style={{ color: '#fff', fontSize: 9, fontWeight: 700, letterSpacing: 2, lineHeight: 1.2 }}>
+                {brandTitle.toUpperCase()}
+              </p>
+              <p style={{ color: accent, fontSize: 7, letterSpacing: 1 }}>DESARROLLADOR</p>
             </div>
           </div>
-          {/* Dorso */}
-          <div className="lanyard-card-face lanyard-back">
-            <div
-              className="absolute inset-0 rounded-2xl"
-              style={{ background: `linear-gradient(135deg, ${accentColor}44 0%, #0a0a1a 100%)` }}
-            />
-            <div className="relative z-10 flex flex-col items-center justify-center h-full gap-2">
-              <div className="text-2xl">⚡</div>
-              <p className="text-white text-xs font-semibold tracking-widest">DAIMUZ</p>
-              <p className="text-gray-500 text-[10px]">Gestión para tu negocio</p>
+
+          {/* Foto */}
+          <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+            {card.photo_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={card.photo_url}
+                alt={card.name}
+                style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top' }}
+              />
+            ) : (
+              <div style={{
+                width: '100%', height: '100%',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: `linear-gradient(135deg, ${accent}22, #0d0d1f)`,
+                fontSize: 48, fontWeight: 900,
+                color: `${accent}88`,
+              }}>
+                {card.name.charAt(0).toUpperCase()}
+              </div>
+            )}
+            {/* Overlay degradado inferior */}
+            <div style={{
+              position: 'absolute', bottom: 0, left: 0, right: 0, height: '45%',
+              background: 'linear-gradient(to top, #0d0d1f 0%, transparent 100%)',
+            }} />
+            {/* Nombre sobre la foto */}
+            <div style={{ position: 'absolute', bottom: 8, left: 12, right: 12 }}>
+              <p style={{
+                color: '#fff', fontSize: 15, fontWeight: 900,
+                textTransform: 'uppercase', letterSpacing: 1,
+                lineHeight: 1.1,
+                textShadow: `0 0 20px ${accent}`,
+              }}>
+                {card.name}
+              </p>
+              <p style={{ color: accent, fontSize: 9, fontWeight: 600, letterSpacing: 1 }}>
+                {card.role}
+              </p>
             </div>
           </div>
+
+          {/* Footer con links */}
+          <div style={{
+            padding: '8px 12px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            borderTop: `1px solid ${accent}22`,
+          }}>
+            <div style={{
+              width: 28, height: 18, borderRadius: 3,
+              background: `linear-gradient(135deg, ${accent}66, ${accent}22)`,
+            }} />
+            <div style={{ display: 'flex', gap: 8 }}>
+              {card.github_url && (
+                <a href={card.github_url} target="_blank" rel="noopener noreferrer"
+                  onClick={e => e.stopPropagation()}
+                  style={{ color: '#666', transition: 'color 0.2s' }}
+                  onMouseEnter={e => (e.currentTarget.style.color = '#fff')}
+                  onMouseLeave={e => (e.currentTarget.style.color = '#666')}
+                >
+                  <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: 14, height: 14 }}>
+                    <path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" />
+                  </svg>
+                </a>
+              )}
+              {card.linkedin_url && (
+                <a href={card.linkedin_url} target="_blank" rel="noopener noreferrer"
+                  onClick={e => e.stopPropagation()}
+                  style={{ color: '#666', transition: 'color 0.2s' }}
+                  onMouseEnter={e => (e.currentTarget.style.color = accent)}
+                  onMouseLeave={e => (e.currentTarget.style.color = '#666')}
+                >
+                  <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: 14, height: 14 }}>
+                    <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
+                  </svg>
+                </a>
+              )}
+            </div>
+          </div>
+
+          {/* Shine effect */}
+          <div style={{
+            position: 'absolute', inset: 0, borderRadius: 20,
+            background: `linear-gradient(135deg, rgba(255,255,255,0.06) 0%, transparent 50%, rgba(255,255,255,0.02) 100%)`,
+            pointerEvents: 'none',
+          }} />
         </div>
+      </div>
+
+      {/* Nombre debajo */}
+      <div style={{ marginTop: 16, textAlign: 'center' }}>
+        <p style={{ color: accent, fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase' }}>
+          {card.name}
+        </p>
+        <p style={{ color: '#666', fontSize: 10, marginTop: 2 }}>{card.role}</p>
       </div>
     </div>
   )
 }
 
-// ─── Toggle3DButton ───────────────────────────────────────────────────────────
-function Toggle3DButton({ is3dEnabled, toggle, accentColor }: {
-  is3dEnabled: boolean
-  toggle: () => void
+// ─── Carrusel de carnets ──────────────────────────────────────────────────────
+function TeamCarousel({ cards, brandTitle, accentColor }: {
+  cards: TeamCard[]
+  brandTitle: string
   accentColor: string
 }) {
+  const [active, setActive] = useState(0)
+  const [autoplay, setAutoplay] = useState(true)
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const next = useCallback(() => setActive(i => (i + 1) % cards.length), [cards.length])
+  const prev = useCallback(() => setActive(i => (i - 1 + cards.length) % cards.length), [cards.length])
+
+  useEffect(() => {
+    if (!autoplay || cards.length <= 1) return
+    intervalRef.current = setInterval(next, 4000)
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
+  }, [autoplay, next, cards.length])
+
+  const handleNav = (dir: 'prev' | 'next') => {
+    setAutoplay(false)
+    if (intervalRef.current) clearInterval(intervalRef.current)
+    dir === 'next' ? next() : prev()
+  }
+
+  if (cards.length === 0) return null
+
+  const card = cards[active]
+
   return (
-    <button
-      onClick={toggle}
-      title={`${is3dEnabled ? 'Ocultar' : 'Mostrar'} elemento 3D`}
-      className="fixed top-24 right-4 z-50 p-3 rounded-full border backdrop-blur-sm transition-all duration-300 hover:scale-110"
-      style={
-        is3dEnabled
-          ? {
-              background: `${accentColor}33`,
-              borderColor: accentColor,
-              color: accentColor,
-              boxShadow: `0 0 14px 3px ${accentColor}55`,
-            }
-          : {
-              background: 'rgba(30,30,50,0.5)',
-              borderColor: '#444',
-              color: '#666',
-            }
-      }
-    >
-      <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    </button>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, minWidth: 260 }}>
+      {/* Info del carnet activo */}
+      <div style={{
+        background: 'rgba(255,255,255,0.04)',
+        border: `1px solid ${card.accent_color}33`,
+        borderRadius: 14,
+        padding: '10px 16px',
+        minWidth: 200,
+        textAlign: 'center',
+      }}>
+        <p style={{ color: '#fff', fontWeight: 700, fontSize: 12, letterSpacing: 1, textTransform: 'uppercase' }}>
+          DESARROLLADORES
+        </p>
+        <p style={{ color: '#aaa', fontSize: 11, marginTop: 2 }}>{card.name}</p>
+        <p style={{ color: '#666', fontSize: 10 }}>{active + 1} de {cards.length}</p>
+      </div>
+
+      {/* Controles nav + autoplay */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <button
+          onClick={() => handleNav('prev')}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 4,
+            background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: 8, padding: '5px 10px', color: '#aaa', fontSize: 11, cursor: 'pointer',
+          }}
+        >
+          ← Navegar
+        </button>
+        <button
+          onClick={() => setAutoplay(v => !v)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 4,
+            background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: 8, padding: '5px 10px', color: autoplay ? '#ef4444' : '#aaa',
+            fontSize: 11, cursor: 'pointer',
+          }}
+        >
+          {autoplay ? '● ' : '▶ '}{autoplay ? 'Pausar' : 'Auto'}
+        </button>
+        <button
+          onClick={() => handleNav('next')}
+          style={{
+            background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: 8, padding: '5px 10px', color: '#aaa', fontSize: 11, cursor: 'pointer',
+          }}
+        >
+          Manual
+        </button>
+      </div>
+
+      {/* Carnet activo */}
+      <EngineerCard key={card.id} card={card} brandTitle={brandTitle} isActive={true} />
+
+      {/* Flechas de navegación (si hay más de 1) */}
+      {cards.length > 1 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 24, marginTop: 8 }}>
+          <button
+            onClick={() => handleNav('prev')}
+            style={{
+              width: 36, height: 36, borderRadius: '50%',
+              background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)',
+              color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 16,
+            }}
+          >‹</button>
+
+          {/* Dots */}
+          <div style={{ display: 'flex', gap: 6 }}>
+            {cards.map((c, i) => (
+              <button
+                key={c.id}
+                onClick={() => { setActive(i); setAutoplay(false) }}
+                style={{
+                  width: i === active ? 20 : 6,
+                  height: 6, borderRadius: 3,
+                  background: i === active ? card.accent_color : 'rgba(255,255,255,0.2)',
+                  border: 'none', cursor: 'pointer',
+                  transition: 'all 0.3s',
+                }}
+              />
+            ))}
+          </div>
+
+          <button
+            onClick={() => handleNav('next')}
+            style={{
+              width: 36, height: 36, borderRadius: '50%',
+              background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)',
+              color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 16,
+            }}
+          >›</button>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -203,16 +458,21 @@ function MailIcon() {
 // ─── Página principal ─────────────────────────────────────────────────────────
 export default function PortfolioPage() {
   const [data, setData] = useState<PortfolioData | null>(null)
+  const [teamCards, setTeamCards] = useState<TeamCard[]>([])
   const [loading, setLoading] = useState(true)
-  const [is3dEnabled, setIs3dEnabled] = useState(true)
   const [showQr, setShowQr] = useState(false)
   const pageUrl = typeof window !== 'undefined' ? window.location.href : ''
   const qrRef = useRef<SVGSVGElement>(null)
 
   useEffect(() => {
-    fetch(`${API_URL}/portfolio/public`)
-      .then(r => r.json())
-      .then(json => { if (json.success) setData(json.data) })
+    Promise.all([
+      fetch(`${API_URL}/portfolio/public`).then(r => r.json()),
+      fetch(`${API_URL}/portfolio/team`).then(r => r.json()),
+    ])
+      .then(([pJson, tJson]) => {
+        if (pJson.success) setData(pJson.data)
+        if (tJson.success) setTeamCards(tJson.data || [])
+      })
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
@@ -231,39 +491,15 @@ export default function PortfolioPage() {
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white overflow-x-hidden">
       <style>{`
-        @keyframes lanyard-swing {
-          0%, 100% { transform: rotateY(-12deg) rotateX(4deg); }
-          50%       { transform: rotateY(12deg)  rotateX(-2deg); }
-        }
-        .lanyard-card {
-          perspective: 900px;
-          width: 160px;
-          height: 240px;
-        }
-        .lanyard-card-inner {
-          position: relative;
-          width: 100%;
-          height: 100%;
-          transform-style: preserve-3d;
-          animation: lanyard-swing 4s ease-in-out infinite;
-        }
-        .lanyard-card-face {
-          position: absolute;
-          inset: 0;
-          backface-visibility: hidden;
-          border-radius: 1rem;
-          border: 1px solid rgba(255,255,255,0.08);
-          overflow: hidden;
-        }
-        .lanyard-back {
-          transform: rotateY(180deg);
+        @keyframes carnet-float {
+          0%, 100% { transform: translateY(0) rotateY(-8deg) rotateX(3deg); }
+          50%       { transform: translateY(-14px) rotateY(8deg) rotateX(-2deg); }
         }
         @keyframes float-slow {
           0%, 100% { transform: translateY(0); }
           50%       { transform: translateY(-12px); }
         }
         .float-slow { animation: float-slow 6s ease-in-out infinite; }
-
         @keyframes glow-pulse {
           0%, 100% { opacity: 0.3; }
           50%       { opacity: 0.7; }
@@ -271,21 +507,12 @@ export default function PortfolioPage() {
         .glow-pulse { animation: glow-pulse 3s ease-in-out infinite; }
       `}</style>
 
-      {/* Toggle3D */}
-      <Toggle3DButton
-        is3dEnabled={is3dEnabled}
-        toggle={() => setIs3dEnabled(v => !v)}
-        accentColor={accent}
-      />
-
       {/* ── HERO ──────────────────────────────────────────────────────────── */}
       <section className="relative min-h-screen flex items-center justify-center px-6 overflow-hidden">
         {/* Fondo decorativo */}
         <div
           className="absolute inset-0 pointer-events-none"
-          style={{
-            background: `radial-gradient(ellipse 80% 60% at 50% 0%, ${accent}22 0%, transparent 70%)`,
-          }}
+          style={{ background: `radial-gradient(ellipse 80% 60% at 50% 0%, ${accent}22 0%, transparent 70%)` }}
         />
         <div
           className="glow-pulse absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[600px] rounded-full pointer-events-none"
@@ -306,9 +533,7 @@ export default function PortfolioPage() {
               {title}
             </h1>
 
-            <p className="text-xl text-gray-400 leading-relaxed max-w-lg">
-              {subtitle}
-            </p>
+            <p className="text-xl text-gray-400 leading-relaxed max-w-lg">{subtitle}</p>
 
             {description && (
               <p className="text-sm text-gray-500 leading-relaxed max-w-lg">{description}</p>
@@ -347,18 +572,41 @@ export default function PortfolioPage() {
               </button>
               {showQr && (
                 <div className="mt-3 inline-block p-3 bg-white rounded-xl shadow-xl">
-                  <QRCodeSVG value={pageUrl} size={120} />
+                  <QRCodeSVG ref={qrRef} value={pageUrl} size={120} />
                 </div>
               )}
             </div>
           </div>
 
-          {/* Lanyard 3D decorativo */}
-          {is3dEnabled && (
-            <div className="hidden lg:flex justify-center items-start float-slow pt-8">
-              <LanyardCard accentColor={accent} title={title} />
-            </div>
-          )}
+          {/* Carrusel de carnets 3D */}
+          <div className="hidden lg:flex justify-center items-start pt-4">
+            {teamCards.length > 0 ? (
+              <TeamCarousel cards={teamCards} brandTitle={title} accentColor={accent} />
+            ) : (
+              /* Fallback: carnet genérico si no hay team cards */
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', perspective: 900 }}>
+                <div style={{ width: 2, height: 64, background: `linear-gradient(to bottom, #666, ${accent}cc)` }} />
+                <div style={{
+                  width: 180, height: 260,
+                  borderRadius: 20,
+                  background: `linear-gradient(160deg, #0d0d1f 0%, #111827 50%, ${accent}22 100%)`,
+                  border: `1.5px solid ${accent}55`,
+                  display: 'flex', flexDirection: 'column',
+                  alignItems: 'center', justifyContent: 'center',
+                  animation: 'carnet-float 4s ease-in-out infinite',
+                  boxShadow: `0 24px 60px rgba(0,0,0,0.7), 0 0 40px ${accent}44`,
+                }}>
+                  <div style={{
+                    width: 48, height: 48, borderRadius: '50%',
+                    background: accent, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 22, fontWeight: 900, color: '#fff', marginBottom: 12,
+                  }}>{title.charAt(0)}</div>
+                  <p style={{ color: '#fff', fontWeight: 700, fontSize: 13, letterSpacing: 2 }}>{title.toUpperCase()}</p>
+                  <p style={{ color: accent, fontSize: 9, letterSpacing: 1, marginTop: 4 }}>PLATAFORMA SAAS</p>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Scroll indicator */}
@@ -369,6 +617,25 @@ export default function PortfolioPage() {
           </svg>
         </div>
       </section>
+
+      {/* ── EQUIPO (móvil — carrusel horizontal) ─────────────────────────── */}
+      {teamCards.length > 0 && (
+        <section className="lg:hidden py-16 px-6">
+          <div className="text-center mb-10">
+            <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: accent }}>
+              Nuestro equipo
+            </p>
+            <h2 className="text-2xl font-bold">Desarrolladores</h2>
+          </div>
+          <div className="flex gap-8 overflow-x-auto pb-4 snap-x snap-mandatory scrollbar-hide justify-start pl-4">
+            {teamCards.map(card => (
+              <div key={card.id} className="snap-center flex-shrink-0">
+                <EngineerCard card={card} brandTitle={title} isActive={false} />
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* ── CARACTERÍSTICAS ───────────────────────────────────────────────── */}
       <section className="py-24 px-6 max-w-6xl mx-auto">
@@ -414,15 +681,9 @@ export default function PortfolioPage() {
                 <div
                   key={plan.name}
                   className={`relative flex flex-col p-6 rounded-2xl border transition-all ${
-                    plan.highlighted
-                      ? 'border-opacity-100 scale-[1.02]'
-                      : 'border-white/5 bg-white/[0.03]'
+                    plan.highlighted ? 'border-opacity-100 scale-[1.02]' : 'border-white/5 bg-white/[0.03]'
                   }`}
-                  style={
-                    plan.highlighted
-                      ? { borderColor: accent, background: `${accent}0f` }
-                      : {}
-                  }
+                  style={plan.highlighted ? { borderColor: accent, background: `${accent}0f` } : {}}
                 >
                   {plan.highlighted && (
                     <div
@@ -437,17 +698,14 @@ export default function PortfolioPage() {
                       Enterprise
                     </div>
                   )}
-
                   <div className="mb-4">
                     <p className="font-bold text-lg">{plan.name}</p>
                     <p className="text-xs text-gray-500 mt-0.5">{plan.tag}</p>
                   </div>
-
                   <div className="mb-5">
                     <span className="text-2xl font-black">{plan.price}</span>
                     <span className="text-sm text-gray-500">{plan.period}</span>
                   </div>
-
                   <ul className="space-y-2 flex-1 mb-6">
                     {plan.specs.map(s => (
                       <li key={s} className="flex items-center gap-2 text-sm text-gray-400">
@@ -458,7 +716,6 @@ export default function PortfolioPage() {
                       </li>
                     ))}
                   </ul>
-
                   {data?.contactWhatsapp && (
                     <a
                       href={`https://wa.me/${data.contactWhatsapp.replace(/\D/g, '')}?text=Hola! Me interesa el plan ${plan.name} de DAIMUZ`}

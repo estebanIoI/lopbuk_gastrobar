@@ -201,4 +201,121 @@ router.put('/config', authenticate, async (req: Request, res: Response) => {
   }
 });
 
+// ─────────────────────────────────────────────────────────────
+// Helper: auto-crear tabla portfolio_team_cards
+// ─────────────────────────────────────────────────────────────
+async function ensureTeamTable() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS portfolio_team_cards (
+      id          INT AUTO_INCREMENT PRIMARY KEY,
+      name        VARCHAR(120) NOT NULL,
+      role        VARCHAR(120) NOT NULL DEFAULT '',
+      bio         TEXT,
+      photo_url   TEXT,
+      accent_color VARCHAR(30) NOT NULL DEFAULT '#06b6d4',
+      sort_order  INT NOT NULL DEFAULT 0,
+      is_active   TINYINT(1) NOT NULL DEFAULT 1,
+      github_url  VARCHAR(255),
+      linkedin_url VARCHAR(255),
+      created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+}
+
+// ─────────────────────────────────────────────────────────────
+// GET /api/portfolio/team — Pública: lista de ingenieros activos
+// ─────────────────────────────────────────────────────────────
+router.get('/team', async (_req: Request, res: Response) => {
+  try {
+    await ensureTeamTable();
+    const [rows] = await pool.query(
+      'SELECT * FROM portfolio_team_cards WHERE is_active = 1 ORDER BY sort_order ASC, id ASC'
+    ) as any;
+    res.json({ success: true, data: rows });
+  } catch (err) {
+    console.error('Portfolio team get error:', err);
+    res.status(500).json({ success: false, error: 'Error al cargar equipo' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
+// GET /api/portfolio/team/all — Superadmin: lista completa
+// ─────────────────────────────────────────────────────────────
+router.get('/team/all', authenticate, async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    if (user.role !== 'superadmin') { res.status(403).json({ success: false, error: 'Solo superadmin' }); return; }
+    await ensureTeamTable();
+    const [rows] = await pool.query(
+      'SELECT * FROM portfolio_team_cards ORDER BY sort_order ASC, id ASC'
+    ) as any;
+    res.json({ success: true, data: rows });
+  } catch (err) {
+    console.error('Portfolio team all error:', err);
+    res.status(500).json({ success: false, error: 'Error al cargar equipo' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
+// POST /api/portfolio/team — Superadmin: crear tarjeta
+// ─────────────────────────────────────────────────────────────
+router.post('/team', authenticate, async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    if (user.role !== 'superadmin') { res.status(403).json({ success: false, error: 'Solo superadmin' }); return; }
+    await ensureTeamTable();
+    const { name, role, bio, photoUrl, accentColor, sortOrder, isActive, githubUrl, linkedinUrl } = req.body;
+    if (!name) { res.status(400).json({ success: false, error: 'Nombre requerido' }); return; }
+    const [result] = await pool.query(
+      `INSERT INTO portfolio_team_cards (name, role, bio, photo_url, accent_color, sort_order, is_active, github_url, linkedin_url)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [name, role || '', bio || '', photoUrl || '', accentColor || '#06b6d4', sortOrder ?? 0, isActive !== false ? 1 : 0, githubUrl || '', linkedinUrl || '']
+    ) as any;
+    res.json({ success: true, id: result.insertId });
+  } catch (err) {
+    console.error('Portfolio team create error:', err);
+    res.status(500).json({ success: false, error: 'Error al crear tarjeta' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
+// PUT /api/portfolio/team/:id — Superadmin: editar tarjeta
+// ─────────────────────────────────────────────────────────────
+router.put('/team/:id', authenticate, async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    if (user.role !== 'superadmin') { res.status(403).json({ success: false, error: 'Solo superadmin' }); return; }
+    await ensureTeamTable();
+    const { id } = req.params;
+    const { name, role, bio, photoUrl, accentColor, sortOrder, isActive, githubUrl, linkedinUrl } = req.body;
+    await pool.query(
+      `UPDATE portfolio_team_cards
+       SET name=?, role=?, bio=?, photo_url=?, accent_color=?, sort_order=?, is_active=?, github_url=?, linkedin_url=?, updated_at=NOW()
+       WHERE id=?`,
+      [name, role || '', bio || '', photoUrl || '', accentColor || '#06b6d4', sortOrder ?? 0, isActive !== false ? 1 : 0, githubUrl || '', linkedinUrl || '', id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Portfolio team update error:', err);
+    res.status(500).json({ success: false, error: 'Error al actualizar tarjeta' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
+// DELETE /api/portfolio/team/:id — Superadmin: eliminar tarjeta
+// ─────────────────────────────────────────────────────────────
+router.delete('/team/:id', authenticate, async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    if (user.role !== 'superadmin') { res.status(403).json({ success: false, error: 'Solo superadmin' }); return; }
+    await ensureTeamTable();
+    await pool.query('DELETE FROM portfolio_team_cards WHERE id = ?', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Portfolio team delete error:', err);
+    res.status(500).json({ success: false, error: 'Error al eliminar tarjeta' });
+  }
+});
+
 export const portfolioRoutes = router;

@@ -7796,8 +7796,14 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       {selectedStore !== 'all' && stores.length > 1 && !showProductModal && (
         <button
           onClick={() => { setSelectedStore('all'); setShowStoresView(true); setShowCatalog(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
-          className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[55] flex items-center gap-2 px-4 py-2.5 rounded-full shadow-lg shadow-black/40 border border-white/15 backdrop-blur-md bg-black/70 text-white text-xs font-medium uppercase tracking-widest hover:bg-black/90 transition-all duration-200 whitespace-nowrap md:bottom-6"
-          style={{ animation: 'none' }}
+          className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[55] flex items-center gap-2 px-4 py-2.5 rounded-full shadow-lg border text-xs font-medium uppercase tracking-widest transition-all duration-200 whitespace-nowrap md:bottom-6"
+          style={{
+            animation: 'none',
+            backgroundColor: isLightBg ? '#000000' : '#ffffff',
+            color: isLightBg ? '#ffffff' : '#000000',
+            borderColor: isLightBg ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.15)',
+            boxShadow: isLightBg ? '0 4px 16px rgba(0,0,0,0.25)' : '0 4px 16px rgba(0,0,0,0.5)',
+          }}
         >
           <ArrowLeft className="w-3.5 h-3.5 flex-shrink-0" />
           Ver todas las tiendas
