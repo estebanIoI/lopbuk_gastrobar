@@ -1373,15 +1373,19 @@ router.put('/contact-page', authenticate, requirePlan('empresarial'), async (req
         values
       );
     } catch {
-      // Columns don't exist yet — run migration automatically
-      await pool.query(`ALTER TABLE store_info
-        ADD COLUMN IF NOT EXISTS contact_page_enabled  TINYINT(1)   NOT NULL DEFAULT 0,
-        ADD COLUMN IF NOT EXISTS contact_page_title     VARCHAR(255)          DEFAULT NULL,
-        ADD COLUMN IF NOT EXISTS contact_page_description TEXT                DEFAULT NULL,
-        ADD COLUMN IF NOT EXISTS contact_page_image     VARCHAR(500)          DEFAULT NULL,
-        ADD COLUMN IF NOT EXISTS contact_page_products  TEXT                  DEFAULT NULL,
-        ADD COLUMN IF NOT EXISTS contact_page_links     TEXT                  DEFAULT NULL,
-        ADD COLUMN IF NOT EXISTS contact_page_link_theme VARCHAR(20)          DEFAULT 'theme1'`);
+      // Columns don't exist yet — add each one individually (IF NOT EXISTS not supported in MySQL < 8.0.3)
+      const alterCols = [
+        `ALTER TABLE store_info ADD COLUMN contact_page_enabled    TINYINT(1)   NOT NULL DEFAULT 0`,
+        `ALTER TABLE store_info ADD COLUMN contact_page_title      VARCHAR(255)          DEFAULT NULL`,
+        `ALTER TABLE store_info ADD COLUMN contact_page_description TEXT                 DEFAULT NULL`,
+        `ALTER TABLE store_info ADD COLUMN contact_page_image      VARCHAR(500)          DEFAULT NULL`,
+        `ALTER TABLE store_info ADD COLUMN contact_page_products   TEXT                  DEFAULT NULL`,
+        `ALTER TABLE store_info ADD COLUMN contact_page_links      TEXT                  DEFAULT NULL`,
+        `ALTER TABLE store_info ADD COLUMN contact_page_link_theme VARCHAR(20)           DEFAULT 'theme1'`,
+      ];
+      for (const sql of alterCols) {
+        try { await pool.query(sql); } catch (e: any) { if (e.errno !== 1060) throw e; /* 1060 = duplicate column, already exists */ }
+      }
       await pool.query(
         `UPDATE store_info SET
           contact_page_enabled = ?,
