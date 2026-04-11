@@ -282,7 +282,7 @@ export default function LinksPage() {
                   </div>
                   {/* Label bottom */}
                   <div className="absolute bottom-0 inset-x-0 px-4 pb-4 pt-8 bg-gradient-to-t from-black/80 to-transparent">
-                    <p className="text-white text-sm font-bold tracking-wide uppercase">{link.label || link.url}</p>
+                    <p className="text-white text-sm font-bold tracking-wide uppercase text-center">{link.label || link.url}</p>
                   </div>
                 </a>
               ))
