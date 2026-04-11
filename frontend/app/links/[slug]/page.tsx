@@ -205,10 +205,10 @@ export default function LinksPage() {
             ) : (
               <div className="absolute inset-0 bg-gradient-to-b from-gray-800 to-black" />
             )}
-            {/* Gradient overlay bottom */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
-            {/* Name + description + socials at bottom */}
-            <div className="absolute bottom-0 inset-x-0 px-5 pb-5 flex flex-col items-center gap-2">
+            {/* Gradient overlay — extends further down to cover tabs area */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-transparent" />
+            {/* Name + description + socials + tabs all inside the image */}
+            <div className="absolute bottom-0 inset-x-0 px-4 pb-4 flex flex-col items-center gap-2">
               <h1 className="text-2xl font-bold text-white tracking-wide text-center">
                 {data.contactPageTitle || data.name}
               </h1>
@@ -227,7 +227,7 @@ export default function LinksPage() {
         </div>
       ) : null}
 
-      <div className={`w-full max-w-sm mx-auto px-4 flex flex-col items-center ${isTheme2 ? 'pt-4' : 'pt-10'}`}>
+      <div className={`w-full max-w-sm mx-auto px-4 flex flex-col items-center ${isTheme2 ? 'pt-0' : 'pt-10'}`}>
 
         {/* ── Theme 1: circle avatar header ── */}
         {!isTheme2 && (
@@ -264,7 +264,7 @@ export default function LinksPage() {
 
 
         {/* Tab selector */}
-        <div className={`flex w-full mt-6 rounded-full p-1 gap-1 ${isTheme2 ? 'bg-white/10' : 'bg-gray-100'}`}>
+        <div className={`flex w-full rounded-full p-1 gap-1 ${isTheme2 ? 'bg-white/10 mt-0' : 'bg-gray-100 mt-6'}`}>
           <button
             onClick={() => setActiveTab('links')}
             className={`flex-1 py-2 rounded-full text-sm font-semibold transition-all ${
