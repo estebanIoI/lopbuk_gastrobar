@@ -208,12 +208,7 @@ export function Sidebar() {
         </div>
 
         {/* ── Navigation ── */}
-        <nav className={cn(
-          "flex-1 overflow-y-auto px-2 py-3 space-y-0.5",
-          isExpanded
-            ? "scrollbar-thin scrollbar-thumb-black/10 scrollbar-track-transparent"
-            : "[&::-webkit-scrollbar]:hidden"
-        )}>
+        <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           {groups.map(group => {
             const items = filteredNavigation.filter(i => i.group === group.key)
             if (items.length === 0) return null
