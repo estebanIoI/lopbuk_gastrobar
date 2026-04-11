@@ -146,79 +146,122 @@ export default function LinksPage() {
   const hasSocials = data.socialInstagram || data.socialFacebook || data.socialTiktok || data.socialWhatsapp || data.socialX || data.socialSnapchat
   const catalogUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/?store=${slug}`
 
+  const socialLinks = (
+    <>
+      {data.socialTiktok && (
+        <a href={data.socialTiktok} target="_blank" rel="noopener noreferrer"
+          className={`transition-colors ${isTheme2 ? 'text-white/80 hover:text-white' : 'text-gray-700 hover:text-black'}`}>
+          <TikTokIcon />
+        </a>
+      )}
+      {data.socialSnapchat && (
+        <a href={data.socialSnapchat} target="_blank" rel="noopener noreferrer"
+          className={`transition-colors ${isTheme2 ? 'text-white/80 hover:text-yellow-400' : 'text-gray-700 hover:text-yellow-400'}`}>
+          <SnapchatIcon />
+        </a>
+      )}
+      {data.socialInstagram && (
+        <a href={data.socialInstagram} target="_blank" rel="noopener noreferrer"
+          className={`transition-colors ${isTheme2 ? 'text-white/80 hover:text-pink-400' : 'text-gray-700 hover:text-pink-600'}`}>
+          <InstagramIcon />
+        </a>
+      )}
+      {data.socialX && (
+        <a href={data.socialX} target="_blank" rel="noopener noreferrer"
+          className={`transition-colors ${isTheme2 ? 'text-white/80 hover:text-white' : 'text-gray-700 hover:text-black'}`}>
+          <XIcon />
+        </a>
+      )}
+      {data.socialFacebook && (
+        <a href={data.socialFacebook} target="_blank" rel="noopener noreferrer"
+          className={`transition-colors ${isTheme2 ? 'text-white/80 hover:text-blue-400' : 'text-gray-700 hover:text-blue-600'}`}>
+          <FacebookIcon />
+        </a>
+      )}
+      {data.socialWhatsapp && (
+        <a href={data.socialWhatsapp} target="_blank" rel="noopener noreferrer"
+          className={`transition-colors ${isTheme2 ? 'text-white/80 hover:text-green-400' : 'text-gray-700 hover:text-green-500'}`}>
+          <WhatsAppIcon />
+        </a>
+      )}
+    </>
+  )
+
   return (
     <div className={`min-h-screen flex flex-col items-center pb-16 ${isTheme2 ? 'bg-black' : 'bg-gray-50'}`}>
-      <div className="w-full max-w-sm mx-auto px-4 pt-10 flex flex-col items-center">
 
-        {/* Avatar / Logo */}
-        <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-gray-100 shadow-md mb-4 bg-gray-200">
-          {data.logoUrl || data.contactPageImage ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={data.contactPageImage || data.logoUrl!}
-              alt={data.name}
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center bg-gray-100">
-              <span className="text-3xl font-bold text-gray-400">{data.name.charAt(0)}</span>
+      {/* ── Theme 2: full-width cover image header ── */}
+      {isTheme2 ? (
+        <div className="w-full max-w-sm mx-auto">
+          {/* Cover image with name + socials overlaid at bottom */}
+          <div className="relative w-full" style={{ height: '420px' }}>
+            {(data.contactPageImage || data.logoUrl) ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={data.contactPageImage || data.logoUrl!}
+                alt={data.name}
+                className="absolute inset-0 w-full h-full object-cover"
+              />
+            ) : (
+              <div className="absolute inset-0 bg-gradient-to-b from-gray-800 to-black" />
+            )}
+            {/* Gradient overlay bottom */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
+            {/* Name + description + socials at bottom */}
+            <div className="absolute bottom-0 inset-x-0 px-5 pb-5 flex flex-col items-center gap-2">
+              <h1 className="text-2xl font-bold text-white tracking-wide text-center">
+                {data.contactPageTitle || data.name}
+              </h1>
+              {data.contactPageDescription && (
+                <p className="text-sm text-white/70 text-center leading-snug">
+                  {data.contactPageDescription}
+                </p>
+              )}
+              {hasSocials && (
+                <div className="flex items-center gap-3 mt-1">
+                  {socialLinks}
+                </div>
+              )}
             </div>
-          )}
-        </div>
-
-        {/* Name */}
-        <h1 className={`text-lg font-bold tracking-wide uppercase text-center ${isTheme2 ? 'text-white' : 'text-gray-900'}`}>
-          {data.contactPageTitle || data.name}
-        </h1>
-
-        {/* Description */}
-        {data.contactPageDescription && (
-          <p className={`text-sm text-center mt-1 leading-snug ${isTheme2 ? 'text-gray-400' : 'text-gray-500'}`}>
-            {data.contactPageDescription}
-          </p>
-        )}
-
-        {/* Social icons */}
-        {hasSocials && (
-          <div className="flex items-center gap-4 mt-4">
-            {data.socialTiktok && (
-              <a href={data.socialTiktok} target="_blank" rel="noopener noreferrer"
-                className={`transition-colors ${isTheme2 ? 'text-gray-400 hover:text-white' : 'text-gray-700 hover:text-black'}`}>
-                <TikTokIcon />
-              </a>
-            )}
-            {data.socialInstagram && (
-              <a href={data.socialInstagram} target="_blank" rel="noopener noreferrer"
-                className={`transition-colors ${isTheme2 ? 'text-gray-400 hover:text-pink-400' : 'text-gray-700 hover:text-pink-600'}`}>
-                <InstagramIcon />
-              </a>
-            )}
-            {data.socialFacebook && (
-              <a href={data.socialFacebook} target="_blank" rel="noopener noreferrer"
-                className={`transition-colors ${isTheme2 ? 'text-gray-400 hover:text-blue-400' : 'text-gray-700 hover:text-blue-600'}`}>
-                <FacebookIcon />
-              </a>
-            )}
-            {data.socialWhatsapp && (
-              <a href={data.socialWhatsapp} target="_blank" rel="noopener noreferrer"
-                className={`transition-colors ${isTheme2 ? 'text-gray-400 hover:text-green-400' : 'text-gray-700 hover:text-green-500'}`}>
-                <WhatsAppIcon />
-              </a>
-            )}
-            {data.socialX && (
-              <a href={data.socialX} target="_blank" rel="noopener noreferrer"
-                className={`transition-colors ${isTheme2 ? 'text-gray-400 hover:text-white' : 'text-gray-700 hover:text-black'}`}>
-                <XIcon />
-              </a>
-            )}
-            {data.socialSnapchat && (
-              <a href={data.socialSnapchat} target="_blank" rel="noopener noreferrer"
-                className={`transition-colors ${isTheme2 ? 'text-gray-400 hover:text-yellow-400' : 'text-gray-700 hover:text-yellow-400'}`}>
-                <SnapchatIcon />
-              </a>
-            )}
           </div>
+        </div>
+      ) : null}
+
+      <div className={`w-full max-w-sm mx-auto px-4 flex flex-col items-center ${isTheme2 ? 'pt-4' : 'pt-10'}`}>
+
+        {/* ── Theme 1: circle avatar header ── */}
+        {!isTheme2 && (
+          <>
+            <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-gray-100 shadow-md mb-4 bg-gray-200">
+              {data.logoUrl || data.contactPageImage ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={data.contactPageImage || data.logoUrl!}
+                  alt={data.name}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                  <span className="text-3xl font-bold text-gray-400">{data.name.charAt(0)}</span>
+                </div>
+              )}
+            </div>
+            <h1 className="text-lg font-bold tracking-wide uppercase text-center text-gray-900">
+              {data.contactPageTitle || data.name}
+            </h1>
+            {data.contactPageDescription && (
+              <p className="text-sm text-center mt-1 leading-snug text-gray-500">
+                {data.contactPageDescription}
+              </p>
+            )}
+            {hasSocials && (
+              <div className="flex items-center gap-4 mt-4">
+                {socialLinks}
+              </div>
+            )}
+          </>
         )}
+
 
         {/* Tab selector */}
         <div className={`flex w-full mt-6 rounded-full p-1 gap-1 ${isTheme2 ? 'bg-white/10' : 'bg-gray-100'}`}>
