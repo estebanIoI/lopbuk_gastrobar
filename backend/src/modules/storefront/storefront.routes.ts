@@ -744,13 +744,19 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
                   contact_page_title as contactPageTitle,
                   contact_page_description as contactPageDescription,
                   contact_page_image as contactPageImage,
-                  contact_page_links as contactPageLinks,
-                  contact_page_link_theme as contactPageLinkTheme
+                  contact_page_links as contactPageLinks
            FROM store_info WHERE tenant_id = ?`,
           [tenantId]
         ) as any;
         if (contactRows[0]) Object.assign(storeInfoData, contactRows[0]);
       } catch { /* columns not migrated yet — skip */ }
+      try {
+        const [themeRows] = await pool.query(
+          `SELECT contact_page_link_theme as contactPageLinkTheme FROM store_info WHERE tenant_id = ?`,
+          [tenantId]
+        ) as any;
+        if (themeRows[0]) Object.assign(storeInfoData, themeRows[0]);
+      } catch { /* column not yet added */ }
     }
 
     // Announcement bar
@@ -1003,13 +1009,19 @@ router.get('/customization', authenticate, requirePlan('empresarial'), async (re
                   contact_page_description as contactPageDescription,
                   contact_page_image as contactPageImage,
                   contact_page_products as contactPageProducts,
-                  contact_page_links as contactPageLinks,
-                  contact_page_link_theme as contactPageLinkTheme
+                  contact_page_links as contactPageLinks
            FROM store_info WHERE tenant_id = ?`,
           [tenantId]
         ) as any;
         if (contactRows[0]) Object.assign(storeInfoRow, contactRows[0]);
       } catch { /* columns not migrated yet */ }
+      try {
+        const [themeRows] = await pool.query(
+          `SELECT contact_page_link_theme as contactPageLinkTheme FROM store_info WHERE tenant_id = ?`,
+          [tenantId]
+        ) as any;
+        if (themeRows[0]) Object.assign(storeInfoRow, themeRows[0]);
+      } catch { /* column not yet added */ }
     }
 
     // Published products for featured selection (stock filter removed so admins can feature any published product)
@@ -2129,7 +2141,7 @@ router.get('/links/:slug', async (req: Request, res: Response) => {
 
     const storeInfo = (siRows as any[])[0] || null;
 
-    // Contact page fields (may not exist yet)
+    // Contact page fields (may not exist yet) — query core columns first, then newer ones separately
     let contactData: any = {};
     try {
       const [cRows] = await pool.query(
@@ -2138,13 +2150,20 @@ router.get('/links/:slug', async (req: Request, res: Response) => {
                 contact_page_description as contactPageDescription,
                 contact_page_image as contactPageImage,
                 contact_page_links as contactPageLinks,
-                contact_page_products as contactPageProducts,
-                contact_page_link_theme as contactPageLinkTheme
+                contact_page_products as contactPageProducts
          FROM store_info WHERE tenant_id = ? LIMIT 1`,
         [tenantId]
       ) as any;
       contactData = (cRows as any[])[0] || {};
     } catch { /* columns not migrated */ }
+    // Fetch newer columns separately so a missing column doesn't break core data
+    try {
+      const [themeRows] = await pool.query(
+        `SELECT contact_page_link_theme as contactPageLinkTheme FROM store_info WHERE tenant_id = ? LIMIT 1`,
+        [tenantId]
+      ) as any;
+      if ((themeRows as any[])[0]) contactData.contactPageLinkTheme = (themeRows as any[])[0].contactPageLinkTheme;
+    } catch { /* column not yet added */ }
 
     // Shop products — use selected IDs or all published
     let shopProducts: any[] = [];
@@ -2172,7 +2191,7 @@ router.get('/links/:slug', async (req: Request, res: Response) => {
                   stock, color, size,
                   is_on_offer as isOnOffer, offer_price as offerPrice, offer_label as offerLabel
            FROM products
-           WHERE tenant_id = ? AND published_in_store = 1 AND stock > 0
+           WHERE tenant_id = ? AND published_in_store = 1
            ORDER BY updated_at DESC LIMIT 50`,
           [tenantId]
         ) as any;
