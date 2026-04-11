@@ -47,6 +47,8 @@ import {
   Mail,
   Trash2,
   PlusCircle,
+  GripVertical,
+  Pencil,
 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { StoreCustomization } from '@/components/store-customization'
@@ -131,6 +133,8 @@ export function Tienda() {
   const [contactImage, setContactImage] = useState('')
   const [contactLinks, setContactLinks] = useState<{ label: string; url: string; image?: string }[]>([])
   const [contactLinkTheme, setContactLinkTheme] = useState<'theme1' | 'theme2'>('theme1')
+  const [dragIndex, setDragIndex] = useState<number | null>(null)
+  const [editingLabelIndex, setEditingLabelIndex] = useState<number | null>(null)
   const [socialInstagram, setSocialInstagram] = useState('')
   const [socialFacebook, setSocialFacebook] = useState('')
   const [socialTiktok, setSocialTiktok] = useState('')
@@ -1718,19 +1722,69 @@ export function Tienda() {
                     Canales de contacto personalizados
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-3">
+                <CardContent className="space-y-2">
                   {contactLinks.map((link, i) => (
-                    <div key={i} className="flex gap-2 items-start">
-                      <div className="flex-1 space-y-2">
-                        <Input
-                          placeholder="Etiqueta (ej: WhatsApp, Email...)"
-                          value={link.label}
-                          onChange={e => {
-                            const updated = [...contactLinks]
-                            updated[i] = { ...updated[i], label: e.target.value }
-                            setContactLinks(updated)
-                          }}
-                        />
+                    <div
+                      key={i}
+                      draggable
+                      onDragStart={() => setDragIndex(i)}
+                      onDragOver={e => { e.preventDefault(); }}
+                      onDrop={e => {
+                        e.preventDefault()
+                        if (dragIndex === null || dragIndex === i) return
+                        const updated = [...contactLinks]
+                        const [moved] = updated.splice(dragIndex, 1)
+                        updated.splice(i, 0, moved)
+                        setContactLinks(updated)
+                        setDragIndex(null)
+                      }}
+                      onDragEnd={() => setDragIndex(null)}
+                      className={`rounded-xl border transition-all ${
+                        dragIndex === i
+                          ? 'opacity-40 border-dashed border-blue-400'
+                          : 'border-input bg-card hover:border-gray-300'
+                      }`}
+                    >
+                      {/* Header row: drag handle + label editable + delete */}
+                      <div className="flex items-center gap-2 px-3 pt-3 pb-1">
+                        <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab active:cursor-grabbing shrink-0" />
+                        {editingLabelIndex === i ? (
+                          <Input
+                            autoFocus
+                            className="h-7 text-sm font-medium flex-1 px-2"
+                            placeholder="Nombre del canal (ej: WhatsApp)"
+                            value={link.label}
+                            onChange={e => {
+                              const updated = [...contactLinks]
+                              updated[i] = { ...updated[i], label: e.target.value }
+                              setContactLinks(updated)
+                            }}
+                            onBlur={() => setEditingLabelIndex(null)}
+                            onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') setEditingLabelIndex(null) }}
+                          />
+                        ) : (
+                          <button
+                            type="button"
+                            className="flex-1 text-left flex items-center gap-1.5 group"
+                            onClick={() => setEditingLabelIndex(i)}
+                          >
+                            <span className={`text-sm font-medium truncate ${link.label ? '' : 'text-muted-foreground italic'}`}>
+                              {link.label || 'Sin nombre'}
+                            </span>
+                            <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                          </button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="shrink-0 h-7 w-7 text-muted-foreground hover:text-destructive"
+                          onClick={() => setContactLinks(prev => prev.filter((_, j) => j !== i))}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                      {/* URL + optional image */}
+                      <div className="px-3 pb-3 space-y-2 pt-1">
                         <Input
                           placeholder="URL o número (ej: https://wa.me/...)"
                           value={link.url}
@@ -1739,10 +1793,11 @@ export function Tienda() {
                             updated[i] = { ...updated[i], url: e.target.value }
                             setContactLinks(updated)
                           }}
+                          className="text-sm"
                         />
                         {contactLinkTheme === 'theme2' && (
                           <div className="space-y-1">
-                            <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Imagen de fondo del link</p>
+                            <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Imagen de fondo</p>
                             <CloudinaryUpload
                               value={link.image || ''}
                               onChange={val => {
@@ -1755,20 +1810,12 @@ export function Tienda() {
                           </div>
                         )}
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="shrink-0 text-muted-foreground hover:text-destructive"
-                        onClick={() => setContactLinks(prev => prev.filter((_, j) => j !== i))}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
                     </div>
                   ))}
                   <Button
                     variant="outline"
                     size="sm"
-                    className="w-full gap-2"
+                    className="w-full gap-2 mt-1"
                     onClick={() => setContactLinks(prev => [...prev, { label: '', url: '' }])}
                   >
                     <PlusCircle className="h-4 w-4" />
