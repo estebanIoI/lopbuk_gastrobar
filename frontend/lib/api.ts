@@ -919,6 +919,8 @@ class ApiService {
     contactPageEnabled: boolean; contactPageTitle?: string; contactPageDescription?: string;
     contactPageImage?: string; contactPageProducts?: string[]; contactPageLinks?: { label: string; url: string; image?: string }[];
     contactPageLinkTheme?: string;
+    socialInstagram?: string; socialFacebook?: string; socialTiktok?: string; socialWhatsapp?: string;
+    socialX?: string; socialSnapchat?: string;
   }) {
     return this.request<any>('/storefront/contact-page', {
       method: 'PUT',

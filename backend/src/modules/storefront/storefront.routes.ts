@@ -1358,7 +1358,7 @@ router.put('/store-extended-info', authenticate, requirePlan('empresarial'), asy
 router.put('/contact-page', authenticate, requirePlan('empresarial'), async (req: Request, res: Response) => {
   try {
     const tenantId = (req as any).user.tenantId;
-    const { contactPageEnabled, contactPageTitle, contactPageDescription, contactPageImage, contactPageProducts, contactPageLinks, contactPageLinkTheme } = req.body;
+    const { contactPageEnabled, contactPageTitle, contactPageDescription, contactPageImage, contactPageProducts, contactPageLinks, contactPageLinkTheme, socialInstagram, socialFacebook, socialTiktok, socialWhatsapp, socialX, socialSnapchat } = req.body;
 
     const values = [
       contactPageEnabled ? 1 : 0,
@@ -1368,6 +1368,10 @@ router.put('/contact-page', authenticate, requirePlan('empresarial'), async (req
       contactPageProducts ? JSON.stringify(contactPageProducts) : null,
       contactPageLinks ? JSON.stringify(contactPageLinks) : null,
       contactPageLinkTheme || 'theme1',
+      socialInstagram || null,
+      socialFacebook || null,
+      socialTiktok || null,
+      socialWhatsapp || null,
       tenantId,
     ];
 
@@ -1380,7 +1384,11 @@ router.put('/contact-page', authenticate, requirePlan('empresarial'), async (req
           contact_page_image = ?,
           contact_page_products = ?,
           contact_page_links = ?,
-          contact_page_link_theme = ?
+          contact_page_link_theme = ?,
+          social_instagram = ?,
+          social_facebook = ?,
+          social_tiktok = ?,
+          social_whatsapp = ?
          WHERE tenant_id = ?`,
         values
       );
@@ -1396,7 +1404,7 @@ router.put('/contact-page', authenticate, requirePlan('empresarial'), async (req
         `ALTER TABLE store_info ADD COLUMN contact_page_link_theme VARCHAR(20)           DEFAULT 'theme1'`,
       ];
       for (const sql of alterCols) {
-        try { await pool.query(sql); } catch (e: any) { if (e.errno !== 1060) throw e; /* 1060 = duplicate column, already exists */ }
+        try { await pool.query(sql); } catch (e: any) { if (e.errno !== 1060) throw e; }
       }
       await pool.query(
         `UPDATE store_info SET
@@ -1406,10 +1414,27 @@ router.put('/contact-page', authenticate, requirePlan('empresarial'), async (req
           contact_page_image = ?,
           contact_page_products = ?,
           contact_page_links = ?,
-          contact_page_link_theme = ?
+          contact_page_link_theme = ?,
+          social_instagram = ?,
+          social_facebook = ?,
+          social_tiktok = ?,
+          social_whatsapp = ?
          WHERE tenant_id = ?`,
         values
       );
+    }
+
+    // X and Snapchat — newer columns added separately
+    if (socialX !== undefined || socialSnapchat !== undefined) {
+      for (const col of ['social_x VARCHAR(500)', 'social_snapchat VARCHAR(500)']) {
+        try { await pool.query(`ALTER TABLE store_info ADD COLUMN ${col} DEFAULT NULL`); } catch (e: any) { if (e.errno !== 1060) { /* ignore */ } }
+      }
+      try {
+        await pool.query(
+          `UPDATE store_info SET social_x = ?, social_snapchat = ? WHERE tenant_id = ?`,
+          [socialX || null, socialSnapchat || null, tenantId]
+        );
+      } catch { /* ignore */ }
     }
 
     res.json({ success: true });
@@ -2164,6 +2189,17 @@ router.get('/links/:slug', async (req: Request, res: Response) => {
       ) as any;
       if ((themeRows as any[])[0]) contactData.contactPageLinkTheme = (themeRows as any[])[0].contactPageLinkTheme;
     } catch { /* column not yet added */ }
+    // X / Snapchat socials (newer columns)
+    try {
+      const [xRows] = await pool.query(
+        `SELECT social_x as socialX, social_snapchat as socialSnapchat FROM store_info WHERE tenant_id = ? LIMIT 1`,
+        [tenantId]
+      ) as any;
+      if ((xRows as any[])[0]) {
+        contactData.socialX = (xRows as any[])[0].socialX;
+        contactData.socialSnapchat = (xRows as any[])[0].socialSnapchat;
+      }
+    } catch { /* columns not yet added */ }
 
     // Shop products — use selected IDs or all published
     let shopProducts: any[] = [];
@@ -2218,6 +2254,8 @@ router.get('/links/:slug', async (req: Request, res: Response) => {
         socialFacebook: storeInfo?.socialFacebook || null,
         socialTiktok: storeInfo?.socialTiktok || null,
         socialWhatsapp: storeInfo?.socialWhatsapp || null,
+        socialX: contactData.socialX || null,
+        socialSnapchat: contactData.socialSnapchat || null,
         contactPageTitle: contactData.contactPageTitle || null,
         contactPageDescription: contactData.contactPageDescription || null,
         contactPageImage: contactData.contactPageImage || null,

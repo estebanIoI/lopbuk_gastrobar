@@ -131,6 +131,12 @@ export function Tienda() {
   const [contactImage, setContactImage] = useState('')
   const [contactLinks, setContactLinks] = useState<{ label: string; url: string; image?: string }[]>([])
   const [contactLinkTheme, setContactLinkTheme] = useState<'theme1' | 'theme2'>('theme1')
+  const [socialInstagram, setSocialInstagram] = useState('')
+  const [socialFacebook, setSocialFacebook] = useState('')
+  const [socialTiktok, setSocialTiktok] = useState('')
+  const [socialWhatsapp, setSocialWhatsapp] = useState('')
+  const [socialX, setSocialX] = useState('')
+  const [socialSnapchat, setSocialSnapchat] = useState('')
   const [contactProductIds, setContactProductIds] = useState<string[]>([])
   const [loadingContact, setLoadingContact] = useState(false)
   const [savingContact, setSavingContact] = useState(false)
@@ -204,6 +210,12 @@ export function Tienda() {
           setContactLinks(si.contactPageLinks ? JSON.parse(si.contactPageLinks) : [])
         } catch { setContactLinks([]) }
         setContactLinkTheme((si as any).contactPageLinkTheme === 'theme2' ? 'theme2' : 'theme1')
+        setSocialInstagram(si.socialInstagram || '')
+        setSocialFacebook(si.socialFacebook || '')
+        setSocialTiktok(si.socialTiktok || '')
+        setSocialWhatsapp(si.socialWhatsapp || '')
+        setSocialX((si as any).socialX || '')
+        setSocialSnapchat((si as any).socialSnapchat || '')
         try {
           setContactProductIds(si.contactPageProducts ? JSON.parse(si.contactPageProducts) : [])
         } catch { setContactProductIds([]) }
@@ -225,6 +237,12 @@ export function Tienda() {
         contactPageLinks: contactLinks,
         contactPageProducts: contactProductIds,
         contactPageLinkTheme: contactLinkTheme,
+        socialInstagram,
+        socialFacebook,
+        socialTiktok,
+        socialWhatsapp,
+        socialX,
+        socialSnapchat,
       })
       if (result.success) {
         setContactSaved(true)
@@ -1589,6 +1607,31 @@ export function Tienda() {
                       className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
                     />
                   </div>
+                  {/* Social links */}
+                  <div className="space-y-3 pt-1">
+                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Redes sociales</label>
+                    <div className="grid grid-cols-1 gap-2">
+                      {[
+                        { icon: '📸', label: 'Instagram', value: socialInstagram, set: setSocialInstagram, placeholder: 'https://instagram.com/tuusuario' },
+                        { icon: '🎵', label: 'TikTok', value: socialTiktok, set: setSocialTiktok, placeholder: 'https://tiktok.com/@tuusuario' },
+                        { icon: '📘', label: 'Facebook', value: socialFacebook, set: setSocialFacebook, placeholder: 'https://facebook.com/tupagina' },
+                        { icon: '💬', label: 'WhatsApp', value: socialWhatsapp, set: setSocialWhatsapp, placeholder: 'https://wa.me/573001234567' },
+                        { icon: '𝕏', label: 'X (Twitter)', value: socialX, set: setSocialX, placeholder: 'https://x.com/tuusuario' },
+                        { icon: '👻', label: 'Snapchat', value: socialSnapchat, set: setSocialSnapchat, placeholder: 'https://snapchat.com/add/tuusuario' },
+                      ].map(({ icon, label, value, set, placeholder }) => (
+                        <div key={label} className="flex items-center gap-2">
+                          <span className="text-base w-6 text-center shrink-0">{icon}</span>
+                          <Input
+                            placeholder={placeholder}
+                            value={value}
+                            onChange={e => set(e.target.value)}
+                            className="flex-1 text-sm"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
                   <div className="space-y-1.5">
                     <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Imagen de portada</label>
                     <CloudinaryUpload

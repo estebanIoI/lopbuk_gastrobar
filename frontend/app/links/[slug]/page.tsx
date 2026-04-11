@@ -40,6 +40,8 @@ interface StoreData {
   contactPageImage: string | null
   contactPageLinks: string | null
   contactPageLinkTheme: string | null
+  socialX: string | null
+  socialSnapchat: string | null
   shopProducts: ShopProduct[]
 }
 
@@ -63,6 +65,22 @@ function FacebookIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
       <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
+    </svg>
+  )
+}
+
+function XIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.746l7.73-8.835L1.254 2.25H8.08l4.253 5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+    </svg>
+  )
+}
+
+function SnapchatIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+      <path d="M12.206.793c.99 0 4.347.276 5.93 3.821.529 1.193.403 3.219.304 4.972-.01.179-.02.353-.026.521.263.15.698.226 1.08.226.378 0 .744-.079.993-.226.018-.011.032-.017.058-.017.076 0 .157.055.193.131.048.1.066.238-.073.42-.218.294-.62.613-1.394.8-.18.046-.365.09-.558.13.127.284.299.616.501.89.388.536.827.876 1.42.876.093 0 .188-.012.286-.036.293-.074.62-.121.966-.121.423 0 .833.086 1.189.253.55.254.888.657.888 1.09 0 .516-.471.969-1.289 1.127-.253.049-.527.091-.822.134-.62.09-1.324.187-1.848.465-.332.177-.575.487-.575.811 0 .174.059.342.178.499.336.45.802.975.946 1.581.076.32.048.628-.082.878-.218.424-.676.64-1.386.64-.416 0-.882-.09-1.406-.27-.575-.199-1.164-.297-1.752-.297-.604 0-1.216.1-1.817.3-.513.175-.968.263-1.376.263-.756 0-1.224-.226-1.424-.691-.147-.338-.157-.73-.026-1.106.147-.402.454-.74.848-1.102.11-.1.211-.197.302-.291.371-.384.567-.78.567-1.146 0-.494-.354-.966-.881-1.191-.457-.195-.943-.3-1.442-.312-.499-.011-.959.072-1.33.249-.19.088-.372.162-.545.218-.299.096-.58.143-.855.143-.454 0-.831-.132-1.124-.393-.262-.234-.413-.553-.413-.881 0-.399.217-.783.611-1.085.431-.33.921-.515 1.415-.624.298-.065.583-.115.848-.162.533-.097.986-.195 1.36-.368.52-.242.778-.63.778-1.144 0-.263-.082-.524-.242-.768-.382-.584-.527-1.29-.4-1.958.204-1.076.927-1.988 1.935-2.453C11.007.913 11.594.793 12.206.793z" />
     </svg>
   )
 }
@@ -125,7 +143,7 @@ export default function LinksPage() {
   const linkTheme = data.contactPageLinkTheme || 'theme1'
   const isTheme2 = linkTheme === 'theme2'
 
-  const hasSocials = data.socialInstagram || data.socialFacebook || data.socialTiktok || data.socialWhatsapp
+  const hasSocials = data.socialInstagram || data.socialFacebook || data.socialTiktok || data.socialWhatsapp || data.socialX || data.socialSnapchat
   const catalogUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/?store=${slug}`
 
   return (
@@ -185,6 +203,18 @@ export default function LinksPage() {
               <a href={data.socialWhatsapp} target="_blank" rel="noopener noreferrer"
                 className={`transition-colors ${isTheme2 ? 'text-gray-400 hover:text-green-400' : 'text-gray-700 hover:text-green-500'}`}>
                 <WhatsAppIcon />
+              </a>
+            )}
+            {data.socialX && (
+              <a href={data.socialX} target="_blank" rel="noopener noreferrer"
+                className={`transition-colors ${isTheme2 ? 'text-gray-400 hover:text-white' : 'text-gray-700 hover:text-black'}`}>
+                <XIcon />
+              </a>
+            )}
+            {data.socialSnapchat && (
+              <a href={data.socialSnapchat} target="_blank" rel="noopener noreferrer"
+                className={`transition-colors ${isTheme2 ? 'text-gray-400 hover:text-yellow-400' : 'text-gray-700 hover:text-yellow-400'}`}>
+                <SnapchatIcon />
               </a>
             )}
           </div>
