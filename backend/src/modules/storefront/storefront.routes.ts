@@ -2207,36 +2207,60 @@ router.get('/links/:slug', async (req: Request, res: Response) => {
       let productIds: number[] = [];
       try { productIds = contactData.contactPageProducts ? JSON.parse(contactData.contactPageProducts).map(Number) : []; } catch { productIds = []; }
 
+      // Core columns that are guaranteed to exist
+      const productSelect = `SELECT id, name, category, brand, description,
+                  sale_price as salePrice, image_url as imageUrl,
+                  stock, color, size,
+                  is_on_offer as isOnOffer, offer_price as offerPrice, offer_label as offerLabel`;
+
+      let rows: any[] = [];
       if (productIds.length > 0) {
         const placeholders = productIds.map(() => '?').join(',');
-        const [rows] = await pool.query(
-          `SELECT id, name, category, brand, description,
-                  sale_price as salePrice, image_url as imageUrl, image_urls as images,
-                  stock, color, size,
-                  is_on_offer as isOnOffer, offer_price as offerPrice, offer_label as offerLabel
-           FROM products
-           WHERE tenant_id = ? AND published_in_store = 1 AND id IN (${placeholders})
-           ORDER BY FIELD(id, ${placeholders})`,
-          [tenantId, ...productIds, ...productIds]
-        ) as any;
-        shopProducts = rows;
+        try {
+          [rows] = await pool.query(
+            `${productSelect}, image_urls as images
+             FROM products
+             WHERE tenant_id = ? AND published_in_store = 1 AND id IN (${placeholders})
+             ORDER BY FIELD(id, ${placeholders})`,
+            [tenantId, ...productIds, ...productIds]
+          ) as any;
+        } catch {
+          // Fallback without image_urls if column doesn't exist
+          [rows] = await pool.query(
+            `${productSelect}
+             FROM products
+             WHERE tenant_id = ? AND published_in_store = 1 AND id IN (${placeholders})`,
+            [tenantId, ...productIds]
+          ) as any;
+        }
       } else {
-        const [rows] = await pool.query(
-          `SELECT id, name, category, brand, description,
-                  sale_price as salePrice, image_url as imageUrl, image_urls as images,
-                  stock, color, size,
-                  is_on_offer as isOnOffer, offer_price as offerPrice, offer_label as offerLabel
-           FROM products
-           WHERE tenant_id = ? AND published_in_store = 1
-           ORDER BY updated_at DESC LIMIT 50`,
-          [tenantId]
-        ) as any;
-        shopProducts = rows;
+        try {
+          [rows] = await pool.query(
+            `${productSelect}, image_urls as images
+             FROM products
+             WHERE tenant_id = ? AND published_in_store = 1
+             ORDER BY id DESC LIMIT 50`,
+            [tenantId]
+          ) as any;
+        } catch {
+          // Fallback without image_urls
+          [rows] = await pool.query(
+            `${productSelect}
+             FROM products
+             WHERE tenant_id = ? AND published_in_store = 1
+             ORDER BY id DESC LIMIT 50`,
+            [tenantId]
+          ) as any;
+        }
       }
-    } catch { shopProducts = []; }
+      shopProducts = rows;
+    } catch (shopErr) {
+      console.error('Links shop products error:', shopErr);
+      shopProducts = [];
+    }
 
     // Parse images for each product
-    shopProducts = shopProducts.map((p: any) => {
+    shopProducts = (shopProducts || []).map((p: any) => {
       let images: string[] = [];
       try { images = p.images ? JSON.parse(p.images) : []; } catch { images = []; }
       return { ...p, images };
