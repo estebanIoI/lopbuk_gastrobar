@@ -1301,7 +1301,6 @@ router.put('/store-extended-info', authenticate, requirePlan('empresarial'), asy
       socialInstagram, socialFacebook, socialTiktok, socialWhatsapp,
       department, municipality, productCardStyle, allowContraentrega,
       showInfoModule, infoModuleDescription,
-      ageGateEnabled, ageGateDescription,
     } = req.body;
 
     const allowCod = allowContraentrega === false ? 0 : 1;
@@ -1363,14 +1362,6 @@ router.put('/store-extended-info', authenticate, requirePlan('empresarial'), asy
       res.status(404).json({ success: false, error: 'Información de tienda no encontrada' });
       return;
     }
-
-    // Age gate fields (separate update — columns may not exist in older installations)
-    try {
-      await pool.query(
-        `UPDATE store_info SET age_gate_enabled = ?, age_gate_description = ? WHERE tenant_id = ?`,
-        [ageGateEnabled ? 1 : 0, ageGateDescription || null, tenantId]
-      );
-    } catch { /* columns not yet added — ignore */ }
 
     res.json({ success: true });
   } catch (error) {
@@ -1468,6 +1459,43 @@ router.put('/contact-page', authenticate, requirePlan('empresarial'), async (req
   } catch (error) {
     console.error('Contact page update error:', error);
     res.status(500).json({ success: false, error: 'Error al guardar página de contacto' });
+  }
+});
+
+// =============================================
+// AGE GATE
+// =============================================
+
+// PUT /api/storefront/age-gate — Update age gate verification settings only
+router.put('/age-gate', authenticate, requirePlan('empresarial'), async (req: Request, res: Response) => {
+  try {
+    const tenantId = (req as any).user.tenantId;
+    const { ageGateEnabled, ageGateDescription } = req.body;
+
+    try {
+      await pool.query(
+        `UPDATE store_info SET age_gate_enabled = ?, age_gate_description = ? WHERE tenant_id = ?`,
+        [ageGateEnabled ? 1 : 0, ageGateDescription || null, tenantId]
+      );
+    } catch {
+      // Columns don't exist yet — auto-add them then retry
+      const alterCols = [
+        `ALTER TABLE store_info ADD COLUMN age_gate_enabled     TINYINT(1) NOT NULL DEFAULT 0`,
+        `ALTER TABLE store_info ADD COLUMN age_gate_description TEXT DEFAULT NULL`,
+      ];
+      for (const sql of alterCols) {
+        try { await pool.query(sql); } catch (e: any) { if (e.errno !== 1060) throw e; }
+      }
+      await pool.query(
+        `UPDATE store_info SET age_gate_enabled = ?, age_gate_description = ? WHERE tenant_id = ?`,
+        [ageGateEnabled ? 1 : 0, ageGateDescription || null, tenantId]
+      );
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Age gate update error:', error);
+    res.status(500).json({ success: false, error: 'Error al guardar verificación de edad' });
   }
 });
 

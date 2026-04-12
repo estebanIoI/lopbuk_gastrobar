@@ -288,7 +288,7 @@ export function Tienda() {
     setSavingAgeGate(true)
     setAgeGateError(null)
     try {
-      const result = await api.updateStoreExtendedInfo({ ageGateEnabled, ageGateDescription })
+      const result = await api.updateAgeGate({ ageGateEnabled, ageGateDescription })
       if (result.success) {
         setAgeGateSaved(true)
         setTimeout(() => setAgeGateSaved(false), 3000)

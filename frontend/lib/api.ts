@@ -908,7 +908,6 @@ class ApiService {
     allowContraentrega?: boolean; showInfoModule?: boolean; infoModuleDescription?: string;
     contactPageEnabled?: boolean; contactPageTitle?: string; contactPageDescription?: string;
     contactPageImage?: string; contactPageProducts?: string[]; contactPageLinks?: { label: string; url: string }[];
-    ageGateEnabled?: boolean; ageGateDescription?: string;
   }) {
     return this.request<any>('/storefront/store-extended-info', {
       method: 'PUT',
@@ -924,6 +923,13 @@ class ApiService {
     socialX?: string; socialSnapchat?: string;
   }) {
     return this.request<any>('/storefront/contact-page', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async updateAgeGate(data: { ageGateEnabled: boolean; ageGateDescription?: string }) {
+    return this.request<any>('/storefront/age-gate', {
       method: 'PUT',
       body: JSON.stringify(data),
     })
