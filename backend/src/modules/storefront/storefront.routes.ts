@@ -842,6 +842,16 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
       if (psRows.length > 0) platformBgColor = psRows[0].setting_value;
     } catch { /* table may not exist */ }
 
+    // Active custom HTML sections
+    let customSections: any[] = [];
+    try {
+      const [csRows] = await pool.query(
+        'SELECT id, name, slug, html_content as htmlContent FROM store_custom_sections WHERE tenant_id = ? AND is_active = 1 ORDER BY created_at ASC',
+        [tenantId]
+      ) as any;
+      customSections = csRows || [];
+    } catch { /* table may not exist yet */ }
+
     res.json({
       success: true,
       data: {
@@ -858,6 +868,7 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
         bgColor: tenantBgColor,
         platformBgColor,
         publicMenuEnabled,
+        customSections,
       },
     });
   } catch (error) {
@@ -2343,6 +2354,187 @@ router.get('/links/:slug', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Links page error:', error);
     res.status(500).json({ success: false, error: 'Error al cargar datos' });
+  }
+});
+
+// =============================================
+// CUSTOM HTML SECTIONS
+// =============================================
+
+function slugifySection(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\s-]/g, '')
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .slice(0, 80) || 'seccion';
+}
+
+async function ensureCustomSectionsTable(tenantId: string): Promise<void> {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS store_custom_sections (
+        id           INT AUTO_INCREMENT PRIMARY KEY,
+        tenant_id    VARCHAR(36)  NOT NULL,
+        name         VARCHAR(255) NOT NULL,
+        slug         VARCHAR(255) NOT NULL,
+        html_content LONGTEXT     NOT NULL,
+        is_active    TINYINT(1)   NOT NULL DEFAULT 0,
+        created_at   TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+        updated_at   TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY idx_tenant_slug (tenant_id, slug),
+        INDEX idx_tenant (tenant_id)
+      )
+    `);
+  } catch { /* ignore if already exists */ }
+}
+
+// GET /api/storefront/custom-sections — List all sections for the merchant
+router.get('/custom-sections', authenticate, requirePlan('empresarial'), async (req: Request, res: Response) => {
+  try {
+    const tenantId = (req as any).user.tenantId;
+    await ensureCustomSectionsTable(tenantId);
+    const [rows] = await pool.query(
+      'SELECT id, name, slug, is_active as isActive, created_at as createdAt, updated_at as updatedAt FROM store_custom_sections WHERE tenant_id = ? ORDER BY created_at DESC',
+      [tenantId]
+    ) as any;
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    console.error('Custom sections list error:', error);
+    res.status(500).json({ success: false, error: 'Error al cargar secciones' });
+  }
+});
+
+// POST /api/storefront/custom-sections — Create a new section
+router.post('/custom-sections', authenticate, requirePlan('empresarial'), async (req: Request, res: Response) => {
+  try {
+    const tenantId = (req as any).user.tenantId;
+    const { name, htmlContent, isActive } = req.body;
+    if (!name || !name.trim()) {
+      res.status(400).json({ success: false, error: 'El nombre es obligatorio' });
+      return;
+    }
+    await ensureCustomSectionsTable(tenantId);
+
+    // Generate unique slug
+    let baseSlug = slugifySection(name.trim());
+    let slug = baseSlug;
+    let attempt = 0;
+    while (true) {
+      const [existing] = await pool.query(
+        'SELECT id FROM store_custom_sections WHERE tenant_id = ? AND slug = ? LIMIT 1',
+        [tenantId, slug]
+      ) as any;
+      if (!existing || existing.length === 0) break;
+      attempt++;
+      slug = `${baseSlug}-${attempt}`;
+    }
+
+    const [result] = await pool.query(
+      'INSERT INTO store_custom_sections (tenant_id, name, slug, html_content, is_active) VALUES (?, ?, ?, ?, ?)',
+      [tenantId, name.trim(), slug, htmlContent || '', isActive ? 1 : 0]
+    ) as any;
+
+    res.json({ success: true, data: { id: result.insertId, slug } });
+  } catch (error) {
+    console.error('Custom sections create error:', error);
+    res.status(500).json({ success: false, error: 'Error al crear sección' });
+  }
+});
+
+// PUT /api/storefront/custom-sections/:id — Update a section
+router.put('/custom-sections/:id', authenticate, requirePlan('empresarial'), async (req: Request, res: Response) => {
+  try {
+    const tenantId = (req as any).user.tenantId;
+    const { id } = req.params;
+    const { name, htmlContent, isActive } = req.body;
+    if (!name || !name.trim()) {
+      res.status(400).json({ success: false, error: 'El nombre es obligatorio' });
+      return;
+    }
+    await ensureCustomSectionsTable(tenantId);
+
+    const [existing] = await pool.query(
+      'SELECT id FROM store_custom_sections WHERE id = ? AND tenant_id = ? LIMIT 1',
+      [id, tenantId]
+    ) as any;
+    if (!existing || existing.length === 0) {
+      res.status(404).json({ success: false, error: 'Sección no encontrada' });
+      return;
+    }
+
+    await pool.query(
+      'UPDATE store_custom_sections SET name = ?, html_content = ?, is_active = ? WHERE id = ? AND tenant_id = ?',
+      [name.trim(), htmlContent || '', isActive ? 1 : 0, id, tenantId]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Custom sections update error:', error);
+    res.status(500).json({ success: false, error: 'Error al actualizar sección' });
+  }
+});
+
+// PATCH /api/storefront/custom-sections/:id/toggle — Toggle active
+router.patch('/custom-sections/:id/toggle', authenticate, requirePlan('empresarial'), async (req: Request, res: Response) => {
+  try {
+    const tenantId = (req as any).user.tenantId;
+    const { id } = req.params;
+    const { isActive } = req.body;
+    await pool.query(
+      'UPDATE store_custom_sections SET is_active = ? WHERE id = ? AND tenant_id = ?',
+      [isActive ? 1 : 0, id, tenantId]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Custom sections toggle error:', error);
+    res.status(500).json({ success: false, error: 'Error al cambiar estado' });
+  }
+});
+
+// DELETE /api/storefront/custom-sections/:id — Delete a section
+router.delete('/custom-sections/:id', authenticate, requirePlan('empresarial'), async (req: Request, res: Response) => {
+  try {
+    const tenantId = (req as any).user.tenantId;
+    const { id } = req.params;
+    await pool.query(
+      'DELETE FROM store_custom_sections WHERE id = ? AND tenant_id = ?',
+      [id, tenantId]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Custom sections delete error:', error);
+    res.status(500).json({ success: false, error: 'Error al eliminar sección' });
+  }
+});
+
+// GET /api/storefront/custom-sections/public/:storeSlug/:sectionSlug — Public: fetch HTML for render
+router.get('/custom-sections/public/:storeSlug/:sectionSlug', async (req: Request, res: Response) => {
+  try {
+    const { storeSlug, sectionSlug } = req.params;
+    const [tenants] = await pool.query(
+      'SELECT id FROM tenants WHERE status = ? AND slug = ? LIMIT 1',
+      ['activo', storeSlug]
+    ) as any;
+    if (!tenants || tenants.length === 0) {
+      res.status(404).json({ success: false, error: 'Tienda no encontrada' });
+      return;
+    }
+    const tenantId = tenants[0].id;
+    const [rows] = await pool.query(
+      'SELECT name, html_content as htmlContent FROM store_custom_sections WHERE tenant_id = ? AND slug = ? LIMIT 1',
+      [tenantId, sectionSlug]
+    ) as any;
+    if (!rows || rows.length === 0) {
+      res.status(404).json({ success: false, error: 'Sección no encontrada' });
+      return;
+    }
+    res.json({ success: true, data: rows[0] });
+  } catch (error) {
+    console.error('Custom section public error:', error);
+    res.status(500).json({ success: false, error: 'Error al cargar sección' });
   }
 });
 

@@ -50,6 +50,10 @@ import {
   GripVertical,
   Pencil,
   Shield,
+  Code2,
+  FileCode,
+  Upload,
+  Globe2,
 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { StoreCustomization } from '@/components/store-customization'
@@ -74,7 +78,15 @@ interface StoreProduct {
   launchDate: string | null
 }
 
-type ActiveTab = 'catalog' | 'new-launches' | 'order-bump' | 'share' | 'contact' | 'age-gate'
+type ActiveTab = 'catalog' | 'new-launches' | 'order-bump' | 'share' | 'contact' | 'age-gate' | 'html-sections'
+
+interface CustomSection {
+  id: number
+  name: string
+  slug: string
+  isActive: boolean
+  createdAt: string
+}
 
 interface OrderBumpConfig {
   isEnabled: boolean
@@ -156,6 +168,15 @@ export function Tienda() {
   const [savingAgeGate, setSavingAgeGate] = useState(false)
   const [ageGateSaved, setAgeGateSaved] = useState(false)
   const [ageGateError, setAgeGateError] = useState<string | null>(null)
+
+  // Custom HTML Sections state
+  const [sections, setSections] = useState<CustomSection[]>([])
+  const [loadingSections, setLoadingSections] = useState(false)
+  const [sectionForm, setSectionForm] = useState<{ id: number | null; name: string; htmlContent: string; isActive: boolean } | null>(null)
+  const [savingSection, setSavingSection] = useState(false)
+  const [sectionError, setSectionError] = useState<string | null>(null)
+  const [copiedSectionLink, setCopiedSectionLink] = useState<number | null>(null)
+  const sectionFileRef = useRef<HTMLInputElement>(null)
 
   // Offer modal state
   const [offerModal, setOfferModal] = useState<{ open: boolean; product: StoreProduct | null }>({ open: false, product: null })
@@ -300,6 +321,80 @@ export function Tienda() {
     } finally {
       setSavingAgeGate(false)
     }
+  }
+
+  const fetchSections = useCallback(async () => {
+    setLoadingSections(true)
+    try {
+      const result = await api.listCustomSections()
+      if (result.success && result.data) {
+        setSections(result.data.map((s: any) => ({ ...s, isActive: !!s.isActive })))
+      }
+    } catch { /* ignore */ } finally {
+      setLoadingSections(false)
+    }
+  }, [])
+
+  const handleSaveSection = async () => {
+    if (!sectionForm) return
+    setSavingSection(true)
+    setSectionError(null)
+    try {
+      let result
+      if (sectionForm.id) {
+        result = await api.updateCustomSection(sectionForm.id, {
+          name: sectionForm.name,
+          htmlContent: sectionForm.htmlContent,
+          isActive: sectionForm.isActive,
+        })
+      } else {
+        result = await api.createCustomSection({
+          name: sectionForm.name,
+          htmlContent: sectionForm.htmlContent,
+          isActive: sectionForm.isActive,
+        })
+      }
+      if (result.success) {
+        setSectionForm(null)
+        fetchSections()
+      } else {
+        setSectionError(result.error || 'Error al guardar')
+      }
+    } catch {
+      setSectionError('Error de conexión')
+    } finally {
+      setSavingSection(false)
+    }
+  }
+
+  const handleToggleSection = async (section: CustomSection) => {
+    const newActive = !section.isActive
+    setSections(prev => prev.map(s => s.id === section.id ? { ...s, isActive: newActive } : s))
+    try {
+      await api.toggleCustomSection(section.id, newActive)
+    } catch {
+      setSections(prev => prev.map(s => s.id === section.id ? { ...s, isActive: section.isActive } : s))
+    }
+  }
+
+  const handleDeleteSection = async (id: number) => {
+    if (!confirm('¿Eliminar esta sección?')) return
+    try {
+      await api.deleteCustomSection(id)
+      setSections(prev => prev.filter(s => s.id !== id))
+    } catch { /* ignore */ }
+  }
+
+  const handleSectionFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      const content = ev.target?.result as string
+      setSectionForm(prev => prev ? { ...prev, htmlContent: content } : prev)
+    }
+    reader.readAsText(file)
+    e.target.value = ''
   }
 
   const handleSaveBumpConfig = async () => {
@@ -969,6 +1064,22 @@ export function Tienda() {
           Verificación +18
           {ageGateEnabled && (
             <Badge className="ml-1 text-xs bg-rose-500 hover:bg-rose-600 text-white">ON</Badge>
+          )}
+        </button>
+        <button
+          onClick={() => { setActiveTab('html-sections'); fetchSections() }}
+          className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === 'html-sections'
+              ? 'border-violet-500 text-violet-600'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <Code2 className="h-4 w-4" />
+          Secciones HTML
+          {sections.some(s => s.isActive) && (
+            <Badge className="ml-1 text-xs bg-violet-500 hover:bg-violet-600 text-white">
+              {sections.filter(s => s.isActive).length}
+            </Badge>
           )}
         </button>
       </div>
@@ -2159,6 +2270,253 @@ export function Tienda() {
                 {savingAgeGate ? 'Guardando...' : ageGateSaved ? '¡Guardado!' : 'Guardar configuración'}
               </Button>
             </>
+          )}
+        </div>
+      )}
+
+      {/* ========== HTML SECTIONS TAB ========== */}
+      {activeTab === 'html-sections' && (
+        <div className="space-y-6">
+          <div className="flex items-start justify-between">
+            <div>
+              <h2 className="text-lg font-semibold flex items-center gap-2">
+                <Code2 className="h-5 w-5 text-violet-600" />
+                Secciones HTML personalizadas
+              </h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                Crea secciones con código HTML propio. Obtén un link para compartirlas o actívalas directamente en tu tienda.
+              </p>
+            </div>
+            {!sectionForm && (
+              <Button
+                onClick={() => { setSectionForm({ id: null, name: '', htmlContent: '', isActive: false }); setSectionError(null) }}
+                className="gap-2 bg-violet-600 hover:bg-violet-700 text-white shrink-0"
+              >
+                <PlusCircle className="h-4 w-4" />
+                Nueva sección
+              </Button>
+            )}
+          </div>
+
+          {/* ── Form: create / edit ── */}
+          {sectionForm && (
+            <Card className="border-violet-200">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <FileCode className="h-4 w-4 text-violet-600" />
+                  {sectionForm.id ? 'Editar sección' : 'Nueva sección'}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Name */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Nombre de la sección</label>
+                  <Input
+                    placeholder="Ej: Promo Black Friday, Banner Navidad..."
+                    value={sectionForm.name}
+                    onChange={e => setSectionForm(prev => prev ? { ...prev, name: e.target.value } : prev)}
+                  />
+                </div>
+
+                {/* HTML editor */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Código HTML</label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">o sube un archivo .html</span>
+                      <input
+                        ref={sectionFileRef}
+                        type="file"
+                        accept=".html,.htm"
+                        className="hidden"
+                        onChange={handleSectionFileUpload}
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5 h-7 text-xs"
+                        onClick={() => sectionFileRef.current?.click()}
+                      >
+                        <Upload className="h-3 w-3" />
+                        Subir archivo
+                      </Button>
+                    </div>
+                  </div>
+                  <textarea
+                    placeholder={'<!DOCTYPE html>\n<html>\n<head><title>Mi sección</title></head>\n<body>\n  <!-- Tu contenido aquí -->\n</body>\n</html>'}
+                    value={sectionForm.htmlContent}
+                    onChange={e => setSectionForm(prev => prev ? { ...prev, htmlContent: e.target.value } : prev)}
+                    rows={14}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-y"
+                    spellCheck={false}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Puedes usar HTML, CSS y JavaScript. El contenido se renderiza en un iframe sandboxed.
+                  </p>
+                </div>
+
+                {/* Active toggle */}
+                <div className="flex items-center justify-between p-3 rounded-lg border border-input bg-muted/30">
+                  <div>
+                    <p className="text-sm font-medium">Activar en mi tienda</p>
+                    <p className="text-xs text-muted-foreground">La sección aparecerá al final de tu página de tienda</p>
+                  </div>
+                  <button
+                    onClick={() => setSectionForm(prev => prev ? { ...prev, isActive: !prev.isActive } : prev)}
+                    className="transition-colors"
+                  >
+                    {sectionForm.isActive
+                      ? <ToggleRight className="h-8 w-8 text-violet-500" />
+                      : <ToggleLeft className="h-8 w-8 text-muted-foreground" />
+                    }
+                  </button>
+                </div>
+
+                {sectionError && (
+                  <p className="text-sm text-red-500 flex items-center gap-1.5">
+                    <AlertCircle className="h-4 w-4 shrink-0" />{sectionError}
+                  </p>
+                )}
+
+                <div className="flex gap-2 pt-1">
+                  <Button
+                    className="flex-1 gap-2 bg-violet-600 hover:bg-violet-700 text-white"
+                    onClick={handleSaveSection}
+                    disabled={savingSection || !sectionForm.name.trim() || !sectionForm.htmlContent.trim()}
+                  >
+                    {savingSection ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                    {savingSection ? 'Guardando...' : 'Guardar sección'}
+                  </Button>
+                  <Button variant="outline" onClick={() => { setSectionForm(null); setSectionError(null) }}>
+                    Cancelar
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* ── List of existing sections ── */}
+          {loadingSections ? (
+            <Card>
+              <CardContent className="p-6 flex items-center justify-center">
+                <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
+              </CardContent>
+            </Card>
+          ) : sections.length === 0 && !sectionForm ? (
+            <Card className="border-dashed">
+              <CardContent className="p-10 text-center">
+                <FileCode className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
+                <p className="text-sm text-muted-foreground">Aún no tienes secciones HTML.</p>
+                <p className="text-xs text-muted-foreground mt-1">Crea una para empezar.</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-3">
+              {sections.map(section => {
+                const publicUrl = typeof window !== 'undefined'
+                  ? `${window.location.origin}/s/${user?.tenantSlug || ''}/${section.slug}`
+                  : `/s/${user?.tenantSlug || ''}/${section.slug}`
+                return (
+                  <Card key={section.id} className={`transition-all ${section.isActive ? 'border-violet-200' : ''}`}>
+                    <CardContent className="p-4">
+                      <div className="flex items-start gap-3">
+                        <div className={`mt-0.5 w-2 h-2 rounded-full shrink-0 ${section.isActive ? 'bg-violet-500' : 'bg-muted-foreground/30'}`} />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-sm font-medium truncate">{section.name}</p>
+                            {section.isActive && (
+                              <Badge className="text-[10px] bg-violet-500 text-white">Activa en tienda</Badge>
+                            )}
+                          </div>
+                          {/* Shareable link */}
+                          <div className="mt-2 flex items-center gap-2">
+                            <div className="flex-1 flex items-center gap-1.5 bg-muted rounded px-2 py-1 min-w-0">
+                              <Globe2 className="h-3 w-3 text-muted-foreground shrink-0" />
+                              <span className="text-xs text-muted-foreground font-mono truncate">{publicUrl}</span>
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 gap-1 text-xs shrink-0"
+                              onClick={() => {
+                                navigator.clipboard.writeText(publicUrl)
+                                setCopiedSectionLink(section.id)
+                                setTimeout(() => setCopiedSectionLink(null), 2000)
+                              }}
+                            >
+                              {copiedSectionLink === section.id
+                                ? <><Check className="h-3 w-3 text-green-500" /> Copiado</>
+                                : <><Copy className="h-3 w-3" /> Copiar</>
+                              }
+                            </Button>
+                            <a
+                              href={publicUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center justify-center h-7 w-7 rounded-md border border-input bg-background hover:bg-accent transition-colors"
+                              title="Abrir link"
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                            </a>
+                          </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            title={section.isActive ? 'Desactivar en tienda' : 'Activar en tienda'}
+                            onClick={() => handleToggleSection(section)}
+                            className="transition-colors"
+                          >
+                            {section.isActive
+                              ? <ToggleRight className="h-7 w-7 text-violet-500" />
+                              : <ToggleLeft className="h-7 w-7 text-muted-foreground" />
+                            }
+                          </button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0"
+                            title="Editar"
+                            onClick={async () => {
+                              // Fetch full html_content for editing
+                              const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'
+                              const token = localStorage.getItem('auth_token') || ''
+                              const res = await fetch(`${API_URL}/storefront/custom-sections`, {
+                                headers: { Authorization: `Bearer ${token}` }
+                              })
+                              const json = await res.json()
+                              // We need the htmlContent — fetch individual section via public endpoint using tenantSlug
+                              const tenantSlug = user?.tenantSlug || ''
+                              const pubRes = await fetch(`${API_URL}/storefront/custom-sections/public/${tenantSlug}/${section.slug}`)
+                              const pubJson = await pubRes.json()
+                              setSectionForm({
+                                id: section.id,
+                                name: section.name,
+                                htmlContent: pubJson.success ? pubJson.data.htmlContent : '',
+                                isActive: section.isActive,
+                              })
+                              setSectionError(null)
+                            }}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                            title="Eliminar"
+                            onClick={() => handleDeleteSection(section.id)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )
+              })}
+            </div>
           )}
         </div>
       )}

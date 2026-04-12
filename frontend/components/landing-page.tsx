@@ -208,6 +208,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     bgColor?: string
     platformBgColor?: string
     publicMenuEnabled?: boolean
+    customSections?: Array<{ id: number; name: string; slug: string; htmlContent: string }>
   } | null>(null)
 
   // ====== PRODUCT DETAIL MODAL STATE ======
@@ -288,7 +289,10 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   const [globalSearchResults, setGlobalSearchResults] = useState<StorefrontProduct[]>([])
   const [globalSearchStores, setGlobalSearchStores] = useState<typeof stores>([])
   const [loadingGlobalSearch, setLoadingGlobalSearch] = useState(false)
+  const [searchInitialProducts, setSearchInitialProducts] = useState<StorefrontProduct[]>([])
   const globalSearchInputRef = useRef<HTMLInputElement>(null)
+  const globalSearchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const globalSearchAbortRef = useRef<AbortController | null>(null)
   const [showDesktopSearch, setShowDesktopSearch] = useState(false)
   const desktopSearchInputRef = useRef<HTMLInputElement>(null)
   const carouselCategoriesRef = useRef<HTMLDivElement>(null)
@@ -681,16 +685,19 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   }
 
   // ====== GLOBAL SEARCH (cross-store) ======
-  const handleGlobalSearch = async (query: string) => {
+  const handleGlobalSearch = (query: string) => {
     setGlobalSearchQuery(query)
     if (!query.trim()) {
       setGlobalSearchResults([])
       setGlobalSearchStores([])
+      setLoadingGlobalSearch(false)
+      if (globalSearchDebounceRef.current) clearTimeout(globalSearchDebounceRef.current)
+      if (globalSearchAbortRef.current) globalSearchAbortRef.current.abort()
       return
     }
     const q = query.toLowerCase()
 
-    // Immediate client-side store filter (if already loaded)
+    // Immediate client-side filter from already-loaded data
     if (stores.length > 0) {
       setGlobalSearchStores(
         stores.filter(s =>
@@ -700,39 +707,49 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         )
       )
     }
-
-    setLoadingGlobalSearch(true)
-    try {
-      const [storesRes, productsRes] = await Promise.all([
-        fetch(`${API_URL}/storefront/stores`),
-        fetch(`${API_URL}/storefront/products?limit=200&store=all`),
-      ])
-      const storesJson = await storesRes.json()
-      const productsJson = await productsRes.json()
-
-      if (storesJson.success && storesJson.data) {
-        setGlobalSearchStores(
-          storesJson.data.filter((s: any) =>
-            s.name?.toLowerCase().includes(q) ||
-            s.businessType?.toLowerCase().includes(q) ||
-            s.slug?.toLowerCase().includes(q)
-          )
+    if (searchInitialProducts.length > 0) {
+      setGlobalSearchResults(
+        searchInitialProducts.filter(p =>
+          p.name.toLowerCase().includes(q) ||
+          p.brand?.toLowerCase().includes(q) ||
+          p.category?.toLowerCase().includes(q)
         )
-      }
-      if (productsJson.success && productsJson.data?.products) {
-        setGlobalSearchResults(
-          productsJson.data.products.filter((p: StorefrontProduct) =>
-            p.name.toLowerCase().includes(q) ||
-            p.brand?.toLowerCase().includes(q) ||
-            p.category?.toLowerCase().includes(q)
-          )
-        )
-      }
-    } catch (e) {
-      console.error('Error buscando:', e)
-    } finally {
-      setLoadingGlobalSearch(false)
+      )
     }
+
+    // Debounced API search
+    if (globalSearchDebounceRef.current) clearTimeout(globalSearchDebounceRef.current)
+    globalSearchDebounceRef.current = setTimeout(async () => {
+      if (globalSearchAbortRef.current) globalSearchAbortRef.current.abort()
+      const controller = new AbortController()
+      globalSearchAbortRef.current = controller
+      setLoadingGlobalSearch(true)
+      try {
+        const [storesRes, productsRes] = await Promise.all([
+          fetch(`${API_URL}/storefront/stores`, { signal: controller.signal }),
+          fetch(`${API_URL}/storefront/products?limit=50&store=all&search=${encodeURIComponent(query.trim())}`, { signal: controller.signal }),
+        ])
+        const storesJson = await storesRes.json()
+        const productsJson = await productsRes.json()
+
+        if (storesJson.success && storesJson.data) {
+          setGlobalSearchStores(
+            storesJson.data.filter((s: any) =>
+              s.name?.toLowerCase().includes(q) ||
+              s.businessType?.toLowerCase().includes(q) ||
+              s.slug?.toLowerCase().includes(q)
+            )
+          )
+        }
+        if (productsJson.success && productsJson.data?.products) {
+          setGlobalSearchResults(productsJson.data.products)
+        }
+      } catch (e: any) {
+        if (e?.name !== 'AbortError') console.error('Error buscando:', e)
+      } finally {
+        setLoadingGlobalSearch(false)
+      }
+    }, 300)
   }
 
   // ====== FETCH ALL PRODUCTS (for stores view and catalog all-stores view) ======
@@ -754,6 +771,22 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     }
     load()
   }, [showStoresView, showCatalog, selectedStore, API_URL])
+
+  // ====== FETCH INITIAL SEARCH SUGGESTIONS ======
+  useEffect(() => {
+    if (mobileActiveTab !== 'buscar') return
+    if (searchInitialProducts.length > 0) return
+    const fetchInitial = async () => {
+      try {
+        const res = await fetch(`${API_URL}/storefront/products?limit=50&store=all`)
+        const json = await res.json()
+        if (json.success && json.data?.products) {
+          setSearchInitialProducts(json.data.products)
+        }
+      } catch (e) { console.error('Error cargando sugerencias:', e) }
+    }
+    fetchInitial()
+  }, [mobileActiveTab, API_URL, searchInitialProducts.length])
 
   // ====== FETCH PRODUCTS ======
   useEffect(() => {
@@ -6037,6 +6070,29 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         </RevealSection>
       )}
 
+      {/* ========== CUSTOM HTML SECTIONS (active) ========== */}
+      {!showProductModal && storeConfig?.customSections && storeConfig.customSections.length > 0 && (
+        <div className="w-full">
+          {storeConfig.customSections.map(section => (
+            <div key={section.id} className="w-full">
+              <iframe
+                srcDoc={section.htmlContent}
+                title={section.name}
+                sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                style={{ width: '100%', border: 'none', display: 'block', minHeight: '100px' }}
+                onLoad={(e) => {
+                  try {
+                    const iframe = e.currentTarget
+                    const body = iframe.contentDocument?.body
+                    if (body) iframe.style.height = body.scrollHeight + 'px'
+                  } catch { /* ignore */ }
+                }}
+              />
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* ========== HERO 6 — Footer con Logo, Info, Enlaces Legales, Contacto ========== */}
       {!showProductModal && <footer className="border-t border-white/10 landing-footer py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -7235,11 +7291,57 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
           <div className="flex-1 overflow-y-auto px-4 py-4">
             {!globalSearchQuery ? (
-              <div className="text-center py-16">
-                <Search className="w-12 h-12 text-white/10 mx-auto mb-4" />
-                <p className="text-white/40 text-sm font-light">Busca tiendas, productos o servicios</p>
-              </div>
-            ) : loadingGlobalSearch ? (
+              searchInitialProducts.length > 0 ? (
+                <div>
+                  <p className="text-[10px] uppercase tracking-widest text-white/20 mb-3 font-light">Productos disponibles</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    {searchInitialProducts.map(product => {
+                      const isOffer = product.isOnOffer && product.offerPrice
+                      const inCart = carrito.find(c => c.id === product.id)
+                      return (
+                        <div key={product.id} className={`group relative bg-white/5 border ${isOffer ? 'border-orange-500/30' : 'border-white/10'} overflow-hidden cursor-pointer`} onClick={() => { setMobileActiveTab(null); openProductModal(product) }}>
+                          <div data-dark className="relative aspect-square bg-black/50 overflow-hidden">
+                            {product.imageUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={ensureAbsoluteUrl(product.imageUrl)} alt={product.name} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center"><Sparkles className="w-8 h-8 text-white/10" /></div>
+                            )}
+                            <div className="absolute top-2 right-2 z-10">
+                              <button onClick={(e) => { e.stopPropagation(); agregarAlCarrito(product) }} className="w-8 h-8 rounded-full bg-black/60 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white hover:bg-amber-500 hover:text-black transition-all">
+                                <ShoppingCart className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                            {isOffer && (
+                              <div className="absolute top-2 left-2 z-20 bg-gradient-to-r from-red-600 to-orange-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-sm">OFERTA</div>
+                            )}
+                            {inCart && (
+                              <div className="absolute bottom-2 right-2 z-10 bg-amber-500 text-black text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">{inCart.cantidad}</div>
+                            )}
+                          </div>
+                          <div className="p-3 space-y-1">
+                            <h3 className="text-xs font-light text-white truncate">{product.name}</h3>
+                            {isOffer ? (
+                              <div className="flex items-center gap-2">
+                                <span className="text-orange-400 font-medium text-sm">{formatCOP(product.offerPrice!)}</span>
+                                <span className="text-white/30 text-[10px] line-through">{formatCOP(product.salePrice)}</span>
+                              </div>
+                            ) : (
+                              <span className="text-amber-400 font-light text-sm">{formatCOP(product.salePrice)}</span>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-16">
+                  <Search className="w-12 h-12 text-white/10 mx-auto mb-4" />
+                  <p className="text-white/40 text-sm font-light">Busca tiendas, productos o servicios</p>
+                </div>
+              )
+            ) : (loadingGlobalSearch && globalSearchResults.length === 0 && globalSearchStores.length === 0) ? (
               <div className="text-center py-12">
                 <div className="w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
                 <p className="text-white/40 text-sm">Buscando...</p>
@@ -7481,7 +7583,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         <div className="flex items-center justify-around h-16">
           <button
             onClick={() => { setShowCart(false); setMobileActiveTab('cuenta') }}
-            className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors ${mobileActiveTab === 'cuenta' ? 'text-white' : 'text-white/40'}`}
+            className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors ${mobileActiveTab === 'cuenta' ? (isLightBg ? 'text-black' : 'text-white') : (isLightBg ? 'text-black/30' : 'text-white/40')}`}
           >
             <User className="w-6 h-6" />
             <span className="text-[10px] leading-tight">Mi cuenta</span>
@@ -7489,22 +7591,22 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
           <button
             onClick={() => { setShowCart(false); setMobileActiveTab('ofertas'); fetchAllStoreOffers() }}
-            className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors ${mobileActiveTab === 'ofertas' ? 'text-orange-400' : 'text-white/40'}`}
+            className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors ${mobileActiveTab === 'ofertas' ? (isLightBg ? 'text-black' : 'text-white') : (isLightBg ? 'text-black/30' : 'text-white/40')}`}
           >
             <Percent className="w-6 h-6" />
-            <span className={`text-[10px] leading-tight font-bold ${mobileActiveTab === 'ofertas' ? 'text-orange-400' : 'text-white/40'}`}>Ofertas</span>
+            <span className={`text-[10px] leading-tight font-bold`}>Ofertas</span>
           </button>
 
           <button
             onClick={() => { setShowCart(false); setMobileActiveTab('buscar'); setTimeout(() => globalSearchInputRef.current?.focus(), 100) }}
-            className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors ${mobileActiveTab === 'buscar' ? 'text-white' : 'text-white/40'}`}
+            className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors ${mobileActiveTab === 'buscar' ? (isLightBg ? 'text-black' : 'text-white') : (isLightBg ? 'text-black/30' : 'text-white/40')}`}
           >
             <Search className="w-6 h-6" />
           </button>
 
           <button
             onClick={() => setShowCart(true)}
-            className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors relative text-white/40`}
+            className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors relative ${isLightBg ? 'text-black/30' : 'text-white/40'}`}
           >
             <div className="relative">
               <ShoppingCart className="w-6 h-6" />
@@ -7519,7 +7621,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
           <button
             onClick={() => { setShowCart(false); setMobileActiveTab('tienda'); setShowCatalog(false); setShowDrop(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
-            className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors ${mobileActiveTab === 'tienda' ? 'text-amber-400' : 'text-white/40'}`}
+            className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors ${mobileActiveTab === 'tienda' ? (isLightBg ? 'text-black' : 'text-white') : (isLightBg ? 'text-black/30' : 'text-white/40')}`}
           >
             <Store className="w-6 h-6" />
             <span className="text-[10px] leading-tight">Tienda</span>

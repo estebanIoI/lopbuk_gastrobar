@@ -984,6 +984,41 @@ class ApiService {
   }
 
   // =============================================
+  // Custom HTML Sections endpoints
+  // =============================================
+
+  async listCustomSections() {
+    return this.request<any>('/storefront/custom-sections', { method: 'GET' })
+  }
+
+  async createCustomSection(data: { name: string; htmlContent: string; isActive: boolean }) {
+    return this.request<any>('/storefront/custom-sections', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async updateCustomSection(id: number, data: { name: string; htmlContent: string; isActive: boolean }) {
+    return this.request<any>(`/storefront/custom-sections/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async toggleCustomSection(id: number, isActive: boolean) {
+    return this.request<any>(`/storefront/custom-sections/${id}/toggle`, {
+      method: 'PATCH',
+      body: JSON.stringify({ isActive }),
+    })
+  }
+
+  async deleteCustomSection(id: number) {
+    return this.request<any>(`/storefront/custom-sections/${id}`, {
+      method: 'DELETE',
+    })
+  }
+
+  // =============================================
   // Orders endpoints
   // =============================================
 
