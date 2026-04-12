@@ -208,7 +208,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     bgColor?: string
     platformBgColor?: string
     publicMenuEnabled?: boolean
-    customSections?: Array<{ id: number; name: string; slug: string; htmlContent: string }>
+    customSections?: Array<{ id: number; name: string; slug: string }>
   } | null>(null)
 
   // ====== PRODUCT DETAIL MODAL STATE ======
@@ -6074,21 +6074,20 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       {!showProductModal && storeConfig?.customSections && storeConfig.customSections.length > 0 && (
         <div className="w-full">
           {storeConfig.customSections.map(section => (
-            <div key={section.id} className="w-full">
-              <iframe
-                srcDoc={section.htmlContent}
-                title={section.name}
-                sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-                style={{ width: '100%', border: 'none', display: 'block', minHeight: '100px' }}
-                onLoad={(e) => {
-                  try {
-                    const iframe = e.currentTarget
-                    const body = iframe.contentDocument?.body
-                    if (body) iframe.style.height = body.scrollHeight + 'px'
-                  } catch { /* ignore */ }
-                }}
-              />
-            </div>
+            <iframe
+              key={section.id}
+              src={`/s/${selectedStore}/${section.slug}`}
+              title={section.name}
+              scrolling="no"
+              style={{ width: '100%', border: 'none', display: 'block', minHeight: '100px' }}
+              onLoad={(e) => {
+                try {
+                  const iframe = e.currentTarget as HTMLIFrameElement
+                  const body = iframe.contentDocument?.body
+                  if (body) iframe.style.height = body.scrollHeight + 'px'
+                } catch { /* cross-origin, ignore */ }
+              }}
+            />
           ))}
         </div>
       )}
