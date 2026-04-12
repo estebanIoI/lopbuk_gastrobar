@@ -106,6 +106,32 @@ interface StorefrontProduct {
   sedeId?: string | null
 }
 
+function CustomSectionFrame({ name, html }: { name: string; html: string }) {
+  const [src, setSrc] = useState<string | null>(null)
+  useEffect(() => {
+    const blob = new Blob([html], { type: 'text/html; charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    setSrc(url)
+    return () => URL.revokeObjectURL(url)
+  }, [html])
+  if (!src) return null
+  return (
+    <iframe
+      src={src}
+      title={name}
+      scrolling="no"
+      style={{ width: '100%', border: 'none', display: 'block', minHeight: '100px' }}
+      onLoad={(e) => {
+        try {
+          const iframe = e.currentTarget as HTMLIFrameElement
+          const body = iframe.contentDocument?.body
+          if (body) iframe.style.height = body.scrollHeight + 'px'
+        } catch { /* cross-origin blob, ignore */ }
+      }}
+    />
+  )
+}
+
 export function LandingPage({ onGoToLogin }: LandingPageProps) {
   const [showCatalog, setShowCatalog] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
@@ -208,7 +234,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     bgColor?: string
     platformBgColor?: string
     publicMenuEnabled?: boolean
-    customSections?: Array<{ id: number; name: string; slug: string }>
+    customSections?: Array<{ id: number; name: string; slug: string; htmlContent?: string }>
   } | null>(null)
 
   // ====== PRODUCT DETAIL MODAL STATE ======
@@ -6074,20 +6100,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       {!showProductModal && storeConfig?.customSections && storeConfig.customSections.length > 0 && (
         <div className="w-full">
           {storeConfig.customSections.map(section => (
-            <iframe
-              key={section.id}
-              src={`/s/${selectedStore}/${section.slug}`}
-              title={section.name}
-              scrolling="no"
-              style={{ width: '100%', border: 'none', display: 'block', minHeight: '100px' }}
-              onLoad={(e) => {
-                try {
-                  const iframe = e.currentTarget as HTMLIFrameElement
-                  const body = iframe.contentDocument?.body
-                  if (body) iframe.style.height = body.scrollHeight + 'px'
-                } catch { /* cross-origin, ignore */ }
-              }}
-            />
+            section.htmlContent
+              ? <CustomSectionFrame key={section.id} name={section.name} html={section.htmlContent} />
+              : null
           ))}
         </div>
       )}

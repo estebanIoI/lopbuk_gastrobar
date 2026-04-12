@@ -846,7 +846,7 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
     let customSections: any[] = [];
     try {
       const [csRows] = await pool.query(
-        'SELECT id, name, slug FROM store_custom_sections WHERE tenant_id = ? AND is_active = 1 ORDER BY created_at ASC',
+        'SELECT id, name, slug, html_content as htmlContent FROM store_custom_sections WHERE tenant_id = ? AND is_active = 1 ORDER BY created_at ASC',
         [tenantId]
       ) as any;
       customSections = csRows || [];
