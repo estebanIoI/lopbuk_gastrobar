@@ -197,6 +197,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       contactPageEnabled?: boolean | number | null
       contactPageTitle?: string | null; contactPageDescription?: string | null
       contactPageImage?: string | null; contactPageLinks?: string | null
+      ageGateEnabled?: boolean | number | null; ageGateDescription?: string | null
     } | null
     announcementBar: { text: string; linkUrl: string | null; bgColor: string; textColor: string; isActive: boolean } | null
     activeDrop: {
@@ -312,6 +313,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   const [locationSkipped, setLocationSkipped] = useState(false)
 
   const [legalModal, setLegalModal] = useState<{ title: string; content: string } | null>(null)
+
+  // Age gate state
+  const [showAgeGate, setShowAgeGate] = useState(false)
 
   useEffect(() => {
     // Read localStorage only after mount to avoid SSR hydration mismatch
@@ -976,6 +980,17 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       setShowDropPopup(false)
     }
   }, [storeConfig?.activeDrop])
+
+  // ====== AGE GATE LOGIC ======
+  useEffect(() => {
+    if (!storeConfig?.storeInfo?.ageGateEnabled || selectedStore === 'all') {
+      setShowAgeGate(false)
+      return
+    }
+    const key = `age_verified_${selectedStore}`
+    const verified = sessionStorage.getItem(key) === '1'
+    if (!verified) setShowAgeGate(true)
+  }, [storeConfig?.storeInfo?.ageGateEnabled, selectedStore])
 
   // ====== COUNTDOWN HELPER ======
   const [countdownText, setCountdownText] = useState('')
@@ -7697,6 +7712,70 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
           storeSlug={selectedStore}
           onClose={() => setBookingService(null)}
         />
+      )}
+
+      {/* ========== AGE GATE MODAL ========== */}
+      {showAgeGate && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden border border-black/8 dark:border-white/8 animate-in fade-in zoom-in-95 duration-300">
+            {/* Top accent */}
+            <div className="h-1 w-full bg-gradient-to-r from-rose-500 via-rose-400 to-rose-600" />
+
+            {/* Icon + header */}
+            <div className="flex flex-col items-center text-center px-8 pt-8 pb-5">
+              <div className="h-14 w-14 rounded-full bg-rose-50 dark:bg-rose-950/40 border border-rose-100 dark:border-rose-900/50 flex items-center justify-center mb-4">
+                <span className="text-2xl font-bold text-rose-600 leading-none select-none">18+</span>
+              </div>
+              <h2 className="text-lg font-semibold tracking-tight text-black dark:text-white leading-snug">
+                Verificación de edad
+              </h2>
+              <p className="text-xs text-black/40 dark:text-white/40 mt-1.5 font-medium uppercase tracking-widest">
+                {storeConfig?.storeInfo?.name || 'Tienda'}
+              </p>
+            </div>
+
+            {/* Divider */}
+            <div className="h-px mx-8 bg-black/6 dark:bg-white/6" />
+
+            {/* Description */}
+            <div className="px-8 py-5">
+              <p className="text-sm text-black/60 dark:text-white/60 leading-relaxed text-center">
+                {storeConfig?.storeInfo?.ageGateDescription?.trim() ||
+                  'Este sitio contiene contenido exclusivo para mayores de 18 años. Al ingresar confirmas que eres mayor de edad y aceptas los términos y condiciones.'}
+              </p>
+            </div>
+
+            {/* Actions */}
+            <div className="px-8 pb-8 space-y-2.5">
+              <button
+                onClick={() => {
+                  sessionStorage.setItem(`age_verified_${selectedStore}`, '1')
+                  setShowAgeGate(false)
+                }}
+                className="w-full py-3 rounded-xl bg-black dark:bg-white text-white dark:text-black text-sm font-semibold tracking-wide hover:bg-black/80 dark:hover:bg-white/80 transition-colors"
+              >
+                Soy mayor de edad — Entrar
+              </button>
+              <button
+                onClick={() => {
+                  setShowAgeGate(false)
+                  setSelectedStore('all')
+                  window.scrollTo({ top: 0, behavior: 'smooth' })
+                }}
+                className="w-full py-3 rounded-xl border border-black/10 dark:border-white/10 text-black/50 dark:text-white/50 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+              >
+                No soy mayor de edad
+              </button>
+            </div>
+
+            {/* Footer note */}
+            <div className="px-8 pb-6 text-center">
+              <p className="text-[10px] text-black/25 dark:text-white/25 leading-relaxed">
+                Al entrar confirmas que eres mayor de 18 años y aceptas los términos de uso del sitio.
+              </p>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ========== LEGAL CONTENT MODAL ========== */}

@@ -49,6 +49,7 @@ import {
   PlusCircle,
   GripVertical,
   Pencil,
+  Shield,
 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { StoreCustomization } from '@/components/store-customization'
@@ -73,7 +74,7 @@ interface StoreProduct {
   launchDate: string | null
 }
 
-type ActiveTab = 'catalog' | 'new-launches' | 'order-bump' | 'share' | 'contact'
+type ActiveTab = 'catalog' | 'new-launches' | 'order-bump' | 'share' | 'contact' | 'age-gate'
 
 interface OrderBumpConfig {
   isEnabled: boolean
@@ -147,6 +148,14 @@ export function Tienda() {
   const [contactSaved, setContactSaved] = useState(false)
   const [contactError, setContactError] = useState<string | null>(null)
   const [copiedContactLink, setCopiedContactLink] = useState(false)
+
+  // Age gate state
+  const [ageGateEnabled, setAgeGateEnabled] = useState(false)
+  const [ageGateDescription, setAgeGateDescription] = useState('')
+  const [loadingAgeGate, setLoadingAgeGate] = useState(false)
+  const [savingAgeGate, setSavingAgeGate] = useState(false)
+  const [ageGateSaved, setAgeGateSaved] = useState(false)
+  const [ageGateError, setAgeGateError] = useState<string | null>(null)
 
   // Offer modal state
   const [offerModal, setOfferModal] = useState<{ open: boolean; product: StoreProduct | null }>({ open: false, product: null })
@@ -258,6 +267,38 @@ export function Tienda() {
       setContactError('Error de conexión al guardar')
     } finally {
       setSavingContact(false)
+    }
+  }
+
+  const fetchAgeGateConfig = useCallback(async () => {
+    setLoadingAgeGate(true)
+    try {
+      const result = await api.getStoreCustomization()
+      if (result.success && result.data?.storeInfo) {
+        const si = result.data.storeInfo as any
+        setAgeGateEnabled(!!si.ageGateEnabled)
+        setAgeGateDescription(si.ageGateDescription || '')
+      }
+    } catch { /* ignore */ } finally {
+      setLoadingAgeGate(false)
+    }
+  }, [])
+
+  const handleSaveAgeGate = async () => {
+    setSavingAgeGate(true)
+    setAgeGateError(null)
+    try {
+      const result = await api.updateStoreExtendedInfo({ ageGateEnabled, ageGateDescription })
+      if (result.success) {
+        setAgeGateSaved(true)
+        setTimeout(() => setAgeGateSaved(false), 3000)
+      } else {
+        setAgeGateError(result.error || 'Error al guardar')
+      }
+    } catch {
+      setAgeGateError('Error de conexión al guardar')
+    } finally {
+      setSavingAgeGate(false)
     }
   }
 
@@ -914,6 +955,20 @@ export function Tienda() {
           Contacto
           {contactEnabled && (
             <Badge className="ml-1 text-xs bg-blue-500 hover:bg-blue-600 text-white">ON</Badge>
+          )}
+        </button>
+        <button
+          onClick={() => { setActiveTab('age-gate'); fetchAgeGateConfig() }}
+          className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === 'age-gate'
+              ? 'border-rose-500 text-rose-600'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <Shield className="h-4 w-4" />
+          Verificación +18
+          {ageGateEnabled && (
+            <Badge className="ml-1 text-xs bg-rose-500 hover:bg-rose-600 text-white">ON</Badge>
           )}
         </button>
       </div>
@@ -1990,6 +2045,118 @@ export function Tienda() {
                   : <Save className="h-4 w-4" />
                 }
                 {savingContact ? 'Guardando...' : contactSaved ? '¡Guardado!' : 'Guardar configuración'}
+              </Button>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ========== AGE GATE TAB ========== */}
+      {activeTab === 'age-gate' && (
+        <div className="max-w-2xl mx-auto space-y-6">
+          <div>
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <Shield className="h-5 w-5 text-rose-600" />
+              Verificación de edad +18
+            </h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              Activa un modal de verificación de mayoría de edad que el cliente debe aceptar antes de entrar a tu tienda.
+            </p>
+          </div>
+
+          {loadingAgeGate ? (
+            <Card>
+              <CardContent className="p-6 flex items-center justify-center">
+                <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
+              </CardContent>
+            </Card>
+          ) : (
+            <>
+              {/* Enable toggle */}
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium">Activar verificación +18</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        El cliente deberá confirmar que es mayor de edad antes de ver tu tienda
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setAgeGateEnabled(prev => !prev)}
+                      className="flex items-center gap-2 transition-colors"
+                    >
+                      {ageGateEnabled
+                        ? <ToggleRight className="h-8 w-8 text-rose-500" />
+                        : <ToggleLeft className="h-8 w-8 text-muted-foreground" />
+                      }
+                    </button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Description editor */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Settings className="h-4 w-4" />
+                    Mensaje de verificación
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                      Descripción / Aviso legal
+                    </label>
+                    <textarea
+                      placeholder="Ej: Este sitio contiene contenido exclusivo para mayores de 18 años. Al ingresar confirmas que eres mayor de edad y aceptas nuestros términos y condiciones."
+                      value={ageGateDescription}
+                      onChange={e => setAgeGateDescription(e.target.value)}
+                      rows={5}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Este texto aparecerá en el modal que verán tus clientes al entrar a la tienda.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Preview hint */}
+              {ageGateEnabled && (
+                <Card className="border-rose-200 bg-rose-50 dark:bg-rose-950/20 dark:border-rose-900">
+                  <CardContent className="p-4">
+                    <div className="flex items-start gap-3">
+                      <AlertCircle className="h-4 w-4 text-rose-600 mt-0.5 shrink-0" />
+                      <div className="text-sm text-rose-700 dark:text-rose-400 space-y-1">
+                        <p className="font-medium">Verificación activa</p>
+                        <p className="text-xs">
+                          Los visitantes verán un modal de confirmación al entrar a tu tienda. La verificación se guarda por sesión de navegador.
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Save */}
+              {ageGateError && (
+                <p className="text-sm text-destructive flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4" />{ageGateError}
+                </p>
+              )}
+              <Button
+                className="w-full gap-2"
+                onClick={handleSaveAgeGate}
+                disabled={savingAgeGate}
+              >
+                {savingAgeGate
+                  ? <RefreshCw className="h-4 w-4 animate-spin" />
+                  : ageGateSaved
+                  ? <Check className="h-4 w-4 text-green-400" />
+                  : <Save className="h-4 w-4" />
+                }
+                {savingAgeGate ? 'Guardando...' : ageGateSaved ? '¡Guardado!' : 'Guardar configuración'}
               </Button>
             </>
           )}

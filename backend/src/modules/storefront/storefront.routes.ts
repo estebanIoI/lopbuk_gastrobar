@@ -757,6 +757,15 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
         ) as any;
         if (themeRows[0]) Object.assign(storeInfoData, themeRows[0]);
       } catch { /* column not yet added */ }
+
+      // Age gate fields
+      try {
+        const [ageGateRows] = await pool.query(
+          `SELECT age_gate_enabled as ageGateEnabled, age_gate_description as ageGateDescription FROM store_info WHERE tenant_id = ?`,
+          [tenantId]
+        ) as any;
+        if (ageGateRows[0]) Object.assign(storeInfoData, ageGateRows[0]);
+      } catch { /* columns not yet added */ }
     }
 
     // Announcement bar
@@ -1022,6 +1031,15 @@ router.get('/customization', authenticate, requirePlan('empresarial'), async (re
         ) as any;
         if (themeRows[0]) Object.assign(storeInfoRow, themeRows[0]);
       } catch { /* column not yet added */ }
+
+      // Age gate fields
+      try {
+        const [ageGateRows] = await pool.query(
+          `SELECT age_gate_enabled as ageGateEnabled, age_gate_description as ageGateDescription FROM store_info WHERE tenant_id = ?`,
+          [tenantId]
+        ) as any;
+        if (ageGateRows[0]) Object.assign(storeInfoRow, ageGateRows[0]);
+      } catch { /* columns not yet added */ }
     }
 
     // Published products for featured selection (stock filter removed so admins can feature any published product)
@@ -1283,6 +1301,7 @@ router.put('/store-extended-info', authenticate, requirePlan('empresarial'), asy
       socialInstagram, socialFacebook, socialTiktok, socialWhatsapp,
       department, municipality, productCardStyle, allowContraentrega,
       showInfoModule, infoModuleDescription,
+      ageGateEnabled, ageGateDescription,
     } = req.body;
 
     const allowCod = allowContraentrega === false ? 0 : 1;
@@ -1344,6 +1363,14 @@ router.put('/store-extended-info', authenticate, requirePlan('empresarial'), asy
       res.status(404).json({ success: false, error: 'Información de tienda no encontrada' });
       return;
     }
+
+    // Age gate fields (separate update — columns may not exist in older installations)
+    try {
+      await pool.query(
+        `UPDATE store_info SET age_gate_enabled = ?, age_gate_description = ? WHERE tenant_id = ?`,
+        [ageGateEnabled ? 1 : 0, ageGateDescription || null, tenantId]
+      );
+    } catch { /* columns not yet added — ignore */ }
 
     res.json({ success: true });
   } catch (error) {
