@@ -153,6 +153,11 @@ function validateRow(
     }
   }
 
+  // Optional: articulo (inventario)
+  if (rawRow.articulo?.trim()) {
+    data.articulo = rawRow.articulo.trim()
+  }
+
   // Optional string fields
   const optionalFields = ['brand', 'model', 'description', 'barcode', 'supplier', 'locationInStore', 'notes']
   for (const field of optionalFields) {
@@ -303,7 +308,16 @@ export function BulkUploadDialog({ open, onOpenChange }: BulkUploadDialogProps) 
         header: true,
         skipEmptyLines: true,
         delimiter,
-        transformHeader: (header: string) => header.trim(),
+        transformHeader: (header: string) => {
+          const trimmed = header.trim()
+          const normalized = trimmed
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+
+          if (normalized === 'articulo') return 'articulo'
+          return trimmed
+        },
         complete: (results) => {
           if (results.data.length === 0) {
             toast.error('El archivo está vacío')
@@ -430,7 +444,7 @@ export function BulkUploadDialog({ open, onOpenChange }: BulkUploadDialogProps) 
               <p className="font-medium text-foreground">Campos requeridos:</p>
               <p>name, category, sku, purchasePrice, salePrice, stock, reorderPoint, entryDate</p>
               <p className="font-medium text-foreground mt-2">Campos opcionales comunes:</p>
-              <p>productType, brand, model, description, barcode, supplier, locationInStore, notes</p>
+              <p>articulo, productType, brand, model, description, barcode, supplier, locationInStore, notes</p>
               <p className="font-medium text-foreground mt-2">Campos por tipo de producto:</p>
               <p>La plantilla incluye todos los campos posibles. Solo llena los que apliquen al tipo de producto.</p>
               <p className="mt-2">La categoría puede ser el nombre o el ID. Las fechas en formato YYYY-MM-DD. El separador del CSV es punto y coma (;).</p>
@@ -459,6 +473,7 @@ export function BulkUploadDialog({ open, onOpenChange }: BulkUploadDialogProps) 
                     <TableHead className="w-10">Estado</TableHead>
                     <TableHead>Nombre</TableHead>
                     <TableHead>Categoría</TableHead>
+                    <TableHead>Artículo</TableHead>
                     <TableHead>SKU</TableHead>
                     <TableHead className="text-right">P. Compra</TableHead>
                     <TableHead className="text-right">P. Venta</TableHead>
@@ -484,6 +499,7 @@ export function BulkUploadDialog({ open, onOpenChange }: BulkUploadDialogProps) 
                         {row.data.name || '-'}
                       </TableCell>
                       <TableCell className="text-sm">{row.data.category || '-'}</TableCell>
+                      <TableCell className="text-sm">{row.data.articulo || '-'}</TableCell>
                       <TableCell className="text-sm font-mono">{row.data.sku || '-'}</TableCell>
                       <TableCell className="text-right text-sm">
                         {row.data.purchasePrice != null ? row.data.purchasePrice.toLocaleString() : '-'}

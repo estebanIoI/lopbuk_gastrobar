@@ -7582,7 +7582,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 </div>
                 <button
                   onClick={() => { setShowClientLogin(true); setClientLoginTab('login'); setClientLoginError('') }}
-                  className="px-8 py-3 bg-amber-500 text-black text-sm font-medium uppercase tracking-wider hover:bg-amber-400 transition-colors"
+                  className="px-8 py-3 bg-white text-black text-sm font-medium uppercase tracking-wider hover:bg-white/90 transition-colors"
                 >
                   Iniciar Sesión
                 </button>
@@ -7597,7 +7597,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         <div className="flex items-center justify-around h-16">
           <button
             onClick={() => { setShowCart(false); setMobileActiveTab('cuenta') }}
-            className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors ${mobileActiveTab === 'cuenta' ? (isLightBg ? 'text-black' : 'text-white') : (isLightBg ? 'text-black/30' : 'text-white/40')}`}
+            className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors ${mobileActiveTab === 'cuenta' ? 'text-white' : 'text-white/40'}`}
           >
             <User className="w-6 h-6" />
             <span className="text-[10px] leading-tight">Mi cuenta</span>
@@ -7605,15 +7605,15 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
           <button
             onClick={() => { setShowCart(false); setMobileActiveTab('ofertas'); fetchAllStoreOffers() }}
-            className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors ${mobileActiveTab === 'ofertas' ? (isLightBg ? 'text-black' : 'text-white') : (isLightBg ? 'text-black/30' : 'text-white/40')}`}
+            className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors ${mobileActiveTab === 'ofertas' ? (isLightBg ? 'text-black' : 'text-white') : 'text-white/40'}`}
           >
             <Percent className="w-6 h-6" />
-            <span className={`text-[10px] leading-tight font-bold`}>Ofertas</span>
+            <span className={`text-[10px] leading-tight font-bold ${mobileActiveTab === 'ofertas' ? (isLightBg ? 'text-black' : 'text-white') : 'text-white/40'}`}>Ofertas</span>
           </button>
 
           <button
             onClick={() => { setShowCart(false); setMobileActiveTab('buscar'); setTimeout(() => globalSearchInputRef.current?.focus(), 100) }}
-            className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors ${mobileActiveTab === 'buscar' ? (isLightBg ? 'text-black' : 'text-white') : (isLightBg ? 'text-black/30' : 'text-white/40')}`}
+            className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors ${mobileActiveTab === 'buscar' ? 'text-white' : 'text-white/40'}`}
           >
             <Search className="w-6 h-6" />
           </button>
@@ -7635,7 +7635,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
           <button
             onClick={() => { setShowCart(false); setMobileActiveTab('tienda'); setShowCatalog(false); setShowDrop(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
-            className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors ${mobileActiveTab === 'tienda' ? (isLightBg ? 'text-black' : 'text-white') : (isLightBg ? 'text-black/30' : 'text-white/40')}`}
+            className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors ${mobileActiveTab === 'tienda' ? (isLightBg ? 'text-black' : 'text-white') : 'text-white/40'}`}
           >
             <Store className="w-6 h-6" />
             <span className="text-[10px] leading-tight">Tienda</span>

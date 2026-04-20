@@ -17,6 +17,8 @@ interface PurchaseInvoiceRow extends RowDataPacket {
   tax: number;
   total: number;
   payment_method: string;
+  mixed_efectivo_amount: number | null;
+  mixed_transferencia_amount: number | null;
   payment_status: string;
   due_date: Date | null;
   file_url: string | null;
@@ -34,6 +36,7 @@ interface PurchaseInvoiceItemRow extends RowDataPacket {
   product_sku: string;
   quantity: number;
   unit_cost: number;
+  sale_price: number | null;
   subtotal: number;
 }
 
@@ -66,6 +69,7 @@ export interface CreatePurchaseItem {
   productId: string;
   quantity: number;
   unitCost: number;
+  salePrice?: number;
 }
 
 export interface CreatePurchaseData {
@@ -76,6 +80,8 @@ export interface CreatePurchaseData {
   documentType?: 'factura' | 'remision' | 'orden_compra' | 'nota_credito';
   items: CreatePurchaseItem[];
   paymentMethod?: 'efectivo' | 'transferencia' | 'tarjeta' | 'credito' | 'nequi' | 'daviplata' | 'credito_proveedor' | 'mixto';
+  mixedEfectivoAmount?: number;
+  mixedTransferenciaAmount?: number;
   paymentStatus?: 'pagado' | 'pendiente' | 'parcial';
   dueDate?: string;
   fileUrl?: string;
@@ -97,6 +103,8 @@ export class PurchasesService {
       tax: Number(row.tax),
       total: Number(row.total),
       paymentMethod: row.payment_method,
+      mixedEfectivoAmount: row.mixed_efectivo_amount != null ? Number(row.mixed_efectivo_amount) : null,
+      mixedTransferenciaAmount: row.mixed_transferencia_amount != null ? Number(row.mixed_transferencia_amount) : null,
       paymentStatus: row.payment_status,
       dueDate: row.due_date || null,
       fileUrl: row.file_url || null,
@@ -112,6 +120,7 @@ export class PurchasesService {
         productSku: i.product_sku,
         quantity: Number(i.quantity),
         unitCost: Number(i.unit_cost),
+        salePrice: i.sale_price != null ? Number(i.sale_price) : null,
         subtotal: Number(i.subtotal),
       })),
     };
@@ -277,8 +286,9 @@ export class PurchasesService {
       await connection.execute<ResultSetHeader>(
         `INSERT INTO purchase_invoices
           (id, tenant_id, invoice_number, supplier_id, supplier_name, purchase_date, document_type,
-           subtotal, discount, tax, total, payment_method, payment_status, due_date, file_url, notes, created_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)`,
+           subtotal, discount, tax, total, payment_method, mixed_efectivo_amount, mixed_transferencia_amount,
+           payment_status, due_date, file_url, notes, created_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           invoiceId,
           tenantId,
@@ -291,6 +301,8 @@ export class PurchasesService {
           discount,
           total,
           paymentMethod,
+          paymentMethod === 'mixto' ? (data.mixedEfectivoAmount ?? null) : null,
+          paymentMethod === 'mixto' ? (data.mixedTransferenciaAmount ?? null) : null,
           paymentStatus,
           data.dueDate || null,
           data.fileUrl || null,

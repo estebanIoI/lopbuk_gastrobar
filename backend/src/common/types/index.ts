@@ -188,8 +188,12 @@ export interface Sale {
   paymentMethod: PaymentMethod;
   amountPaid: number;
   change: number;
+  mixedEfectivoAmount?: number;
+  mixedSecondMethod?: string;
+  mixedSecondAmount?: number;
   sellerId?: string;
   sellerName: string;
+  sedeId?: string;
   status: SaleStatus;
   creditStatus?: CreditStatus;
   dueDate?: Date;
@@ -286,6 +290,9 @@ export interface CashSession {
   totalCardSales: number;
   totalTransferSales: number;
   totalFiadoSales: number;
+  totalCreditPaymentsEfectivo?: number;
+  totalCreditPaymentsTarjeta?: number;
+  totalCreditPaymentsTransferencia?: number;
   totalSalesCount: number;
   totalChangeGiven: number;
   totalCashEntries: number;

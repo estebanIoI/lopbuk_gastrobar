@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS tenants (
     owner_id VARCHAR(36) NULL COMMENT 'Se actualiza despues de crear el usuario comerciante',
     bg_color VARCHAR(7) DEFAULT '#000000' COMMENT 'Color de fondo de la tienda',
     public_menu_enabled TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Menú público QR activado',
+    trial_ends_at DATETIME NULL DEFAULT NULL COMMENT 'Fecha de expiración del período de prueba',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_tenant_status (status),
@@ -50,7 +51,7 @@ CREATE TABLE IF NOT EXISTS users (
     password VARCHAR(255) NOT NULL,
     name VARCHAR(255) NOT NULL,
     role ENUM('superadmin', 'comerciante', 'vendedor', 'cliente', 'repartidor') NOT NULL DEFAULT 'vendedor',
-    phone VARCHAR(50) NULL COMMENT 'Teléfono del usuario (usado por clientes)',
+    phone TEXT NULL COMMENT 'Teléfono del usuario (puede estar cifrado con AES-256)',
     avatar VARCHAR(500) NULL,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     can_login BOOLEAN NOT NULL DEFAULT TRUE COMMENT 'FALSE = el empleado existe en el sistema pero no puede iniciar sesión (ej: empleados de aseo, bodega)',
@@ -124,6 +125,23 @@ CREATE TABLE IF NOT EXISTS store_info (
     invoice_greeting VARCHAR(255) NULL DEFAULT '¡Gracias por su compra!' COMMENT 'Mensaje de agradecimiento al pie de la factura',
     invoice_policy TEXT NULL COMMENT 'Política de cambios y devoluciones al pie de la factura',
     invoice_copies TINYINT NOT NULL DEFAULT 1 COMMENT 'Copias a imprimir por factura: 1 o 2',
+    -- Personalización de tienda online
+    product_card_style VARCHAR(20) NULL DEFAULT 'style1' COMMENT 'Estilo de tarjeta: style1, style2',
+    allow_contraentrega TINYINT(1) NOT NULL DEFAULT 1 COMMENT '1 = permite pago contraentrega en checkout',
+    online_discount_enabled TINYINT(1) NOT NULL DEFAULT 0 COMMENT '1 = descuento online activado',
+    -- Age gate
+    age_gate_enabled TINYINT(1) NOT NULL DEFAULT 0 COMMENT '1 = verificación de edad activada',
+    age_gate_description TEXT NULL COMMENT 'Texto del aviso de verificación de edad',
+    -- Página de contacto personalizada
+    contact_page_enabled TINYINT(1) NOT NULL DEFAULT 0 COMMENT '1 = página de contacto activa en storefront',
+    contact_page_title VARCHAR(255) NULL COMMENT 'Título de la página de contacto',
+    contact_page_description TEXT NULL COMMENT 'Texto de descripción de la página de contacto',
+    contact_page_image VARCHAR(500) NULL COMMENT 'URL de imagen de la página de contacto',
+    contact_page_products TEXT NULL COMMENT 'JSON: array de product IDs destacados en página de contacto',
+    contact_page_links TEXT NULL COMMENT 'JSON: array de links en página de contacto',
+    -- Módulo de información
+    show_info_module TINYINT(1) NOT NULL DEFAULT 0 COMMENT '1 = mostrar módulo de información en lugar de productos',
+    info_module_description TEXT NULL COMMENT 'Descripción/texto libre del módulo de información',
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
     UNIQUE INDEX idx_store_tenant (tenant_id),
@@ -387,6 +405,12 @@ CREATE TABLE IF NOT EXISTS sales (
     credit_status ENUM('pendiente', 'parcial', 'pagado') DEFAULT NULL,
     due_date DATE NULL,
     notes TEXT NULL,
+    -- Pago mixto
+    mixed_efectivo_amount DECIMAL(12,2) NULL COMMENT 'Pago mixto: monto en efectivo',
+    mixed_second_method VARCHAR(30) NULL COMMENT 'Pago mixto: segundo método (tarjeta, transferencia, nequi…)',
+    mixed_second_amount DECIMAL(12,2) NULL COMMENT 'Pago mixto: monto del segundo método',
+    -- Sede/Sucursal
+    sede_id VARCHAR(36) NULL COMMENT 'Sede donde se realizó la venta (NULL = sede única)',
     -- Offline-first sync
     synced TINYINT(1) NOT NULL DEFAULT 1 COMMENT '0 = pendiente de subir a la nube',
     synced_at TIMESTAMP NULL COMMENT 'Fecha en que se sincronizó con la nube',
@@ -404,7 +428,8 @@ CREATE TABLE IF NOT EXISTS sales (
     INDEX idx_sales_credit_status (credit_status),
     INDEX idx_sales_payment_method (payment_method),
     INDEX idx_sales_due_date (due_date),
-    INDEX idx_sales_synced (synced)
+    INDEX idx_sales_synced (synced),
+    INDEX idx_sales_sede_id (sede_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================
@@ -493,6 +518,8 @@ CREATE TABLE IF NOT EXISTS purchase_invoices (
     due_date DATE NULL,
     file_url VARCHAR(500) NULL,
     notes TEXT NULL,
+    mixed_efectivo_amount DECIMAL(12,2) NULL COMMENT 'Pago mixto: monto en efectivo',
+    mixed_transferencia_amount DECIMAL(12,2) NULL COMMENT 'Pago mixto: monto en transferencia',
     created_by VARCHAR(50) NULL,
     -- Offline-first sync
     synced TINYINT(1) NOT NULL DEFAULT 1 COMMENT '0 = pendiente de subir a la nube',
@@ -522,6 +549,7 @@ CREATE TABLE IF NOT EXISTS purchase_invoice_items (
     product_sku VARCHAR(100) NOT NULL,
     quantity DECIMAL(10,3) NOT NULL,
     unit_cost DECIMAL(12,2) NOT NULL,
+    sale_price DECIMAL(12,2) NULL COMMENT 'Precio de venta del producto al momento de la compra',
     subtotal DECIMAL(12,2) NOT NULL,
     FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
     FOREIGN KEY (invoice_id) REFERENCES purchase_invoices(id) ON DELETE CASCADE,
@@ -661,6 +689,9 @@ CREATE TABLE IF NOT EXISTS cash_sessions (
     total_change_given DECIMAL(12, 2) NULL DEFAULT 0,
     total_cash_entries DECIMAL(12, 2) NULL DEFAULT 0,
     total_cash_withdrawals DECIMAL(12, 2) NULL DEFAULT 0,
+    total_credit_payments_efectivo DECIMAL(12,2) NULL DEFAULT 0 COMMENT 'Abonos a créditos recibidos en efectivo durante la sesión',
+    total_credit_payments_tarjeta DECIMAL(12,2) NULL DEFAULT 0 COMMENT 'Abonos a créditos recibidos en tarjeta durante la sesión',
+    total_credit_payments_transfer DECIMAL(12,2) NULL DEFAULT 0 COMMENT 'Abonos a créditos recibidos en transferencia durante la sesión',
     expected_cash DECIMAL(12, 2) NULL,
     actual_cash DECIMAL(12, 2) NULL,
     difference DECIMAL(12, 2) NULL,
@@ -2493,7 +2524,156 @@ CREATE TABLE IF NOT EXISTS portfolio_config (
   COMMENT 'Configuración del portafolio público de la marca DAIMUZ';
 
 -- ============================================================
--- FIN DEL SCRIPT v3.0 Multi-Tenant
+-- TABLA: store_custom_sections (Secciones HTML personalizadas del storefront)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS store_custom_sections (
+    id          VARCHAR(36) PRIMARY KEY,
+    tenant_id   VARCHAR(36) NOT NULL,
+    name        VARCHAR(100) NOT NULL    COMMENT 'Nombre interno de la sección',
+    slug        VARCHAR(100) NOT NULL    COMMENT 'Identificador URL amigable',
+    html_content LONGTEXT NULL           COMMENT 'Contenido HTML libre de la sección',
+    is_active   TINYINT(1) NOT NULL DEFAULT 1,
+    sort_order  INT NOT NULL DEFAULT 0,
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+    UNIQUE INDEX idx_custom_section_slug   (tenant_id, slug),
+    INDEX idx_custom_section_tenant        (tenant_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT 'Secciones HTML personalizadas del storefront por tenant';
+
+-- ============================================================
+-- MIGRACIONES INCREMENTALES v3.1 → v3.2
+-- Idempotentes: seguras de ejecutar en DBs existentes
+-- ============================================================
+DELIMITER //
+CREATE PROCEDURE IF NOT EXISTS sp_migrate_v32()
+BEGIN
+
+    -- tenants: período de prueba
+    IF NOT EXISTS (
+        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tenants' AND COLUMN_NAME = 'trial_ends_at'
+    ) THEN
+        ALTER TABLE tenants ADD COLUMN trial_ends_at DATETIME NULL DEFAULT NULL
+            COMMENT 'Fecha de expiración del período de prueba';
+    END IF;
+
+    -- sales: campos pago mixto
+    IF NOT EXISTS (
+        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'sales' AND COLUMN_NAME = 'mixed_efectivo_amount'
+    ) THEN
+        ALTER TABLE sales
+            ADD COLUMN mixed_efectivo_amount DECIMAL(12,2) NULL
+                COMMENT 'Pago mixto: monto en efectivo',
+            ADD COLUMN mixed_second_method VARCHAR(30) NULL
+                COMMENT 'Pago mixto: segundo método de pago',
+            ADD COLUMN mixed_second_amount DECIMAL(12,2) NULL
+                COMMENT 'Pago mixto: monto del segundo método';
+    END IF;
+
+    -- sales: sede_id
+    IF NOT EXISTS (
+        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'sales' AND COLUMN_NAME = 'sede_id'
+    ) THEN
+        ALTER TABLE sales ADD COLUMN sede_id VARCHAR(36) NULL
+            COMMENT 'Sede donde se realizó la venta';
+        ALTER TABLE sales ADD INDEX idx_sales_sede_id (sede_id);
+    END IF;
+
+    -- cash_sessions: abonos a créditos por método de pago
+    IF NOT EXISTS (
+        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'cash_sessions' AND COLUMN_NAME = 'total_credit_payments_efectivo'
+    ) THEN
+        ALTER TABLE cash_sessions
+            ADD COLUMN total_credit_payments_efectivo DECIMAL(12,2) NULL DEFAULT 0
+                COMMENT 'Abonos a créditos recibidos en efectivo durante la sesión',
+            ADD COLUMN total_credit_payments_tarjeta DECIMAL(12,2) NULL DEFAULT 0
+                COMMENT 'Abonos a créditos recibidos en tarjeta durante la sesión',
+            ADD COLUMN total_credit_payments_transfer DECIMAL(12,2) NULL DEFAULT 0
+                COMMENT 'Abonos a créditos recibidos en transferencia durante la sesión';
+    END IF;
+
+    -- purchase_invoices: pago mixto
+    IF NOT EXISTS (
+        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'purchase_invoices' AND COLUMN_NAME = 'mixed_efectivo_amount'
+    ) THEN
+        ALTER TABLE purchase_invoices
+            ADD COLUMN mixed_efectivo_amount DECIMAL(12,2) NULL
+                COMMENT 'Pago mixto: monto en efectivo',
+            ADD COLUMN mixed_transferencia_amount DECIMAL(12,2) NULL
+                COMMENT 'Pago mixto: monto en transferencia';
+    END IF;
+
+    -- purchase_invoice_items: precio de venta sugerido
+    IF NOT EXISTS (
+        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'purchase_invoice_items' AND COLUMN_NAME = 'sale_price'
+    ) THEN
+        ALTER TABLE purchase_invoice_items ADD COLUMN sale_price DECIMAL(12,2) NULL
+            COMMENT 'Precio de venta del producto al momento de la compra'
+            AFTER unit_cost;
+    END IF;
+
+    -- store_info: online_discount_enabled
+    IF NOT EXISTS (
+        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'store_info' AND COLUMN_NAME = 'online_discount_enabled'
+    ) THEN
+        ALTER TABLE store_info ADD COLUMN online_discount_enabled TINYINT(1) NOT NULL DEFAULT 0
+            COMMENT '1 = descuento online activado';
+    END IF;
+
+    -- store_info: age gate
+    IF NOT EXISTS (
+        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'store_info' AND COLUMN_NAME = 'age_gate_enabled'
+    ) THEN
+        ALTER TABLE store_info
+            ADD COLUMN age_gate_enabled TINYINT(1) NOT NULL DEFAULT 0
+                COMMENT '1 = verificación de edad activada',
+            ADD COLUMN age_gate_description TEXT NULL
+                COMMENT 'Texto del aviso de verificación de edad';
+    END IF;
+
+    -- store_info: contact page
+    IF NOT EXISTS (
+        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'store_info' AND COLUMN_NAME = 'contact_page_enabled'
+    ) THEN
+        ALTER TABLE store_info
+            ADD COLUMN contact_page_enabled TINYINT(1) NOT NULL DEFAULT 0
+                COMMENT '1 = página de contacto activa en storefront',
+            ADD COLUMN contact_page_title VARCHAR(255) NULL
+                COMMENT 'Título de la página de contacto',
+            ADD COLUMN contact_page_description TEXT NULL,
+            ADD COLUMN contact_page_image VARCHAR(500) NULL,
+            ADD COLUMN contact_page_products TEXT NULL
+                COMMENT 'JSON: array de product IDs destacados',
+            ADD COLUMN contact_page_links TEXT NULL
+                COMMENT 'JSON: array de links en página de contacto';
+    END IF;
+
+    -- product_recipes: include_in_cost (ya en sp_migrate_restbar_products, idempotente)
+    IF NOT EXISTS (
+        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'product_recipes' AND COLUMN_NAME = 'include_in_cost'
+    ) THEN
+        ALTER TABLE product_recipes ADD COLUMN include_in_cost TINYINT(1) NOT NULL DEFAULT 1
+            COMMENT '1 = incluir este ingrediente en el costo del plato';
+    END IF;
+
+END //
+DELIMITER ;
+CALL sp_migrate_v32();
+DROP PROCEDURE IF EXISTS sp_migrate_v32;
+
+-- ============================================================
+-- FIN DEL SCRIPT v3.2 Multi-Tenant
 -- ============================================================
 -- CREDENCIALES POR DEFECTO:
 --   Superadmin:   superadmin@stockpro.com  / admin123

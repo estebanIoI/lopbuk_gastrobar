@@ -20,8 +20,12 @@ interface SaleRow extends RowDataPacket {
   payment_method: PaymentMethod;
   amount_paid: number;
   change_amount: number;
+  mixed_efectivo_amount: number | null;
+  mixed_second_method: string | null;
+  mixed_second_amount: number | null;
   seller_id: string | null;
   seller_name: string;
+  sede_id: string | null;
   status: SaleStatus;
   credit_status: 'pendiente' | 'parcial' | 'pagado' | null;
   due_date: Date | null;
@@ -64,7 +68,38 @@ export interface SaleFilters {
   endDate?: Date;
   search?: string;
   sellerId?: string;
+  sedeId?: string;
   todayOnly?: boolean;
+}
+
+export interface ProductReportItem {
+  productId: string;
+  productName: string;
+  productSku: string;
+  quantity: number;
+  subtotal: number;
+}
+
+export interface SedeReportData {
+  sedeId: string | null;
+  sedeName: string | null;
+  salesCount: number;
+  subtotal: number;
+  tax: number;
+  discount: number;
+  total: number;
+  byPaymentMethod: Record<string, { count: number; total: number; mixedEfectivo?: number; mixedSecondMethod?: string; mixedSecond?: number }>;
+  products: ProductReportItem[];
+}
+
+export interface DailyReportData {
+  date: string;
+  sedes: SedeReportData[];
+  totalSales: number;
+  grandSubtotal: number;
+  grandTax: number;
+  grandDiscount: number;
+  grandTotal: number;
 }
 
 export interface CreateSaleItem {
@@ -72,12 +107,16 @@ export interface CreateSaleItem {
   quantity: number;
   discount?: number;
   customAmount?: number;
+  unitPrice?: number; // Precio personalizado desde facturación (override del precio de venta)
 }
 
 export interface CreateSaleData {
   items: CreateSaleItem[];
   paymentMethod: PaymentMethod;
   amountPaid: number;
+  mixedEfectivoAmount?: number;
+  mixedSecondMethod?: string;
+  mixedSecondAmount?: number;
   globalDiscount?: number;
   customerId?: string;
   customerName?: string;
@@ -85,6 +124,7 @@ export interface CreateSaleData {
   customerEmail?: string;
   sellerId: string;
   sellerName: string;
+  sedeId?: string;
   creditDays?: number;
   notes?: string;
   applyTax?: boolean; // true = aplica IVA 19% (factura electrónica solicitada)
@@ -107,8 +147,12 @@ export class SalesService {
       paymentMethod: row.payment_method,
       amountPaid: Number(row.amount_paid),
       change: Number(row.change_amount),
+      mixedEfectivoAmount: row.mixed_efectivo_amount != null ? Number(row.mixed_efectivo_amount) : undefined,
+      mixedSecondMethod: row.mixed_second_method || undefined,
+      mixedSecondAmount: row.mixed_second_amount != null ? Number(row.mixed_second_amount) : undefined,
       sellerId: row.seller_id || undefined,
       sellerName: row.seller_name,
+      sedeId: row.sede_id || undefined,
       status: row.status,
       creditStatus: row.credit_status || undefined,
       dueDate: row.due_date || undefined,
@@ -196,8 +240,18 @@ export class SalesService {
       values.push(filters.sellerId);
     }
 
+    if (filters?.sedeId) {
+      conditions.push('sede_id = ?');
+      values.push(filters.sedeId);
+    }
+
     if (filters?.todayOnly) {
-      conditions.push('DATE(created_at) = CURDATE()');
+      // Compare in Colombia timezone (UTC-5) to avoid date mismatch for late-night sales
+      const colombiaToday = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+      const colombiaStart = new Date(colombiaToday + 'T05:00:00Z'); // midnight Colombia = UTC 05:00
+      const colombiaEnd = new Date(colombiaStart.getTime() + 24 * 60 * 60 * 1000);
+      conditions.push('created_at >= ? AND created_at < ?');
+      values.push(colombiaStart, colombiaEnd);
     }
 
     const whereClause = `WHERE ${conditions.join(' AND ')}`;
@@ -548,8 +602,10 @@ export class SalesService {
       // Insertar venta
       await connection.execute<ResultSetHeader>(
         `INSERT INTO sales (id, tenant_id, invoice_number, customer_id, customer_name, customer_phone, customer_email,
-          subtotal, tax, discount, total, payment_method, amount_paid, change_amount, seller_id, seller_name, cash_session_id, credit_status, due_date, notes)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          subtotal, tax, discount, total, payment_method, amount_paid, change_amount,
+          mixed_efectivo_amount, mixed_second_method, mixed_second_amount,
+          seller_id, seller_name, sede_id, cash_session_id, credit_status, due_date, notes)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           saleId,
           tenantId,
@@ -565,8 +621,12 @@ export class SalesService {
           data.paymentMethod,
           amountPaid,
           change,
+          data.paymentMethod === 'mixto' ? (data.mixedEfectivoAmount ?? null) : null,
+          data.paymentMethod === 'mixto' ? (data.mixedSecondMethod ?? null) : null,
+          data.paymentMethod === 'mixto' ? (data.mixedSecondAmount ?? null) : null,
           data.sellerId,
           data.sellerName,
+          data.sedeId || null,
           cashSessionId,
           creditStatus,
           dueDate,
@@ -775,6 +835,129 @@ export class SalesService {
     return {
       data: rows.map((r) => this.mapSale(r)),
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    };
+  }
+
+  async getStats(tenantId: string): Promise<{ total: number; completedTotal: number; cancelledTotal: number }> {
+    const [rows] = await db.execute<RowDataPacket[]>(
+      `SELECT
+        COUNT(*) as total,
+        COALESCE(SUM(CASE WHEN status = 'completada' THEN total ELSE 0 END), 0) as completedTotal,
+        COALESCE(SUM(CASE WHEN status = 'anulada' THEN total ELSE 0 END), 0) as cancelledTotal
+       FROM sales WHERE tenant_id = ?`,
+      [tenantId]
+    );
+    return {
+      total: Number(rows[0].total),
+      completedTotal: Number(rows[0].completedTotal),
+      cancelledTotal: Number(rows[0].cancelledTotal),
+    };
+  }
+
+  async getDailyReport(tenantId: string, date: string): Promise<DailyReportData> {
+    const [salesRows] = await db.execute<SaleRow[]>(
+      `SELECT * FROM sales WHERE tenant_id = ? AND DATE(CONVERT_TZ(created_at, '+00:00', '-05:00')) = ? AND status = 'completada' ORDER BY created_at ASC`,
+      [tenantId, date]
+    );
+
+    const allItems: SaleItemRow[] = [];
+    if (salesRows.length > 0) {
+      const saleIds = salesRows.map(s => s.id);
+      const placeholders = saleIds.map(() => '?').join(',');
+      const [itemRows] = await db.execute<SaleItemRow[]>(
+        `SELECT * FROM sale_items WHERE sale_id IN (${placeholders})`,
+        saleIds
+      );
+      allItems.push(...itemRows);
+    }
+
+    const itemsBySale = new Map<string, SaleItemRow[]>();
+    for (const item of allItems) {
+      if (!itemsBySale.has(item.sale_id)) itemsBySale.set(item.sale_id, []);
+      itemsBySale.get(item.sale_id)!.push(item);
+    }
+
+    const sedeIds = [...new Set(salesRows.map(s => s.sede_id).filter(Boolean))] as string[];
+    const sedeNameMap = new Map<string, string>();
+    if (sedeIds.length > 0) {
+      const placeholdersSedes = sedeIds.map(() => '?').join(',');
+      const [sedeRows] = await db.execute<RowDataPacket[]>(
+        `SELECT id, name FROM sedes WHERE tenant_id = ? AND id IN (${placeholdersSedes})`,
+        [tenantId, ...sedeIds]
+      );
+      for (const row of sedeRows) sedeNameMap.set(row.id, row.name);
+    }
+
+    const sedeGroups = new Map<string, SaleRow[]>();
+    for (const sale of salesRows) {
+      const key = sale.sede_id || '__none__';
+      if (!sedeGroups.has(key)) sedeGroups.set(key, []);
+      sedeGroups.get(key)!.push(sale);
+    }
+
+    const sedeReports: SedeReportData[] = [];
+    for (const [sedeKey, sales] of sedeGroups.entries()) {
+      const byPaymentMethod: Record<string, { count: number; total: number; mixedEfectivo?: number; mixedSecondMethod?: string; mixedSecond?: number }> = {};
+      const productMap = new Map<string, ProductReportItem>();
+      let subtotal = 0, tax = 0, discount = 0, total = 0;
+
+      for (const sale of sales) {
+        subtotal += Number(sale.subtotal);
+        tax += Number(sale.tax);
+        discount += Number(sale.discount);
+        total += Number(sale.total);
+
+        const pm = sale.payment_method;
+        if (!byPaymentMethod[pm]) byPaymentMethod[pm] = { count: 0, total: 0 };
+        byPaymentMethod[pm].count++;
+        byPaymentMethod[pm].total += Number(sale.total);
+
+        if (pm === 'mixto' && sale.mixed_efectivo_amount != null) {
+          byPaymentMethod[pm].mixedEfectivo = (byPaymentMethod[pm].mixedEfectivo || 0) + Number(sale.mixed_efectivo_amount);
+          byPaymentMethod[pm].mixedSecond = (byPaymentMethod[pm].mixedSecond || 0) + Number(sale.mixed_second_amount || 0);
+          if (!byPaymentMethod[pm].mixedSecondMethod && sale.mixed_second_method) {
+            byPaymentMethod[pm].mixedSecondMethod = sale.mixed_second_method;
+          }
+        }
+
+        const items = itemsBySale.get(sale.id) || [];
+        for (const item of items) {
+          if (!productMap.has(item.product_id)) {
+            productMap.set(item.product_id, {
+              productId: item.product_id,
+              productName: item.product_name,
+              productSku: item.product_sku,
+              quantity: 0,
+              subtotal: 0,
+            });
+          }
+          const p = productMap.get(item.product_id)!;
+          p.quantity += item.quantity;
+          p.subtotal += Number(item.subtotal);
+        }
+      }
+
+      sedeReports.push({
+        sedeId: sedeKey === '__none__' ? null : sedeKey,
+        sedeName: sedeKey === '__none__' ? null : (sedeNameMap.get(sedeKey) || sedeKey),
+        salesCount: sales.length,
+        subtotal,
+        tax,
+        discount,
+        total,
+        byPaymentMethod,
+        products: [...productMap.values()],
+      });
+    }
+
+    return {
+      date,
+      sedes: sedeReports,
+      totalSales: salesRows.length,
+      grandSubtotal: sedeReports.reduce((s, r) => s + r.subtotal, 0),
+      grandTax: sedeReports.reduce((s, r) => s + r.tax, 0),
+      grandDiscount: sedeReports.reduce((s, r) => s + r.discount, 0),
+      grandTotal: sedeReports.reduce((s, r) => s + r.total, 0),
     };
   }
 }

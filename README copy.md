@@ -1081,4 +1081,4 @@ try {
 | Sizes | XS,S,M,L,XL,XXL,XXXL | Types |
 | Categories Default | 8 categorias | SQL seed data |
 | Invoice Prefix | FAC | invoice_sequence |
-| Receipt Prefix | REC | payment_receipt_sequence |
+| Receipt Prefix | REC | payment_receipt_sequence |ddd
