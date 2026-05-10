@@ -643,6 +643,7 @@ export function Settings() {
                           <SelectItem value="cajero">Cajero — cobro de comandas</SelectItem>
                           <SelectItem value="administrador_rb">Admin RestBar — gestión completa</SelectItem>
                           <SelectItem value="auxiliar_bodega">Aux. Bodega — solo inventario</SelectItem>
+                          <SelectItem value="despachador">Despachador — panel de despacho</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>

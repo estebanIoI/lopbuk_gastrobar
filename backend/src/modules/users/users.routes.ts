@@ -32,7 +32,7 @@ router.post(
     body('role')
       .optional()
       .isIn(['comerciante', 'vendedor', 'auxiliar_bodega', 'repartidor', 'cliente',
-             'mesero', 'cocinero', 'cajero', 'bartender', 'administrador_rb'])
+             'mesero', 'cocinero', 'cajero', 'bartender', 'administrador_rb', 'despachador'])
       .withMessage('Rol invalido'),
     body('phone').optional().isString().withMessage('Telefono invalido'),
     body('tenantId').optional({ nullable: true }).isString().withMessage('Tenant ID invalido'),
@@ -49,7 +49,7 @@ router.put(
     param('id').notEmpty().withMessage('ID requerido'),
     body('name').optional().notEmpty().withMessage('El nombre no puede estar vacio'),
     body('role').optional().isIn(['comerciante', 'vendedor', 'auxiliar_bodega', 'repartidor', 'cliente',
-                                  'mesero', 'cocinero', 'cajero', 'bartender', 'administrador_rb']).withMessage('Rol invalido'),
+                                  'mesero', 'cocinero', 'cajero', 'bartender', 'administrador_rb', 'despachador']).withMessage('Rol invalido'),
     body('avatar').optional().isURL().withMessage('URL de avatar invalida'),
     body('canLogin').optional().isBoolean().withMessage('canLogin debe ser booleano'),
     validateRequest,

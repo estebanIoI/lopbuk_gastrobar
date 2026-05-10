@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/select'
 import {
   Search, Plus, X, Printer, FileText, Trash2, Pencil,
-  Building, ScanLine, Check, Ban, ChevronDown,
+  Building, ScanLine, Check, Ban, ChevronDown, Truck,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { BarcodeScanner } from '@/components/barcode-scanner'
@@ -105,6 +105,11 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
   const [completedSale, setCompletedSale] = useState<Sale | null>(null)
   const [showAnularConfirm, setShowAnularConfirm] = useState(false)
 
+  // ── Fleet state (ferretería) ─────────────────────────────────────────────────
+  const [fleetVehicles, setFleetVehicles] = useState<{ id: string; name: string; plate: string; type: string; maxWeightKg: number; status: string }[]>([])
+  const [selectedVehicleId, setSelectedVehicleId] = useState('')
+  const [loadingVehicles, setLoadingVehicles] = useState(false)
+
   // ── Refs ────────────────────────────────────────────────────────────────────
   const productSearchRef = useRef<HTMLInputElement>(null)
   const productQtyRef = useRef<HTMLInputElement>(null)
@@ -136,6 +141,35 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
   const change = Math.max(0, paidAmount - total)
 
   const todayStr = new Date().toLocaleDateString('es-CO', { timeZone: 'America/Bogota', day: '2-digit', month: '2-digit', year: 'numeric' })
+
+  // ── Fleet weight ─────────────────────────────────────────────────────────────
+  const toKgPos = (w: number, unit: string | null | undefined) => {
+    if (!w) return 0
+    switch (unit) { case 'ton': return w * 1000; case 'lb': return w * 0.453592; case 'g': return w / 1000; default: return w }
+  }
+  const totalWeightKg = billingLines.reduce((sum, item) => {
+    if (item.product.productType !== 'ferreteria') return sum
+    return sum + toKgPos(item.product.weight || 0, item.product.hardwareWeightUnit) * item.quantity
+  }, 0)
+  const hasFerreteriaProducts = billingLines.some(l => l.product.productType === 'ferreteria')
+  const suggestedVehicleType = totalWeightKg < 50 ? 'Moto' : totalWeightKg <= 500 ? 'Camión Ligero' : 'Camión Planta'
+
+  useEffect(() => {
+    if (!hasFerreteriaProducts) { setFleetVehicles([]); setSelectedVehicleId(''); return }
+    setLoadingVehicles(true)
+    api.getFleetVehicles('disponible').then(res => {
+      if (res?.success && Array.isArray(res.data)) setFleetVehicles(res.data)
+      setLoadingVehicles(false)
+    }).catch(() => setLoadingVehicles(false))
+  }, [hasFerreteriaProducts]) // eslint-disable-line
+
+  useEffect(() => {
+    if (!hasFerreteriaProducts || !totalWeightKg || fleetVehicles.length === 0) { setSelectedVehicleId(''); return }
+    const best = fleetVehicles
+      .filter(v => v.maxWeightKg >= totalWeightKg)
+      .sort((a, b) => a.maxWeightKg - b.maxWeightKg)[0]
+    if (best) setSelectedVehicleId(best.id)
+  }, [totalWeightKg, fleetVehicles, hasFerreteriaProducts]) // eslint-disable-line
 
   // ── Filtered products ───────────────────────────────────────────────────────
   const normalizedProductSearch = productSearch.trim().toLowerCase()
@@ -365,6 +399,8 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
       applyTax: applyIva,
       sedeId: sedeId || undefined,
       creditDays: formaPago === 'credito' ? creditDays : undefined,
+      vehicleId: selectedVehicleId || undefined,
+      totalWeightKg: totalWeightKg > 0 ? totalWeightKg : undefined,
     })
 
     setIsProcessing(false)
@@ -398,6 +434,8 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
     setItemNotes({})
     setEditingNoteId(null)
     setGlobalDiscountPct('')
+    setSelectedVehicleId('')
+    setFleetVehicles([])
     setTimeout(() => productSearchRef.current?.focus(), 50)
   }
 
@@ -442,6 +480,8 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
           ${selectedCustomer?.cedula ? `<div>CC/NIT: ${selectedCustomer.cedula}</div>` : ''}
           ${sale.customerPhone ? `<div>Tel: ${sale.customerPhone}</div>` : ''}
           ${sale.sellerName ? `<div>Vendedor: <b>${sale.sellerName}</b></div>` : ''}
+          ${totalWeightKg > 0 ? `<div class="meta-row"><span>Peso total:</span><span>${totalWeightKg.toFixed(2)} kg</span></div>` : ''}
+          ${selectedVehicleId ? `<div class="meta-row"><span>Vehículo:</span><span><b>${fleetVehicles.find(v => v.id === selectedVehicleId)?.name || 'Asignado'}</b></span></div>` : (totalWeightKg > 0 ? `<div class="meta-row"><span>Vehículo:</span><span>${suggestedVehicleType}</span></div>` : '')}
         </div>
         <div class="divider"></div>
         <table class="items">
@@ -1123,6 +1163,27 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
 
             {/* Totals */}
             <div className="flex-1 space-y-0.5">
+              {hasFerreteriaProducts && (
+                <div className="flex items-center justify-between py-1 mb-1 border-b border-orange-200 dark:border-orange-800">
+                  <div className="flex items-center gap-1.5 text-orange-600 text-xs">
+                    <Truck className="h-3.5 w-3.5 shrink-0" />
+                    <span><b>{totalWeightKg.toFixed(2)} kg</b> · {suggestedVehicleType}</span>
+                  </div>
+                  <Select value={selectedVehicleId} onValueChange={setSelectedVehicleId}>
+                    <SelectTrigger className="h-6 text-[10px] w-[140px] border-orange-200 bg-orange-50 dark:bg-orange-950/30 px-2">
+                      <SelectValue placeholder={loadingVehicles ? 'Cargando...' : 'Auto-asignar'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="" className="text-xs">Auto-asignar</SelectItem>
+                      {fleetVehicles.map(v => (
+                        <SelectItem key={v.id} value={v.id} className="text-xs">
+                          {v.name} — {v.maxWeightKg}kg
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="flex justify-between text-xs text-muted-foreground">
                 <span>Subtotal bruto:</span>
                 <span>${Math.round(subtotalBeforeGlobal).toLocaleString('es-CO')}</span>

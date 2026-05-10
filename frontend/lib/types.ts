@@ -74,6 +74,7 @@ export interface Product {
   // Ferreteria
   dimensions?: string
   weight?: number
+  hardwareWeightUnit?: string | null
   caliber?: string
   resistance?: string
   finish?: string
@@ -466,6 +467,7 @@ export interface ServiceBooking {
 
 // Auth Types
 export type UserRole = 'superadmin' | 'comerciante' | 'vendedor' | 'cliente' | 'repartidor' | 'auxiliar_bodega'
+  | 'administrador_rb' | 'cajero' | 'mesero' | 'cocinero' | 'bartender' | 'despachador'
 
 export interface User {
   id: string

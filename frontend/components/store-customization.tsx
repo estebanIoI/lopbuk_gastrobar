@@ -35,6 +35,9 @@ import {
   MessageCircle,
   Bell,
   Package,
+  ShoppingCart,
+  ToggleLeft,
+  Search,
 } from 'lucide-react'
 import { CloudinaryUpload } from '@/components/ui/cloudinary-upload'
 import { departamentosMunicipios } from '@/constants'
@@ -114,7 +117,7 @@ interface Drop {
   products?: Array<{ productId: string; customDiscount: number | null; name: string; imageUrl: string | null; salePrice: number }>
 }
 
-type Tab = 'banners' | 'categories' | 'featured' | 'info' | 'announcement' | 'drops' | 'chatbot'
+type Tab = 'banners' | 'categories' | 'featured' | 'info' | 'announcement' | 'drops' | 'chatbot' | 'carrito'
 
 export function StoreCustomization({ onBack }: { onBack: () => void }) {
   const [activeTab, setActiveTab] = useState<Tab>('banners')
@@ -150,6 +153,24 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
   })
   const [isSavingChatbot, setIsSavingChatbot] = useState(false)
   const [chatbotMsg, setChatbotMsg] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
+
+  // Cart settings
+  const [cartMinPurchase, setCartMinPurchase] = useState(0)
+  const [isSavingCartSettings, setIsSavingCartSettings] = useState(false)
+  const [cartSettingsMsg, setCartSettingsMsg] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
+
+  // Order bump
+  const [orderBumpConfig, setOrderBumpConfig] = useState({
+    isEnabled: false,
+    mode: 'auto' as 'auto' | 'manual',
+    title: '¿También te puede interesar?',
+    maxItems: 3,
+    productIds: [] as string[],
+  })
+  const [orderBumpPublishedProducts, setOrderBumpPublishedProducts] = useState<PublishedProduct[]>([])
+  const [orderBumpSearch, setOrderBumpSearch] = useState('')
+  const [isSavingOrderBump, setIsSavingOrderBump] = useState(false)
+  const [orderBumpMsg, setOrderBumpMsg] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
 
   // Banner form
   const [bannerForm, setBannerForm] = useState<Banner>({ position: 'hero1', imageUrl: '', videoUrl: '', title: '', subtitle: '', linkUrl: '' })
@@ -196,6 +217,10 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
         if (result.data.drops) {
           setDrops(result.data.drops)
         }
+        if (result.data.cartMinPurchase !== undefined) {
+          setCartMinPurchase(Number(result.data.cartMinPurchase) || 0)
+        }
+
         if (result.data.storeInfo) {
           setStoreInfo({
             logoUrl: result.data.storeInfo.logoUrl || '',
@@ -242,6 +267,22 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
         })
       }
     } catch { /* chatbot table may not exist yet */ }
+
+    // Load cart settings and order bump
+    try {
+      const bumpResult = await api.getOrderBumpConfig()
+      if (bumpResult.success && bumpResult.data) {
+        const { config, publishedProducts: bumpPubs } = bumpResult.data
+        setOrderBumpConfig({
+          isEnabled: !!config.isEnabled,
+          mode: config.mode || 'auto',
+          title: config.title || '¿También te puede interesar?',
+          maxItems: config.maxItems || 3,
+          productIds: config.productIds || [],
+        })
+        setOrderBumpPublishedProducts(bumpPubs || [])
+      }
+    } catch { /* ignore */ }
   }, [])
 
   useEffect(() => { fetchData() }, [fetchData])
@@ -457,6 +498,50 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
     return { label: 'Activo', color: 'bg-green-500' }
   }
 
+  // ========== CART SETTINGS HANDLERS ==========
+  const handleSaveCartSettings = async () => {
+    setIsSavingCartSettings(true)
+    try {
+      const result = await api.updateCartSettings({ cartMinPurchase })
+      if (result.success) {
+        setCartSettingsMsg({ type: 'ok', text: 'Mínimo de compra guardado' })
+      } else {
+        setCartSettingsMsg({ type: 'error', text: result.error || 'Error al guardar' })
+      }
+    } catch {
+      setCartSettingsMsg({ type: 'error', text: 'Error de conexión' })
+    } finally {
+      setIsSavingCartSettings(false)
+      setTimeout(() => setCartSettingsMsg(null), 3000)
+    }
+  }
+
+  const handleSaveOrderBump = async () => {
+    setIsSavingOrderBump(true)
+    try {
+      const result = await api.updateOrderBumpConfig(orderBumpConfig)
+      if (result.success) {
+        setOrderBumpMsg({ type: 'ok', text: 'Order Bump guardado' })
+      } else {
+        setOrderBumpMsg({ type: 'error', text: result.error || 'Error al guardar' })
+      }
+    } catch {
+      setOrderBumpMsg({ type: 'error', text: 'Error de conexión' })
+    } finally {
+      setIsSavingOrderBump(false)
+      setTimeout(() => setOrderBumpMsg(null), 3000)
+    }
+  }
+
+  const toggleOrderBumpProduct = (productId: string) => {
+    setOrderBumpConfig(prev => ({
+      ...prev,
+      productIds: prev.productIds.includes(productId)
+        ? prev.productIds.filter(id => id !== productId)
+        : [...prev.productIds, productId],
+    }))
+  }
+
   // ========== STORE INFO HANDLERS ==========
   const handleSaveStoreInfo = async () => {
     setSaving(true)
@@ -485,6 +570,7 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
     { key: 'drops', label: 'Drops', icon: <Zap className="h-4 w-4" /> },
     { key: 'info', label: 'Info Tienda', icon: <Info className="h-4 w-4" /> },
     { key: 'chatbot', label: 'Chatbot IA', icon: <Bot className="h-4 w-4" /> },
+    { key: 'carrito', label: 'Carrito', icon: <ShoppingCart className="h-4 w-4" /> },
   ]
 
   const featuredIds = new Set(featuredProducts.map(f => f.productId))
@@ -1725,6 +1811,255 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
               </span>
             )}
           </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════
+          TAB: CARRITO
+      ══════════════════════════════════════════════════════════ */}
+      {activeTab === 'carrito' && (
+        <div className="space-y-6">
+
+          {/* ── Sección 1: Mínimo de compra ── */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ShoppingCart className="h-5 w-5 text-primary" />
+                Mínimo de Compra para Domicilio con Flota
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Cuando el carrito del cliente supere este monto, la barra de progreso se llenará y aparecerá{' '}
+                <strong>"¡Domicilio con flota incluido!"</strong> con el botón en verde. Pon <strong>0</strong> para desactivar la barra completamente.
+              </p>
+
+              <div className="flex items-end gap-4">
+                <div className="flex-1 space-y-2">
+                  <label className="text-sm font-medium">Monto mínimo (COP)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    step={1000}
+                    value={cartMinPurchase}
+                    onChange={e => setCartMinPurchase(Math.max(0, parseInt(e.target.value) || 0))}
+                    placeholder="Ej: 80000"
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  />
+                </div>
+                <div className="pb-1">
+                  <span className="text-sm font-semibold text-primary">
+                    {cartMinPurchase > 0 ? formatCurrency(cartMinPurchase) : 'Desactivado'}
+                  </span>
+                </div>
+              </div>
+
+              {cartMinPurchase > 0 && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+                  <p className="text-xs text-emerald-700">
+                    La barra de progreso se mostrará en el carrito. Al alcanzar{' '}
+                    <strong>{formatCurrency(cartMinPurchase)}</strong>, se desbloqueará el domicilio con asignación automática de vehículo de flota.
+                  </p>
+                </div>
+              )}
+
+              <div className="flex items-center gap-3 flex-wrap">
+                <Button onClick={handleSaveCartSettings} disabled={isSavingCartSettings} className="gap-2">
+                  {isSavingCartSettings ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                  Guardar Mínimo
+                </Button>
+                {cartSettingsMsg && (
+                  <span className={`text-sm font-medium flex items-center gap-1 ${cartSettingsMsg.type === 'ok' ? 'text-green-600' : 'text-red-600'}`}>
+                    {cartSettingsMsg.type === 'ok' ? <Check className="h-4 w-4" /> : <X className="h-4 w-4" />}
+                    {cartSettingsMsg.text}
+                  </span>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* ── Sección 2: Order Bump ── */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Package className="h-5 w-5 text-primary" />
+                Order Bump — Productos Sugeridos en Checkout
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <p className="text-sm text-muted-foreground">
+                Muestra productos adicionales al cliente justo antes de confirmar su pedido para aumentar el ticket promedio.
+              </p>
+
+              {/* Toggle activo */}
+              <div className={`flex items-center justify-between p-3 border rounded-lg ${orderBumpConfig.isEnabled ? 'bg-primary/5 border-primary/20' : 'bg-muted/30'}`}>
+                <div>
+                  <p className="text-sm font-medium">Activar Order Bump</p>
+                  <p className="text-xs text-muted-foreground">Muestra sugerencias al cliente en el checkout</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setOrderBumpConfig(p => ({ ...p, isEnabled: !p.isEnabled }))}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${orderBumpConfig.isEnabled ? 'bg-primary' : 'bg-gray-300'}`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${orderBumpConfig.isEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
+              </div>
+
+              {orderBumpConfig.isEnabled && (
+                <div className="space-y-4">
+                  {/* Título de la sección */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Título de la sección</label>
+                    <input
+                      type="text"
+                      value={orderBumpConfig.title}
+                      onChange={e => setOrderBumpConfig(p => ({ ...p, title: e.target.value }))}
+                      placeholder="¿También te puede interesar?"
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    />
+                  </div>
+
+                  {/* Modo */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Modo de selección</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {(['auto', 'manual'] as const).map(mode => (
+                        <button
+                          key={mode}
+                          type="button"
+                          onClick={() => setOrderBumpConfig(p => ({ ...p, mode }))}
+                          className={`p-3 rounded-lg border text-sm font-medium text-center transition-colors ${orderBumpConfig.mode === mode ? 'border-primary bg-primary/10 text-primary' : 'border-border hover:border-muted-foreground/50'}`}
+                        >
+                          {mode === 'auto' ? '🤖 Automático' : '✋ Manual'}
+                          <p className="text-xs font-normal text-muted-foreground mt-1">
+                            {mode === 'auto' ? 'Productos de otras categorías del carrito' : 'Tú eliges qué mostrar'}
+                          </p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Máximo de ítems */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Máximo de productos a mostrar ({orderBumpConfig.maxItems})</label>
+                    <input
+                      type="range"
+                      min={1}
+                      max={6}
+                      value={orderBumpConfig.maxItems}
+                      onChange={e => setOrderBumpConfig(p => ({ ...p, maxItems: parseInt(e.target.value) }))}
+                      className="w-full"
+                    />
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span>
+                    </div>
+                  </div>
+
+                  {/* Selector de productos (solo en modo manual) */}
+                  {orderBumpConfig.mode === 'manual' && (
+                    <div className="space-y-3">
+                      <label className="text-sm font-medium">
+                        Productos seleccionados ({orderBumpConfig.productIds.length}/{orderBumpConfig.maxItems})
+                      </label>
+
+                      {/* Buscador */}
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <input
+                          type="text"
+                          value={orderBumpSearch}
+                          onChange={e => setOrderBumpSearch(e.target.value)}
+                          placeholder="Buscar producto..."
+                          className="flex h-10 w-full rounded-md border border-input bg-background pl-9 pr-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        />
+                      </div>
+
+                      {/* Lista de productos */}
+                      <div className="border rounded-lg divide-y max-h-72 overflow-y-auto">
+                        {orderBumpPublishedProducts
+                          .filter(p =>
+                            !orderBumpSearch ||
+                            p.name.toLowerCase().includes(orderBumpSearch.toLowerCase()) ||
+                            p.category.toLowerCase().includes(orderBumpSearch.toLowerCase())
+                          )
+                          .map(product => {
+                            const selected = orderBumpConfig.productIds.includes(product.id)
+                            const limitReached = !selected && orderBumpConfig.productIds.length >= orderBumpConfig.maxItems
+                            return (
+                              <div
+                                key={product.id}
+                                className={`flex items-center gap-3 p-3 transition-colors ${selected ? 'bg-primary/5' : limitReached ? 'opacity-40' : 'hover:bg-muted/50'}`}
+                              >
+                                <div className="w-10 h-10 rounded border overflow-hidden flex-shrink-0 bg-muted">
+                                  {product.imageUrl ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
+                                  ) : (
+                                    <div className="w-full h-full flex items-center justify-center">
+                                      <Package className="h-4 w-4 text-muted-foreground" />
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium truncate">{product.name}</p>
+                                  <p className="text-xs text-muted-foreground">{product.category} · {formatCurrency(product.salePrice)}</p>
+                                </div>
+                                <button
+                                  type="button"
+                                  disabled={limitReached}
+                                  onClick={() => toggleOrderBumpProduct(product.id)}
+                                  className={`h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0 transition-colors ${selected ? 'bg-primary text-primary-foreground' : 'border border-input hover:bg-muted'}`}
+                                >
+                                  {selected ? <Check className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                                </button>
+                              </div>
+                            )
+                          })}
+                        {orderBumpPublishedProducts.length === 0 && (
+                          <div className="p-6 text-center text-sm text-muted-foreground">
+                            No hay productos publicados en la tienda
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Chips de seleccionados */}
+                      {orderBumpConfig.productIds.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                          {orderBumpConfig.productIds.map(id => {
+                            const p = orderBumpPublishedProducts.find(x => x.id === id)
+                            if (!p) return null
+                            return (
+                              <span key={id} className="flex items-center gap-1.5 bg-primary/10 text-primary text-xs font-medium px-2.5 py-1 rounded-full">
+                                {p.name}
+                                <button type="button" onClick={() => toggleOrderBumpProduct(id)} className="hover:text-destructive transition-colors">
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </span>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="flex items-center gap-3 flex-wrap pt-2 border-t">
+                <Button onClick={handleSaveOrderBump} disabled={isSavingOrderBump} className="gap-2">
+                  {isSavingOrderBump ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                  Guardar Order Bump
+                </Button>
+                {orderBumpMsg && (
+                  <span className={`text-sm font-medium flex items-center gap-1 ${orderBumpMsg.type === 'ok' ? 'text-green-600' : 'text-red-600'}`}>
+                    {orderBumpMsg.type === 'ok' ? <Check className="h-4 w-4" /> : <X className="h-4 w-4" />}
+                    {orderBumpMsg.text}
+                  </span>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
         </div>
       )}
     </div>

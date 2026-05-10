@@ -761,7 +761,7 @@ function ProductFormDialog({
   sedes = [],
   defaultSedeId,
 }: ProductFormDialogProps) {
-  const { categories } = useStore()
+  const { categories, products } = useStore()
   const [showScanner, setShowScanner] = useState(false)
   const [showRemoteScanner, setShowRemoteScanner] = useState(false)
   const [formData, setFormData] = useState<Record<string, any>>(() => getInitialFormData(initialData, categories, defaultSedeId))
@@ -769,11 +769,15 @@ function ProductFormDialog({
   // Reset form and scanner state when dialog opens/closes or initialData changes
   useEffect(() => {
     if (open) {
-      setFormData(getInitialFormData(initialData, categories, defaultSedeId))
+      const initial = getInitialFormData(initialData, categories, defaultSedeId)
+      if (!initialData) {
+        initial.sku = generateNextSku(products)
+      }
+      setFormData(initial)
       setShowScanner(false)
       setShowRemoteScanner(false)
     }
-  }, [open, initialData, categories, defaultSedeId])
+  }, [open, initialData, categories, defaultSedeId, products])
 
   const productType = (formData.productType || 'general') as ProductType
   const typeFields = getFieldsForProductType(productType)
@@ -796,36 +800,38 @@ function ProductFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[95vw] max-w-2xl max-h-[92vh] overflow-y-auto p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
-          <div className="grid gap-4 py-4">
-            {/* Product Type Selector */}
+          <div className="grid gap-4 py-3">
+
+            {/* ── Tipo de Producto ── */}
             <div className="space-y-2">
               <Label>Tipo de Producto</Label>
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
+              <div className="grid grid-cols-5 gap-1.5">
                 {Object.values(PRODUCT_TYPES).map((type) => (
                   <button
                     key={type.id}
                     type="button"
                     onClick={() => updateField('productType', type.id)}
-                    className={`flex flex-col items-center gap-1 p-2 rounded-lg border text-xs transition-colors ${
+                    title={type.name}
+                    className={`flex flex-col items-center gap-0.5 px-1 py-2 rounded-lg border text-center transition-colors ${
                       productType === type.id
                         ? 'border-primary bg-primary/10 text-primary'
                         : 'border-border hover:border-muted-foreground/50'
                     }`}
                   >
-                    <span className="text-lg">{type.icon}</span>
-                    <span className="truncate w-full text-center">{type.name}</span>
+                    <span className="text-xl leading-none">{type.icon}</span>
+                    <span className="text-[10px] leading-tight mt-0.5 line-clamp-2 w-full">{type.name}</span>
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* Common fields - always visible */}
+            {/* ── Nombre ── */}
             <div className="space-y-2">
               <Label htmlFor="name">Nombre en tienda *</Label>
               <Input
@@ -836,7 +842,9 @@ function ProductFormDialog({
                 required
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+
+            {/* ── Artículo + Categoría ── */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="articulo">Artículo (inventario)</Label>
                 <Input
@@ -866,9 +874,15 @@ function ProductFormDialog({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            {/* ── SKU + Código de Barras ── */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="sku">SKU / Codigo *</Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="sku">SKU / Codigo *</Label>
+                  {!initialData && (
+                    <span className="text-[10px] text-muted-foreground">Auto-generado · editable</span>
+                  )}
+                </div>
                 <Input
                   id="sku"
                   value={formData.sku || ''}
@@ -884,11 +898,11 @@ function ProductFormDialog({
                       id="barcode"
                       value={formData.barcode || ''}
                       onChange={(e) => updateField('barcode', e.target.value)}
-                      placeholder="Escanea o ingresa manualmente"
+                      placeholder="Escanea o ingresa"
                       className={formData.barcode ? 'border-green-500' : ''}
                     />
                     {formData.barcode && (
-                      <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
                         <svg className="h-4 w-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                         </svg>
@@ -896,22 +910,10 @@ function ProductFormDialog({
                     )}
                   </div>
                   <div className="flex gap-1">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      onClick={() => setShowScanner(true)}
-                      title="Escanear con cámara local (DroidCam)"
-                    >
+                    <Button type="button" variant="outline" size="icon" onClick={() => setShowScanner(true)} title="Cámara local">
                       <ScanLine className="h-4 w-4" />
                     </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      onClick={() => setShowRemoteScanner(true)}
-                      title="Escanear con cámara remota (QR)"
-                    >
+                    <Button type="button" variant="outline" size="icon" onClick={() => setShowRemoteScanner(true)} title="Cámara remota (QR)">
                       <Smartphone className="h-4 w-4" />
                     </Button>
                   </div>
@@ -919,7 +921,8 @@ function ProductFormDialog({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            {/* ── Precios ── */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="purchasePrice">Precio de compra (COP) *</Label>
                 <div className="relative">
@@ -955,7 +958,8 @@ function ProductFormDialog({
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
+            {/* ── Stock + Reorden + Fecha ── */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="stock">Stock *</Label>
                 <Input
@@ -980,7 +984,7 @@ function ProductFormDialog({
                   required
                 />
               </div>
-              <div className="space-y-2">
+              <div className="space-y-2 col-span-2 sm:col-span-1">
                 <Label htmlFor="entryDate">Fecha de ingreso *</Label>
                 <Input
                   id="entryDate"
@@ -992,6 +996,7 @@ function ProductFormDialog({
               </div>
             </div>
 
+            {/* ── Proveedor ── */}
             <div className="space-y-2">
               <Label htmlFor="supplier">Proveedor</Label>
               <Input
@@ -1002,7 +1007,7 @@ function ProductFormDialog({
               />
             </div>
 
-            {/* Sede selector — only visible when there are sedes configured */}
+            {/* ── Sede ── */}
             {sedes.length >= 1 && (
               <div className="space-y-2">
                 <Label htmlFor="sedeId">Sede / Sucursal</Label>
@@ -1025,7 +1030,7 @@ function ProductFormDialog({
               </div>
             )}
 
-            {/* ── Galería de imágenes (hasta 4) ───────────────── */}
+            {/* ── Galería de imágenes (hasta 4) ── */}
             <div className="space-y-3">
               <Label>Imágenes del Producto (máx. 4)</Label>
               <p className="text-xs text-muted-foreground -mt-1">
@@ -1033,7 +1038,6 @@ function ProductFormDialog({
               </p>
               <div className="grid grid-cols-2 gap-3">
                 {[0, 1, 2, 3].map((idx) => {
-                  // Slot 0 = imageUrl (principal), slots 1-3 = images[1..3]
                   const imagesArr: string[] = Array.isArray(formData.images) ? formData.images : []
                   const slotValue = idx === 0
                     ? (formData.imageUrl || imagesArr[0] || '')
@@ -1044,7 +1048,6 @@ function ProductFormDialog({
                       if (i === 0) return idx === 0 ? url : (formData.imageUrl || imagesArr[0] || '')
                       return i === idx ? url : (imagesArr[i] || '')
                     })
-                    // Trim trailing empty slots
                     const trimmed = next.map(u => u.trim())
                     updateField('images', trimmed)
                     if (idx === 0) updateField('imageUrl', url)
@@ -1067,7 +1070,7 @@ function ProductFormDialog({
               </div>
             </div>
 
-            {/* Dynamic type-specific fields */}
+            {/* ── Campos específicos del tipo ── */}
             {typeFields.length > 0 && (
               <>
                 <div className="border-t border-border pt-4 mt-2">
@@ -1075,7 +1078,15 @@ function ProductFormDialog({
                     {PRODUCT_TYPES[productType]?.icon} Campos de {PRODUCT_TYPES[productType]?.name}
                   </p>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                {productType === 'ferreteria' && (
+                  <div className="flex items-start gap-2 rounded-md bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800 px-3 py-2">
+                    <span className="text-orange-500 text-base leading-none mt-0.5">🚛</span>
+                    <p className="text-xs text-orange-700 dark:text-orange-300">
+                      Los campos <strong>Peso</strong> y <strong>Unidad de Peso</strong> se usan para asignar automáticamente el vehículo de despacho al crear un pedido.
+                    </p>
+                  </div>
+                )}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {typeFields.map((field) => (
                     <DynamicField
                       key={field.name}
@@ -1088,7 +1099,7 @@ function ProductFormDialog({
               </>
             )}
           </div>
-          <DialogFooter>
+          <DialogFooter className="gap-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
@@ -1211,6 +1222,18 @@ function DynamicField({ field, value, onChange }: {
       placeholder={field.placeholder}
     />
   )
+}
+
+function generateNextSku(products: Product[]): string {
+  if (!products.length) return '0001'
+  const nums = products
+    .map(p => p.sku.match(/(\d+)$/))
+    .filter(Boolean)
+    .map(m => parseInt(m![1], 10))
+  if (!nums.length) return '0001'
+  const next = Math.max(...nums) + 1
+  const digits = Math.max(4, String(next).length)
+  return String(next).padStart(digits, '0')
 }
 
 function getInitialFormData(initialData: Product | undefined, categories: Array<{ id: string }>, defaultSedeId?: string) {

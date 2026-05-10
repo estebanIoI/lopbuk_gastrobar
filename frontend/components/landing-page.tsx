@@ -98,6 +98,8 @@ interface StorefrontProduct {
   weightUnit?: string
   warrantyMonths?: number
   dimensions?: string
+  weight?: number | null
+  hardwareWeightUnit?: string | null
   tenantId?: string
   storeName?: string
   storeSlug?: string
@@ -235,6 +237,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     platformBgColor?: string
     publicMenuEnabled?: boolean
     customSections?: Array<{ id: number; name: string; slug: string; htmlContent?: string }>
+    cartMinPurchase?: number
   } | null>(null)
 
   // ====== PRODUCT DETAIL MODAL STATE ======
@@ -591,9 +594,35 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   const [deliveryLat, setDeliveryLat] = useState<number | null>(null)
   const [deliveryLng, setDeliveryLng] = useState<number | null>(null)
 
+  // Convert any weight unit to kg for fleet assignment
+  const toKgClient = (weight: number | null | undefined, unit: string | null | undefined): number => {
+    if (!weight) return 0
+    switch (unit) {
+      case 'ton': return weight * 1000
+      case 'lb':  return weight * 0.453592
+      case 'g':   return weight / 1000
+      default:    return weight // kg or unknown → kg
+    }
+  }
+
   // ====== CART FUNCTIONS ======
   const totalCarrito = carrito.reduce((sum, item) => sum + item.precio * item.cantidad, 0)
   const totalItems = carrito.reduce((sum, item) => sum + item.cantidad, 0)
+
+  // Peso total del carrito (ferretería)
+  const totalPesoKg = carrito.reduce((sum, item) => sum + (item.weightKg || 0) * item.cantidad, 0)
+
+  // ── MÍNIMO DE COMPRA PARA DOMICILIO CON FLOTA ──────────────────────────────
+  // Configurable desde el módulo Tienda → pestaña Carrito
+  const DELIVERY_FREE_MIN = storeConfig?.cartMinPurchase || 0
+  const deliveryProgress = (DELIVERY_FREE_MIN > 0 && carrito.length > 0) ? Math.min(100, (totalCarrito / DELIVERY_FREE_MIN) * 100) : 0
+  const deliveryUnlocked = DELIVERY_FREE_MIN > 0 && totalCarrito >= DELIVERY_FREE_MIN
+  const deliveryRemaining = Math.max(0, DELIVERY_FREE_MIN - totalCarrito)
+  // ───────────────────────────────────────────────────────────────────────────
+
+  // Mínimo de compra para activar domicilio con flota
+  const [showFlotaDeliveryModal, setShowFlotaDeliveryModal] = useState(false)
+  const [flotaDeliveryShown, setFlotaDeliveryShown] = useState(false)
 
   // ====== COUPON STATE ======
   const [cuponCodigo, setCuponCodigo] = useState('')
@@ -1024,6 +1053,17 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     fetchChatbotStatus()
   }, [selectedStore])
 
+  // ====== FLOTA DELIVERY MODAL: Mostrar cuando el carrito tiene items con peso ======
+  useEffect(() => {
+    if (totalPesoKg > 0 && !flotaDeliveryShown && !showCheckout && carrito.length > 0) {
+      setShowFlotaDeliveryModal(true)
+    }
+    if (totalPesoKg === 0) {
+      setShowFlotaDeliveryModal(false)
+      setFlotaDeliveryShown(false)
+    }
+  }, [totalPesoKg]) // eslint-disable-line
+
   // ====== DROP POPUP LOGIC ======
   useEffect(() => {
     if (storeConfig?.activeDrop) {
@@ -1322,6 +1362,10 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         storeName: selectedProduct.storeName,
         availableForDelivery: !!selectedProduct.availableForDelivery,
         deliveryType: selectedProduct.deliveryType || null,
+        weightKg: selectedProduct.productType === 'ferreteria'
+          ? toKgClient(selectedProduct.weight, selectedProduct.hardwareWeightUnit) || null
+          : null,
+        productType: selectedProduct.productType || undefined,
       }]
     })
     setShowCart(true)
@@ -1403,6 +1447,10 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         storeName: product.storeName,
         availableForDelivery: !!product.availableForDelivery,
         deliveryType: (product as any).deliveryType || null,
+        weightKg: product.productType === 'ferreteria'
+          ? toKgClient(product.weight, product.hardwareWeightUnit) || null
+          : null,
+        productType: product.productType || undefined,
       }]
     })
     setShowCart(true) // Always show cart after adding
@@ -1460,6 +1508,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       }
 
       const orderNumbers: string[] = []
+      let vehicleFlota: { tipoVehiculo: string; pesoTotal: number } | null = null
 
       for (const [tid, tenantItems] of itemsByTenant) {
         const orderPayload: Record<string, any> = {
@@ -1513,6 +1562,13 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
           const orderJson = await orderRes.json()
           if (orderJson.success && orderJson.data?.orderNumber) {
             orderNumbers.push(orderJson.data.orderNumber)
+            if (orderJson.data.vehicleAssigned && orderJson.data.totalWeightKg > 0 && !vehicleFlota) {
+              const w: number = orderJson.data.totalWeightKg
+              vehicleFlota = {
+                pesoTotal: w,
+                tipoVehiculo: w < 50 ? 'Moto' : w <= 500 ? 'Camión Ligero' : 'Camión Planta',
+              }
+            }
           }
         } catch (e) {
           console.error('Error saving order to backend:', e)
@@ -1546,6 +1602,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         productos: carrito,
         total: totalConDescuento,
         fecha,
+        vehiculoAsignado: vehicleFlota,
       }
 
       setPedidoConfirmado(pedido)
@@ -2004,10 +2061,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         .placeholder-white\\/20::placeholder { color: rgba(0,0,0,0.25) !important; }
         .placeholder-white\\/30::placeholder { color: rgba(0,0,0,0.35) !important; }
         /* ── Nav accent colors → negro en fondo claro ── */
-        nav .text-amber-400 { color: #111 !important; }
         nav .text-orange-400 { color: #111 !important; }
         nav .text-red-400 { color: rgba(0,0,0,0.75) !important; }
-        nav .hover\\:text-amber-400:hover { color: #111 !important; }
         nav .hover\\:text-orange-300:hover { color: rgba(0,0,0,0.8) !important; }
         nav .hover\\:text-red-300:hover { color: rgba(0,0,0,0.8) !important; }
         /* ── data-dark exemptions: preserve white on dark surfaces (category tiles, hero images) ── */
@@ -2086,7 +2141,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         <div className={`fixed top-0 left-0 right-0 z-[70] flex items-center justify-between gap-3 px-4 py-3 text-sm font-medium shadow-lg ${
           mpReturnMsg.type === 'success' ? 'bg-green-600 text-white' :
           mpReturnMsg.type === 'failure' ? 'bg-red-600 text-white' :
-          'bg-amber-500 text-black'
+          'bg-neutral-900 text-white'
         }`}>
           <span>{mpReturnMsg.text}</span>
           <button onClick={() => setMpReturnMsg(null)} className="shrink-0 opacity-70 hover:opacity-100 transition-opacity text-lg leading-none">✕</button>
@@ -2193,13 +2248,13 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
             )}
             {publicServices.length > 0 && <button onClick={() => { closeProductModal(); setShowServices(true); setShowCatalog(false); setShowDrop(false); setShowNewLaunches(false); setShowOffers(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className={`${showServices ? 'text-white' : 'text-white/50'} hover:text-white transition-colors uppercase text-xs tracking-[0.2em]`}>Servicios</button>}
             {storeConfig?.activeDrop && <button onClick={() => { closeProductModal(); setShowDrop(true); setShowCatalog(false); setShowServices(false); setShowNewLaunches(false); setShowOffers(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className={`${showDrop ? 'text-white' : 'text-white/50'} hover:text-white transition-colors uppercase text-xs tracking-[0.2em]`}>Drop</button>}
-            {storeConfig?.publicMenuEnabled && selectedStore !== 'all' && (
+            {!!storeConfig?.publicMenuEnabled && selectedStore !== 'all' && (
               <a href={`/menu/${selectedStore}`} target="_blank" rel="noreferrer"
                 className="text-white/50 hover:text-white transition-colors uppercase text-xs tracking-[0.2em]">
                 Menú
               </a>
             )}
-            {storeConfig?.storeInfo?.contactPageEnabled && selectedStore !== 'all' && (
+            {!!storeConfig?.storeInfo?.contactPageEnabled && selectedStore !== 'all' && (
               <button
                 onClick={() => { document.getElementById('seccion-contacto')?.scrollIntoView({ behavior: 'smooth' }) }}
                 className="text-white/50 hover:text-white transition-colors uppercase text-xs tracking-[0.2em]"
@@ -2213,17 +2268,17 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               <>
                 <button
                   onClick={() => { fetchClientOrders(); setAccountTab('pedidos'); setShowAccountPanel(true) }}
-                  className="hidden md:flex items-center gap-1 text-xs text-amber-400 hover:text-amber-300 transition-colors uppercase tracking-wider"
+                  className="hidden md:flex items-center gap-1 text-xs text-white hover:text-white/80 transition-colors uppercase tracking-wider"
                 >
                   <Package className="w-4 h-4" />
                   Mis Pedidos
                 </button>
                 <button
                   onClick={() => { setAccountTab('perfil'); setShowAccountPanel(true) }}
-                  className="hidden md:flex w-9 h-9 rounded-full bg-white/10 hover:bg-amber-500/20 border border-white/20 hover:border-amber-400/40 items-center justify-center transition-all duration-300 group"
+                  className="hidden md:flex w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 hover:border-white/40 items-center justify-center transition-all duration-300 group"
                   title={authUser.name}
                 >
-                  <User className="w-4 h-4 text-white/70 group-hover:text-amber-400 transition-colors" />
+                  <User className="w-4 h-4 text-white/70 group-hover:text-white transition-colors" />
                 </button>
               </>
             ) : null}
@@ -2243,7 +2298,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
             >
               <ShoppingCart className="w-5 h-5" />
               {totalItems > 0 && (
-                <span className="absolute -top-1 -right-1 bg-amber-500 text-black text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
+                <span className="absolute -top-1 -right-1 bg-white text-black text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
                   {totalItems}
                 </span>
               )}
@@ -2251,10 +2306,10 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
             {!isAuthenticated && (
               <button
                 onClick={() => { setShowClientLogin(true); setClientLoginTab('login'); setClientLoginError('') }}
-                className="hidden md:flex w-9 h-9 rounded-full bg-white/10 hover:bg-amber-500/20 border border-white/20 hover:border-amber-400/40 items-center justify-center transition-all duration-300 group"
+                className="hidden md:flex w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 hover:border-white/40 items-center justify-center transition-all duration-300 group"
                 title="Mi Cuenta"
               >
-                <User className="w-4 h-4 text-white/70 group-hover:text-amber-400 transition-colors" />
+                <User className="w-4 h-4 text-white/70 group-hover:text-white transition-colors" />
               </button>
             )}
           </div>
@@ -2284,7 +2339,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   value={globalSearchQuery}
                   onChange={(e) => handleGlobalSearch(e.target.value)}
                   placeholder="Buscar productos, marcas o categorías..."
-                  className="w-full pl-12 pr-12 py-3 bg-white/5 border border-white/15 text-white placeholder-white/30 text-sm focus:outline-none focus:border-amber-500/50 rounded-sm"
+                  className="w-full pl-12 pr-12 py-3 bg-white/5 border border-white/15 text-white placeholder-white/30 text-sm focus:outline-none focus:border-white/50 rounded-sm"
                 />
                 {globalSearchQuery ? (
                   <button
@@ -2308,7 +2363,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 <p className="text-center text-white/30 text-sm py-6">Escribe para buscar tiendas, productos o servicios...</p>
               ) : loadingGlobalSearch ? (
                 <div className="flex items-center justify-center gap-3 py-6">
-                  <div className="w-5 h-5 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   <span className="text-white/40 text-sm">Buscando...</span>
                 </div>
               ) : globalSearchResults.length === 0 && globalSearchStores.length === 0 ? (
@@ -2324,7 +2379,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           <button
                             key={store.id}
                             onClick={() => { setSelectedStore(store.slug); setShowDesktopSearch(false); setGlobalSearchQuery(''); setGlobalSearchResults([]); setGlobalSearchStores([]) }}
-                            className="group flex items-center gap-4 px-4 py-3 rounded-none border-b border-white/5 hover:bg-white/4 hover:border-amber-500/20 transition-all duration-150 text-left w-full"
+                            className="group flex items-center gap-4 px-4 py-3 rounded-none border-b border-white/5 hover:bg-white/4 hover:border-white/20 transition-all duration-150 text-left w-full"
                           >
                             {/* Logo / icon */}
                             <div className="shrink-0 w-10 h-10 rounded-sm overflow-hidden border border-white/8 bg-white/3 flex items-center justify-center">
@@ -2341,13 +2396,13 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                                 {store.name}
                               </p>
                               {store.businessType && (
-                                <p className="text-[11px] text-amber-500/60 uppercase tracking-widest font-light mt-0.5 truncate">
+                                <p className="text-[11px] text-white/50 uppercase tracking-widest font-light mt-0.5 truncate">
                                   {store.businessType}
                                 </p>
                               )}
                             </div>
                             {/* Arrow */}
-                            <ChevronRight className="w-3.5 h-3.5 text-white/15 group-hover:text-amber-500/50 transition-colors shrink-0" />
+                            <ChevronRight className="w-3.5 h-3.5 text-white/15 group-hover:text-white/50 transition-colors shrink-0" />
                           </button>
                         ))}
                       </div>
@@ -2364,7 +2419,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     return (
                       <div
                         key={product.id}
-                        className={`group relative bg-white/5 border ${isOffer ? 'border-orange-500/30' : 'border-white/10'} overflow-hidden cursor-pointer hover:border-amber-500/40 transition-colors`}
+                        className={`group relative bg-white/5 border ${isOffer ? 'border-orange-500/30' : 'border-white/10'} overflow-hidden cursor-pointer hover:border-white/40 transition-colors`}
                         onClick={() => { openProductModal(product); setShowDesktopSearch(false); setGlobalSearchQuery(''); setGlobalSearchResults([]); setGlobalSearchStores([]) }}
                       >
                         <div data-dark className="relative aspect-square bg-black/50 overflow-hidden">
@@ -2378,12 +2433,12 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                             <div className="absolute top-1.5 left-1.5 bg-gradient-to-r from-red-600 to-orange-600 text-white text-[9px] font-bold px-1.5 py-0.5">OFERTA</div>
                           )}
                           {inCart && (
-                            <div className="absolute bottom-1.5 right-1.5 bg-amber-500 text-black text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center">{inCart.cantidad}</div>
+                            <div className="absolute bottom-1.5 right-1.5 bg-white text-black text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center">{inCart.cantidad}</div>
                           )}
                         </div>
                         <div className="p-2">
                           <p className="text-xs text-white/80 truncate leading-tight">{product.name}</p>
-                          <p className="text-xs text-amber-400 font-medium mt-0.5">
+                          <p className="text-xs text-white font-medium mt-0.5">
                             {isOffer ? formatCOP(product.offerPrice!) : formatCOP(product.salePrice)}
                           </p>
                         </div>
@@ -2433,15 +2488,15 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               {publicServices.length > 0 && <button onClick={() => { closeProductModal(); setShowServices(true); setShowCatalog(false); setShowDrop(false); setShowNewLaunches(false); setShowOffers(false); setMobileMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className={`text-left py-2 ${showServices ? 'text-white' : 'text-white/50'} hover:text-white transition-colors uppercase border-b border-white/5`}>Servicios</button>}
               {storeConfig?.activeDrop && <button onClick={() => { closeProductModal(); setShowDrop(true); setShowCatalog(false); setShowServices(false); setShowNewLaunches(false); setShowOffers(false); setMobileMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className={`text-left py-2 ${showDrop ? 'text-white' : 'text-white/50'} hover:text-white transition-colors uppercase border-b border-white/5`}>Drop</button>}
               {offerProducts.length > 0 && <button onClick={() => { closeProductModal(); setShowOffers(true); setShowCatalog(false); setShowDrop(false); setShowServices(false); setShowNewLaunches(false); setMobileMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className={`text-left py-2 ${showOffers ? 'text-white' : 'text-white/50'} hover:text-white transition-colors uppercase border-b border-white/5`}>Ofertas</button>}
-              {storeConfig?.publicMenuEnabled && selectedStore !== 'all' && (
+              {!!storeConfig?.publicMenuEnabled && selectedStore !== 'all' && (
                 <a href={`/menu/${selectedStore}`} target="_blank" rel="noreferrer"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="text-left py-2 text-amber-400 hover:text-amber-300 transition-colors uppercase border-b border-white/5 flex items-center gap-2">
+                  className="text-left py-2 text-white hover:text-white/80 transition-colors uppercase border-b border-white/5 flex items-center gap-2">
                   <UtensilsCrossed className="w-4 h-4" />
                   Menú
                 </a>
               )}
-              {storeConfig?.storeInfo?.contactPageEnabled && selectedStore !== 'all' && (
+              {!!storeConfig?.storeInfo?.contactPageEnabled && selectedStore !== 'all' && (
                 <button
                   onClick={() => { setMobileMenuOpen(false); setTimeout(() => document.getElementById('seccion-contacto')?.scrollIntoView({ behavior: 'smooth' }), 100) }}
                   className="text-left py-2 text-white/50 hover:text-white transition-colors uppercase border-b border-white/5"
@@ -2451,11 +2506,11 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               )}
               {isAuthenticated && authUser ? (
                 <>
-                  <button onClick={() => { fetchClientOrders(); setShowMyOrders(true); setMobileMenuOpen(false) }} className="text-left py-2 text-amber-400 hover:text-amber-300 transition-colors uppercase border-b border-white/5 flex items-center gap-2"><Package className="w-4 h-4" />Mis Pedidos</button>
+                  <button onClick={() => { fetchClientOrders(); setShowMyOrders(true); setMobileMenuOpen(false) }} className="text-left py-2 text-white hover:text-white/80 transition-colors uppercase border-b border-white/5 flex items-center gap-2"><Package className="w-4 h-4" />Mis Pedidos</button>
                   <button onClick={() => { handleClientLogout(); setMobileMenuOpen(false) }} className="text-left py-2 text-red-400 hover:text-red-300 transition-colors uppercase border-b border-white/5 flex items-center gap-2"><LogOut className="w-4 h-4" />Cerrar Sesión ({authUser.name})</button>
                 </>
               ) : (
-                <button onClick={() => { setMobileMenuOpen(false); setShowClientLogin(true); setClientLoginTab('login'); setClientLoginError('') }} className="text-left py-2 text-amber-400 hover:text-amber-300 transition-colors uppercase border-b border-white/5 flex items-center gap-2"><LogIn className="w-4 h-4" />Mi Cuenta</button>
+                <button onClick={() => { setMobileMenuOpen(false); setShowClientLogin(true); setClientLoginTab('login'); setClientLoginError('') }} className="text-left py-2 text-white hover:text-white/80 transition-colors uppercase border-b border-white/5 flex items-center gap-2"><LogIn className="w-4 h-4" />Mi Cuenta</button>
               )}
             </div>
           </div>
@@ -2543,7 +2598,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       key={i}
                       onClick={() => setActiveImageIdx(i)}
                       className={`flex-shrink-0 w-[64px] h-[64px] rounded-xl overflow-hidden border-2 transition-all duration-200 ${
-                        i === activeImageIdx ? 'border-amber-400 opacity-100' : 'border-transparent opacity-45'
+                        i === activeImageIdx ? 'border-white opacity-100' : 'border-transparent opacity-45'
                       }`}
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -2563,17 +2618,17 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 <div>
                   {selectedProduct.isOnOffer && selectedProduct.offerPrice ? (
                     <div className="flex items-center gap-3 flex-wrap">
-                      <span className={`text-2xl font-bold ${isLightBg ? 'text-black' : 'text-amber-400'}`}>{formatCOP(selectedProduct.offerPrice)}</span>
+                      <span className={`text-2xl font-bold ${isLightBg ? 'text-black' : 'text-white'}`}>{formatCOP(selectedProduct.offerPrice)}</span>
                       <span className="text-base text-white/30 line-through">{formatCOP(selectedProduct.salePrice)}</span>
                     </div>
                   ) : (
-                    <span className={`text-2xl font-bold ${isLightBg ? 'text-black' : 'text-amber-400'}`}>{formatCOP(selectedProduct.salePrice)}</span>
+                    <span className={`text-2xl font-bold ${isLightBg ? 'text-black' : 'text-white'}`}>{formatCOP(selectedProduct.salePrice)}</span>
                   )}
                 </div>
 
                 {/* Viewers count */}
                 <div className={`flex items-center gap-2 text-sm ${isLightBg ? 'text-black/50' : 'text-white/50'}`}>
-                  <Eye className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                  <Eye className="w-4 h-4 text-white/70 flex-shrink-0" />
                   <span><strong className={isLightBg ? 'text-black/80' : 'text-white/80'}>{viewersCount}</strong> personas viendo este producto</span>
                 </div>
 
@@ -2587,7 +2642,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         </p>
                         <div className="flex items-center gap-2">
                           <div
-                            className="w-9 h-9 rounded-full border-[3px] border-amber-400 shadow-lg ring-2 ring-amber-400/30"
+                            className="w-9 h-9 rounded-full border-[3px] border-white shadow-lg ring-2 ring-white/30"
                             style={{ backgroundColor: colorToCss(selectedProduct.color) ?? (isLightBg ? '#444' : '#bbb') }}
                           />
                         </div>
@@ -2597,7 +2652,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       <div>
                         <p className={`text-[11px] uppercase tracking-widest mb-2.5 ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>Talla</p>
                         <div className="flex gap-2 flex-wrap">
-                          <div className="px-5 py-2 rounded-full border-2 border-amber-400 text-sm font-medium text-amber-400 bg-amber-400/10">
+                          <div className="px-5 py-2 rounded-full border-2 border-white text-sm font-medium text-white bg-white/10">
                             {selectedProduct.size}
                           </div>
                         </div>
@@ -2637,7 +2692,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 {selectedProduct.stock === 0 ? (
                   <div className="flex items-center gap-2 text-red-400 text-sm"><div className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />Agotado</div>
                 ) : selectedProduct.stock <= 5 ? (
-                  <div className="flex items-center gap-2 text-amber-400 text-sm"><div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />¡Últimas {selectedProduct.stock} unidades!</div>
+                  <div className="flex items-center gap-2 text-white/90 text-sm"><div className="w-2 h-2 rounded-full bg-white animate-pulse flex-shrink-0" />¡Últimas {selectedProduct.stock} unidades!</div>
                 ) : null}
 
                 {/* Action buttons */}
@@ -2674,7 +2729,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 {selectedProduct.storeName && (
                   <div className={`flex items-center gap-3 py-4 border-t ${isLightBg ? 'border-black/10' : 'border-white/8'}`}>
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${isLightBg ? 'bg-black/5 border border-black/10' : 'bg-white/5 border border-white/10'}`}>
-                      <Store className="w-5 h-5 text-amber-500" />
+                      <Store className="w-5 h-5 text-white/70" />
                     </div>
                     <div>
                       <div className="flex items-center gap-2 flex-wrap">
@@ -2698,7 +2753,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         const cleanLine = isBullet ? line.replace(/^[-•*►▸→✓✔·]\s*/, '') : line
                         return isBullet ? (
                           <div key={i} className="flex items-start gap-2">
-                            <span className="mt-[5px] shrink-0 w-1.5 h-1.5 rounded-full bg-amber-500/70" />
+                            <span className="mt-[5px] shrink-0 w-1.5 h-1.5 rounded-full bg-white/70" />
                             <p className={`text-sm font-light leading-relaxed ${isLightBg ? 'text-black/70' : 'text-white/60'}`}>{cleanLine}</p>
                           </div>
                         ) : <p key={i} className={`text-sm font-light leading-relaxed ${isLightBg ? 'text-black/70' : 'text-white/60'}`}>{line}</p>
@@ -2712,7 +2767,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   <div className="flex items-center justify-between mb-4">
                     <h3 className={`text-[10px] uppercase tracking-widest ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>Reseñas</h3>
                     <button onClick={() => { setShowReviewForm(p => !p); setReviewSuccess(false); setReviewError('') }}
-                      className="text-xs text-amber-400 border border-amber-400/30 px-3 py-1.5 rounded-full hover:bg-amber-400/10 transition-colors">
+                      className="text-xs text-white border border-white/30 px-3 py-1.5 rounded-full hover:bg-white/10 transition-colors">
                       {showReviewForm ? 'Cancelar' : '+ Reseña'}
                     </button>
                   </div>
@@ -2720,15 +2775,15 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     <div className="mb-5 p-4 border border-white/10 bg-white/3 space-y-3 rounded-xl">
                       <div>
                         <label className={`text-[10px] uppercase tracking-widest block mb-1 ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>Tu nombre *</label>
-                        <input className={`w-full border text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-amber-400/50 ${isLightBg ? 'bg-black/5 border-black/10 text-black placeholder-black/30' : 'bg-white/5 border-white/10 text-white placeholder-white/30'}`} placeholder="Nombre" value={reviewForm.reviewerName} onChange={e => setReviewForm(p => ({ ...p, reviewerName: e.target.value }))} />
+                        <input className={`w-full border text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-white/50 ${isLightBg ? 'bg-black/5 border-black/10 text-black placeholder-black/30' : 'bg-white/5 border-white/10 text-white placeholder-white/30'}`} placeholder="Nombre" value={reviewForm.reviewerName} onChange={e => setReviewForm(p => ({ ...p, reviewerName: e.target.value }))} />
                       </div>
                       <div>
                         <label className={`text-[10px] uppercase tracking-widest block mb-1 ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>Calificación</label>
-                        <div className="flex gap-1">{[1,2,3,4,5].map(n => <button key={n} type="button" onClick={() => setReviewForm(p => ({ ...p, rating: n }))}><Star size={22} className={n <= reviewForm.rating ? 'fill-amber-400 text-amber-400' : 'text-white/20'} /></button>)}</div>
+                        <div className="flex gap-1">{[1,2,3,4,5].map(n => <button key={n} type="button" onClick={() => setReviewForm(p => ({ ...p, rating: n }))}><Star size={22} className={n <= reviewForm.rating ? 'fill-white text-white' : 'text-white/20'} /></button>)}</div>
                       </div>
                       <div>
                         <label className={`text-[10px] uppercase tracking-widest block mb-1 ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>Comentario</label>
-                        <textarea rows={3} className={`w-full border text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-amber-400/50 resize-none ${isLightBg ? 'bg-black/5 border-black/10 text-black placeholder-black/30' : 'bg-white/5 border-white/10 text-white placeholder-white/30'}`} placeholder="Tu experiencia..." value={reviewForm.body} onChange={e => setReviewForm(p => ({ ...p, body: e.target.value }))} />
+                        <textarea rows={3} className={`w-full border text-sm px-3 py-2 rounded-lg focus:outline-none focus:border-white/50 resize-none ${isLightBg ? 'bg-black/5 border-black/10 text-black placeholder-black/30' : 'bg-white/5 border-white/10 text-white placeholder-white/30'}`} placeholder="Tu experiencia..." value={reviewForm.body} onChange={e => setReviewForm(p => ({ ...p, body: e.target.value }))} />
                       </div>
                       {reviewError && <p className="text-red-400 text-xs">{reviewError}</p>}
                       <button
@@ -2741,7 +2796,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           setReviewSubmitting(false)
                           if (res.success) { setReviewSuccess(true); setShowReviewForm(false) } else { setReviewError(res.error || 'Error al enviar') }
                         }}
-                        className="w-full py-3 bg-amber-500 text-black text-sm font-semibold uppercase tracking-wider rounded-xl hover:bg-amber-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        className="w-full py-3 bg-white text-black text-sm font-semibold uppercase tracking-wider rounded-xl hover:bg-white/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                       >{reviewSubmitting ? 'Enviando…' : 'Enviar reseña'}</button>
                     </div>
                   )}
@@ -2755,7 +2810,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           <div className="flex items-start justify-between gap-2 mb-1">
                             <div>
                               <p className={`text-sm font-medium ${isLightBg ? 'text-black/80' : 'text-white/80'}`}>{r.reviewerName}</p>
-                              <div className="flex gap-0.5 mt-0.5">{[1,2,3,4,5].map(s => <Star key={s} size={12} className={s <= r.rating ? 'fill-amber-400 text-amber-400' : 'text-white/15'} />)}</div>
+                              <div className="flex gap-0.5 mt-0.5">{[1,2,3,4,5].map(s => <Star key={s} size={12} className={s <= r.rating ? 'fill-white text-white' : 'text-white/15'} />)}</div>
                             </div>
                             <span className={`text-[10px] ${isLightBg ? 'text-black/30' : 'text-white/30'}`}>{new Date(r.createdAt).toLocaleDateString('es-CO', { month: 'short', day: 'numeric' })}</span>
                           </div>
@@ -2799,7 +2854,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         <div className="hidden sm:flex flex-col gap-2 w-[64px] flex-shrink-0 overflow-y-auto scrollbar-hide">
                           {gallery.map((url, i) => (
                             <button key={i} onClick={() => setActiveImageIdx(i)}
-                              className={`w-[64px] h-[64px] overflow-hidden flex-shrink-0 transition-all duration-200 ${i === activeImageIdx ? 'border-2 border-amber-400/80' : 'border border-white/10 opacity-50 hover:opacity-100'}`}
+                              className={`w-[64px] h-[64px] overflow-hidden flex-shrink-0 transition-all duration-200 ${i === activeImageIdx ? 'border-2 border-white/80' : 'border border-white/10 opacity-50 hover:opacity-100'}`}
                             >
                               {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img src={ensureAbsoluteUrl(url)} alt={`${selectedProduct.name} ${i + 1}`} className="w-full h-full object-cover" />
@@ -2832,7 +2887,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     {selectedProduct.storeName && (
                       <div className="flex items-center gap-3 py-4 border-t border-white/5">
                         <div className="w-10 h-10 bg-white/5 border border-white/10 flex items-center justify-center flex-shrink-0">
-                          <Store className="w-5 h-5 text-amber-500" />
+                          <Store className="w-5 h-5 text-white/70" />
                         </div>
                         <div>
                           <div className="flex items-center gap-2 flex-wrap">
@@ -2855,7 +2910,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                             const isBullet = /^[-•*►▸→✓✔·]\s/.test(line)
                             const cleanLine = isBullet ? line.replace(/^[-•*►▸→✓✔·]\s*/, '') : line
                             return isBullet ? (
-                              <div key={i} className="flex items-start gap-2.5"><span className="mt-[5px] shrink-0 w-1.5 h-1.5 rounded-full bg-amber-500/70" /><p className={`text-sm font-light leading-relaxed ${isLightBg ? 'text-black/75' : 'text-white/65'}`}>{cleanLine}</p></div>
+                              <div key={i} className="flex items-start gap-2.5"><span className="mt-[5px] shrink-0 w-1.5 h-1.5 rounded-full bg-white/70" /><p className={`text-sm font-light leading-relaxed ${isLightBg ? 'text-black/75' : 'text-white/65'}`}>{cleanLine}</p></div>
                             ) : <p key={i} className={`text-sm font-light leading-relaxed ${isLightBg ? 'text-black/75' : 'text-white/65'}`}>{line}</p>
                           })}
                         </div>
@@ -2873,7 +2928,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           { label: 'Tamaño', value: selectedProduct.size },
                           { label: 'Género', value: selectedProduct.gender },
                           { label: 'Material', value: selectedProduct.material },
-                          { label: 'Peso', value: selectedProduct.netWeight ? `${selectedProduct.netWeight} ${selectedProduct.weightUnit || ''}` : null },
+                          { label: 'Peso', value: (selectedProduct.productType === 'ferreteria' && selectedProduct.weight) ? `${selectedProduct.weight} ${selectedProduct.hardwareWeightUnit || 'kg'}` : (selectedProduct.netWeight ? `${selectedProduct.netWeight} ${selectedProduct.weightUnit || ''}` : null) },
                           { label: 'Garantía', value: selectedProduct.warrantyMonths ? `${selectedProduct.warrantyMonths} meses` : null },
                         ].filter(s => s.value).map(s => (
                           <div key={s.label} className={`px-3 py-2 border ${isLightBg ? 'bg-black/5 border-black/10' : 'bg-white/4 border-white/5'}`}>
@@ -2904,25 +2959,25 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         {selectedProduct.isOnOffer && selectedProduct.offerPrice ? (
                           <div className="space-y-2">
                             <div className="flex items-end gap-3 flex-wrap">
-                              <span className={`text-4xl font-light ${isLightBg ? 'text-black' : 'text-amber-400'}`}>{formatCOP(selectedProduct.offerPrice)}</span>
+                              <span className={`text-4xl font-light ${isLightBg ? 'text-black' : 'text-white'}`}>{formatCOP(selectedProduct.offerPrice)}</span>
                               <span className="text-xl text-white/30 line-through pb-0.5">{formatCOP(selectedProduct.salePrice)}</span>
                               <span className="bg-red-600/20 text-red-400 text-xs font-bold px-2 py-1 border border-red-600/30 self-center">
                                 -{Math.round(((selectedProduct.salePrice - selectedProduct.offerPrice) / selectedProduct.salePrice) * 100)}% OFF
                               </span>
                             </div>
                             <p className="text-sm text-white/60 flex items-center gap-1.5">
-                              <Tag className="w-3.5 h-3.5 flex-shrink-0 text-amber-400" />Ahorras {formatCOP(selectedProduct.salePrice - selectedProduct.offerPrice)}
+                              <Tag className="w-3.5 h-3.5 flex-shrink-0 text-white/70" />Ahorras {formatCOP(selectedProduct.salePrice - selectedProduct.offerPrice)}
                               {selectedProduct.offerLabel && <span className="text-white/40 ml-1">· {selectedProduct.offerLabel}</span>}
                             </p>
                           </div>
-                        ) : <span className={`text-4xl font-light ${isLightBg ? 'text-black' : 'text-amber-400'}`}>{formatCOP(selectedProduct.salePrice)}</span>}
+                        ) : <span className={`text-4xl font-light ${isLightBg ? 'text-black' : 'text-white'}`}>{formatCOP(selectedProduct.salePrice)}</span>}
                       </div>
 
                       <div>
                         {selectedProduct.stock === 0 ? (
                           <div className="flex items-center gap-2 text-red-400 text-sm"><div className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />Agotado por el momento</div>
                         ) : selectedProduct.stock <= 5 ? (
-                          <div className="flex items-center gap-2 text-amber-400 text-sm"><div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />¡Últimas unidades!</div>
+                          <div className="flex items-center gap-2 text-white/90 text-sm"><div className="w-2 h-2 rounded-full bg-white animate-pulse flex-shrink-0" />¡Últimas unidades!</div>
                         ) : (
                           <div className="flex items-center gap-2 text-white/60 text-sm"><div className="w-2 h-2 rounded-full bg-green-400 flex-shrink-0" />En stock</div>
                         )}
@@ -2937,7 +2992,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                                 Color — <span className={isLightBg ? 'text-black/70' : 'text-white/70'}>{selectedProduct.color}</span>
                               </p>
                               <div className="flex items-center gap-2">
-                                <div className="w-8 h-8 rounded-full border-[3px] border-amber-400 shadow-md ring-2 ring-amber-400/30"
+                                <div className="w-8 h-8 rounded-full border-[3px] border-white shadow-md ring-2 ring-white/30"
                                   style={{ backgroundColor: colorToCss(selectedProduct.color) ?? (isLightBg ? '#444' : '#bbb') }}
                                 />
                               </div>
@@ -2946,7 +3001,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           {selectedProduct.size && (
                             <div>
                               <p className={`text-[10px] uppercase tracking-widest mb-2.5 ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>Talla</p>
-                              <div className="px-5 py-2 rounded-full border-2 border-amber-400 text-sm font-medium text-amber-400 bg-amber-400/10 inline-block">{selectedProduct.size}</div>
+                              <div className="px-5 py-2 rounded-full border-2 border-white text-sm font-medium text-white bg-white/10 inline-block">{selectedProduct.size}</div>
                             </div>
                           )}
                         </div>
@@ -3050,7 +3105,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   <div className="flex items-center justify-between mb-8">
                     <h3 className="text-xs text-white/40 uppercase tracking-widest">Reseñas del producto</h3>
                     <button onClick={() => { setShowReviewForm(p => !p); setReviewSuccess(false); setReviewError('') }}
-                      className="text-xs text-amber-400 border border-amber-400/30 px-3 py-1.5 hover:bg-amber-400/10 transition-colors">
+                      className="text-xs text-white border border-white/30 px-3 py-1.5 hover:bg-white/10 transition-colors">
                       {showReviewForm ? 'Cancelar' : '+ Escribir reseña'}
                     </button>
                   </div>
@@ -3062,7 +3117,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         <div>
                           <label className="text-[10px] text-white/40 uppercase tracking-widest block mb-1">Tu nombre *</label>
                           <input
-                            className="w-full bg-white/5 border border-white/10 text-white text-sm px-3 py-2 focus:outline-none focus:border-amber-400/50"
+                            className="w-full bg-white/5 border border-white/10 text-white text-sm px-3 py-2 focus:outline-none focus:border-white/50"
                             placeholder="Nombre"
                             value={reviewForm.reviewerName}
                             onChange={e => setReviewForm(p => ({ ...p, reviewerName: e.target.value }))}
@@ -3072,7 +3127,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           <label className="text-[10px] text-white/40 uppercase tracking-widest block mb-1">Email (opcional)</label>
                           <input
                             type="email"
-                            className="w-full bg-white/5 border border-white/10 text-white text-sm px-3 py-2 focus:outline-none focus:border-amber-400/50"
+                            className="w-full bg-white/5 border border-white/10 text-white text-sm px-3 py-2 focus:outline-none focus:border-white/50"
                             placeholder="tu@email.com"
                             value={reviewForm.reviewerEmail}
                             onChange={e => setReviewForm(p => ({ ...p, reviewerEmail: e.target.value }))}
@@ -3084,7 +3139,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         <div className="flex gap-1">
                           {[1,2,3,4,5].map(n => (
                             <button key={n} type="button" onClick={() => setReviewForm(p => ({ ...p, rating: n }))}>
-                              <Star size={22} className={n <= reviewForm.rating ? 'fill-amber-400 text-amber-400' : 'text-white/20'} />
+                              <Star size={22} className={n <= reviewForm.rating ? 'fill-white text-white' : 'text-white/20'} />
                             </button>
                           ))}
                         </div>
@@ -3092,7 +3147,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       <div>
                         <label className="text-[10px] text-white/40 uppercase tracking-widest block mb-1">Título (opcional)</label>
                         <input
-                          className="w-full bg-white/5 border border-white/10 text-white text-sm px-3 py-2 focus:outline-none focus:border-amber-400/50"
+                          className="w-full bg-white/5 border border-white/10 text-white text-sm px-3 py-2 focus:outline-none focus:border-white/50"
                           placeholder="Resumen de tu reseña"
                           value={reviewForm.title}
                           onChange={e => setReviewForm(p => ({ ...p, title: e.target.value }))}
@@ -3102,7 +3157,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         <label className="text-[10px] text-white/40 uppercase tracking-widest block mb-1">Tu reseña</label>
                         <textarea
                           rows={3}
-                          className="w-full bg-white/5 border border-white/10 text-white text-sm px-3 py-2 focus:outline-none focus:border-amber-400/50 resize-none"
+                          className="w-full bg-white/5 border border-white/10 text-white text-sm px-3 py-2 focus:outline-none focus:border-white/50 resize-none"
                           placeholder="Cuéntanos qué te pareció el producto..."
                           value={reviewForm.body}
                           onChange={e => setReviewForm(p => ({ ...p, body: e.target.value }))}
@@ -3136,7 +3191,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                             setReviewError(res.error || 'Error al enviar la reseña')
                           }
                         }}
-                        className="w-full py-3 text-sm uppercase tracking-[0.2em] font-semibold bg-amber-500 hover:bg-amber-400 text-black disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        className="w-full py-3 text-sm uppercase tracking-[0.2em] font-semibold bg-white hover:bg-white/90 text-black disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                       >
                         {reviewSubmitting ? 'Enviando…' : 'Enviar reseña'}
                       </button>
@@ -3165,7 +3220,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                             </div>
                             <div className="flex gap-0.5">
                               {[1,2,3,4,5].map(n => (
-                                <Star key={n} size={14} className={n <= r.rating ? 'fill-amber-400 text-amber-400' : 'text-white/15'} />
+                                <Star key={n} size={14} className={n <= r.rating ? 'fill-white text-white' : 'text-white/15'} />
                               ))}
                             </div>
                           </div>
@@ -3178,8 +3233,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                             </div>
                           )}
                           {r.reply && (
-                            <div className="mt-2 pl-3 border-l-2 border-amber-400/40 text-xs text-white/40">
-                              <span className="text-amber-400/70 font-medium">Respuesta de la tienda: </span>{r.reply}
+                            <div className="mt-2 pl-3 border-l-2 border-white/20 text-xs text-white/40">
+                              <span className="text-white/60 font-medium">Respuesta de la tienda:</span>{r.reply}
                             </div>
                           )}
                         </div>
@@ -3303,7 +3358,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     placeholder="Buscar productos..."
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 bg-white/5 border border-white/10 text-white placeholder-white/30 font-light text-sm focus:border-amber-500/50 focus:outline-none"
+                    className="w-full pl-10 pr-4 py-2.5 bg-white/5 border border-white/10 text-white placeholder-white/30 font-light text-sm focus:border-white/50 focus:outline-none"
                   />
                 </div>}
                 {/* Sede selector (only when store has 2+ sedes and not in sedes view mode or a sede is active) */}
@@ -3322,7 +3377,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     {!sedesViewMode && (
                       <button
                         onClick={() => setActiveSede(null)}
-                        className={`px-3 py-1 text-xs rounded-full border transition-colors ${activeSede === null ? 'bg-amber-500 border-amber-500 text-black font-medium' : 'border-white/20 text-white/60 hover:border-white/40 hover:text-white'}`}
+                        className={`px-3 py-1 text-xs rounded-full border transition-colors ${activeSede === null ? 'bg-white border-white text-black font-medium' : 'border-white/20 text-white/60 hover:border-white/40 hover:text-white'}`}
                       >
                         Todas
                       </button>
@@ -3331,7 +3386,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       <button
                         key={s.id}
                         onClick={() => setActiveSede(activeSede === s.id ? (sedesViewMode ? null : null) : s.id)}
-                        className={`px-3 py-1 text-xs rounded-full border transition-colors ${activeSede === s.id ? 'bg-amber-500 border-amber-500 text-black font-medium' : 'border-white/20 text-white/60 hover:border-white/40 hover:text-white'}`}
+                        className={`px-3 py-1 text-xs rounded-full border transition-colors ${activeSede === s.id ? 'bg-white border-white text-black font-medium' : 'border-white/20 text-white/60 hover:border-white/40 hover:text-white'}`}
                       >
                         {s.name}
                       </button>
@@ -3356,7 +3411,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     {(catalogPriceMin > 0 || catalogPriceMax > 0) && (
                       <FilterPill label={`${catalogPriceMin > 0 ? formatCOP(catalogPriceMin) : '$0'} — ${catalogPriceMax > 0 ? formatCOP(catalogPriceMax) : '∞'}`} onRemove={() => { setCatalogPriceMin(0); setCatalogPriceMax(0) }} />
                     )}
-                    <button onClick={clearCatalogFilters} className="text-[10px] text-amber-400 hover:text-amber-300 uppercase tracking-wider ml-2">Limpiar todo</button>
+                    <button onClick={clearCatalogFilters} className="text-[10px] text-white hover:text-white/80 uppercase tracking-wider ml-2">Limpiar todo</button>
                   </div>
                 )}
               </div>
@@ -3372,7 +3427,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         onClick={() => setCatalogSelectedCategories(new Set())}
                         className={`shrink-0 px-3 py-1.5 text-[11px] uppercase tracking-widest rounded-full border transition-all ${
                           catalogSelectedCategories.size === 0
-                            ? 'bg-amber-500 border-amber-500 text-black font-medium'
+                            ? 'bg-white border-white text-black font-medium'
                             : 'border-white/20 text-white/50 hover:border-white/40 hover:text-white'
                         }`}
                       >
@@ -3389,7 +3444,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           }}
                           className={`shrink-0 px-3 py-1.5 text-[11px] uppercase tracking-widest rounded-full border transition-all ${
                             catalogSelectedCategories.has(cat)
-                              ? 'bg-amber-500 border-amber-500 text-black font-medium'
+                              ? 'bg-white border-white text-black font-medium'
                               : 'border-white/20 text-white/50 hover:border-white/40 hover:text-white'
                           }`}
                         >
@@ -3410,7 +3465,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         <div className="flex gap-2 flex-wrap">
                           <button
                             onClick={() => setBusinessTypeFilter('all')}
-                            className={`px-4 py-1.5 text-xs uppercase tracking-wider border transition-colors ${businessTypeFilter === 'all' ? 'bg-amber-500 border-amber-500 text-black font-medium' : 'border-white/20 text-white/50 hover:border-white/40 hover:text-white'}`}
+                            className={`px-4 py-1.5 text-xs uppercase tracking-wider border transition-colors ${businessTypeFilter === 'all' ? 'bg-white border-white text-black font-medium' : 'border-white/20 text-white/50 hover:border-white/40 hover:text-white'}`}
                           >
                             Todos
                           </button>
@@ -3418,7 +3473,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                             <button
                               key={t}
                               onClick={() => setBusinessTypeFilter(businessTypeFilter === t ? 'all' : t)}
-                              className={`px-4 py-1.5 text-xs uppercase tracking-wider border transition-colors ${businessTypeFilter === t ? 'bg-amber-500 border-amber-500 text-black font-medium' : 'border-white/20 text-white/50 hover:border-white/40 hover:text-white'}`}
+                              className={`px-4 py-1.5 text-xs uppercase tracking-wider border transition-colors ${businessTypeFilter === t ? 'bg-white border-white text-black font-medium' : 'border-white/20 text-white/50 hover:border-white/40 hover:text-white'}`}
                             >
                               {t}
                             </button>
@@ -3429,7 +3484,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
                     {loadingAllProducts ? (
                       <div className="text-center py-20">
-                        <div className="w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                        <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto mb-4" />
                         <p className="text-white/40 text-sm font-light">Cargando catálogo...</p>
                       </div>
                     ) : (() => {
@@ -3447,8 +3502,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                             <div className="flex items-center gap-4">
                               <div className="h-px flex-1 bg-white/5" />
                               <div className="flex items-center gap-2">
-                                <Store className="w-3 h-3 text-amber-500/60" />
-                                <span className="text-[10px] uppercase tracking-[0.3em] text-amber-500/70 font-light">{type}</span>
+                                <Store className="w-3 h-3 text-white/40" />
+                                <span className="text-[10px] uppercase tracking-[0.3em] text-white/50 font-light">{type}</span>
                                 <span className="text-[10px] text-white/20">· {typeStores.length} comercio{typeStores.length !== 1 ? 's' : ''}</span>
                               </div>
                               <div className="h-px flex-1 bg-white/5" />
@@ -3468,7 +3523,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                                 return (
                                   <div
                                     key={store.id}
-                                    className={`group relative bg-white/[0.03] border border-white/8 transition-all duration-300 overflow-hidden ${isDarkEmpty ? 'cursor-default opacity-60' : 'hover:border-amber-500/30 hover:bg-white/[0.05] cursor-pointer'}`}
+                                    className={`group relative bg-white/[0.03] border border-white/8 transition-all duration-300 overflow-hidden ${isDarkEmpty ? 'cursor-default opacity-60' : 'hover:border-white/20 hover:bg-white/[0.05] cursor-pointer'}`}
                                     onClick={() => {
                                       if (isDarkEmpty) return
                                       setSelectedStore(store.slug)
@@ -3495,7 +3550,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                                         <p className="text-white text-sm font-medium leading-tight truncate">{store.name}</p>
                                         <p className="text-white/30 text-[10px] uppercase tracking-wider mt-0.5">{storeProds.length} producto{storeProds.length !== 1 ? 's' : ''}</p>
                                       </div>
-                                      <ArrowRight className="w-3.5 h-3.5 text-white/20 group-hover:text-amber-400 group-hover:translate-x-0.5 transition-all" />
+                                      <ArrowRight className="w-3.5 h-3.5 text-white/20 group-hover:text-white group-hover:translate-x-0.5 transition-all" />
                                     </div>
 
                                     {/* Product preview strip */}
@@ -3618,7 +3673,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   </div>
                 ) : loadingProducts ? (
                   <div className="text-center py-20">
-                    <div className="w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                    <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto mb-4" />
                     <p className="text-white/40 text-sm font-light">Cargando productos...</p>
                   </div>
                 ) : selectedStore !== 'all' && products.length === 0 ? (
@@ -3640,7 +3695,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   <div className="text-center py-20">
                     <Sparkles className="w-12 h-12 text-white/10 mx-auto mb-4" />
                     <p className="text-white/40 text-sm font-light">No se encontraron productos con estos filtros</p>
-                    <button onClick={clearCatalogFilters} className="mt-4 text-amber-400 text-sm font-light hover:text-amber-300 transition-colors underline underline-offset-4">
+                    <button onClick={clearCatalogFilters} className="mt-4 text-white/70 text-sm font-light hover:text-white transition-colors underline underline-offset-4">
                       Limpiar filtros
                     </button>
                   </div>
@@ -3678,7 +3733,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
                               {/* In-cart indicator */}
                               {inCart && (
-                                <div className="absolute top-2 right-2 z-20 flex items-center gap-0.5 bg-amber-500 text-black text-[9px] font-bold px-1.5 py-0.5 rounded-sm">
+                                <div className="absolute top-2 right-2 z-20 flex items-center gap-0.5 bg-white text-black text-[9px] font-bold px-1.5 py-0.5 rounded-sm">
                                   <ShoppingCart className="w-2.5 h-2.5" />×{inCart.cantidad}
                                 </div>
                               )}
@@ -3688,7 +3743,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                                 <div className="flex items-center gap-2">
                                   <button
                                     onClick={(e) => { e.stopPropagation(); agregarAlCarrito(product) }}
-                                    className="w-9 h-9 rounded-full bg-white shadow-md flex items-center justify-center text-gray-700 hover:bg-amber-500 hover:text-white transition-colors"
+                                    className="w-9 h-9 rounded-full bg-white shadow-md flex items-center justify-center text-gray-700 hover:bg-neutral-800 hover:text-white transition-colors"
                                     title="Agregar al carrito"
                                   >
                                     <ShoppingCart className="w-4 h-4" />
@@ -3734,7 +3789,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                                 )}
                               </div>
                               <div className="flex items-center gap-1 text-[10px] text-gray-400">
-                                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
+                                <span className="w-1.5 h-1.5 rounded-full bg-white/60 inline-block" />
                                 1 Opción disponible
                               </div>
                             </div>
@@ -3780,7 +3835,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
                             {/* In-cart indicator */}
                             {inCart && (
-                              <div className="absolute top-2.5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 bg-amber-500 text-black text-[9px] font-bold px-2 py-0.5">
+                              <div className="absolute top-2.5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 bg-white text-black text-[9px] font-bold px-2 py-0.5">
                                 <ShoppingCart className="w-2.5 h-2.5" />
                                 ×{inCart.cantidad}
                               </div>
@@ -3808,7 +3863,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                                     <span className="text-white/30 text-xs line-through">{formatCOP(product.salePrice)}</span>
                                   </>
                                 ) : (
-                                  <span className="text-amber-400 font-light text-sm">{formatCOP(product.salePrice)}</span>
+                                  <span className="text-white font-light text-sm">{formatCOP(product.salePrice)}</span>
                                 )}
                               </div>
                             </div>
@@ -3817,7 +3872,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                             <div className="absolute bottom-0 left-0 right-0 z-20 flex items-center gap-0 translate-y-0 sm:translate-y-full sm:group-hover:translate-y-0 transition-transform duration-300 ease-out">
                               <button
                                 onClick={(e) => { e.stopPropagation(); agregarAlCarrito(product) }}
-                                className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-amber-500/70 hover:bg-amber-500/90 text-black text-[9px] font-semibold uppercase tracking-wider transition-colors"
+                                className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-white/85 hover:bg-white text-black text-[9px] font-semibold uppercase tracking-wider transition-colors"
                               >
                                 <ShoppingCart className="w-3 h-3" />
                                 Añadir
@@ -3873,7 +3928,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 <div className="sticky bottom-0 p-4 border-t border-white/10 landing-sidebar">
                   <button
                     onClick={() => setCatalogSidebarOpen(false)}
-                    className="w-full bg-amber-500 hover:bg-amber-400 text-black py-3 text-xs uppercase tracking-wider font-medium transition-colors"
+                    className="w-full bg-white hover:bg-white/90 text-black py-3 text-xs uppercase tracking-wider font-medium transition-colors"
                   >
                     Ver {catalogFilteredProducts.length} producto{catalogFilteredProducts.length !== 1 ? 's' : ''}
                   </button>
@@ -4006,7 +4061,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
                           {/* In-cart */}
                           {inCart && (
-                            <div className="absolute top-2.5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 bg-amber-500 text-black text-[9px] font-bold px-2 py-0.5">
+                            <div className="absolute top-2.5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 bg-white text-black text-[9px] font-bold px-2 py-0.5">
                               <ShoppingCart className="w-2.5 h-2.5" />
                               ×{inCart.cantidad}
                             </div>
@@ -4032,7 +4087,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                                   <span className="text-white/30 text-xs line-through">{formatCOP(product.salePrice)}</span>
                                 </>
                               ) : (
-                                <span className="text-amber-400 font-light text-sm">{formatCOP(product.salePrice)}</span>
+                                <span className="text-white font-light text-sm">{formatCOP(product.salePrice)}</span>
                               )}
                             </div>
                           </div>
@@ -4041,7 +4096,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           <div className="absolute bottom-0 left-0 right-0 z-20 flex items-center gap-0 translate-y-0 sm:translate-y-full sm:group-hover:translate-y-0 transition-transform duration-300 ease-out">
                             <button
                               onClick={(e) => { e.stopPropagation(); agregarAlCarrito(product) }}
-                              className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-amber-500/70 hover:bg-amber-500/90 text-black text-[9px] font-semibold uppercase tracking-wider transition-colors"
+                              className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-white/85 hover:bg-white text-black text-[9px] font-semibold uppercase tracking-wider transition-colors"
                             >
                               <ShoppingCart className="w-3 h-3" />
                               Añadir
@@ -4169,7 +4224,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                             <div className="absolute top-2.5 right-2.5 z-20 px-2 py-0.5 text-[9px] text-white/55 uppercase tracking-[0.2em]">{product.brand}</div>
                           )}
                           {inCart && (
-                            <div className="absolute top-2.5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 bg-amber-500 text-black text-[9px] font-bold px-2 py-0.5">
+                            <div className="absolute top-2.5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 bg-white text-black text-[9px] font-bold px-2 py-0.5">
                               <ShoppingCart className="w-2.5 h-2.5" />×{inCart.cantidad}
                             </div>
                           )}
@@ -4190,14 +4245,14 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                                   <span className="text-white/30 text-xs line-through">{formatCOP(product.salePrice)}</span>
                                 </>
                               ) : (
-                                <span className="text-amber-400 font-light text-sm">{formatCOP(product.salePrice)}</span>
+                                <span className="text-white font-light text-sm">{formatCOP(product.salePrice)}</span>
                               )}
                             </div>
                           </div>
                           <div className="absolute bottom-0 left-0 right-0 z-20 flex items-center gap-0 translate-y-0 sm:translate-y-full sm:group-hover:translate-y-0 transition-transform duration-300 ease-out">
                             <button
                               onClick={(e) => { e.stopPropagation(); agregarAlCarrito(product) }}
-                              className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-amber-500/70 hover:bg-amber-500/90 text-black text-[9px] font-semibold uppercase tracking-wider transition-colors"
+                              className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-white/85 hover:bg-white text-black text-[9px] font-semibold uppercase tracking-wider transition-colors"
                             >
                               <ShoppingCart className="w-3 h-3" />Añadir
                             </button>
@@ -4238,12 +4293,12 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               </button>
               <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
                 <div>
-                  <p className="text-amber-400 text-xs uppercase tracking-[0.3em] mb-2 flex items-center gap-2"><Flame className="w-4 h-4" /> Drop Activo</p>
+                  <p className="text-white/80 text-xs uppercase tracking-[0.3em] mb-2 flex items-center gap-2"><Flame className="w-4 h-4" /> Drop Activo</p>
                   <h1 className="text-3xl sm:text-4xl font-light text-white tracking-wide">{storeConfig.activeDrop.name}</h1>
                   {storeConfig.activeDrop.description && <p className="text-white/50 font-light mt-2 max-w-xl">{storeConfig.activeDrop.description}</p>}
                 </div>
                 <div className="flex items-center gap-3 bg-white/5 border border-white/10 px-5 py-3 shrink-0">
-                  <Timer className="w-5 h-5 text-amber-400" />
+                  <Timer className="w-5 h-5 text-white/70" />
                   <div>
                     <p className="text-[10px] text-white/40 uppercase tracking-widest">Termina en</p>
                     <p className="text-lg font-mono text-white tracking-wider">{countdownText}</p>
@@ -4257,7 +4312,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
             {storeConfig.activeDrop.globalDiscount > 0 && (
               <div className="mb-8 text-center">
-                <span className="inline-flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 text-amber-400 px-6 py-2 text-sm font-light tracking-wide">
+                <span className="inline-flex items-center gap-2 bg-white/10 border border-white/20 text-white px-6 py-2 text-sm font-light tracking-wide">
                   <Tag className="w-4 h-4" /> Hasta {storeConfig.activeDrop.globalDiscount}% de descuento en este drop
                 </span>
               </div>
@@ -4285,13 +4340,13 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           <div className="absolute top-2 left-2 z-20 bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-sm">-{discount}%</div>
                         )}
                         {inCart && (
-                          <div className="absolute top-2 right-2 z-20 flex items-center gap-0.5 bg-amber-500 text-black text-[9px] font-bold px-1.5 py-0.5 rounded-sm">
+                          <div className="absolute top-2 right-2 z-20 flex items-center gap-0.5 bg-white text-black text-[9px] font-bold px-1.5 py-0.5 rounded-sm">
                             <ShoppingCart className="w-2.5 h-2.5" />×{inCart.cantidad}
                           </div>
                         )}
                         <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end justify-center pb-3 z-10">
                           <div className="flex items-center gap-2">
-                            <button onClick={(e) => { e.stopPropagation(); agregarAlCarrito(product, { dropPrice: finalPrice, dropDiscount: discount }) }} className="w-9 h-9 rounded-full bg-white shadow-md flex items-center justify-center text-gray-700 hover:bg-amber-500 hover:text-white transition-colors" title="Agregar al carrito">
+                            <button onClick={(e) => { e.stopPropagation(); agregarAlCarrito(product, { dropPrice: finalPrice, dropDiscount: discount }) }} className="w-9 h-9 rounded-full bg-white shadow-md flex items-center justify-center text-gray-700 hover:bg-neutral-800 hover:text-white transition-colors" title="Agregar al carrito">
                               <ShoppingCart className="w-4 h-4" />
                             </button>
                             <button onClick={(e) => { e.stopPropagation(); openProductModal(product) }} className="w-9 h-9 rounded-full bg-white shadow-md flex items-center justify-center text-gray-700 hover:bg-gray-800 hover:text-white transition-colors" title="Ver detalle">
@@ -4358,7 +4413,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
                       {/* In-cart indicator */}
                       {inCart && (
-                        <div className="absolute top-2.5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 bg-amber-500 text-black text-[9px] font-bold px-2 py-0.5">
+                        <div className="absolute top-2.5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 bg-white text-black text-[9px] font-bold px-2 py-0.5">
                           <ShoppingCart className="w-2.5 h-2.5" />
                           ×{inCart.cantidad}
                         </div>
@@ -4378,7 +4433,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         <h3 className="text-xs sm:text-sm font-light text-white leading-snug line-clamp-2 mb-1">{product.name}</h3>
                         {product.size && <p className="text-[9px] text-white/35 mb-1">{product.size}</p>}
                         <div className="flex items-center gap-2">
-                          <span className="text-amber-400 font-semibold text-sm">{formatCOP(finalPrice)}</span>
+                          <span className="text-white font-semibold text-sm">{formatCOP(finalPrice)}</span>
                           {discount > 0 && <span className="text-white/30 text-xs line-through">{formatCOP(product.salePrice)}</span>}
                         </div>
                       </div>
@@ -4387,7 +4442,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       <div className="absolute bottom-0 left-0 right-0 z-20 flex items-center gap-0 translate-y-0 sm:translate-y-full sm:group-hover:translate-y-0 transition-transform duration-300 ease-out">
                         <button
                           onClick={(e) => { e.stopPropagation(); agregarAlCarrito(product, { dropPrice: finalPrice, dropDiscount: discount }) }}
-                          className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-amber-500/70 hover:bg-amber-500/90 text-black text-[9px] font-semibold uppercase tracking-wider transition-colors"
+                          className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-white/85 hover:bg-white text-black text-[9px] font-semibold uppercase tracking-wider transition-colors"
                         >
                           <ShoppingCart className="w-3 h-3" />
                           Añadir
@@ -4426,7 +4481,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               <ArrowLeft className="w-4 h-4" /> Volver
             </button>
             <div className="mb-10">
-              <p className="text-amber-400 uppercase text-xs tracking-[0.3em] mb-2">Nuestros Servicios</p>
+              <p className="text-white/80 uppercase text-xs tracking-[0.3em] mb-2">Nuestros Servicios</p>
               <h2 className="text-3xl font-light text-white">
                 {storeConfig?.storeInfo?.name || 'Servicios'}
               </h2>
@@ -4463,7 +4518,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       {/* Service type badge — top left */}
                       <div className={`absolute top-2.5 left-2.5 z-20 flex items-center gap-1 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.15em] shadow-lg ${
                         service.serviceType === 'cita'
-                          ? 'bg-amber-500 text-black'
+                          ? 'bg-white text-black'
                           : service.serviceType === 'asesoria'
                           ? 'bg-blue-600 text-white'
                           : 'bg-emerald-600 text-white'
@@ -4490,7 +4545,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           ) : service.priceType === 'cotizacion' ? (
                             <span className="text-white/50 text-sm font-light">A cotizar</span>
                           ) : (
-                            <span className="text-amber-400 font-light text-sm">
+                            <span className="text-white font-light text-sm">
                               {service.priceType === 'desde' && <span className="text-white/40 text-xs mr-1">Desde</span>}
                               {formatCOP(service.price)}
                             </span>
@@ -4502,7 +4557,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       <div className="absolute bottom-0 left-0 right-0 z-20 flex items-center gap-0 translate-y-0 sm:translate-y-full sm:group-hover:translate-y-0 transition-transform duration-300 ease-out">
                         <button
                           onClick={(e) => { e.stopPropagation(); setBookingService(service) }}
-                          className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-amber-500/70 hover:bg-amber-500/90 text-black text-[9px] font-semibold uppercase tracking-wider transition-colors"
+                          className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-white/85 hover:bg-white text-black text-[9px] font-semibold uppercase tracking-wider transition-colors"
                         >
                           {service.serviceType === 'cita' ? 'Reservar' : service.serviceType === 'asesoria' ? 'Consultar' : 'Contactar'}
                           <ArrowRight className="w-3 h-3" />
@@ -4625,7 +4680,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
         {/* Scroll indicator */}
         <div className="hidden sm:block absolute bottom-20 left-1/2 -translate-x-1/2">
-          <button onClick={scrollToPerfumes} className="text-white/40 hover:text-amber-400 transition-colors animate-bounce">
+          <button onClick={scrollToPerfumes} className="text-white/40 hover:text-white transition-colors animate-bounce">
             <ChevronDown className="w-8 h-8" />
           </button>
         </div>
@@ -4637,7 +4692,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         <div className="landing-section-bg border-t border-white/5 py-4 px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-3 flex-wrap">
             <div className="flex items-center gap-2 text-white/40 text-xs uppercase tracking-[0.2em]">
-              <Store className="w-4 h-4 text-amber-500/70" />
+              <Store className="w-4 h-4 text-white/50" />
               <span>Nuestras sedes</span>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
@@ -4655,9 +4710,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     setShowOffers(false)
                     window.scrollTo({ top: 0, behavior: 'smooth' })
                   }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 border border-white/10 hover:border-amber-500/40 hover:bg-amber-500/10 text-white/60 hover:text-white text-xs uppercase tracking-wider transition-all duration-200"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 border border-white/10 hover:border-white/40 hover:bg-white/10 text-white/60 hover:text-white text-xs uppercase tracking-wider transition-all duration-200"
                 >
-                  <MapPin className="w-3 h-3 text-amber-500/60" />
+                  <MapPin className="w-3 h-3 text-white/40" />
                   {sede.name}
                   {sede.address && <span className="hidden sm:inline text-white/30">· {sede.address}</span>}
                 </button>
@@ -4675,7 +4730,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 setShowOffers(false)
                 window.scrollTo({ top: 0, behavior: 'smooth' })
               }}
-              className="ml-auto flex items-center gap-1 text-amber-400/70 hover:text-amber-400 text-xs uppercase tracking-wider transition-colors"
+              className="ml-auto flex items-center gap-1 text-white/50 hover:text-white text-xs uppercase tracking-wider transition-colors"
             >
               Ver todas <ArrowRight className="w-3 h-3" />
             </button>
@@ -4716,7 +4771,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     onClick={() => { setBusinessTypeFilter('all'); scrollToPerfumes() }}
                     className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-2 sm:py-3 rounded-full border transition-all duration-200 text-[11px] sm:text-sm uppercase tracking-wider font-light ${
                       businessTypeFilter === 'all'
-                        ? 'bg-amber-500 border-amber-500 text-black'
+                        ? 'bg-white border-white text-black'
                         : isLightBg
                           ? 'bg-transparent border-black/15 text-black/50 hover:border-black/40 hover:text-black/80'
                           : 'bg-transparent border-white/15 text-white/50 hover:border-white/40 hover:text-white/80'
@@ -4731,7 +4786,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       onClick={() => { setBusinessTypeFilter(type); scrollToPerfumes() }}
                       className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-2 sm:py-3 rounded-full border transition-all duration-200 text-[11px] sm:text-sm uppercase tracking-wider font-light ${
                         businessTypeFilter === type
-                          ? 'bg-amber-500 border-amber-500 text-black'
+                          ? 'bg-white border-white text-black'
                           : isLightBg
                             ? 'bg-transparent border-black/15 text-black/50 hover:border-black/40 hover:text-black/80'
                             : 'bg-transparent border-white/15 text-white/50 hover:border-white/40 hover:text-white/80'
@@ -4757,7 +4812,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 : []
           const categoryGradients = [
             'from-red-900/60 to-red-950/80',
-            'from-amber-900/60 to-yellow-950/80',
+            'from-neutral-900/60 to-neutral-950/80',
             'from-red-900/60 to-red-950/80',
             'from-emerald-900/60 to-teal-950/80',
           ]
@@ -4766,7 +4821,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               <div className="relative">
                 <button
                   onClick={() => carouselCategoriesRef.current?.scrollBy({ left: -600, behavior: 'smooth' })}
-                  className="absolute left-2 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-black/80 border border-white/20 flex items-center justify-center text-white hover:bg-amber-500 hover:border-amber-500 hover:text-black transition-all shadow-lg flex sm:hidden"
+                  className="absolute left-2 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-black/80 border border-white/20 flex items-center justify-center text-white hover:bg-white/20 hover:border-white/40 hover:text-white transition-all shadow-lg flex sm:hidden"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
@@ -4799,7 +4854,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         )}
                       </div>
                       <div className="py-3 text-center">
-                        <h3 className={`text-[11px] sm:text-sm font-light uppercase tracking-[0.2em] transition-colors group-hover:text-amber-500 ${isLightBg ? 'text-black/70' : 'text-white/80'}`}>
+                        <h3 className={`text-[11px] sm:text-sm font-light uppercase tracking-[0.2em] transition-colors group-hover:text-white/70 ${isLightBg ? 'text-black/70' : 'text-white/80'}`}>
                           {cat.displayName || cat.name}
                         </h3>
                       </div>
@@ -4808,7 +4863,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 </div>
                 <button
                   onClick={() => carouselCategoriesRef.current?.scrollBy({ left: 600, behavior: 'smooth' })}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-black/80 border border-white/20 flex items-center justify-center text-white hover:bg-amber-500 hover:border-amber-500 hover:text-black transition-all shadow-lg flex sm:hidden"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-black/80 border border-white/20 flex items-center justify-center text-white hover:bg-white/20 hover:border-white/40 hover:text-white transition-all shadow-lg flex sm:hidden"
                 >
                   <ChevronRight className="w-4 h-4" />
                 </button>
@@ -4825,13 +4880,13 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
             <div className="flex items-center gap-4 mb-8">
               <div className="flex-1 h-px bg-current opacity-10" />
               <div className="flex items-center gap-2 shrink-0">
-                <Flame className="w-3.5 h-3.5 text-amber-500" />
+                <Flame className="w-3.5 h-3.5 text-white/70" />
                 <span className="text-sm font-light uppercase tracking-[0.3em]">Tendencia</span>
               </div>
               <div className="flex-1 h-px bg-current opacity-10" />
               <button
                 onClick={() => openCatalogWithFilter('trending')}
-                className="shrink-0 inline-flex items-center gap-1.5 text-amber-400 hover:text-amber-300 text-xs uppercase tracking-[0.2em] transition-colors"
+                className="shrink-0 inline-flex items-center gap-1.5 text-white hover:text-white/80 text-xs uppercase tracking-[0.2em] transition-colors"
               >
                 Ver todos <ArrowRight className="w-3 h-3" />
               </button>
@@ -4860,13 +4915,13 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           <div className="absolute top-2 left-2 z-20 bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-sm">-{discount}%</div>
                         )}
                         {inCart && (
-                          <div className="absolute top-2 right-2 z-20 flex items-center gap-0.5 bg-amber-500 text-black text-[9px] font-bold px-1.5 py-0.5 rounded-sm">
+                          <div className="absolute top-2 right-2 z-20 flex items-center gap-0.5 bg-white text-black text-[9px] font-bold px-1.5 py-0.5 rounded-sm">
                             <ShoppingCart className="w-2.5 h-2.5" />×{inCart.cantidad}
                           </div>
                         )}
                         <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end justify-center pb-2 z-10">
                           <div className="flex items-center gap-1.5">
-                            <button onClick={(e) => { e.stopPropagation(); agregarAlCarrito(product) }} className="w-8 h-8 rounded-full bg-white shadow-md flex items-center justify-center text-gray-700 hover:bg-amber-500 hover:text-white transition-colors" title="Agregar al carrito">
+                            <button onClick={(e) => { e.stopPropagation(); agregarAlCarrito(product) }} className="w-8 h-8 rounded-full bg-white shadow-md flex items-center justify-center text-gray-700 hover:bg-neutral-800 hover:text-white transition-colors" title="Agregar al carrito">
                               <ShoppingCart className="w-3.5 h-3.5" />
                             </button>
                             <button onClick={(e) => { e.stopPropagation(); openProductModal(product) }} className="w-8 h-8 rounded-full bg-white shadow-md flex items-center justify-center text-gray-700 hover:bg-gray-800 hover:text-white transition-colors" title="Ver detalle">
@@ -4920,7 +4975,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         <div className="absolute top-2.5 right-2.5 z-20 px-2 py-0.5 text-[9px] text-white/60 uppercase tracking-[0.2em]">{product.brand}</div>
                       )}
                       {inCart && (
-                        <div className="absolute top-2.5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 bg-amber-500 text-black text-[9px] font-bold px-2 py-0.5">
+                        <div className="absolute top-2.5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 bg-white text-black text-[9px] font-bold px-2 py-0.5">
                           <ShoppingCart className="w-2.5 h-2.5" />×{inCart.cantidad}
                         </div>
                       )}
@@ -4941,14 +4996,14 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                               <span className="text-white/30 text-xs line-through">{formatCOP(product.salePrice)}</span>
                             </>
                           ) : (
-                            <span className="text-amber-400 font-light text-sm">{formatCOP(product.salePrice)}</span>
+                            <span className="text-white font-light text-sm">{formatCOP(product.salePrice)}</span>
                           )}
                         </div>
                       </div>
                       <div className="absolute bottom-0 left-0 right-0 z-20 flex items-center gap-0 translate-y-0 sm:translate-y-full sm:group-hover:translate-y-0 transition-transform duration-300 ease-out">
                         <button
                           onClick={(e) => { e.stopPropagation(); agregarAlCarrito(product) }}
-                          className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-amber-500/70 hover:bg-amber-500/90 text-black text-[9px] font-semibold uppercase tracking-wider transition-colors"
+                          className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-white/85 hover:bg-white text-black text-[9px] font-semibold uppercase tracking-wider transition-colors"
                         >
                           <ShoppingCart className="w-3 h-3" />Añadir
                         </button>
@@ -5019,7 +5074,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           href={hero4.linkUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-black px-8 py-3 text-xs uppercase tracking-[0.2em] font-medium transition-all duration-300"
+                          className="inline-flex items-center gap-2 bg-white hover:bg-white/90 text-black px-8 py-3 text-xs uppercase tracking-[0.2em] font-medium transition-all duration-300"
                         >
                           Ver más <ArrowRight className="w-4 h-4" />
                         </a>
@@ -5040,13 +5095,13 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
             <div className="flex items-center gap-4 mb-8">
               <div className="flex-1 h-px bg-current opacity-10" />
               <div className="flex items-center gap-2 shrink-0">
-                <Star className="w-3.5 h-3.5 text-amber-500" />
+                <Star className="w-3.5 h-3.5 text-white/70" />
                 <span className="text-sm font-light uppercase tracking-[0.3em]">Productos Destacados</span>
               </div>
               <div className="flex-1 h-px bg-current opacity-10" />
               <button
                 onClick={() => openCatalogWithFilter('featured')}
-                className="shrink-0 inline-flex items-center gap-1.5 text-amber-400 hover:text-amber-300 text-xs uppercase tracking-[0.2em] transition-colors"
+                className="shrink-0 inline-flex items-center gap-1.5 text-white hover:text-white/80 text-xs uppercase tracking-[0.2em] transition-colors"
               >
                 Ver todos <ArrowRight className="w-3 h-3" />
               </button>
@@ -5071,20 +5126,20 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         ) : (
                           <div className="w-full h-full flex items-center justify-center"><Package className="w-10 h-10 text-gray-300" /></div>
                         )}
-                        <div className="absolute top-2 left-2 z-20 flex items-center gap-1 bg-gradient-to-r from-amber-500 to-yellow-500 text-black text-[9px] font-bold px-1.5 py-0.5 rounded-sm">
+                        <div className="absolute top-2 left-2 z-20 flex items-center gap-1 bg-white text-black text-[9px] font-bold px-1.5 py-0.5 rounded-sm">
                           <Star className="w-2.5 h-2.5" />
                         </div>
                         {isOffer && (
                           <div className="absolute top-2 left-8 z-20 bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-sm">-{discount}%</div>
                         )}
                         {inCart && (
-                          <div className="absolute top-2 right-2 z-20 flex items-center gap-0.5 bg-amber-500 text-black text-[9px] font-bold px-1.5 py-0.5 rounded-sm">
+                          <div className="absolute top-2 right-2 z-20 flex items-center gap-0.5 bg-white text-black text-[9px] font-bold px-1.5 py-0.5 rounded-sm">
                             <ShoppingCart className="w-2.5 h-2.5" />×{inCart.cantidad}
                           </div>
                         )}
                         <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end justify-center pb-2 z-10">
                           <div className="flex items-center gap-1.5">
-                            <button onClick={(e) => { e.stopPropagation(); agregarAlCarrito(product) }} className="w-8 h-8 rounded-full bg-white shadow-md flex items-center justify-center text-gray-700 hover:bg-amber-500 hover:text-white transition-colors" title="Agregar al carrito">
+                            <button onClick={(e) => { e.stopPropagation(); agregarAlCarrito(product) }} className="w-8 h-8 rounded-full bg-white shadow-md flex items-center justify-center text-gray-700 hover:bg-neutral-800 hover:text-white transition-colors" title="Agregar al carrito">
                               <ShoppingCart className="w-3.5 h-3.5" />
                             </button>
                             <button onClick={(e) => { e.stopPropagation(); openProductModal(product) }} className="w-8 h-8 rounded-full bg-white shadow-md flex items-center justify-center text-gray-700 hover:bg-gray-800 hover:text-white transition-colors" title="Ver detalle">
@@ -5131,11 +5186,11 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
                       {/* Top badges row */}
                       <div className="absolute top-2.5 left-2.5 right-2.5 z-20 flex items-center justify-between gap-1">
-                        <div className="flex items-center gap-1 bg-gradient-to-r from-amber-500 to-yellow-500 text-black text-[9px] font-bold px-2 py-0.5 shadow-lg shrink-0">
+                        <div className="flex items-center gap-1 bg-white text-black text-[9px] font-bold px-2 py-0.5 shadow-lg shrink-0">
                           <Star className="w-2.5 h-2.5" />Destacado
                         </div>
                         {inCart && (
-                          <div className="flex items-center gap-1 bg-amber-500 text-black text-[9px] font-bold px-2 py-0.5 shrink-0">
+                          <div className="flex items-center gap-1 bg-white text-black text-[9px] font-bold px-2 py-0.5 shrink-0">
                             <ShoppingCart className="w-2.5 h-2.5" />×{inCart.cantidad}
                           </div>
                         )}
@@ -5155,7 +5210,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       </button>
                       <div className="absolute bottom-0 left-0 right-0 z-10 px-3 pt-2 pb-[52px]">
                         {product.brand && (
-                          <p className="text-[9px] text-amber-400/70 uppercase tracking-[0.2em] truncate mb-0.5">{product.brand}</p>
+                          <p className="text-[9px] text-white/50 uppercase tracking-[0.2em] truncate mb-0.5">{product.brand}</p>
                         )}
                         <h3 className="text-xs font-light text-white leading-snug line-clamp-2 mb-1">{product.name}</h3>
                         {product.size && <p className="text-[9px] text-white/35 mb-1">{product.size}</p>}
@@ -5166,14 +5221,14 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                               <span className="text-white/30 text-xs line-through">{formatCOP(product.salePrice)}</span>
                             </>
                           ) : (
-                            <span className="text-amber-400 font-light text-sm">{formatCOP(product.salePrice)}</span>
+                            <span className="text-white font-light text-sm">{formatCOP(product.salePrice)}</span>
                           )}
                         </div>
                       </div>
                       <div className="absolute bottom-0 left-0 right-0 z-20 flex items-center gap-0 translate-y-0 sm:translate-y-full sm:group-hover:translate-y-0 transition-transform duration-300 ease-out">
                         <button
                           onClick={(e) => { e.stopPropagation(); agregarAlCarrito(product) }}
-                          className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-amber-500/70 hover:bg-amber-500/90 text-black text-[9px] font-semibold uppercase tracking-wider transition-colors"
+                          className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-white/85 hover:bg-white text-black text-[9px] font-semibold uppercase tracking-wider transition-colors"
                         >
                           <ShoppingCart className="w-3 h-3" />Añadir
                         </button>
@@ -5200,7 +5255,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         <RevealSection id="perfumes" className="py-10 sm:py-20 landing-section-alt relative">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-8 space-y-2">
-              <p className="text-amber-400/60 uppercase tracking-[0.5em] text-xs">Información</p>
+              <p className="text-white/40 uppercase tracking-[0.5em] text-xs">Información</p>
               <h2 className="text-3xl sm:text-4xl font-extralight tracking-tight">
                 {storeConfig.storeInfo?.name || stores.find(s => s.slug === selectedStore)?.name || 'Nuestra Tienda'}
               </h2>
@@ -5215,8 +5270,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               {/* Horario */}
               {storeConfig.storeInfo?.schedule && (
                 <div className="flex items-start gap-3 p-4 rounded-xl border border-white/10 bg-white/3 hover:bg-white/5 transition-colors">
-                  <div className="mt-0.5 w-8 h-8 rounded-full bg-amber-500/15 flex items-center justify-center flex-shrink-0">
-                    <Clock className="w-4 h-4 text-amber-400" />
+                  <div className="mt-0.5 w-8 h-8 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">
+                    <Clock className="w-4 h-4 text-white" />
                   </div>
                   <div>
                     <p className="text-white/50 text-xs uppercase tracking-wider mb-1">Horario</p>
@@ -5228,8 +5283,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               {/* Dirección */}
               {storeConfig.storeInfo?.address && (
                 <div className="flex items-start gap-3 p-4 rounded-xl border border-white/10 bg-white/3 hover:bg-white/5 transition-colors">
-                  <div className="mt-0.5 w-8 h-8 rounded-full bg-amber-500/15 flex items-center justify-center flex-shrink-0">
-                    <MapPin className="w-4 h-4 text-amber-400" />
+                  <div className="mt-0.5 w-8 h-8 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">
+                    <MapPin className="w-4 h-4 text-white" />
                   </div>
                   <div>
                     <p className="text-white/50 text-xs uppercase tracking-wider mb-1">Dirección</p>
@@ -5238,7 +5293,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         href={storeConfig.storeInfo.locationMapUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-amber-400/80 text-sm font-light hover:text-amber-400 transition-colors underline underline-offset-2"
+                        className="text-white/60 text-sm font-light hover:text-white transition-colors underline underline-offset-2"
                       >
                         {storeConfig.storeInfo.address}
                       </a>
@@ -5252,12 +5307,12 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               {/* Teléfono */}
               {storeConfig.storeInfo?.phone && (
                 <div className="flex items-start gap-3 p-4 rounded-xl border border-white/10 bg-white/3 hover:bg-white/5 transition-colors">
-                  <div className="mt-0.5 w-8 h-8 rounded-full bg-amber-500/15 flex items-center justify-center flex-shrink-0">
-                    <Phone className="w-4 h-4 text-amber-400" />
+                  <div className="mt-0.5 w-8 h-8 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">
+                    <Phone className="w-4 h-4 text-white" />
                   </div>
                   <div>
                     <p className="text-white/50 text-xs uppercase tracking-wider mb-1">Teléfono</p>
-                    <a href={`tel:${storeConfig.storeInfo.phone}`} className="text-white/90 text-sm font-light hover:text-amber-400 transition-colors">
+                    <a href={`tel:${storeConfig.storeInfo.phone}`} className="text-white/90 text-sm font-light hover:text-white transition-colors">
                       {storeConfig.storeInfo.phone}
                     </a>
                   </div>
@@ -5287,8 +5342,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               {/* Métodos de pago */}
               {storeConfig.storeInfo?.paymentMethods && (
                 <div className="flex items-start gap-3 p-4 rounded-xl border border-white/10 bg-white/3 hover:bg-white/5 transition-colors">
-                  <div className="mt-0.5 w-8 h-8 rounded-full bg-amber-500/15 flex items-center justify-center flex-shrink-0">
-                    <CreditCard className="w-4 h-4 text-amber-400" />
+                  <div className="mt-0.5 w-8 h-8 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">
+                    <CreditCard className="w-4 h-4 text-white" />
                   </div>
                   <div>
                     <p className="text-white/50 text-xs uppercase tracking-wider mb-1">Métodos de pago</p>
@@ -5300,8 +5355,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               {/* Redes sociales */}
               {(storeConfig.storeInfo?.socialInstagram || storeConfig.storeInfo?.socialFacebook || storeConfig.storeInfo?.socialTiktok) && (
                 <div className="flex items-start gap-3 p-4 rounded-xl border border-white/10 bg-white/3 hover:bg-white/5 transition-colors">
-                  <div className="mt-0.5 w-8 h-8 rounded-full bg-amber-500/15 flex items-center justify-center flex-shrink-0">
-                    <Star className="w-4 h-4 text-amber-400" />
+                  <div className="mt-0.5 w-8 h-8 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">
+                    <Star className="w-4 h-4 text-white" />
                   </div>
                   <div>
                     <p className="text-white/50 text-xs uppercase tracking-wider mb-2">Redes Sociales</p>
@@ -5347,12 +5402,12 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               {/* Email */}
               {storeConfig.storeInfo?.email && (
                 <div className="flex items-start gap-3 p-4 rounded-xl border border-white/10 bg-white/3 hover:bg-white/5 transition-colors">
-                  <div className="mt-0.5 w-8 h-8 rounded-full bg-amber-500/15 flex items-center justify-center flex-shrink-0">
-                    <Mail className="w-4 h-4 text-amber-400" />
+                  <div className="mt-0.5 w-8 h-8 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">
+                    <Mail className="w-4 h-4 text-white" />
                   </div>
                   <div>
                     <p className="text-white/50 text-xs uppercase tracking-wider mb-1">Email</p>
-                    <a href={`mailto:${storeConfig.storeInfo.email}`} className="text-white/90 text-sm font-light hover:text-amber-400 transition-colors">
+                    <a href={`mailto:${storeConfig.storeInfo.email}`} className="text-white/90 text-sm font-light hover:text-white transition-colors">
                       {storeConfig.storeInfo.email}
                     </a>
                   </div>
@@ -5367,9 +5422,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(storeConfig.storeInfo.address)}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-3 px-4 py-3 rounded-xl border border-white/10 hover:border-amber-400/40 hover:bg-white/5 transition-all duration-300 group"
+                  className="flex items-center gap-3 px-4 py-3 rounded-xl border border-white/10 hover:border-white/30 hover:bg-white/5 transition-all duration-300 group"
                 >
-                  <MapPin className="w-5 h-5 text-amber-400 shrink-0" />
+                  <MapPin className="w-5 h-5 text-white shrink-0" />
                   <span className="text-white/70 group-hover:text-white text-sm transition-colors">{storeConfig.storeInfo.address}</span>
                 </a>
               </div>
@@ -5380,7 +5435,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       <RevealSection id="perfumes" className="py-6 sm:py-14 landing-section-alt relative">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-6 sm:mb-10 space-y-2 sm:space-y-4">
-            <p className="text-amber-400/60 uppercase tracking-[0.5em] text-xs">
+            <p className="text-white/40 uppercase tracking-[0.5em] text-xs">
               {showStoresView && selectedStore === 'all' ? 'Epicentro' : 'Tienda Online'}
             </p>
             <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extralight tracking-tight">
@@ -5409,7 +5464,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 <div className="mb-12">
                   <div className="flex items-center justify-between mb-6">
                     <div className="flex items-center gap-2">
-                      <Star className="w-4 h-4 text-amber-400" />
+                      <Star className="w-4 h-4 text-white" />
                       <span className="text-white/60 text-sm font-light uppercase tracking-widest">Productos Destacados</span>
                     </div>
                   </div>
@@ -5437,30 +5492,30 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                                 <Flame className="w-2.5 h-2.5" />-{discount}%
                               </div>
                             )}
-                            <div className="absolute top-2 right-2 z-20 bg-amber-500/90 text-black text-[9px] font-bold px-1.5 py-0.5 flex items-center gap-0.5 rounded-sm">
+                            <div className="absolute top-2 right-2 z-20 bg-white/90 text-black text-[9px] font-bold px-1.5 py-0.5 flex items-center gap-0.5 rounded-sm">
                               <Star className="w-2.5 h-2.5" />Dest.
                             </div>
                             {inCart && (
-                              <div className="absolute top-7 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 bg-amber-500 text-black text-[9px] font-bold px-2 py-0.5">
+                              <div className="absolute top-7 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 bg-white text-black text-[9px] font-bold px-2 py-0.5">
                                 <ShoppingCart className="w-2.5 h-2.5" />×{inCart.cantidad}
                               </div>
                             )}
                             <div className="absolute bottom-0 left-0 right-0 p-3 z-10">
                               <p className="text-white font-light text-sm leading-snug line-clamp-2">{product.name}</p>
-                              {product.storeName && <p className="text-amber-400/70 text-[10px] uppercase tracking-wider mt-0.5">{product.storeName}</p>}
+                              {product.storeName && <p className="text-white/50 text-[10px] uppercase tracking-wider mt-0.5">{product.storeName}</p>}
                               <div className="flex items-center gap-2 mt-1.5">
                                 {isOffer ? (
                                   <>
                                     <span className="text-white/40 text-xs line-through">{formatCOP(product.salePrice)}</span>
-                                    <span className="text-amber-400 font-semibold text-sm">{formatCOP(product.offerPrice!)}</span>
+                                    <span className="text-white font-semibold text-sm">{formatCOP(product.offerPrice!)}</span>
                                   </>
                                 ) : (
-                                  <span className="text-amber-400 font-semibold text-sm">{formatCOP(product.salePrice)}</span>
+                                  <span className="text-white font-semibold text-sm">{formatCOP(product.salePrice)}</span>
                                 )}
                               </div>
                               <button
                                 onClick={e => { e.stopPropagation(); agregarAlCarrito(product) }}
-                                className="mt-2 w-full py-1.5 bg-amber-500/20 border border-amber-500/40 text-amber-400 text-xs uppercase tracking-wider hover:bg-amber-500 hover:text-black hover:border-amber-500 transition-colors"
+                                className="mt-2 w-full py-1.5 bg-white/15 border border-white/30 text-white text-xs uppercase tracking-wider hover:bg-white/20 hover:text-white hover:border-white/50 transition-colors"
                               >
                                 Añadir
                               </button>
@@ -5483,7 +5538,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     </div>
                     <button
                       onClick={() => { setMobileActiveTab('ofertas'); fetchAllStoreOffers() }}
-                      className="flex items-center gap-1.5 text-amber-400 hover:text-amber-300 text-xs uppercase tracking-[0.2em] transition-colors"
+                      className="flex items-center gap-1.5 text-white hover:text-white/80 text-xs uppercase tracking-[0.2em] transition-colors"
                     >
                       Ver todas <ArrowRight className="w-3.5 h-3.5" />
                     </button>
@@ -5510,7 +5565,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                               <Flame className="w-2.5 h-2.5" />-{discount}%
                             </div>
                             {inCart && (
-                              <div className="absolute top-2.5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 bg-amber-500 text-black text-[9px] font-bold px-2 py-0.5">
+                              <div className="absolute top-2.5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 bg-white text-black text-[9px] font-bold px-2 py-0.5">
                                 <ShoppingCart className="w-2.5 h-2.5" />×{inCart.cantidad}
                               </div>
                             )}
@@ -5544,7 +5599,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               {selectedStore !== 'all' && stores.length > 1 && (
                 <button
                   onClick={() => { setSelectedStore('all'); setShowStoresView(true) }}
-                  className="flex items-center gap-2 px-4 py-3 bg-amber-500/10 border border-amber-500/30 text-amber-400 text-sm font-light hover:bg-amber-500/20 transition-colors whitespace-nowrap"
+                  className="flex items-center gap-2 px-4 py-3 bg-white/10 border border-white/20 text-white text-sm font-light hover:bg-white/15 transition-colors whitespace-nowrap"
                 >
                   <ArrowLeft className="w-4 h-4" />
                   Todas las tiendas
@@ -5557,7 +5612,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   placeholder="Buscar perfume..."
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 text-white placeholder-white/30 font-light text-sm focus:border-amber-500/50 focus:outline-none transition-colors rounded-none"
+                  className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 text-white placeholder-white/30 font-light text-sm focus:border-white/50 focus:outline-none transition-colors rounded-none"
                 />
               </div>
             </div>
@@ -5576,7 +5631,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 if (loadingStores) return (
                   <div>
                     <div className="flex items-center gap-2 mb-5">
-                      <Store className="w-3.5 h-3.5 text-amber-500/60" />
+                      <Store className="w-3.5 h-3.5 text-white/40" />
                       <span className="text-[10px] uppercase tracking-widest text-white/30 font-light">Cargando comercios...</span>
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
@@ -5598,7 +5653,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     <p className="text-white/30 text-sm font-light">No hay comercios disponibles</p>
                     <button
                       onClick={() => window.location.reload()}
-                      className="text-xs text-amber-400 border border-amber-400/30 px-4 py-2 hover:bg-amber-400/10 transition-colors"
+                      className="text-xs text-white border border-white/30 px-4 py-2 hover:bg-white/10 transition-colors"
                     >
                       Reintentar
                     </button>
@@ -5607,7 +5662,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 return (
                   <div>
                     <div className="flex items-center gap-2 mb-5">
-                      <Store className="w-3.5 h-3.5 text-amber-500/60" />
+                      <Store className="w-3.5 h-3.5 text-white/40" />
                       <span className="text-[10px] uppercase tracking-widest text-white/30 font-light">
                         {visibleStores.length} Comercio{visibleStores.length !== 1 ? 's' : ''}
                       </span>
@@ -5627,7 +5682,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                               if (isEmpty) return
                               setSelectedStore(store.slug); setShowStoresView(false); setActiveSede(null); setStoreSedes([]); window.scrollTo({ top: 0, behavior: 'smooth' })
                             }}
-                            className={`group relative bg-white rounded-2xl overflow-hidden text-left flex flex-col shadow-sm transition-all duration-300 border ${isEmpty ? 'cursor-default border-gray-100 opacity-75' : 'hover:shadow-xl border-gray-100 hover:border-amber-300/60 cursor-pointer'}`}
+                            className={`group relative bg-white rounded-2xl overflow-hidden text-left flex flex-col shadow-sm transition-all duration-300 border ${isEmpty ? 'cursor-default border-gray-100 opacity-75' : 'hover:shadow-xl border-gray-100 hover:border-neutral-300 cursor-pointer'}`}
                           >
                             {/* Próximamente overlay for empty stores */}
                             {isEmpty && (
@@ -5657,7 +5712,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                                 />
                               ) : (
                                 <div className="w-full h-full flex items-center justify-center">
-                                  <Store className={`w-10 h-10 text-gray-200 ${isEmpty ? '' : 'group-hover:text-amber-300'} transition-colors duration-500`} />
+                                  <Store className={`w-10 h-10 text-gray-200 ${isEmpty ? '' : 'group-hover:text-neutral-400'} transition-colors duration-500`} />
                                 </div>
                               )}
                               {/* Product count badge */}
@@ -5668,9 +5723,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
                             {/* Info */}
                             <div className="px-3 pt-2.5 pb-2">
-                              <h3 className={`text-xs sm:text-sm font-semibold text-gray-800 ${isEmpty ? '' : 'group-hover:text-amber-600'} transition-colors truncate`}>{store.name}</h3>
+                              <h3 className={`text-xs sm:text-sm font-semibold text-gray-800 ${isEmpty ? '' : 'group-hover:text-neutral-600'} transition-colors truncate`}>{store.name}</h3>
                               {store.businessType && (
-                                <p className="text-[9px] sm:text-[10px] text-amber-500 uppercase tracking-widest mt-0.5 font-medium truncate">{store.businessType}</p>
+                                <p className="text-[9px] sm:text-[10px] text-white/70 uppercase tracking-widest mt-0.5 font-medium truncate">{store.businessType}</p>
                               )}
                               {store.address && (
                                 <p className="hidden sm:flex text-[11px] text-gray-400 items-center gap-1 mt-1 truncate">
@@ -5708,7 +5763,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
                             {/* CTA */}
                             {!isEmpty && (
-                              <div className="px-3 pb-3 mt-auto flex items-center gap-1 text-amber-500/60 text-[9px] sm:text-[10px] uppercase tracking-widest group-hover:text-amber-500 transition-colors font-medium">
+                              <div className="px-3 pb-3 mt-auto flex items-center gap-1 text-white/40 text-[9px] sm:text-[10px] uppercase tracking-widest group-hover:text-white/70 transition-colors font-medium">
                                 <span>Explorar</span>
                                 <ArrowRight className="w-2.5 h-2.5" />
                               </div>
@@ -5734,7 +5789,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   <div>
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-2">
-                        <Package className="w-3.5 h-3.5 text-amber-500/60" />
+                        <Package className="w-3.5 h-3.5 text-white/40" />
                         <span className="text-[10px] uppercase tracking-widest text-white/30 font-light">
                           {loadingAllProducts ? 'Cargando productos...' : 'Productos destacados'}
                         </span>
@@ -5748,7 +5803,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           onClick={() => setSelectedCategory('all')}
                           className={`shrink-0 px-3 py-1.5 text-[10px] uppercase tracking-widest rounded-full border transition-all ${
                             selectedCategory === 'all'
-                              ? 'bg-amber-500 text-black border-amber-500'
+                              ? 'bg-white text-black border-white'
                               : 'border-white/15 text-white/40 hover:border-white/30 hover:text-white/70'
                           }`}
                         >
@@ -5760,7 +5815,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                             onClick={() => setSelectedCategory(selectedCategory === cat ? 'all' : cat)}
                             className={`shrink-0 px-3 py-1.5 text-[10px] uppercase tracking-widest rounded-full border transition-all ${
                               selectedCategory === cat
-                                ? 'bg-amber-500 text-black border-amber-500'
+                                ? 'bg-white text-black border-white'
                                 : 'border-white/15 text-white/40 hover:border-white/30 hover:text-white/70'
                             }`}
                           >
@@ -5785,7 +5840,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                             <button
                               key={product.id}
                               onClick={() => openProductModal(product)}
-                              className="group relative bg-white/3 border border-white/8 hover:border-amber-500/30 overflow-hidden transition-all duration-300 text-left flex-shrink-0 w-36 sm:w-44"
+                              className="group relative bg-white/3 border border-white/8 hover:border-white/20 overflow-hidden transition-all duration-300 text-left flex-shrink-0 w-36 sm:w-44"
                             >
                               <div className="relative aspect-[3/4] bg-black/50 overflow-hidden">
                                 {product.imageUrl ? (
@@ -5798,7 +5853,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                                   <div className="absolute top-2 left-2 bg-gradient-to-r from-red-600 to-orange-600 text-white text-[9px] font-bold px-1.5 py-0.5">OFERTA</div>
                                 )}
                                 {inCart && (
-                                  <div className="absolute bottom-2 right-2 bg-amber-500 text-black text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center">{inCart.cantidad}</div>
+                                  <div className="absolute bottom-2 right-2 bg-white text-black text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center">{inCart.cantidad}</div>
                                 )}
                               </div>
                               <div className="p-2.5">
@@ -5806,7 +5861,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                                 {product.storeName && (
                                   <p className="text-[9px] text-white/25 truncate mt-0.5 uppercase tracking-wide">{product.storeName}</p>
                                 )}
-                                <p className="text-xs text-amber-400 font-light mt-1">
+                                <p className="text-xs text-white font-light mt-1">
                                   {isOffer ? formatCOP(product.offerPrice!) : formatCOP(product.salePrice)}
                                 </p>
                               </div>
@@ -5827,7 +5882,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               <button
                 onClick={() => setSelectedCategory('all')}
                 className={`shrink-0 px-3 sm:px-4 py-1.5 sm:py-2 text-[11px] sm:text-xs uppercase tracking-wider rounded-full border transition-all duration-300 ${selectedCategory === 'all'
-                  ? 'bg-amber-500 text-black border-amber-500'
+                  ? 'bg-white text-black border-white'
                   : 'bg-transparent text-white/50 border-white/15 hover:border-white/30'
                   }`}
               >
@@ -5838,7 +5893,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   key={cat}
                   onClick={() => setSelectedCategory(cat)}
                   className={`shrink-0 px-3 sm:px-4 py-1.5 sm:py-2 text-[11px] sm:text-xs uppercase tracking-wider rounded-full border transition-all duration-300 ${selectedCategory === cat
-                    ? 'bg-amber-500 text-black border-amber-500'
+                    ? 'bg-white text-black border-white'
                     : 'bg-transparent text-white/50 border-white/15 hover:border-white/30'
                     }`}
                 >
@@ -5851,7 +5906,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
           {/* Products Carousel */}
           {showStoresView && selectedStore === 'all' ? null : loadingProducts ? (
             <div className="text-center py-20">
-              <div className="w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+              <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto mb-4" />
               <p className="text-white/40 text-sm font-light">Cargando perfumes...</p>
             </div>
           ) : filteredProducts.length === 0 ? (
@@ -5887,13 +5942,13 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           <div className="absolute top-2 left-2 z-20 bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-sm">-{discount}%</div>
                         )}
                         {inCart && (
-                          <div className="absolute top-2 right-2 z-20 flex items-center gap-0.5 bg-amber-500 text-black text-[9px] font-bold px-1.5 py-0.5 rounded-sm">
+                          <div className="absolute top-2 right-2 z-20 flex items-center gap-0.5 bg-white text-black text-[9px] font-bold px-1.5 py-0.5 rounded-sm">
                             <ShoppingCart className="w-2.5 h-2.5" />×{inCart.cantidad}
                           </div>
                         )}
                         <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end justify-center pb-2 z-10">
                           <div className="flex items-center gap-1.5">
-                            <button onClick={(e) => { e.stopPropagation(); agregarAlCarrito(product) }} className="w-8 h-8 rounded-full bg-white shadow-md flex items-center justify-center text-gray-700 hover:bg-amber-500 hover:text-white transition-colors" title="Agregar al carrito">
+                            <button onClick={(e) => { e.stopPropagation(); agregarAlCarrito(product) }} className="w-8 h-8 rounded-full bg-white shadow-md flex items-center justify-center text-gray-700 hover:bg-neutral-800 hover:text-white transition-colors" title="Agregar al carrito">
                               <ShoppingCart className="w-3.5 h-3.5" />
                             </button>
                             <button onClick={(e) => { e.stopPropagation(); openProductModal(product) }} className="w-8 h-8 rounded-full bg-white shadow-md flex items-center justify-center text-gray-700 hover:bg-gray-800 hover:text-white transition-colors" title="Ver detalle">
@@ -5944,7 +5999,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         <div className="absolute top-2.5 right-2.5 z-20 px-2 py-0.5 text-[9px] text-white/60 uppercase tracking-[0.2em]">{product.brand}</div>
                       )}
                       {inCart && (
-                        <div className="absolute top-2.5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 bg-amber-500 text-black text-[9px] font-bold px-2 py-0.5">
+                        <div className="absolute top-2.5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 bg-white text-black text-[9px] font-bold px-2 py-0.5">
                           <ShoppingCart className="w-2.5 h-2.5" />×{inCart.cantidad}
                         </div>
                       )}
@@ -5965,14 +6020,14 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                               <span className="text-white/30 text-xs line-through">{formatCOP(product.salePrice)}</span>
                             </>
                           ) : (
-                            <span className="text-amber-400 font-light text-sm">{formatCOP(product.salePrice)}</span>
+                            <span className="text-white font-light text-sm">{formatCOP(product.salePrice)}</span>
                           )}
                         </div>
                       </div>
                       <div className="absolute bottom-0 left-0 right-0 z-20 flex items-center gap-0 translate-y-0 sm:translate-y-full sm:group-hover:translate-y-0 transition-transform duration-300 ease-out">
                         <button
                           onClick={(e) => { e.stopPropagation(); agregarAlCarrito(product) }}
-                          className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-amber-500/70 hover:bg-amber-500/90 text-black text-[9px] font-semibold uppercase tracking-wider transition-colors"
+                          className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-white/85 hover:bg-white text-black text-[9px] font-semibold uppercase tracking-wider transition-colors"
                         >
                           <ShoppingCart className="w-3 h-3" />Añadir
                         </button>
@@ -6002,7 +6057,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
           <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
             {/* Header */}
             <div className="text-center mb-10 space-y-3">
-              <p className="text-amber-400/60 uppercase tracking-[0.5em] text-xs">Contacto</p>
+              <p className="text-white/40 uppercase tracking-[0.5em] text-xs">Contacto</p>
               <h2 className="text-2xl sm:text-3xl font-extralight tracking-tight text-white">
                 {storeConfig.storeInfo.contactPageTitle || 'Contáctanos'}
               </h2>
@@ -6038,10 +6093,10 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       href={link.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-3 p-4 rounded-xl border border-white/10 bg-white/3 hover:bg-white/8 hover:border-amber-500/30 transition-all duration-200 group"
+                      className="flex items-center gap-3 p-4 rounded-xl border border-white/10 bg-white/3 hover:bg-white/8 hover:border-white/20 transition-all duration-200 group"
                     >
-                      <div className="w-9 h-9 rounded-lg bg-amber-500/15 flex items-center justify-center shrink-0">
-                        <Phone className="w-4 h-4 text-amber-400" />
+                      <div className="w-9 h-9 rounded-lg bg-white/10 flex items-center justify-center shrink-0">
+                        <Phone className="w-4 h-4 text-white" />
                       </div>
                       <span className="text-white/80 text-sm font-light group-hover:text-white transition-colors">
                         {link.label || link.url}
@@ -6066,7 +6121,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       href={socialWhatsapp || `tel:${phone}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-3 p-4 rounded-xl border border-white/10 bg-white/3 hover:bg-white/8 hover:border-amber-500/30 transition-all duration-200 group"
+                      className="flex items-center gap-3 p-4 rounded-xl border border-white/10 bg-white/3 hover:bg-white/8 hover:border-white/20 transition-all duration-200 group"
                     >
                       <div className="w-9 h-9 rounded-lg bg-green-500/15 flex items-center justify-center shrink-0">
                         <Phone className="w-4 h-4 text-green-400" />
@@ -6079,7 +6134,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   {email && (
                     <a
                       href={`mailto:${email}`}
-                      className="flex items-center gap-3 p-4 rounded-xl border border-white/10 bg-white/3 hover:bg-white/8 hover:border-amber-500/30 transition-all duration-200 group"
+                      className="flex items-center gap-3 p-4 rounded-xl border border-white/10 bg-white/3 hover:bg-white/8 hover:border-white/20 transition-all duration-200 group"
                     >
                       <div className="w-9 h-9 rounded-lg bg-blue-500/15 flex items-center justify-center shrink-0">
                         <Mail className="w-4 h-4 text-blue-400" />
@@ -6144,7 +6199,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     </button>
                   )}
                   {storeConfig.storeInfo.email && (
-                    <a href={`mailto:${storeConfig.storeInfo.email}`} className="text-white/30 hover:text-amber-400 transition-colors"><Mail className="w-5 h-5" /></a>
+                    <a href={`mailto:${storeConfig.storeInfo.email}`} className="text-white/30 hover:text-white transition-colors"><Mail className="w-5 h-5" /></a>
                   )}
                 </div>
               </div>
@@ -6157,7 +6212,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     <li>
                       <button
                         onClick={() => setLegalModal({ title: 'Términos y condiciones', content: storeConfig.storeInfo!.termsContent! })}
-                        className="text-white/40 text-sm font-light hover:text-amber-400 transition-colors flex items-center gap-1.5"
+                        className="text-white/40 text-sm font-light hover:text-white transition-colors flex items-center gap-1.5"
                       >
                         <FileText className="w-3 h-3" />
                         Términos y condiciones
@@ -6168,7 +6223,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     <li>
                       <button
                         onClick={() => setLegalModal({ title: 'Política de privacidad', content: storeConfig.storeInfo!.privacyContent! })}
-                        className="text-white/40 text-sm font-light hover:text-amber-400 transition-colors flex items-center gap-1.5"
+                        className="text-white/40 text-sm font-light hover:text-white transition-colors flex items-center gap-1.5"
                       >
                         <Shield className="w-3 h-3" />
                         Política de privacidad
@@ -6179,7 +6234,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     <li>
                       <button
                         onClick={() => setLegalModal({ title: 'Términos de envío', content: storeConfig.storeInfo!.shippingTerms! })}
-                        className="text-white/40 text-sm font-light hover:text-amber-400 transition-colors flex items-center gap-1.5"
+                        className="text-white/40 text-sm font-light hover:text-white transition-colors flex items-center gap-1.5"
                       >
                         <Truck className="w-3 h-3" />
                         Términos de envío
@@ -6202,9 +6257,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 <ul className="space-y-2 text-white/40 text-sm font-light">
                   {storeConfig.storeInfo.address && (
                     <li className="flex items-start gap-2">
-                      <MapPin className="w-4 h-4 shrink-0 mt-0.5 text-amber-400/50" />
+                      <MapPin className="w-4 h-4 shrink-0 mt-0.5 text-white/50" />
                       {storeConfig.storeInfo.locationMapUrl ? (
-                        <a href={storeConfig.storeInfo.locationMapUrl} target="_blank" rel="noopener noreferrer" className="hover:text-amber-400 transition-colors">
+                        <a href={storeConfig.storeInfo.locationMapUrl} target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
                           {storeConfig.storeInfo.address}
                         </a>
                       ) : (
@@ -6214,14 +6269,14 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   )}
                   {storeConfig.storeInfo.phone && (
                     <li className="flex items-center gap-2">
-                      <svg className="w-4 h-4 shrink-0 text-amber-400/50" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                      <svg className="w-4 h-4 shrink-0 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
                       {storeConfig.storeInfo.phone}
                     </li>
                   )}
                   {storeConfig.storeInfo.email && (
                     <li className="flex items-center gap-2">
-                      <Mail className="w-4 h-4 shrink-0 text-amber-400/50" />
-                      <a href={`mailto:${storeConfig.storeInfo.email}`} className="hover:text-amber-400 transition-colors">
+                      <Mail className="w-4 h-4 shrink-0 text-white/50" />
+                      <a href={`mailto:${storeConfig.storeInfo.email}`} className="hover:text-white transition-colors">
                         {storeConfig.storeInfo.email}
                       </a>
                     </li>
@@ -6247,10 +6302,10 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(storeConfig.storeInfo.address)}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-3 px-4 py-3 rounded-lg border border-white/10 hover:border-amber-400/40 hover:bg-white/5 transition-all duration-300 group"
+                    className="flex items-center gap-3 px-4 py-3 rounded-lg border border-white/10 hover:border-white/30 hover:bg-white/5 transition-all duration-300 group"
                     title="Abrir en Google Maps"
                   >
-                    <MapPin className="w-5 h-5 text-amber-400 shrink-0" />
+                    <MapPin className="w-5 h-5 text-white shrink-0" />
                     <span className="text-white/70 group-hover:text-white text-sm transition-colors">{storeConfig.storeInfo.address}</span>
                   </a>
                 </div>
@@ -6290,7 +6345,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 <img src={storeConfig.activeDrop.bannerUrl} alt={storeConfig.activeDrop.name} className="w-full h-48 object-cover" />
               )}
               <div className="p-6 text-center space-y-4">
-                <div className="inline-flex items-center gap-2 text-amber-400 text-xs uppercase tracking-[0.3em]">
+                <div className="inline-flex items-center gap-2 text-white text-xs uppercase tracking-[0.3em]">
                   <Flame className="w-4 h-4" /> Nuevo Drop
                 </div>
                 <h3 className="text-2xl font-light text-white">{storeConfig.activeDrop.name}</h3>
@@ -6298,15 +6353,15 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   <p className="text-white/50 text-sm font-light">{storeConfig.activeDrop.description}</p>
                 )}
                 {storeConfig.activeDrop.globalDiscount > 0 && (
-                  <p className="text-lg text-amber-400 font-light">Hasta {storeConfig.activeDrop.globalDiscount}% OFF</p>
+                  <p className="text-lg text-white font-light">Hasta {storeConfig.activeDrop.globalDiscount}% OFF</p>
                 )}
                 <div className="flex items-center justify-center gap-2 text-white/60">
-                  <Timer className="w-4 h-4 text-amber-400" />
+                  <Timer className="w-4 h-4 text-white" />
                   <span className="font-mono text-sm">{countdownText}</span>
                 </div>
                 <button
                   onClick={() => { dismissDropPopup(); setShowDrop(true); setShowCatalog(false) }}
-                  className="w-full py-3 bg-gradient-to-r from-amber-500 to-yellow-500 text-black uppercase tracking-[0.2em] text-xs font-bold hover:from-amber-400 hover:to-yellow-400 transition-all"
+                  className="w-full py-3 bg-white text-black uppercase tracking-[0.2em] text-xs font-bold hover:bg-white/90 transition-all"
                 >
                   Ver Drop
                 </button>
@@ -6335,7 +6390,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       {dropPopupSeen && !showDrop && storeConfig?.activeDrop && countdownText !== 'Finalizado' && (
         <button
           onClick={() => { setShowDrop(true); setShowCatalog(false) }}
-          className="fixed left-0 top-1/2 -translate-y-1/2 z-40 bg-black border-r border-t border-b border-white/10 text-amber-400 px-2 py-4 shadow-lg shadow-black/50 hover:px-3 hover:border-amber-500/30 transition-all duration-300 group"
+          className="fixed left-0 top-1/2 -translate-y-1/2 z-40 bg-black border-r border-t border-b border-white/10 text-white px-2 py-4 shadow-lg shadow-black/50 hover:px-3 hover:border-white/20 transition-all duration-300 group"
         >
           <div className="flex flex-col items-center gap-2 writing-vertical">
             <Flame className="w-4 h-4 shrink-0" />
@@ -6353,16 +6408,62 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       {totalItems > 0 && !showCart && (
         <button
           onClick={() => setShowCart(true)}
-          className="hidden md:flex fixed bottom-6 right-6 z-40 bg-amber-500 hover:bg-amber-400 text-black p-4 rounded-full shadow-2xl shadow-amber-500/30 transition-all duration-300 hover:scale-110 group items-center justify-center"
+          className="hidden md:flex fixed bottom-6 right-6 z-40 bg-white hover:bg-white/90 text-black p-4 rounded-full shadow-2xl shadow-black/30 transition-all duration-300 hover:scale-110 group items-center justify-center"
         >
           <ShoppingCart className="w-6 h-6" />
-          <span className="absolute -top-2 -right-2 bg-black text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center border-2 border-amber-500">
+          <span className="absolute -top-2 -right-2 bg-black text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center border-2 border-black">
             {totalItems}
           </span>
           <span className="absolute right-full mr-3 top-1/2 -translate-y-1/2 bg-black/90 text-white text-xs font-light px-3 py-1.5 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
             {formatCOP(totalCarrito)}
+            {totalPesoKg > 0 && ` · ${totalPesoKg.toFixed(1)} kg`}
           </span>
         </button>
+      )}
+
+      {/* ========== MODAL DOMICILIO CON FLOTA ========== */}
+      {showFlotaDeliveryModal && (
+        <div className="fixed inset-0 bg-black/50 z-[999] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden">
+            <div className="bg-orange-500 px-6 py-5 text-white text-center">
+              <span className="text-4xl block mb-2">🚛</span>
+              <h3 className="text-xl font-bold">¡Tienes domicilio disponible!</h3>
+              <p className="text-orange-100 text-sm mt-1">Nuestra flota de vehículos llevará tu pedido</p>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              {totalPesoKg > 0 && (
+                <div className="flex items-center gap-3 bg-orange-50 rounded-xl px-4 py-3">
+                  <Truck className="text-orange-500 shrink-0" size={20} />
+                  <div>
+                    <p className="text-sm font-semibold text-gray-800">
+                      Peso del pedido: {totalPesoKg.toFixed(2)} kg
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {totalPesoKg < 50 ? 'Entrega en moto' : totalPesoKg <= 500 ? 'Camión ligero' : 'Camión planta (carga pesada)'}
+                    </p>
+                  </div>
+                </div>
+              )}
+              <p className="text-sm text-gray-600 text-center">
+                Al finalizar tu compra podrás indicarnos la dirección exacta de entrega y asignaremos el vehículo adecuado.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => { setShowFlotaDeliveryModal(false); setFlotaDeliveryShown(true) }}
+                  className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50"
+                >
+                  Recoger en tienda
+                </button>
+                <button
+                  onClick={() => { setShowFlotaDeliveryModal(false); setFlotaDeliveryShown(true); setShowCheckout(true) }}
+                  className="flex-1 py-2.5 bg-orange-500 text-white rounded-xl text-sm font-semibold hover:bg-orange-600"
+                >
+                  Quiero domicilio
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ========== CHATBOT FLOATING BUTTON ========== */}
@@ -6616,15 +6717,71 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       </p>
                     </div>
                   )}
+
+                  {/* ── Barra de progreso: meta para domicilio con flota (solo si hay mínimo configurado) ── */}
+                  {DELIVERY_FREE_MIN > 0 && <div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 7 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <Truck style={{ width: 13, height: 13, color: deliveryUnlocked ? '#10b981' : 'rgba(0,0,0,0.35)', flexShrink: 0, transition: 'color 0.3s ease' }} />
+                        {deliveryUnlocked ? (
+                          <span style={{ fontSize: 11, fontWeight: 700, color: '#10b981' }}>
+                            ¡Domicilio con flota incluido!
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: 11, color: 'rgba(0,0,0,0.55)' }}>
+                            Agrega <b style={{ color: '#000' }}>{formatCOP(deliveryRemaining)}</b> más para domicilio
+                          </span>
+                        )}
+                      </div>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: deliveryUnlocked ? '#10b981' : 'rgba(0,0,0,0.4)', transition: 'color 0.3s ease' }}>
+                        {Math.round(deliveryProgress)}%
+                      </span>
+                    </div>
+                    {/* Track */}
+                    <div style={{ height: 5, backgroundColor: 'rgba(0,0,0,0.08)', borderRadius: 99, overflow: 'hidden' }}>
+                      <div style={{
+                        height: '100%',
+                        width: `${deliveryProgress}%`,
+                        backgroundColor: deliveryUnlocked ? '#10b981' : '#000000',
+                        borderRadius: 99,
+                        transition: 'width 0.5s cubic-bezier(0.4,0,0.2,1), background-color 0.4s ease',
+                      }} />
+                    </div>
+                  </div>}
+
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 0' }}>
                     <span style={{ fontSize: 11, color: 'rgba(0,0,0,0.5)', textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 600 }}>Total</span>
                     <span style={{ fontSize: 22, fontWeight: 800, color: '#000000' }}>{formatCOP(totalCarrito)}</span>
                   </div>
+                  {totalPesoKg > 0 && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '2px 0' }}>
+                      <Truck style={{ width: 13, height: 13, color: '#f97316', flexShrink: 0 }} />
+                      <span style={{ fontSize: 11, color: 'rgba(0,0,0,0.55)' }}>
+                        Peso: <b style={{ color: '#f97316' }}>{totalPesoKg.toFixed(2)} kg</b>
+                        {' · '}
+                        <span style={{ color: 'rgba(0,0,0,0.4)' }}>
+                          {totalPesoKg < 50 ? 'Entrega en moto' : totalPesoKg <= 500 ? 'Camión ligero' : 'Camión planta'}
+                        </span>
+                      </span>
+                    </div>
+                  )}
                   <button
                     onClick={() => { setShowCart(false); handleIrAlCheckout() }}
-                    style={{ width: '100%', backgroundColor: '#000000', color: '#ffffff', padding: '15px', fontWeight: 800, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.18em', border: 'none', cursor: 'pointer' }}
+                    style={{
+                      width: '100%',
+                      backgroundColor: deliveryUnlocked ? '#10b981' : '#000000',
+                      color: '#ffffff',
+                      padding: '15px',
+                      fontWeight: 800,
+                      fontSize: 11,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.18em',
+                      border: 'none',
+                      cursor: 'pointer',
+                      transition: 'background-color 0.4s ease',
+                    }}
                   >
-                    {carritoTieneDelivery ? 'Pedir Domicilio' : 'Finalizar Compra'}
+                    {deliveryUnlocked ? '🚛 Pedir con Domicilio' : carritoTieneDelivery ? 'Pedir Domicilio' : 'Finalizar Compra'}
                   </button>
                   <button
                     onClick={() => { setShowCart(false); scrollToPerfumes() }}
@@ -6642,7 +6799,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       {/* ========== DECANT MODAL ========== */}
       {showDecantModal && decantProduct && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-300">
-          <div className="landing-sidebar border border-white/10 w-full max-w-md p-6 sm:p-8 space-y-8 relative shadow-2xl shadow-amber-500/10">
+          <div className="landing-sidebar border border-white/10 w-full max-w-md p-6 sm:p-8 space-y-8 relative shadow-2xl shadow-black/10">
             <button
               onClick={() => setShowDecantModal(false)}
               className="absolute top-4 right-4 text-white/30 hover:text-white transition-colors"
@@ -6651,7 +6808,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
             </button>
 
             <div className="text-center space-y-2">
-              <p className="text-amber-500 text-xs uppercase tracking-[0.2em]">Personaliza tu</p>
+              <p className="text-white/70 text-xs uppercase tracking-[0.2em]">Personaliza tu</p>
               <h3 className="text-2xl font-light text-white">{decantProduct.name}</h3>
               <p className="text-white/40 text-xs font-light">Stock disponible (envases): {decantProduct.stock}</p>
             </div>
@@ -6666,7 +6823,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   <select
                     value={selectedPerfumeId}
                     onChange={(e) => setSelectedPerfumeId(e.target.value)}
-                    className="w-full appearance-none bg-white/5 border border-white/10 text-white py-4 px-4 pr-10 focus:border-amber-500 focus:outline-none rounded-none text-sm font-light cursor-pointer"
+                    className="w-full appearance-none bg-white/5 border border-white/10 text-white py-4 px-4 pr-10 focus:border-white/50 focus:outline-none rounded-none text-sm font-light cursor-pointer"
                   >
                     <option value="" className="bg-zinc-900 text-white/50">Selecciona una fragancia...</option>
                     {products
@@ -6688,7 +6845,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
               <Button
                 onClick={handleConfirmDecant}
-                className="w-full bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black py-6 rounded-none uppercase tracking-[0.2em] text-xs font-bold mt-4"
+                className="w-full bg-white hover:bg-white/90 text-black py-6 rounded-none uppercase tracking-[0.2em] text-xs font-bold mt-4"
               >
                 Agregar al Carrito
               </Button>
@@ -6853,8 +7010,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-5 border-b border-white/10 shrink-0">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-amber-500/20 border border-amber-500/30 flex items-center justify-center">
-                  <User className="w-5 h-5 text-amber-400" />
+                <div className="w-10 h-10 rounded-full bg-white/15 border border-white/20 flex items-center justify-center">
+                  <User className="w-5 h-5 text-white" />
                 </div>
                 <div>
                   <p className="text-sm font-medium text-white leading-tight">{authUser.name}</p>
@@ -6878,7 +7035,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   onClick={() => { setAccountTab(tab.key); if (tab.key === 'pedidos') fetchClientOrders() }}
                   className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-xs uppercase tracking-wider transition-colors border-b-2 ${
                     accountTab === tab.key
-                      ? 'border-amber-400 text-amber-400'
+                      ? 'border-white text-white'
                       : 'border-transparent text-white/40 hover:text-white/70'
                   }`}
                 >
@@ -6942,7 +7099,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   <div className={`flex items-center gap-2 px-3 py-2.5 border text-xs ${
                     authUser.profileCompleted
                       ? 'bg-green-500/10 border-green-500/20 text-green-400'
-                      : 'bg-amber-500/10 border-amber-500/20 text-amber-400'
+                      : 'bg-white/10 border-white/15 text-white'
                   }`}>
                     {authUser.profileCompleted
                       ? '✓ Perfil de entrega completo'
@@ -6952,7 +7109,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   {/* Edit button */}
                   <button
                     onClick={() => { setShowAccountPanel(false); setShowProfileModal(true) }}
-                    className="w-full flex items-center justify-center gap-2 py-3 bg-white/5 border border-white/20 hover:border-amber-400/40 hover:bg-amber-500/10 text-white/70 hover:text-amber-400 text-sm transition-all uppercase tracking-wider"
+                    className="w-full flex items-center justify-center gap-2 py-3 bg-white/5 border border-white/20 hover:border-white/30 hover:bg-white/10 text-white/70 hover:text-white text-sm transition-all uppercase tracking-wider"
                   >
                     <Settings className="w-4 h-4" />
                     Editar datos de entrega
@@ -6965,7 +7122,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 <div className="p-6">
                   {clientOrdersLoading ? (
                     <div className="text-center py-16">
-                      <div className="w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                      <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto mb-3" />
                       <p className="text-white/40 text-sm">Cargando pedidos...</p>
                     </div>
                   ) : clientOrders.length === 0 ? (
@@ -6982,7 +7139,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                             <span className={`text-[10px] uppercase tracking-wider px-2 py-1 ${
                               order.status === 'entregado'  ? 'bg-green-500/10 text-green-400 border border-green-500/30' :
                               order.status === 'en_camino'  ? 'bg-blue-500/10  text-blue-400  border border-blue-500/30'  :
-                              order.status === 'preparando' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30' :
+                              order.status === 'preparando' ? 'bg-white/10 text-white border border-white/20' :
                               order.status === 'cancelado'  ? 'bg-red-500/10   text-red-400   border border-red-500/30'   :
                               'bg-white/5 text-white/50 border border-white/10'
                             }`}>{order.status}</span>
@@ -7006,7 +7163,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                               ))}
                             </div>
                           )}
-                          <div className="text-sm text-amber-400 font-medium">{formatCOP(order.total || 0)}</div>
+                          <div className="text-sm text-white font-medium">{formatCOP(order.total || 0)}</div>
                           {order.deliveryStatus && order.deliveryStatus !== 'sin_asignar' && (
                             <div className="pt-2 border-t border-white/5">
                               <p className="text-[10px] text-white/30 uppercase tracking-wider mb-2">Estado del envío</p>
@@ -7016,8 +7173,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                                   const cur = steps.indexOf(order.deliveryStatus || '')
                                   return (
                                     <div key={step} className="flex items-center gap-1 flex-1">
-                                      <div className={`w-2 h-2 rounded-full ${i <= cur ? 'bg-amber-400' : 'bg-white/10'}`} />
-                                      {i < 3 && <div className={`flex-1 h-px ${i < cur ? 'bg-amber-400' : 'bg-white/10'}`} />}
+                                      <div className={`w-2 h-2 rounded-full ${i <= cur ? 'bg-white' : 'bg-white/10'}`} />
+                                      {i < 3 && <div className={`flex-1 h-px ${i < cur ? 'bg-white' : 'bg-white/10'}`} />}
                                     </div>
                                   )
                                 })}
@@ -7050,7 +7207,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       {products.filter(p => favorites.has(p.id)).map(product => {
                         const isOffer = product.isOnOffer && product.offerPrice
                         return (
-                          <div key={product.id} className="flex items-center gap-3 bg-white/5 border border-white/10 hover:border-amber-500/20 p-3 transition-all">
+                          <div key={product.id} className="flex items-center gap-3 bg-white/5 border border-white/10 hover:border-white/15 p-3 transition-all">
                             <div className="w-14 h-14 shrink-0 bg-black/40 overflow-hidden">
                               {product.imageUrl
                                 ? <img src={ensureAbsoluteUrl(product.imageUrl)} alt={product.name} className="w-full h-full object-cover" />
@@ -7066,13 +7223,13 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                                   <span className="text-white/20 text-[10px] line-through">{formatCOP(product.salePrice)}</span>
                                 </div>
                               ) : (
-                                <span className="text-amber-400 text-xs">{formatCOP(product.salePrice)}</span>
+                                <span className="text-white text-xs">{formatCOP(product.salePrice)}</span>
                               )}
                             </div>
                             <div className="flex flex-col items-end gap-1.5 shrink-0">
                               <button
                                 onClick={() => agregarAlCarrito(product)}
-                                className="w-7 h-7 rounded-full bg-amber-500/20 border border-amber-500/30 hover:bg-amber-500 flex items-center justify-center text-amber-400 hover:text-black transition-all"
+                                className="w-7 h-7 rounded-full bg-white/15 border border-white/20 hover:bg-white flex items-center justify-center text-white hover:text-black transition-all"
                               >
                                 <ShoppingCart className="w-3 h-3" />
                               </button>
@@ -7114,7 +7271,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
             <div className="landing-sidebar border border-white/10 w-full max-w-lg max-h-[80vh] flex flex-col relative shadow-2xl">
               <div className="flex items-center justify-between p-6 border-b border-white/10">
                 <div className="flex items-center gap-3">
-                  <Package className="w-5 h-5 text-amber-400" />
+                  <Package className="w-5 h-5 text-white" />
                   <h3 className="text-lg font-light text-white tracking-wide">Mis Pedidos</h3>
                 </div>
                 <button onClick={() => setShowMyOrders(false)} className="text-white/30 hover:text-white transition-colors">
@@ -7125,7 +7282,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               <div className="flex-1 overflow-y-auto p-6">
                 {clientOrdersLoading ? (
                   <div className="text-center py-12">
-                    <div className="w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                    <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto mb-3" />
                     <p className="text-white/40 text-sm">Cargando pedidos...</p>
                   </div>
                 ) : clientOrders.length === 0 ? (
@@ -7142,7 +7299,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           <span className={`text-[10px] uppercase tracking-wider px-2 py-1 ${
                             order.status === 'entregado' ? 'bg-green-500/10 text-green-400 border border-green-500/30' :
                             order.status === 'enviado' || order.status === 'en_camino' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/30' :
-                            order.status === 'preparando' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30' :
+                            order.status === 'preparando' ? 'bg-white/10 text-white border border-white/20' :
                             order.status === 'cancelado' ? 'bg-red-500/10 text-red-400 border border-red-500/30' :
                             'bg-white/5 text-white/50 border border-white/10'
                           }`}>
@@ -7169,7 +7326,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                             ))}
                           </div>
                         )}
-                        <div className="text-sm text-amber-400 font-medium">
+                        <div className="text-sm text-white font-medium">
                           {formatCOP(order.total || order.totalAmount || 0)}
                         </div>
                         {/* Delivery status timeline */}
@@ -7183,8 +7340,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                                 const isActive = i <= currentIndex
                                 return (
                                   <div key={step} className="flex items-center gap-1 flex-1">
-                                    <div className={`w-2 h-2 rounded-full ${isActive ? 'bg-amber-400' : 'bg-white/10'}`} />
-                                    {i < 3 && <div className={`flex-1 h-px ${isActive && i < currentIndex ? 'bg-amber-400' : 'bg-white/10'}`} />}
+                                    <div className={`w-2 h-2 rounded-full ${isActive ? 'bg-white' : 'bg-white/10'}`} />
+                                    {i < 3 && <div className={`flex-1 h-px ${isActive && i < currentIndex ? 'bg-white' : 'bg-white/10'}`} />}
                                   </div>
                                 )
                               })}
@@ -7292,7 +7449,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 value={globalSearchQuery}
                 onChange={(e) => handleGlobalSearch(e.target.value)}
                 placeholder="Buscar productos en todas las tiendas..."
-                className="w-full pl-10 pr-10 py-3 bg-white/5 border border-white/10 text-white placeholder-white/30 text-sm focus:outline-none focus:border-amber-500/50"
+                className="w-full pl-10 pr-10 py-3 bg-white/5 border border-white/10 text-white placeholder-white/30 text-sm focus:outline-none focus:border-white/50"
                 autoFocus
               />
               {globalSearchQuery && (
@@ -7322,7 +7479,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                               <div className="w-full h-full flex items-center justify-center"><Sparkles className="w-8 h-8 text-white/10" /></div>
                             )}
                             <div className="absolute top-2 right-2 z-10">
-                              <button onClick={(e) => { e.stopPropagation(); agregarAlCarrito(product) }} className="w-8 h-8 rounded-full bg-black/60 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white hover:bg-amber-500 hover:text-black transition-all">
+                              <button onClick={(e) => { e.stopPropagation(); agregarAlCarrito(product) }} className="w-8 h-8 rounded-full bg-black/60 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white hover:bg-white/20 hover:text-white transition-all">
                                 <ShoppingCart className="w-3.5 h-3.5" />
                               </button>
                             </div>
@@ -7330,7 +7487,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                               <div className="absolute top-2 left-2 z-20 bg-gradient-to-r from-red-600 to-orange-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-sm">OFERTA</div>
                             )}
                             {inCart && (
-                              <div className="absolute bottom-2 right-2 z-10 bg-amber-500 text-black text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">{inCart.cantidad}</div>
+                              <div className="absolute bottom-2 right-2 z-10 bg-white text-black text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">{inCart.cantidad}</div>
                             )}
                           </div>
                           <div className="p-3 space-y-1">
@@ -7341,7 +7498,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                                 <span className="text-white/30 text-[10px] line-through">{formatCOP(product.salePrice)}</span>
                               </div>
                             ) : (
-                              <span className="text-amber-400 font-light text-sm">{formatCOP(product.salePrice)}</span>
+                              <span className="text-white font-light text-sm">{formatCOP(product.salePrice)}</span>
                             )}
                           </div>
                         </div>
@@ -7357,7 +7514,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               )
             ) : (loadingGlobalSearch && globalSearchResults.length === 0 && globalSearchStores.length === 0) ? (
               <div className="text-center py-12">
-                <div className="w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto mb-3" />
                 <p className="text-white/40 text-sm">Buscando...</p>
               </div>
             ) : globalSearchResults.length === 0 && globalSearchStores.length === 0 ? (
@@ -7391,7 +7548,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                               {store.name}
                             </p>
                             {store.businessType && (
-                              <p className="text-[11px] text-amber-500/60 uppercase tracking-widest font-light mt-0.5 truncate">
+                              <p className="text-[11px] text-white/50 uppercase tracking-widest font-light mt-0.5 truncate">
                                 {store.businessType}
                               </p>
                             )}
@@ -7427,7 +7584,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           <div className="w-full h-full flex items-center justify-center"><Sparkles className="w-8 h-8 text-white/10" /></div>
                         )}
                         <div className="absolute top-2 right-2 z-10">
-                          <button onClick={(e) => { e.stopPropagation(); agregarAlCarrito(product) }} className="w-8 h-8 rounded-full bg-black/60 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white hover:bg-amber-500 hover:text-black transition-all">
+                          <button onClick={(e) => { e.stopPropagation(); agregarAlCarrito(product) }} className="w-8 h-8 rounded-full bg-black/60 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white hover:bg-white/20 hover:text-white transition-all">
                             <ShoppingCart className="w-3.5 h-3.5" />
                           </button>
                         </div>
@@ -7437,7 +7594,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           </div>
                         )}
                         {inCart && (
-                          <div className="absolute bottom-2 right-2 z-10 bg-amber-500 text-black text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">{inCart.cantidad}</div>
+                          <div className="absolute bottom-2 right-2 z-10 bg-white text-black text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">{inCart.cantidad}</div>
                         )}
                       </div>
                       <div className="p-3 space-y-1">
@@ -7448,7 +7605,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                             <span className="text-white/30 text-[10px] line-through">{formatCOP(product.salePrice)}</span>
                           </div>
                         ) : (
-                          <span className="text-amber-400 font-light text-sm">{formatCOP(product.salePrice)}</span>
+                          <span className="text-white font-light text-sm">{formatCOP(product.salePrice)}</span>
                         )}
                       </div>
                     </div>
@@ -7471,8 +7628,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               <div className="space-y-6">
                 {/* User Info */}
                 <div className="text-center space-y-3">
-                  <div className="w-20 h-20 rounded-full bg-amber-500/10 border-2 border-amber-500/30 flex items-center justify-center mx-auto">
-                    <User className="w-10 h-10 text-amber-400" />
+                  <div className="w-20 h-20 rounded-full bg-white/10 border-2 border-white/20 flex items-center justify-center mx-auto">
+                    <User className="w-10 h-10 text-white" />
                   </div>
                   <div>
                     <h2 className="text-lg font-light text-white">{authUser.name}</h2>
@@ -7485,9 +7642,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   {/* Mis Pedidos */}
                   <button
                     onClick={() => { fetchClientOrders(); setShowMyOrders(true) }}
-                    className="w-full flex items-center gap-4 p-4 bg-white/5 border border-white/10 hover:border-amber-500/30 transition-all"
+                    className="w-full flex items-center gap-4 p-4 bg-white/5 border border-white/10 hover:border-white/20 transition-all"
                   >
-                    <Package className="w-5 h-5 text-amber-400" />
+                    <Package className="w-5 h-5 text-white" />
                     <div className="text-left flex-1">
                       <span className="text-sm text-white">Mis Pedidos</span>
                       <p className="text-[11px] text-white/40">Ver historial de pedidos</p>
@@ -7502,9 +7659,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       const el = document.getElementById('cuenta-location-picker')
                       if (el) el.scrollIntoView({ behavior: 'smooth' })
                     }}
-                    className="w-full flex items-center gap-4 p-4 bg-white/5 border border-white/10 hover:border-amber-500/30 transition-all"
+                    className="w-full flex items-center gap-4 p-4 bg-white/5 border border-white/10 hover:border-white/20 transition-all"
                   >
-                    <MapPin className="w-5 h-5 text-amber-400" />
+                    <MapPin className="w-5 h-5 text-white" />
                     <div className="text-left flex-1">
                       <span className="text-sm text-white">Mi Ubicación</span>
                       <p className="text-[11px] text-white/40">Configurar dirección de entrega</p>
@@ -7515,9 +7672,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   {/* Favoritos */}
                   <button
                     onClick={() => { setMobileActiveTab('tienda'); setShowCatalog(true) }}
-                    className="w-full flex items-center gap-4 p-4 bg-white/5 border border-white/10 hover:border-amber-500/30 transition-all"
+                    className="w-full flex items-center gap-4 p-4 bg-white/5 border border-white/10 hover:border-white/20 transition-all"
                   >
-                    <Heart className="w-5 h-5 text-amber-400" />
+                    <Heart className="w-5 h-5 text-white" />
                     <div className="text-left flex-1">
                       <span className="text-sm text-white">Favoritos</span>
                       <p className="text-[11px] text-white/40">{favorites.size} productos guardados</p>
@@ -7533,7 +7690,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     {deliveryLat && deliveryLng ? (
                       <div className="space-y-2">
                         <div className="flex items-center gap-2 text-sm text-white/60">
-                          <MapPin className="w-4 h-4 text-amber-400" />
+                          <MapPin className="w-4 h-4 text-white" />
                           <span>Lat: {deliveryLat.toFixed(4)}, Lng: {deliveryLng.toFixed(4)}</span>
                         </div>
                         <button
@@ -7553,7 +7710,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                             )
                           }
                         }}
-                        className="w-full py-3 bg-amber-500/10 border border-amber-500/30 text-amber-400 text-sm flex items-center justify-center gap-2 hover:bg-amber-500/20 transition-colors"
+                        className="w-full py-3 bg-white/10 border border-white/20 text-white text-sm flex items-center justify-center gap-2 hover:bg-white/15 transition-colors"
                       >
                         <MapPin className="w-4 h-4" />
                         Establecer mi ubicación
@@ -8083,7 +8240,7 @@ function CountUpStat({ value, suffix = '', label }: { value: number; suffix?: st
 
   return (
     <div ref={ref} className="text-center">
-      <p className="text-3xl font-light text-amber-400">{count}{suffix}</p>
+      <p className="text-3xl font-light text-white">{count}{suffix}</p>
       <p className="text-xs text-white/40 uppercase tracking-widest mt-1">{label}</p>
     </div>
   )
@@ -8119,7 +8276,7 @@ function CatalogSidebar({
       <div className="flex items-center justify-between">
         <h3 className="text-xs text-white/60 uppercase tracking-widest font-medium">Filtros</h3>
         {hasFilters && (
-          <button onClick={onClear} className="text-[10px] text-amber-400 hover:text-amber-300 uppercase tracking-wider">Limpiar</button>
+          <button onClick={onClear} className="text-[10px] text-white hover:text-white/80 uppercase tracking-wider">Limpiar</button>
         )}
       </div>
 
@@ -8128,9 +8285,9 @@ function CatalogSidebar({
         <h4 className="text-[11px] text-white/40 uppercase tracking-widest mb-4">Precio</h4>
         {/* Range values */}
         <div className="flex items-center justify-between mb-5">
-          <span className="text-xs text-amber-400 font-light tabular-nums">{formatCOP(priceMin)}</span>
+          <span className="text-xs text-white font-light tabular-nums">{formatCOP(priceMin)}</span>
           <span className="text-[10px] text-white/20">—</span>
-          <span className="text-xs text-amber-400 font-light tabular-nums">
+          <span className="text-xs text-white font-light tabular-nums">
             {priceMax > 0 ? formatCOP(priceMax) : '$500k+'}
           </span>
         </div>
@@ -8140,7 +8297,7 @@ function CatalogSidebar({
           <div className="h-[3px] bg-white/10 rounded-full">
             {/* Active fill */}
             <div
-              className="absolute h-[3px] bg-amber-500 rounded-full top-2"
+              className="absolute h-[3px] bg-white rounded-full top-2"
               style={{
                 left: `${(priceMin / 500000) * 100}%`,
                 right: `${100 - ((priceMax || 500000) / 500000) * 100}%`,
@@ -8149,12 +8306,12 @@ function CatalogSidebar({
           </div>
           {/* Min thumb indicator */}
           <div
-            className="absolute top-2 w-3.5 h-3.5 bg-amber-500 rounded-full border-2 border-black shadow-lg -translate-y-1/2 -translate-x-1/2 pointer-events-none ring-1 ring-amber-500/40"
+            className="absolute top-2 w-3.5 h-3.5 bg-white rounded-full border-2 border-black shadow-lg -translate-y-1/2 -translate-x-1/2 pointer-events-none ring-1 ring-white/40"
             style={{ left: `${(priceMin / 500000) * 100}%` }}
           />
           {/* Max thumb indicator */}
           <div
-            className="absolute top-2 w-3.5 h-3.5 bg-amber-500 rounded-full border-2 border-black shadow-lg -translate-y-1/2 -translate-x-1/2 pointer-events-none ring-1 ring-amber-500/40"
+            className="absolute top-2 w-3.5 h-3.5 bg-white rounded-full border-2 border-black shadow-lg -translate-y-1/2 -translate-x-1/2 pointer-events-none ring-1 ring-white/40"
             style={{ left: `${((priceMax || 500000) / 500000) * 100}%` }}
           />
           {/* Inputs overlay */}
@@ -8187,7 +8344,7 @@ function CatalogSidebar({
           <div className="space-y-2 max-h-48 overflow-y-auto">
             {categories.map(cat => (
               <label key={cat} className="flex items-center gap-2.5 cursor-pointer group">
-                <span className={`w-4 h-4 border flex items-center justify-center shrink-0 transition-colors ${selectedCategories.has(cat) ? 'bg-amber-500 border-amber-500' : 'border-white/20 group-hover:border-white/40'}`}>
+                <span className={`w-4 h-4 border flex items-center justify-center shrink-0 transition-colors ${selectedCategories.has(cat) ? 'bg-white border-white' : 'border-white/20 group-hover:border-white/40'}`}>
                   {selectedCategories.has(cat) && <svg className="w-3 h-3 text-black" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
                 </span>
                 <button onClick={() => toggle(cat, selectedCategories, setSelectedCategories)} className="text-xs text-white/60 group-hover:text-white transition-colors text-left">{cat}</button>
@@ -8204,7 +8361,7 @@ function CatalogSidebar({
           <div className="space-y-2 max-h-48 overflow-y-auto">
             {availableBrands.map(brand => (
               <label key={brand} className="flex items-center gap-2.5 cursor-pointer group">
-                <span className={`w-4 h-4 border flex items-center justify-center shrink-0 transition-colors ${selectedBrands.has(brand) ? 'bg-amber-500 border-amber-500' : 'border-white/20 group-hover:border-white/40'}`}>
+                <span className={`w-4 h-4 border flex items-center justify-center shrink-0 transition-colors ${selectedBrands.has(brand) ? 'bg-white border-white' : 'border-white/20 group-hover:border-white/40'}`}>
                   {selectedBrands.has(brand) && <svg className="w-3 h-3 text-black" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
                 </span>
                 <button onClick={() => toggle(brand, selectedBrands, setSelectedBrands)} className="text-xs text-white/60 group-hover:text-white transition-colors text-left">{brand}</button>
@@ -8221,7 +8378,7 @@ function CatalogSidebar({
           <div className="space-y-2">
             {availableGenders.map(g => (
               <label key={g} className="flex items-center gap-2.5 cursor-pointer group">
-                <span className={`w-4 h-4 border flex items-center justify-center shrink-0 transition-colors ${selectedGenders.has(g) ? 'bg-amber-500 border-amber-500' : 'border-white/20 group-hover:border-white/40'}`}>
+                <span className={`w-4 h-4 border flex items-center justify-center shrink-0 transition-colors ${selectedGenders.has(g) ? 'bg-white border-white' : 'border-white/20 group-hover:border-white/40'}`}>
                   {selectedGenders.has(g) && <svg className="w-3 h-3 text-black" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
                 </span>
                 <button onClick={() => toggle(g, selectedGenders, setSelectedGenders)} className="text-xs text-white/60 group-hover:text-white transition-colors text-left capitalize">{g}</button>
@@ -8238,7 +8395,7 @@ function CatalogSidebar({
           <div className="flex flex-wrap gap-2">
             {availableSizes.map(size => (
               <button key={size} onClick={() => toggle(size, selectedSizes, setSelectedSizes)}
-                className={`px-3 py-1.5 text-xs border transition-colors ${selectedSizes.has(size) ? 'bg-amber-500 text-black border-amber-500' : 'bg-white/5 text-white/60 border-white/10 hover:border-white/30'}`}>
+                className={`px-3 py-1.5 text-xs border transition-colors ${selectedSizes.has(size) ? 'bg-white text-black border-white' : 'bg-white/5 text-white/60 border-white/10 hover:border-white/30'}`}>
                 {size}
               </button>
             ))}
@@ -8252,9 +8409,9 @@ function CatalogSidebar({
 /* ========== FilterPill ========== */
 function FilterPill({ label, onRemove }: { label: string; onRemove: () => void }) {
   return (
-    <span className="inline-flex items-center gap-1.5 bg-amber-500/15 border border-amber-500/30 px-2.5 py-1 text-[11px] text-amber-400">
+    <span className="inline-flex items-center gap-1.5 bg-white/10 border border-white/20 px-2.5 py-1 text-[11px] text-white">
       {label}
-      <button onClick={onRemove} className="hover:text-amber-200 transition-colors"><svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
+      <button onClick={onRemove} className="hover:text-white transition-colors"><svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
     </span>
   )
 }

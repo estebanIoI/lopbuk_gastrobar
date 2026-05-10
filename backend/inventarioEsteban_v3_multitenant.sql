@@ -2,12 +2,24 @@
 -- BASE DE DATOS: StockPro Inventario Universal 3.0
 -- Sistema Multi-Tenant con roles: superadmin, comerciante, vendedor
 -- ============================================
--- ARQUITECTURA: parami
+-- ARQUITECTURA:
 --   superadmin  → Dueño de la plataforma, gestiona comerciantes y ve todo
 --   comerciante → Dueño de un negocio (tenant), gestiona su tienda
 --   vendedor    → Empleado de un comerciante, opera dentro del tenant
 --
 -- Cada tabla de datos tiene tenant_id para aislamiento de datos
+-- ============================================
+--
+-- HISTORIAL DE CAMBIOS INTEGRADOS:
+--   v3.1 — Módulo Flota / Ferretería (ver documentación: migrations/001_fleet_module.sql)
+--     · users.role: ampliado con auxiliar_bodega, administrador_rb, cajero,
+--                   mesero, cocinero, bartender, despachador
+--     · products: nuevo campo hardware_weight_unit (unidad de peso para ferretería)
+--     · fleet_vehicles: nueva tabla — vehículos de despacho por tenant
+--     · fleet_maintenance: nueva tabla — historial de mantenimientos
+--     · sales: nuevos campos vehicle_id, dispatch_status, total_weight_kg
+--     · storefront_orders: nuevos campos vehicle_id, dispatch_status,
+--                           total_weight_kg, dispatch_notes, dispatched_at
 -- ============================================
 
 -- Crear base de datos
@@ -50,7 +62,11 @@ CREATE TABLE IF NOT EXISTS users (
     email VARCHAR(255) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,
     name VARCHAR(255) NOT NULL,
-    role ENUM('superadmin', 'comerciante', 'vendedor', 'cliente', 'repartidor') NOT NULL DEFAULT 'vendedor',
+    role ENUM(
+        'superadmin', 'comerciante', 'vendedor', 'cliente', 'repartidor',
+        'auxiliar_bodega', 'administrador_rb', 'cajero', 'mesero',
+        'cocinero', 'bartender', 'despachador'
+    ) NOT NULL DEFAULT 'vendedor',
     phone TEXT NULL COMMENT 'Teléfono del usuario (puede estar cifrado con AES-256)',
     avatar VARCHAR(500) NULL,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
@@ -142,6 +158,8 @@ CREATE TABLE IF NOT EXISTS store_info (
     -- Módulo de información
     show_info_module TINYINT(1) NOT NULL DEFAULT 0 COMMENT '1 = mostrar módulo de información en lugar de productos',
     info_module_description TEXT NULL COMMENT 'Descripción/texto libre del módulo de información',
+    -- Carrito: mínimo de compra para domicilio con flota
+    cart_min_purchase INT NOT NULL DEFAULT 0 COMMENT 'Monto mínimo en COP para mostrar barra de progreso y desbloquear domicilio. 0 = desactivado',
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
     UNIQUE INDEX idx_store_tenant (tenant_id),
@@ -287,6 +305,8 @@ CREATE TABLE IF NOT EXISTS products (
     -- Campos FERRETERIA
     dimensions VARCHAR(50) NULL,
     weight DECIMAL(10,3) NULL,
+    hardware_weight_unit ENUM('kg', 'ton', 'lb', 'g') NULL DEFAULT 'kg'
+        COMMENT 'Unidad de peso para productos de ferretería',
     caliber VARCHAR(20) NULL,
     resistance VARCHAR(50) NULL,
     finish VARCHAR(50) NULL,
@@ -381,6 +401,57 @@ CREATE TABLE IF NOT EXISTS customers (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================
+-- TABLA: fleet_vehicles (Vehículos de la flota)
+-- Módulo Ferretería — Gestión de despacho por peso
+-- ============================================
+CREATE TABLE IF NOT EXISTS fleet_vehicles (
+    id VARCHAR(36) PRIMARY KEY,
+    tenant_id VARCHAR(36) NOT NULL,
+    name VARCHAR(100) NOT NULL COMMENT 'Nombre del vehículo (ej: Camión 1, Moto Roja)',
+    plate VARCHAR(20) NULL COMMENT 'Placa del vehículo',
+    type ENUM('planta', 'ligera', 'moto') NOT NULL DEFAULT 'ligera'
+        COMMENT 'planta=carga pesada >500kg, ligera=carga media 50-500kg, moto=domicilio <50kg',
+    max_weight_kg DECIMAL(10,2) NOT NULL DEFAULT 500.00 COMMENT 'Capacidad máxima de carga en kg',
+    status ENUM('disponible', 'en_ruta', 'mantenimiento', 'inactivo') NOT NULL DEFAULT 'disponible',
+    year INT NULL COMMENT 'Año del vehículo',
+    brand VARCHAR(50) NULL COMMENT 'Marca del vehículo',
+    model VARCHAR(50) NULL COMMENT 'Modelo del vehículo',
+    notes TEXT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+    INDEX idx_fleet_tenant (tenant_id),
+    INDEX idx_fleet_status (status),
+    INDEX idx_fleet_type (type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================
+-- TABLA: fleet_maintenance (Mantenimientos de vehículos)
+-- ============================================
+CREATE TABLE IF NOT EXISTS fleet_maintenance (
+    id VARCHAR(36) PRIMARY KEY,
+    tenant_id VARCHAR(36) NOT NULL,
+    vehicle_id VARCHAR(36) NOT NULL,
+    type ENUM('preventivo', 'correctivo', 'revision') NOT NULL DEFAULT 'preventivo',
+    description TEXT NOT NULL COMMENT 'Descripción del mantenimiento',
+    scheduled_date DATE NULL COMMENT 'Fecha programada',
+    completed_date DATE NULL COMMENT 'Fecha en que se completó',
+    cost DECIMAL(12,2) NOT NULL DEFAULT 0,
+    status ENUM('pendiente', 'en_proceso', 'completado', 'cancelado') NOT NULL DEFAULT 'pendiente',
+    notes TEXT NULL,
+    created_by VARCHAR(36) NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+    FOREIGN KEY (vehicle_id) REFERENCES fleet_vehicles(id) ON DELETE CASCADE,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+    INDEX idx_maintenance_tenant (tenant_id),
+    INDEX idx_maintenance_vehicle (vehicle_id),
+    INDEX idx_maintenance_scheduled (scheduled_date),
+    INDEX idx_maintenance_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================
 -- TABLA: sales (Ventas por tenant)
 -- ============================================
 CREATE TABLE IF NOT EXISTS sales (
@@ -411,6 +482,10 @@ CREATE TABLE IF NOT EXISTS sales (
     mixed_second_amount DECIMAL(12,2) NULL COMMENT 'Pago mixto: monto del segundo método',
     -- Sede/Sucursal
     sede_id VARCHAR(36) NULL COMMENT 'Sede donde se realizó la venta (NULL = sede única)',
+    -- Flota / Despacho (Ferretería)
+    vehicle_id VARCHAR(36) NULL COMMENT 'Vehículo asignado si requiere despacho',
+    dispatch_status ENUM('pendiente','en_pista','cargado','despachado','entregado') NOT NULL DEFAULT 'pendiente',
+    total_weight_kg DECIMAL(10,3) NULL COMMENT 'Peso total de la venta en kg',
     -- Offline-first sync
     synced TINYINT(1) NOT NULL DEFAULT 1 COMMENT '0 = pendiente de subir a la nube',
     synced_at TIMESTAMP NULL COMMENT 'Fecha en que se sincronizó con la nube',
@@ -420,6 +495,7 @@ CREATE TABLE IF NOT EXISTS sales (
     FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
     FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL,
     FOREIGN KEY (seller_id) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (vehicle_id) REFERENCES fleet_vehicles(id) ON DELETE SET NULL,
     UNIQUE INDEX idx_sale_tenant_invoice (tenant_id, invoice_number),
     INDEX idx_sale_tenant (tenant_id),
     INDEX idx_invoice (invoice_number),
@@ -429,7 +505,8 @@ CREATE TABLE IF NOT EXISTS sales (
     INDEX idx_sales_payment_method (payment_method),
     INDEX idx_sales_due_date (due_date),
     INDEX idx_sales_synced (synced),
-    INDEX idx_sales_sede_id (sede_id)
+    INDEX idx_sales_sede_id (sede_id),
+    INDEX idx_sales_vehicle (vehicle_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================
@@ -1351,6 +1428,13 @@ CREATE TABLE IF NOT EXISTS storefront_orders (
     delivery_picked_at TIMESTAMP NULL,
     delivery_delivered_at TIMESTAMP NULL,
 
+    -- Flota / Despacho (Ferretería)
+    vehicle_id VARCHAR(36) NULL COMMENT 'Vehículo asignado para despacho',
+    dispatch_status ENUM('pendiente','en_pista','cargado','despachado','entregado') NOT NULL DEFAULT 'pendiente',
+    total_weight_kg DECIMAL(10,3) NULL COMMENT 'Peso total del pedido en kg (calculado al crear)',
+    dispatch_notes TEXT NULL COMMENT 'Notas del despachador',
+    dispatched_at TIMESTAMP NULL COMMENT 'Fecha/hora en que el vehículo salió de la pista',
+
     -- Cliente registrado (opcional)
     client_user_id VARCHAR(36) NULL,
 
@@ -1360,12 +1444,15 @@ CREATE TABLE IF NOT EXISTS storefront_orders (
     FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
     FOREIGN KEY (delivery_driver_id) REFERENCES users(id) ON DELETE SET NULL,
     FOREIGN KEY (client_user_id) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (vehicle_id) REFERENCES fleet_vehicles(id) ON DELETE SET NULL,
     INDEX idx_order_tenant (tenant_id),
     INDEX idx_order_status (status),
     INDEX idx_order_number (order_number),
     INDEX idx_order_created (created_at),
     INDEX idx_order_driver (delivery_driver_id),
-    INDEX idx_order_client (client_user_id)
+    INDEX idx_order_client (client_user_id),
+    INDEX idx_order_vehicle (vehicle_id),
+    INDEX idx_order_dispatch_status (dispatch_status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================
@@ -2179,10 +2266,10 @@ CREATE TABLE IF NOT EXISTS printers (
 -- Mesas · Comandas · Cocina · Bar · Caja
 -- ============================================================
 
--- 1. Extender users.role con roles de restaurante
+-- 1. Extender users.role con roles de restaurante y despacho
 ALTER TABLE users MODIFY COLUMN role ENUM(
     'superadmin','comerciante','vendedor','cliente','repartidor','auxiliar_bodega',
-    'mesero','cocinero','cajero','bartender','administrador_rb'
+    'mesero','cocinero','cajero','bartender','administrador_rb','despachador'
 ) NOT NULL DEFAULT 'vendedor';
 
 -- 2. Extender products con campos de menú (compatible MySQL 5.7)

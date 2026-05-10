@@ -41,6 +41,8 @@ import { subscriptionsRoutes } from './modules/subscriptions/subscriptions.route
 import { restbarRoutes } from './modules/restbar';
 import { financesRoutes } from './modules/finances';
 import { portfolioRoutes } from './modules/portfolio';
+import devRequestsRoutes from './modules/dev-requests/dev-requests.routes';
+import { fleetRoutes } from './modules/fleet';
 
 const app = express();
 
@@ -146,6 +148,8 @@ app.use(`${apiPrefix}/subscriptions`, subscriptionsRoutes);
 app.use(`${apiPrefix}/restbar`, restbarRoutes);
 app.use(`${apiPrefix}/finances`, financesRoutes);
 app.use(`${apiPrefix}/portfolio`, portfolioRoutes);
+app.use(`${apiPrefix}/dev-requests`, devRequestsRoutes);
+app.use(`${apiPrefix}/fleet`, fleetRoutes);
 
 // Error handling
 app.use(notFoundHandler);
@@ -246,6 +250,39 @@ const startServer = async () => {
       // Presupuestos
       await pool2.query(`CREATE TABLE IF NOT EXISTS finance_budgets (id VARCHAR(36) PRIMARY KEY, tenant_id VARCHAR(36) NOT NULL, category_id VARCHAR(36) NOT NULL, year SMALLINT NOT NULL, month TINYINT NOT NULL, budgeted_amount DECIMAL(12,2) NOT NULL DEFAULT 0, notes TEXT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE, FOREIGN KEY (category_id) REFERENCES finance_categories(id) ON DELETE CASCADE, UNIQUE INDEX idx_budget_unique (tenant_id, category_id, year, month), INDEX idx_budget_period (tenant_id, year, month)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
     } catch { /* tables may already exist */ }
+
+    // ── Dev Requests migration ────────────────────────────────────────────────
+    try {
+      const pool3 = (await import('./config/database')).default;
+      await pool3.query(`
+        CREATE TABLE IF NOT EXISTS dev_requests (
+          id VARCHAR(36) PRIMARY KEY,
+          tenant_id VARCHAR(36) NOT NULL,
+          user_id VARCHAR(36) NOT NULL,
+          tenant_name VARCHAR(255) NULL,
+          requester_name VARCHAR(255) NOT NULL,
+          title VARCHAR(300) NOT NULL,
+          description TEXT NOT NULL,
+          type ENUM('objetivo','mejora','actualizacion','bug','otro') NOT NULL DEFAULT 'mejora',
+          priority ENUM('baja','media','alta') NOT NULL DEFAULT 'media',
+          status ENUM('pendiente','en_revision','cotizado','aprobado','en_progreso','completado','rechazado') NOT NULL DEFAULT 'pendiente',
+          estimated_hours DECIMAL(6,2) NULL,
+          price_per_hour DECIMAL(10,2) NULL,
+          total_price DECIMAL(12,2) NULL,
+          admin_notes TEXT NULL,
+          rejection_reason VARCHAR(500) NULL,
+          paid_at TIMESTAMP NULL,
+          completed_at TIMESTAMP NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT,
+          INDEX idx_dev_req_tenant (tenant_id),
+          INDEX idx_dev_req_status (status),
+          INDEX idx_dev_req_created (created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+    } catch { /* table may already exist */ }
 
     // Run AES encryption migration for existing plaintext sensitive data
     try {

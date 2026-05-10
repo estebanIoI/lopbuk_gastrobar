@@ -42,6 +42,9 @@ interface AppState {
     customerPhone?: string
     creditDays?: number
     applyTax?: boolean
+    sedeId?: string
+    vehicleId?: string
+    totalWeightKg?: number
   }) => Promise<{ success: boolean; error?: string; data?: Sale }>
   cancelSale: (id: string, reason: string) => Promise<{ success: boolean; error?: string }>
 

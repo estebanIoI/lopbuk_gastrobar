@@ -410,6 +410,9 @@ class ApiService {
     customerEmail?: string
     creditDays?: number
     applyTax?: boolean
+    sedeId?: string
+    vehicleId?: string
+    totalWeightKg?: number
   }) {
     return this.request<any>('/sales', {
       method: 'POST',
@@ -823,6 +826,17 @@ class ApiService {
   async getPublicNewLaunches(store?: string) {
     const q = store ? `?store=${encodeURIComponent(store)}` : ''
     return this.request<any[]>(`/storefront/new-launches${q}`)
+  }
+
+  // =============================================
+  // Cart Settings
+  // =============================================
+
+  async updateCartSettings(data: { cartMinPurchase: number }) {
+    return this.request<any>('/storefront/cart-settings', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
   }
 
   // =============================================
@@ -1853,6 +1867,192 @@ class ApiService {
   }
   async deletePortfolioTeamCard(id: number) {
     return this.request<any>(`/portfolio/team/${id}`, { method: 'DELETE' })
+  }
+
+  // ── Portfolio Feature Cards ──
+  async getPortfolioFeaturesAll() {
+    return this.request<any[]>('/portfolio/features/all')
+  }
+  async createPortfolioFeature(data: { icon: string; title: string; description?: string; sortOrder?: number; isActive?: boolean }) {
+    return this.request<any>('/portfolio/features', { method: 'POST', body: JSON.stringify(data) })
+  }
+  async updatePortfolioFeature(id: number, data: { icon: string; title: string; description?: string; sortOrder?: number; isActive?: boolean }) {
+    return this.request<any>(`/portfolio/features/${id}`, { method: 'PUT', body: JSON.stringify(data) })
+  }
+  async deletePortfolioFeature(id: number) {
+    return this.request<any>(`/portfolio/features/${id}`, { method: 'DELETE' })
+  }
+
+  // ── Portfolio Service Catalog ──
+  async getPortfolioServicesAll() {
+    return this.request<any[]>('/portfolio/services/all')
+  }
+  async createPortfolioServiceCategory(data: { icon: string; label: string; type: string; sortOrder?: number; isActive?: boolean }) {
+    return this.request<any>('/portfolio/services/categories', { method: 'POST', body: JSON.stringify(data) })
+  }
+  async updatePortfolioServiceCategory(id: number, data: { icon: string; label: string; type: string; sortOrder?: number; isActive?: boolean }) {
+    return this.request<any>(`/portfolio/services/categories/${id}`, { method: 'PUT', body: JSON.stringify(data) })
+  }
+  async deletePortfolioServiceCategory(id: number) {
+    return this.request<any>(`/portfolio/services/categories/${id}`, { method: 'DELETE' })
+  }
+  async createPortfolioServiceOption(data: { categoryId: number; title: string; description?: string; savings?: string; price: number; isPopular?: boolean; sortOrder?: number; isActive?: boolean }) {
+    return this.request<any>('/portfolio/services/options', { method: 'POST', body: JSON.stringify(data) })
+  }
+  async updatePortfolioServiceOption(id: number, data: { title: string; description?: string; savings?: string; price: number; isPopular?: boolean; sortOrder?: number; isActive?: boolean }) {
+    return this.request<any>(`/portfolio/services/options/${id}`, { method: 'PUT', body: JSON.stringify(data) })
+  }
+  async deletePortfolioServiceOption(id: number) {
+    return this.request<any>(`/portfolio/services/options/${id}`, { method: 'DELETE' })
+  }
+
+  async createPortfolioCheckout(items: { title: string; quantity?: number; unit_price: number }[], backUrl?: string) {
+    return this.request<{ init_point: string; sandbox_init_point?: string }>('/portfolio/checkout', {
+      method: 'POST',
+      body: JSON.stringify({ items, backUrl }),
+    })
+  }
+
+  // ── Dev Requests (Solicitudes de desarrollo) ──────────────────────────────
+
+  async getMyDevRequests(params?: { status?: string; type?: string }) {
+    const q = new URLSearchParams()
+    if (params?.status) q.set('status', params.status)
+    if (params?.type)   q.set('type', params.type)
+    const query = q.toString()
+    return this.request<any[]>(`/dev-requests${query ? `?${query}` : ''}`)
+  }
+
+  async getDevContactInfo() {
+    return this.request<{ whatsapp: string }>('/dev-requests/contact-info')
+  }
+
+  async createDevRequest(data: { title: string; description: string; type: string; priority: string }) {
+    return this.request<any>('/dev-requests', { method: 'POST', body: JSON.stringify(data) })
+  }
+
+  async deleteDevRequest(id: string) {
+    return this.request<any>(`/dev-requests/${id}`, { method: 'DELETE' })
+  }
+
+  async confirmDevRequestQuote(id: string) {
+    return this.request<any>(`/dev-requests/${id}/confirm`, { method: 'PATCH' })
+  }
+
+  async getAllDevRequests(params?: { status?: string; type?: string; tenantId?: string }) {
+    const q = new URLSearchParams()
+    if (params?.status)   q.set('status', params.status)
+    if (params?.type)     q.set('type', params.type)
+    if (params?.tenantId) q.set('tenantId', params.tenantId)
+    const query = q.toString()
+    return this.request<any[]>(`/dev-requests/admin/all${query ? `?${query}` : ''}`)
+  }
+
+  async quoteDevRequest(id: string, data: { estimatedHours: number; pricePerHour: number; adminNotes?: string }) {
+    return this.request<any>(`/dev-requests/admin/${id}/quote`, { method: 'PATCH', body: JSON.stringify(data) })
+  }
+
+  async updateDevRequestStatus(id: string, data: { status: string; adminNotes?: string; rejectionReason?: string }) {
+    return this.request<any>(`/dev-requests/admin/${id}/status`, { method: 'PATCH', body: JSON.stringify(data) })
+  }
+
+  async getDevSettings() {
+    return this.request<{ hourlyRate: number; whatsapp: string }>('/dev-requests/admin/settings')
+  }
+
+  async updateDevSettings(data: { hourlyRate?: number; whatsapp?: string }) {
+    return this.request<any>('/dev-requests/admin/settings', { method: 'PUT', body: JSON.stringify(data) })
+  }
+
+  async createDevRequestCheckout(id: string) {
+    const backUrl = typeof window !== 'undefined' ? window.location.href : ''
+    return this.request<{ initPoint: string; sandboxInitPoint?: string }>(`/dev-requests/${id}/checkout`, {
+      method: 'POST',
+      body: JSON.stringify({ backUrl }),
+    })
+  }
+  // =============================================
+  // Fleet endpoints (Módulo Flota / Ferretería)
+  // =============================================
+
+  async getFleetVehicles(status?: string) {
+    const q = status ? `?status=${status}` : '';
+    return this.request<any[]>(`/fleet/vehicles${q}`);
+  }
+
+  async getFleetVehicle(id: string) {
+    return this.request<any>(`/fleet/vehicles/${id}`);
+  }
+
+  async createFleetVehicle(data: {
+    name: string; type: 'planta' | 'ligera' | 'moto'; maxWeightKg: number;
+    plate?: string; year?: number; brand?: string; model?: string; notes?: string;
+  }) {
+    return this.request<any>('/fleet/vehicles', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async updateFleetVehicle(id: string, data: Partial<{
+    name: string; type: string; maxWeightKg: number; plate: string;
+    status: string; year: number; brand: string; model: string; notes: string;
+  }>) {
+    return this.request<any>(`/fleet/vehicles/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  }
+
+  async deleteFleetVehicle(id: string) {
+    return this.request<any>(`/fleet/vehicles/${id}`, { method: 'DELETE' });
+  }
+
+  async getFleetMaintenance(params?: { vehicleId?: string; status?: string }) {
+    const q = new URLSearchParams(params as any).toString();
+    return this.request<any[]>(`/fleet/maintenance${q ? `?${q}` : ''}`);
+  }
+
+  async createFleetMaintenance(data: {
+    vehicleId: string; type: string; description: string;
+    scheduledDate?: string; cost?: number; notes?: string;
+  }) {
+    return this.request<any>('/fleet/maintenance', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async updateFleetMaintenance(id: string, data: Partial<{
+    status: string; completedDate: string; cost: number; notes: string;
+    description: string; scheduledDate: string; type: string;
+  }>) {
+    return this.request<any>(`/fleet/maintenance/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  }
+
+  async getFleetMetrics() {
+    return this.request<any>('/fleet/metrics');
+  }
+
+  async getPendingDispatch(dispatchStatus?: string) {
+    const q = dispatchStatus ? `?dispatchStatus=${dispatchStatus}` : '';
+    return this.request<any[]>(`/fleet/pending-dispatch${q}`);
+  }
+
+  async assignVehicle(orderId: string, vehicleId?: string, driverId?: string) {
+    return this.request<any>('/fleet/assign-vehicle', {
+      method: 'POST',
+      body: JSON.stringify({ orderId, vehicleId, driverId }),
+    });
+  }
+
+  async updateDispatchStatus(orderId: string, dispatchStatus: string, dispatchNotes?: string) {
+    return this.request<any>(`/fleet/dispatch-status/${orderId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ dispatchStatus, dispatchNotes }),
+    });
+  }
+
+  async getActiveRoutes() {
+    return this.request<any[]>('/fleet/active-routes');
+  }
+
+  async calculateOrderWeight(items: Array<{ productId: string; quantity: number }>) {
+    return this.request<{ totalWeightKg: number; recommendedVehicleType: string }>(
+      '/fleet/calculate-weight',
+      { method: 'POST', body: JSON.stringify({ items }) }
+    );
   }
 }
 

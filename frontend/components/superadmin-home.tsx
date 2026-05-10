@@ -58,7 +58,21 @@ import {
   Github,
   Linkedin,
   GripVertical,
+  Zap,
+  ChevronDown,
+  MessageSquarePlus,
+  Clock,
+  Wrench,
+  Target,
+  Bug,
+  HelpCircle,
+  ChevronUp,
+  AlertCircle,
+  Loader2,
+  DollarSign,
 } from 'lucide-react'
+import { Textarea } from '@/components/ui/textarea'
+import { Switch } from '@/components/ui/switch'
 import { CloudinaryUpload, clearCloudinaryCache } from '@/components/ui/cloudinary-upload'
 import { QRCodeSVG } from 'qrcode.react'
 import { toast } from 'sonner'
@@ -100,6 +114,52 @@ interface TenantTimeline {
 // ── Portafolio ──
 interface PortfolioTenant { id: string; name: string; slug: string; plan: string; logoUrl?: string }
 
+const PF_PLANS = [
+  {
+    name: 'Micro',
+    tag: 'Tienda única',
+    price: '$80.000',
+    period: '/mes',
+    specs: ['1 sede', '1–3 usuarios', 'POS + Inventario', 'Tienda online básica'],
+    highlighted: false,
+    isEnterprise: false,
+  },
+  {
+    name: 'Pyme',
+    tag: 'Negocio en crecimiento',
+    price: '$300.000',
+    period: '/mes',
+    specs: ['2–5 sedes', '4–15 usuarios', 'Tienda + RestBar', 'Reportes avanzados'],
+    highlighted: true,
+    isEnterprise: false,
+  },
+  {
+    name: 'Mediana',
+    tag: 'Empresa establecida',
+    price: '$4.000.000',
+    period: '/mes',
+    specs: ['6–20 sedes', '16–60 usuarios', 'Multi-sede + Finanzas', 'Soporte prioritario'],
+    highlighted: false,
+    isEnterprise: false,
+  },
+  {
+    name: 'Enterprise',
+    tag: '+20 sedes',
+    price: 'Desde $5.000.000',
+    period: '/mes',
+    specs: ['Sedes ilimitadas', 'Usuarios ilimitados', 'SLA garantizado', 'Soporte 24/7 dedicado'],
+    highlighted: false,
+    isEnterprise: true,
+  },
+]
+
+const PF_EXTRAS = [
+  { label: 'Implementación / Onboarding', value: '$300.000 – $3.000.000' },
+  { label: 'Soporte premium / 24×7', value: '+20% a +50%' },
+  { label: 'Hardware (impresoras, lector, cajas)', value: 'Se cotiza aparte' },
+  { label: 'Personalizaciones a medida', value: '$100.000/hora o bolsa mensual' },
+]
+
 // ── Team Cards ──
 interface TeamCard {
   id: number
@@ -118,6 +178,48 @@ const emptyTeamCard = (): Omit<TeamCard, 'id'> => ({
   sort_order: 0, is_active: true, github_url: '', linkedin_url: '',
 })
 
+// ── Feature Cards ──
+interface FeatureCard {
+  id: number
+  icon: string
+  title: string
+  description: string
+  sort_order: number
+  is_active: boolean
+}
+const emptyFeatureCard = (): Omit<FeatureCard, 'id'> => ({
+  icon: '⚡', title: '', description: '', sort_order: 0, is_active: true,
+})
+
+// ── Service Catalog ──
+interface PfServiceOption {
+  id: number
+  category_id: number
+  title: string
+  description: string
+  savings: string
+  price: number
+  is_popular: boolean
+  sort_order: number
+  is_active: boolean
+}
+interface PfServiceCategory {
+  id: number
+  icon: string
+  label: string
+  type: 'package' | 'subscription' | 'addon'
+  sort_order: number
+  is_active: boolean
+  options: PfServiceOption[]
+}
+const emptyServiceCat = (): Omit<PfServiceCategory, 'id' | 'options'> => ({
+  icon: '📦', label: '', type: 'package', sort_order: 0, is_active: true,
+})
+const emptyServiceOpt = (categoryId: number): Omit<PfServiceOption, 'id'> => ({
+  category_id: categoryId, title: '', description: '', savings: '',
+  price: 0, is_popular: false, sort_order: 0, is_active: true,
+})
+
 // ── Colors for tenants ──
 const TENANT_COLORS = [
   '#f59e0b', '#3b82f6', '#10b981', '#8b5cf6', '#ef4444',
@@ -126,7 +228,78 @@ const TENANT_COLORS = [
 
 export function SuperadminHome() {
   // ── Tab state ──
-  const [activeTab, setActiveTab] = useState<'pagina' | 'timeline' | 'destacados' | 'integraciones' | 'pagos' | 'portafolio'>('pagina')
+  const [activeTab, setActiveTab] = useState<'pagina' | 'timeline' | 'destacados' | 'integraciones' | 'pagos' | 'portafolio' | 'solicitudes'>('pagina')
+
+  // ── Dev Requests ──
+  const [devRequests, setDevRequests] = useState<any[]>([])
+  const [devRequestsLoading, setDevRequestsLoading] = useState(false)
+  const [devHourlyRate, setDevHourlyRate] = useState('')
+  const [devWhatsapp, setDevWhatsapp] = useState('')
+  const [savingDevRate, setSavingDevRate] = useState(false)
+  const [quotingId, setQuotingId] = useState<string | null>(null)
+  const [quoteForm, setQuoteForm] = useState({ estimatedHours: '', pricePerHour: '', adminNotes: '' })
+  const [statusUpdateId, setStatusUpdateId] = useState<string | null>(null)
+  const [statusUpdateValue, setStatusUpdateValue] = useState('')
+  const [statusUpdateNotes, setStatusUpdateNotes] = useState('')
+  const [statusUpdateReject, setStatusUpdateReject] = useState('')
+
+  const fetchDevRequests = useCallback(async () => {
+    setDevRequestsLoading(true)
+    const [reqRes, settingsRes] = await Promise.all([
+      api.getAllDevRequests(),
+      api.getDevSettings(),
+    ])
+    if (reqRes.success && reqRes.data) setDevRequests(reqRes.data)
+    if (settingsRes.success && settingsRes.data) {
+      setDevHourlyRate(String(settingsRes.data.hourlyRate || ''))
+      setDevWhatsapp(settingsRes.data.whatsapp || '')
+    }
+    setDevRequestsLoading(false)
+  }, [])
+
+  const handleSaveDevRate = async () => {
+    setSavingDevRate(true)
+    const res = await api.updateDevSettings({ hourlyRate: Number(devHourlyRate), whatsapp: devWhatsapp })
+    if (res.success) toast.success('Configuración guardada')
+    else toast.error(res.error || 'Error al guardar')
+    setSavingDevRate(false)
+  }
+
+  const handleQuote = async () => {
+    if (!quotingId) return
+    const res = await api.quoteDevRequest(quotingId, {
+      estimatedHours: Number(quoteForm.estimatedHours),
+      pricePerHour: Number(quoteForm.pricePerHour),
+      adminNotes: quoteForm.adminNotes || undefined,
+    })
+    if (res.success) {
+      toast.success('Cotización enviada')
+      setQuotingId(null)
+      setQuoteForm({ estimatedHours: '', pricePerHour: '', adminNotes: '' })
+      fetchDevRequests()
+    } else {
+      toast.error(res.error || 'Error al cotizar')
+    }
+  }
+
+  const handleStatusUpdate = async () => {
+    if (!statusUpdateId || !statusUpdateValue) return
+    const res = await api.updateDevRequestStatus(statusUpdateId, {
+      status: statusUpdateValue,
+      adminNotes: statusUpdateNotes || undefined,
+      rejectionReason: statusUpdateReject || undefined,
+    })
+    if (res.success) {
+      toast.success('Estado actualizado')
+      setStatusUpdateId(null)
+      setStatusUpdateValue('')
+      setStatusUpdateNotes('')
+      setStatusUpdateReject('')
+      fetchDevRequests()
+    } else {
+      toast.error(res.error || 'Error al actualizar')
+    }
+  }
 
   // ── Hero settings ──
   const [heroUrl, setHeroUrl] = useState('')
@@ -167,6 +340,30 @@ export function SuperadminHome() {
   const [teamForm, setTeamForm] = useState<Omit<TeamCard, 'id'>>(emptyTeamCard())
   const [teamSaving, setTeamSaving] = useState(false)
   const [teamDeletingId, setTeamDeletingId] = useState<number | null>(null)
+
+  // ── Feature Cards ──
+  const [featureCards, setFeatureCards] = useState<FeatureCard[]>([])
+  const [featureLoading, setFeatureLoading] = useState(false)
+  const [featureDialog, setFeatureDialog] = useState(false)
+  const [editingFeature, setEditingFeature] = useState<FeatureCard | null>(null)
+  const [featureForm, setFeatureForm] = useState<Omit<FeatureCard, 'id'>>(emptyFeatureCard())
+  const [featureSaving, setFeatureSaving] = useState(false)
+  const [featureDeletingId, setFeatureDeletingId] = useState<number | null>(null)
+
+  // ── Service Catalog ──
+  const [serviceCategories, setServiceCategories] = useState<PfServiceCategory[]>([])
+  const [serviceLoading, setServiceLoading] = useState(false)
+  const [serviceCatDialog, setServiceCatDialog] = useState(false)
+  const [editingCat, setEditingCat] = useState<PfServiceCategory | null>(null)
+  const [serviceCatForm, setServiceCatForm] = useState<Omit<PfServiceCategory, 'id' | 'options'>>(emptyServiceCat())
+  const [serviceCatSaving, setServiceCatSaving] = useState(false)
+  const [serviceCatDeletingId, setServiceCatDeletingId] = useState<number | null>(null)
+  const [serviceOptDialog, setServiceOptDialog] = useState(false)
+  const [editingOpt, setEditingOpt] = useState<PfServiceOption | null>(null)
+  const [serviceOptForm, setServiceOptForm] = useState<Omit<PfServiceOption, 'id'>>(emptyServiceOpt(0))
+  const [serviceOptSaving, setServiceOptSaving] = useState(false)
+  const [serviceOptDeletingId, setServiceOptDeletingId] = useState<number | null>(null)
+  const [expandedCatId, setExpandedCatId] = useState<number | null>(null)
 
   // ── Offers (products with isOnOffer) ──
   const [offers, setOffers] = useState<any[]>([])
@@ -343,8 +540,9 @@ export function SuperadminHome() {
         if (res.success && res.data?.planIds) setMpPlanIds(res.data.planIds)
       })
     }
-    if (activeTab === 'portafolio') { fetchPortfolioConfig(); fetchTeamCards() }
-  }, [activeTab, timelinePeriod, fetchTimeline, fetchIntegrations, fetchChatbotTenants])
+    if (activeTab === 'portafolio') { fetchPortfolioConfig(); fetchTeamCards(); fetchFeatureCards(); fetchServiceCatalog() }
+    if (activeTab === 'solicitudes') fetchDevRequests()
+  }, [activeTab, timelinePeriod, fetchTimeline, fetchIntegrations, fetchChatbotTenants, fetchDevRequests])
 
   useEffect(() => {
     if (activeTab === 'destacados') fetchFeatured()
@@ -452,6 +650,118 @@ export function SuperadminHome() {
     if (res.success) { toast.success('Tarjeta eliminada'); fetchTeamCards() }
     else toast.error(res.error || 'Error al eliminar')
     setTeamDeletingId(null)
+  }
+
+  // ── Feature Cards handlers ──────────────────────────────────────────────────
+  const fetchFeatureCards = async () => {
+    setFeatureLoading(true)
+    const res = await api.getPortfolioFeaturesAll()
+    if (res.success && res.data) setFeatureCards(res.data as FeatureCard[])
+    setFeatureLoading(false)
+  }
+
+  const openNewFeature = () => {
+    setEditingFeature(null)
+    setFeatureForm(emptyFeatureCard())
+    setFeatureDialog(true)
+  }
+
+  const openEditFeature = (f: FeatureCard) => {
+    setEditingFeature(f)
+    setFeatureForm({ icon: f.icon, title: f.title, description: f.description, sort_order: f.sort_order, is_active: Boolean(f.is_active) })
+    setFeatureDialog(true)
+  }
+
+  const handleSaveFeature = async () => {
+    if (!featureForm.title.trim()) { toast.error('El título es requerido'); return }
+    setFeatureSaving(true)
+    const payload = { icon: featureForm.icon, title: featureForm.title, description: featureForm.description, sortOrder: featureForm.sort_order, isActive: featureForm.is_active }
+    const res = editingFeature
+      ? await api.updatePortfolioFeature(editingFeature.id, payload)
+      : await api.createPortfolioFeature(payload)
+    if (res.success) { toast.success(editingFeature ? 'Característica actualizada' : 'Característica creada'); setFeatureDialog(false); fetchFeatureCards() }
+    else toast.error(res.error || 'Error al guardar')
+    setFeatureSaving(false)
+  }
+
+  const handleDeleteFeature = async (id: number) => {
+    setFeatureDeletingId(id)
+    const res = await api.deletePortfolioFeature(id)
+    if (res.success) { toast.success('Característica eliminada'); fetchFeatureCards() }
+    else toast.error(res.error || 'Error al eliminar')
+    setFeatureDeletingId(null)
+  }
+
+  // ── Service Catalog handlers ────────────────────────────────────────────────
+  const fetchServiceCatalog = async () => {
+    setServiceLoading(true)
+    const res = await api.getPortfolioServicesAll()
+    if (res.success && res.data) setServiceCategories(res.data as PfServiceCategory[])
+    setServiceLoading(false)
+  }
+
+  const openNewServiceCat = () => {
+    setEditingCat(null)
+    setServiceCatForm(emptyServiceCat())
+    setServiceCatDialog(true)
+  }
+
+  const openEditServiceCat = (cat: PfServiceCategory) => {
+    setEditingCat(cat)
+    setServiceCatForm({ icon: cat.icon, label: cat.label, type: cat.type, sort_order: cat.sort_order, is_active: Boolean(cat.is_active) })
+    setServiceCatDialog(true)
+  }
+
+  const handleSaveServiceCat = async () => {
+    if (!serviceCatForm.label.trim()) { toast.error('La etiqueta es requerida'); return }
+    setServiceCatSaving(true)
+    const payload = { icon: serviceCatForm.icon, label: serviceCatForm.label, type: serviceCatForm.type, sortOrder: serviceCatForm.sort_order, isActive: serviceCatForm.is_active }
+    const res = editingCat
+      ? await api.updatePortfolioServiceCategory(editingCat.id, payload)
+      : await api.createPortfolioServiceCategory(payload)
+    if (res.success) { toast.success(editingCat ? 'Categoría actualizada' : 'Categoría creada'); setServiceCatDialog(false); fetchServiceCatalog() }
+    else toast.error(res.error || 'Error al guardar')
+    setServiceCatSaving(false)
+  }
+
+  const handleDeleteServiceCat = async (id: number) => {
+    setServiceCatDeletingId(id)
+    const res = await api.deletePortfolioServiceCategory(id)
+    if (res.success) { toast.success('Categoría eliminada'); fetchServiceCatalog() }
+    else toast.error(res.error || 'Error')
+    setServiceCatDeletingId(null)
+  }
+
+  const openNewServiceOpt = (categoryId: number) => {
+    setEditingOpt(null)
+    setServiceOptForm(emptyServiceOpt(categoryId))
+    setServiceOptDialog(true)
+  }
+
+  const openEditServiceOpt = (opt: PfServiceOption) => {
+    setEditingOpt(opt)
+    setServiceOptForm({ category_id: opt.category_id, title: opt.title, description: opt.description, savings: opt.savings, price: opt.price, is_popular: Boolean(opt.is_popular), sort_order: opt.sort_order, is_active: Boolean(opt.is_active) })
+    setServiceOptDialog(true)
+  }
+
+  const handleSaveServiceOpt = async () => {
+    if (!serviceOptForm.title.trim()) { toast.error('El título es requerido'); return }
+    setServiceOptSaving(true)
+    const payload = { categoryId: serviceOptForm.category_id, title: serviceOptForm.title, description: serviceOptForm.description, savings: serviceOptForm.savings, price: serviceOptForm.price, isPopular: serviceOptForm.is_popular, sortOrder: serviceOptForm.sort_order, isActive: serviceOptForm.is_active }
+    const res = editingOpt
+      ? await api.updatePortfolioServiceOption(editingOpt.id, payload)
+      : await api.createPortfolioServiceOption(payload)
+    if (res.success) { toast.success(editingOpt ? 'Opción actualizada' : 'Opción creada'); setServiceOptDialog(false); fetchServiceCatalog() }
+    else toast.error(res.error || 'Error al guardar')
+    setServiceOptSaving(false)
+  }
+
+  const handleDeleteServiceOpt = async (id: number) => {
+    setServiceOptDeletingId(id)
+    const res = await api.deletePortfolioServiceOption(id)
+    if (res.success) { toast.success('Opción eliminada'); fetchServiceCatalog() }
+    else toast.error(res.error || 'Error')
+    setServiceOptDeletingId(null)
   }
 
   const handleDownloadQr = () => {
@@ -648,6 +958,7 @@ export function SuperadminHome() {
           { id: 'integraciones', label: 'Integraciones', icon: Plug },
           { id: 'pagos', label: 'Suscripciones', icon: CreditCard },
           { id: 'portafolio', label: 'Portafolio', icon: Briefcase },
+          { id: 'solicitudes', label: 'Solicitudes Dev', icon: MessageSquarePlus },
         ].map(tab => {
           const Icon = tab.icon
           return (
@@ -1816,6 +2127,92 @@ export function SuperadminHome() {
                 </CardContent>
               </Card>
 
+              {/* ── Planes & Precios — Preview ── */}
+              <Card className="border-border bg-card overflow-hidden">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <BadgeDollarSign className="h-4 w-4 text-indigo-400" /> Planes & Precios
+                  </CardTitle>
+                  <CardDescription>
+                    Vista previa de la sección de precios del portafolio. Se muestra cuando &quot;Mostrar sección de precios&quot; está activo.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <div className="bg-[#0a0a0f] rounded-b-lg p-6 space-y-6">
+                    {/* Encabezado de sección */}
+                    <div className="text-center space-y-1">
+                      <p className="text-[11px] font-semibold uppercase tracking-widest" style={{ color: pfAccentColor }}>
+                        Planes & Precios
+                      </p>
+                      <h3 className="text-white text-xl sm:text-2xl font-bold leading-tight">
+                        Escala tu negocio con el plan perfecto
+                      </h3>
+                      <p className="text-gray-500 text-xs">Precios en COP · IVA no incluido · Contrato mensual</p>
+                    </div>
+
+                    {/* Grid de planes */}
+                    <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                      {PF_PLANS.map(plan => (
+                        <div
+                          key={plan.name}
+                          className="relative flex flex-col p-4 rounded-xl border"
+                          style={
+                            plan.highlighted
+                              ? { borderColor: pfAccentColor, background: `${pfAccentColor}12` }
+                              : { borderColor: 'rgba(255,255,255,0.07)', background: 'rgba(255,255,255,0.025)' }
+                          }
+                        >
+                          {plan.highlighted && (
+                            <div
+                              className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-widest text-white whitespace-nowrap"
+                              style={{ background: pfAccentColor }}
+                            >
+                              Popular
+                            </div>
+                          )}
+                          {plan.isEnterprise && (
+                            <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-widest bg-yellow-500 text-black whitespace-nowrap">
+                              Enterprise
+                            </div>
+                          )}
+                          <div className="mb-3">
+                            <p className="text-white font-bold text-sm">{plan.name}</p>
+                            <p className="text-gray-500 text-[11px] mt-0.5">{plan.tag}</p>
+                          </div>
+                          <div className="mb-4">
+                            <span className="text-white text-lg font-black">{plan.price}</span>
+                            <span className="text-gray-500 text-xs">{plan.period}</span>
+                          </div>
+                          <ul className="space-y-1.5 flex-1">
+                            {plan.specs.map(s => (
+                              <li key={s} className="flex items-center gap-1.5 text-xs text-gray-400">
+                                <svg viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3 flex-shrink-0" style={{ color: pfAccentColor }}>
+                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                </svg>
+                                {s}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Extras */}
+                    <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
+                      <p className="text-xs font-semibold text-gray-300 mb-3">Costos adicionales frecuentes</p>
+                      <div className="grid sm:grid-cols-2 gap-2">
+                        {PF_EXTRAS.map(e => (
+                          <div key={e.label} className="flex items-start justify-between gap-3 text-xs">
+                            <span className="text-gray-500">{e.label}</span>
+                            <span className="text-gray-300 font-medium text-right whitespace-nowrap">{e.value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
               {/* ── Contacto ── */}
               <Card className="border-border bg-card">
                 <CardHeader className="pb-3">
@@ -1917,6 +2314,130 @@ export function SuperadminHome() {
                     >
                       Limpiar selección
                     </button>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* ── Características (Feature Cards) ── */}
+              <Card className="border-border bg-card">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <Zap className="h-4 w-4 text-yellow-400" /> Características
+                    </CardTitle>
+                    <Button size="sm" onClick={openNewFeature} className="flex items-center gap-1.5">
+                      <Plus className="h-4 w-4" /> Nueva
+                    </Button>
+                  </div>
+                  <CardDescription>Tarjetas de funcionalidades de la sección Características del portafolio.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {featureLoading ? (
+                    <div className="flex justify-center py-6"><RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+                  ) : featureCards.length === 0 ? (
+                    <div className="text-center py-6 text-muted-foreground text-sm">
+                      <Zap className="h-8 w-8 mx-auto mb-2 opacity-20" />
+                      Sin características — se usarán las predeterminadas
+                    </div>
+                  ) : (
+                    <div className="grid sm:grid-cols-2 gap-3">
+                      {featureCards.map(feat => (
+                        <div key={feat.id} className="flex items-start gap-3 p-3 rounded-xl border border-border bg-muted/30">
+                          <span className="text-2xl">{feat.icon}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-sm truncate">{feat.title}</p>
+                            {feat.description && <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{feat.description}</p>}
+                            <div className="flex items-center gap-2 mt-1.5">
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${feat.is_active ? 'bg-green-500/15 text-green-400' : 'bg-muted text-muted-foreground'}`}>
+                                {feat.is_active ? 'Activa' : 'Oculta'}
+                              </span>
+                              <span className="text-[10px] text-muted-foreground">Orden: {feat.sort_order}</span>
+                            </div>
+                          </div>
+                          <div className="flex gap-1">
+                            <button onClick={() => openEditFeature(feat)} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                            <button onClick={() => handleDeleteFeature(feat.id)} disabled={featureDeletingId === feat.id} className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
+                              {featureDeletingId === feat.id ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* ── Catálogo de Servicios ── */}
+              <Card className="border-border bg-card">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <Package className="h-4 w-4 text-indigo-400" /> Catálogo de Servicios
+                    </CardTitle>
+                    <Button size="sm" onClick={openNewServiceCat} className="flex items-center gap-1.5">
+                      <Plus className="h-4 w-4" /> Nueva categoría
+                    </Button>
+                  </div>
+                  <CardDescription>Categorías y opciones del constructor interactivo de servicios.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {serviceLoading ? (
+                    <div className="flex justify-center py-6"><RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+                  ) : serviceCategories.length === 0 ? (
+                    <div className="text-center py-6 text-muted-foreground text-sm">
+                      <Package className="h-8 w-8 mx-auto mb-2 opacity-20" />
+                      Sin categorías — se usará el catálogo predeterminado
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {serviceCategories.map(cat => (
+                        <div key={cat.id} className="rounded-xl border border-border overflow-hidden">
+                          <div className="flex items-center gap-3 p-3 bg-muted/30">
+                            <span className="text-xl">{cat.icon}</span>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-semibold text-sm truncate">{cat.label}</p>
+                              <p className="text-xs text-muted-foreground capitalize">{cat.type} · {cat.options?.length ?? 0} opciones</p>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <button onClick={() => openNewServiceOpt(cat.id)} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors text-xs flex items-center gap-1">
+                                <Plus className="h-3 w-3" />
+                              </button>
+                              <button onClick={() => openEditServiceCat(cat)} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
+                                <Pencil className="h-3.5 w-3.5" />
+                              </button>
+                              <button onClick={() => handleDeleteServiceCat(cat.id)} disabled={serviceCatDeletingId === cat.id} className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
+                                {serviceCatDeletingId === cat.id ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                              </button>
+                              <button onClick={() => setExpandedCatId(expandedCatId === cat.id ? null : cat.id)} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
+                                <ChevronDown className={`h-3.5 w-3.5 transition-transform ${expandedCatId === cat.id ? 'rotate-180' : ''}`} />
+                              </button>
+                            </div>
+                          </div>
+                          {expandedCatId === cat.id && (
+                            <div className="p-3 pt-0 space-y-1.5 border-t border-border">
+                              {(cat.options || []).length === 0 ? (
+                                <p className="text-xs text-muted-foreground py-2 text-center">Sin opciones — agrega una con el botón +</p>
+                              ) : (cat.options || []).map(opt => (
+                                <div key={opt.id} className="flex items-center gap-2 p-2 rounded-lg bg-muted/20">
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-medium truncate">{opt.title}</p>
+                                    <p className="text-[10px] text-muted-foreground">${Number(opt.price).toLocaleString('es-CO')}{opt.savings ? ` · ${opt.savings}` : ''}{opt.is_popular ? ' · Popular' : ''}</p>
+                                  </div>
+                                  <button onClick={() => openEditServiceOpt(opt)} className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
+                                    <Pencil className="h-3 w-3" />
+                                  </button>
+                                  <button onClick={() => handleDeleteServiceOpt(opt.id)} disabled={serviceOptDeletingId === opt.id} className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
+                                    {serviceOptDeletingId === opt.id ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </CardContent>
               </Card>
@@ -2157,6 +2678,442 @@ export function SuperadminHome() {
               {teamSaving
                 ? <><RefreshCw className="h-4 w-4 animate-spin" /> Guardando…</>
                 : <><Save className="h-4 w-4" /> {editingCard ? 'Actualizar' : 'Crear tarjeta'}</>}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* DIALOG: Característica */}
+      <Dialog open={featureDialog} onOpenChange={setFeatureDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{editingFeature ? 'Editar característica' : 'Nueva característica'}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-[auto_1fr] gap-3 items-start">
+              <div>
+                <Label className="text-xs mb-1 block">Icono</Label>
+                <input
+                  type="text"
+                  value={featureForm.icon}
+                  onChange={e => setFeatureForm(p => ({ ...p, icon: e.target.value }))}
+                  className="w-16 h-9 text-center text-xl border rounded-lg bg-background"
+                  maxLength={4}
+                />
+              </div>
+              <div>
+                <Label className="text-xs mb-1 block">Título *</Label>
+                <Input value={featureForm.title} onChange={e => setFeatureForm(p => ({ ...p, title: e.target.value }))} placeholder="Ej. Punto de Venta" />
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs mb-1 block">Descripción</Label>
+              <Textarea value={featureForm.description} onChange={e => setFeatureForm(p => ({ ...p, description: e.target.value }))} rows={2} placeholder="Descripción breve de la funcionalidad" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs mb-1 block">Orden</Label>
+                <Input type="number" value={featureForm.sort_order} onChange={e => setFeatureForm(p => ({ ...p, sort_order: Number(e.target.value) }))} />
+              </div>
+              <div className="flex items-center gap-2 pt-5">
+                <Switch checked={featureForm.is_active} onCheckedChange={v => setFeatureForm(p => ({ ...p, is_active: v }))} />
+                <Label className="text-xs">Visible</Label>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setFeatureDialog(false)}>Cancelar</Button>
+            <Button onClick={handleSaveFeature} disabled={featureSaving}>
+              {featureSaving ? <RefreshCw className="h-4 w-4 animate-spin mr-1" /> : null}
+              {editingFeature ? 'Actualizar' : 'Crear'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* DIALOG: Categoría de servicio */}
+      <Dialog open={serviceCatDialog} onOpenChange={setServiceCatDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{editingCat ? 'Editar categoría' : 'Nueva categoría'}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-[auto_1fr] gap-3 items-start">
+              <div>
+                <Label className="text-xs mb-1 block">Icono</Label>
+                <input type="text" value={serviceCatForm.icon} onChange={e => setServiceCatForm(p => ({ ...p, icon: e.target.value }))} className="w-16 h-9 text-center text-xl border rounded-lg bg-background" maxLength={4} />
+              </div>
+              <div>
+                <Label className="text-xs mb-1 block">Etiqueta *</Label>
+                <Input value={serviceCatForm.label} onChange={e => setServiceCatForm(p => ({ ...p, label: e.target.value }))} placeholder="Ej. Landing Pages" />
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs mb-1 block">Tipo</Label>
+              <select value={serviceCatForm.type} onChange={e => setServiceCatForm(p => ({ ...p, type: e.target.value as 'package' | 'subscription' | 'addon' }))} className="w-full h-9 border rounded-lg px-2 text-sm bg-background">
+                <option value="package">Paquete (compra única)</option>
+                <option value="subscription">Suscripción mensual</option>
+                <option value="addon">Add-on / complemento</option>
+              </select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs mb-1 block">Orden</Label>
+                <Input type="number" value={serviceCatForm.sort_order} onChange={e => setServiceCatForm(p => ({ ...p, sort_order: Number(e.target.value) }))} />
+              </div>
+              <div className="flex items-center gap-2 pt-5">
+                <Switch checked={serviceCatForm.is_active} onCheckedChange={v => setServiceCatForm(p => ({ ...p, is_active: v }))} />
+                <Label className="text-xs">Activa</Label>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setServiceCatDialog(false)}>Cancelar</Button>
+            <Button onClick={handleSaveServiceCat} disabled={serviceCatSaving}>
+              {serviceCatSaving ? <RefreshCw className="h-4 w-4 animate-spin mr-1" /> : null}
+              {editingCat ? 'Actualizar' : 'Crear'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* DIALOG: Opción de servicio */}
+      <Dialog open={serviceOptDialog} onOpenChange={setServiceOptDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{editingOpt ? 'Editar opción' : 'Nueva opción'}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div>
+              <Label className="text-xs mb-1 block">Título *</Label>
+              <Input value={serviceOptForm.title} onChange={e => setServiceOptForm(p => ({ ...p, title: e.target.value }))} placeholder="Ej. Pack x10 Landings" />
+            </div>
+            <div>
+              <Label className="text-xs mb-1 block">Descripción</Label>
+              <Input value={serviceOptForm.description} onChange={e => setServiceOptForm(p => ({ ...p, description: e.target.value }))} placeholder="Descripción breve" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs mb-1 block">Precio (COP)</Label>
+                <Input type="number" value={serviceOptForm.price} onChange={e => setServiceOptForm(p => ({ ...p, price: Number(e.target.value) }))} />
+              </div>
+              <div>
+                <Label className="text-xs mb-1 block">Ahorro (texto)</Label>
+                <Input value={serviceOptForm.savings} onChange={e => setServiceOptForm(p => ({ ...p, savings: e.target.value }))} placeholder="Ej. Ahorro 12%" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs mb-1 block">Orden</Label>
+                <Input type="number" value={serviceOptForm.sort_order} onChange={e => setServiceOptForm(p => ({ ...p, sort_order: Number(e.target.value) }))} />
+              </div>
+              <div className="space-y-1 pt-1">
+                <div className="flex items-center gap-2">
+                  <Switch checked={serviceOptForm.is_popular} onCheckedChange={v => setServiceOptForm(p => ({ ...p, is_popular: v }))} />
+                  <Label className="text-xs">Popular</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch checked={serviceOptForm.is_active} onCheckedChange={v => setServiceOptForm(p => ({ ...p, is_active: v }))} />
+                  <Label className="text-xs">Activa</Label>
+                </div>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setServiceOptDialog(false)}>Cancelar</Button>
+            <Button onClick={handleSaveServiceOpt} disabled={serviceOptSaving}>
+              {serviceOptSaving ? <RefreshCw className="h-4 w-4 animate-spin mr-1" /> : null}
+              {editingOpt ? 'Actualizar' : 'Crear'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ══════════════════════════════════════
+          TAB: SOLICITUDES DE DESARROLLO
+      ══════════════════════════════════════ */}
+      {activeTab === 'solicitudes' && (
+        <div className="space-y-6">
+
+          {/* ── Config tarifa ── */}
+          <Card className="border-border bg-card">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <DollarSign className="h-5 w-5 text-yellow-400" />
+                Tarifa del Desarrollador
+              </CardTitle>
+              <CardDescription>
+                Define el precio por hora que se usará para calcular el costo de cada solicitud
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap items-end gap-3 max-w-xl">
+                <div className="flex-1 min-w-[180px] space-y-1.5">
+                  <Label className="text-xs">Precio por hora (COP)</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={devHourlyRate}
+                    onChange={e => setDevHourlyRate(e.target.value)}
+                    placeholder="Ej: 100000"
+                  />
+                </div>
+                <div className="flex-1 min-w-[200px] space-y-1.5">
+                  <Label className="text-xs flex items-center gap-1">
+                    <span>📱</span> WhatsApp de contacto
+                  </Label>
+                  <Input
+                    value={devWhatsapp}
+                    onChange={e => setDevWhatsapp(e.target.value)}
+                    placeholder="573001234567 (con código país)"
+                  />
+                </div>
+                <Button onClick={handleSaveDevRate} disabled={savingDevRate} className="gap-2 shrink-0">
+                  {savingDevRate ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                  Guardar
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                El número de WhatsApp aparecerá como opción de contacto cuando el comerciante reciba una cotización.
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* ── Lista de solicitudes ── */}
+          <Card className="border-border bg-card">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <MessageSquarePlus className="h-5 w-5 text-primary" />
+                  Solicitudes de Comerciantes
+                </CardTitle>
+                <Button variant="outline" size="sm" onClick={fetchDevRequests} className="gap-1">
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  Actualizar
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {devRequestsLoading ? (
+                <div className="flex items-center justify-center py-10">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : devRequests.length === 0 ? (
+                <div className="text-center py-10 text-muted-foreground">
+                  <MessageSquarePlus className="h-10 w-10 mx-auto mb-2 opacity-30" />
+                  <p className="text-sm">No hay solicitudes aún</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {devRequests.map((req: any) => {
+                    const statusColors: Record<string, string> = {
+                      pendiente:   'text-gray-400 bg-gray-400/10 border-gray-400/20',
+                      en_revision: 'text-blue-400 bg-blue-400/10 border-blue-400/20',
+                      cotizado:    'text-yellow-400 bg-yellow-400/10 border-yellow-400/20',
+                      aprobado:    'text-emerald-400 bg-emerald-400/10 border-emerald-400/20',
+                      en_progreso: 'text-cyan-400 bg-cyan-400/10 border-cyan-400/20',
+                      completado:  'text-green-400 bg-green-400/10 border-green-400/20',
+                      rechazado:   'text-red-400 bg-red-400/10 border-red-400/20',
+                    }
+                    const statusLabel: Record<string, string> = {
+                      pendiente: 'Pendiente', en_revision: 'En revisión', cotizado: 'Cotizado',
+                      aprobado: 'Aprobado', en_progreso: 'En progreso', completado: 'Completado', rechazado: 'Rechazado',
+                    }
+                    const prioColors: Record<string, string> = {
+                      baja: 'text-green-400', media: 'text-yellow-400', alta: 'text-red-400',
+                    }
+                    const typeLabel: Record<string, string> = {
+                      objetivo: '🎯', mejora: '✨', actualizacion: '🔄', bug: '🐛', otro: '❓',
+                    }
+
+                    return (
+                      <div key={req.id} className="rounded-lg border border-border bg-muted/30 p-4 space-y-3">
+                        <div className="flex items-start justify-between gap-3 flex-wrap">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap mb-1">
+                              <span className="text-sm">{typeLabel[req.type] || '❓'}</span>
+                              <span className="font-medium text-sm truncate">{req.title}</span>
+                              <span className={`text-xs font-semibold ${prioColors[req.priority] || 'text-muted-foreground'}`}>
+                                {req.priority?.toUpperCase()}
+                              </span>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              {req.tenantName || req.tenantId} · {req.requesterName} · {new Date(req.createdAt).toLocaleDateString('es-CO')}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                            <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${statusColors[req.status] || ''}`}>
+                              {statusLabel[req.status] || req.status}
+                            </span>
+                            {req.totalPrice !== null && (
+                              <span className="text-xs font-bold text-yellow-400">
+                                ${req.totalPrice.toLocaleString('es-CO')}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <p className="text-sm text-muted-foreground line-clamp-2">{req.description}</p>
+
+                        {req.estimatedHours !== null && (
+                          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                            <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{req.estimatedHours}h</span>
+                            <span className="flex items-center gap-1"><DollarSign className="h-3 w-3" />${(req.pricePerHour || 0).toLocaleString('es-CO')}/h</span>
+                          </div>
+                        )}
+
+                        {req.adminNotes && (
+                          <div className="rounded bg-blue-400/5 border border-blue-400/20 px-3 py-2">
+                            <p className="text-xs text-blue-400 font-medium mb-0.5">Notas internas</p>
+                            <p className="text-xs text-muted-foreground whitespace-pre-wrap">{req.adminNotes}</p>
+                          </div>
+                        )}
+
+                        {/* Actions */}
+                        <div className="flex items-center gap-2 flex-wrap pt-1">
+                          {req.status === 'pendiente' && (
+                            <Button
+                              size="sm" variant="outline" className="h-7 text-xs gap-1"
+                              onClick={() => {
+                                setQuotingId(req.id)
+                                setQuoteForm({ estimatedHours: '', pricePerHour: devHourlyRate, adminNotes: '' })
+                              }}
+                            >
+                              <DollarSign className="h-3 w-3" /> Cotizar
+                            </Button>
+                          )}
+                          <Button
+                            size="sm" variant="outline" className="h-7 text-xs gap-1"
+                            onClick={() => {
+                              setStatusUpdateId(req.id)
+                              setStatusUpdateValue(req.status)
+                              setStatusUpdateNotes(req.adminNotes || '')
+                              setStatusUpdateReject('')
+                            }}
+                          >
+                            <Wrench className="h-3 w-3" /> Estado
+                          </Button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* DIALOG: Cotizar solicitud */}
+      <Dialog open={!!quotingId} onOpenChange={() => setQuotingId(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <DollarSign className="h-5 w-5 text-yellow-400" /> Cotizar Solicitud
+            </DialogTitle>
+            <DialogDescription>Define las horas estimadas y el precio por hora</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Horas estimadas</Label>
+                <Input
+                  type="number" min={0.5} step={0.5}
+                  value={quoteForm.estimatedHours}
+                  onChange={e => setQuoteForm(p => ({ ...p, estimatedHours: e.target.value }))}
+                  placeholder="Ej: 8"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Precio/hora (COP)</Label>
+                <Input
+                  type="number" min={0}
+                  value={quoteForm.pricePerHour}
+                  onChange={e => setQuoteForm(p => ({ ...p, pricePerHour: e.target.value }))}
+                  placeholder="Ej: 100000"
+                />
+              </div>
+            </div>
+            {quoteForm.estimatedHours && quoteForm.pricePerHour && (
+              <div className="rounded-lg bg-yellow-400/10 border border-yellow-400/20 p-3 text-center">
+                <p className="text-xs text-muted-foreground">Total estimado</p>
+                <p className="text-xl font-bold text-yellow-400">
+                  ${(Number(quoteForm.estimatedHours) * Number(quoteForm.pricePerHour)).toLocaleString('es-CO')}
+                </p>
+              </div>
+            )}
+            <div className="space-y-1.5">
+              <Label className="text-xs">Notas para el comerciante (opcional)</Label>
+              <Textarea
+                value={quoteForm.adminNotes}
+                onChange={e => setQuoteForm(p => ({ ...p, adminNotes: e.target.value }))}
+                placeholder="Detalles adicionales sobre el alcance o condiciones..."
+                rows={3}
+                className="resize-none text-sm"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setQuotingId(null)}>Cancelar</Button>
+            <Button onClick={handleQuote} className="gap-2">
+              <DollarSign className="h-4 w-4" /> Enviar cotización
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* DIALOG: Actualizar estado */}
+      <Dialog open={!!statusUpdateId} onOpenChange={() => setStatusUpdateId(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Wrench className="h-5 w-5" /> Actualizar Estado
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Nuevo estado</Label>
+              <select
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                value={statusUpdateValue}
+                onChange={e => setStatusUpdateValue(e.target.value)}
+              >
+                <option value="pendiente">Pendiente</option>
+                <option value="en_revision">En revisión</option>
+                <option value="cotizado">Cotizado</option>
+                <option value="aprobado">Aprobado</option>
+                <option value="en_progreso">En progreso</option>
+                <option value="completado">Completado</option>
+                <option value="rechazado">Rechazado</option>
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Notas (opcional)</Label>
+              <Textarea
+                value={statusUpdateNotes}
+                onChange={e => setStatusUpdateNotes(e.target.value)}
+                placeholder="Comentario para el comerciante..."
+                rows={3}
+                className="resize-none text-sm"
+              />
+            </div>
+            {statusUpdateValue === 'rechazado' && (
+              <div className="space-y-1.5">
+                <Label className="text-xs text-red-400">Motivo de rechazo *</Label>
+                <Textarea
+                  value={statusUpdateReject}
+                  onChange={e => setStatusUpdateReject(e.target.value)}
+                  placeholder="Explica por qué se rechaza la solicitud..."
+                  rows={2}
+                  className="resize-none text-sm border-red-400/30"
+                />
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setStatusUpdateId(null)}>Cancelar</Button>
+            <Button onClick={handleStatusUpdate} className="gap-2">
+              <Save className="h-4 w-4" /> Guardar
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle, Mail, ShoppingBag } from 'lucide-react';
+import { CheckCircle, Mail, ShoppingBag, Truck } from 'lucide-react';
 
 const formatCOP = (value: number) =>
   new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value);
@@ -87,6 +87,22 @@ export function ModalExito({ pedido, onCerrar }: ModalExitoProps) {
               ))}
             </div>
           </div>
+
+          {/* Vehículo asignado (ferretería) */}
+          {pedido.vehiculoAsignado && (
+            <div className="flex items-start gap-3 p-4 bg-orange-50 border border-orange-100">
+              <Truck size={20} className="text-orange-500 mt-0.5 flex-shrink-0" />
+              <div>
+                <div className="text-sm font-light text-gray-900 mb-1">
+                  Vehículo de despacho asignado
+                </div>
+                <div className="text-xs text-gray-600">
+                  <strong>{pedido.vehiculoAsignado.tipoVehiculo}</strong> — Peso del pedido:{' '}
+                  <strong>{pedido.vehiculoAsignado.pesoTotal.toFixed(2)} kg</strong>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Total */}
           <div className="flex items-center justify-between pt-4 border-t border-gray-200">

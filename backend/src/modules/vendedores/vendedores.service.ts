@@ -437,6 +437,48 @@ export class VendedoresService {
     );
     if (r.affectedRows === 0) throw new AppError('Registro no encontrado o ya está pagado', 400);
   }
+
+  async getRestbarPerformance(tenantId: string, from?: string, to?: string): Promise<any[]> {
+    const dateFrom = from || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
+    const dateTo   = to   || new Date().toISOString().slice(0, 10);
+
+    const [rows] = await db.execute<RowDataPacket[]>(
+      `SELECT
+         u.id                                          AS waiterId,
+         u.name                                        AS waiterName,
+         u.role,
+         u.salary_base                                 AS salaryBase,
+         COUNT(DISTINCT o.id)                          AS totalComandas,
+         COUNT(DISTINCT CASE WHEN o.status = 'cerrada' THEN o.id END) AS comandasCerradas,
+         COALESCE(SUM(CASE WHEN o.status = 'cerrada' THEN o.total ELSE 0 END), 0) AS totalFacturado,
+         COALESCE(SUM(CASE WHEN o.status = 'cerrada' THEN (
+             SELECT COUNT(*) FROM rb_order_items ri WHERE ri.order_id = o.id
+         ) ELSE 0 END), 0) AS totalItems
+       FROM users u
+       LEFT JOIN rb_orders o
+         ON o.waiter_id = u.id
+         AND o.tenant_id = u.tenant_id
+         AND DATE(o.opened_at) BETWEEN ? AND ?
+       WHERE u.tenant_id = ?
+         AND u.role IN ('mesero','cajero','cocinero','bartender','administrador_rb')
+         AND u.is_active = TRUE
+       GROUP BY u.id, u.name, u.role, u.salary_base
+       ORDER BY totalFacturado DESC`,
+      [dateFrom, dateTo, tenantId]
+    );
+
+    return rows.map(r => ({
+      waiterId:        r.waiterId,
+      waiterName:      r.waiterName,
+      role:            r.role,
+      salaryBase:      Number(r.salaryBase) || 0,
+      totalComandas:   Number(r.totalComandas),
+      comandasCerradas: Number(r.comandasCerradas),
+      totalFacturado:  Number(r.totalFacturado),
+      totalItems:      Number(r.totalItems),
+      promedioComanda: r.comandasCerradas > 0 ? Number(r.totalFacturado) / Number(r.comandasCerradas) : 0,
+    }));
+  }
 }
 
 export const vendedoresService = new VendedoresService();

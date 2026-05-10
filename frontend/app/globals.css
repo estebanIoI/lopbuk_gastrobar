@@ -127,7 +127,7 @@
 }
 
 @theme inline {
-  --font-sans: 'Geist', 'Geist Fallback';
+  --font-sans: var(--font-montserrat), 'Montserrat', sans-serif;
   --font-mono: 'Geist Mono', 'Geist Mono Fallback';
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -241,3 +241,55 @@ html {
   animation: mp-shake 4s ease-in-out infinite;
   box-shadow: 0 4px 20px rgba(0,158,227,0.45);
 }
+
+/* ── View Transition API — AnimatedThemeToggler ─────────────────────────── */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-group(root) {
+  animation-duration: var(--vt-duration, 450ms);
+}
+
+/* ── Portfolio page theme variables ─────────────────────────────────────── */
+[data-pf-theme="dark"] {
+  --pf-bg:      #0a0a0f;
+  --pf-bg2:     #0d0d1f;
+  --pf-text:    #ffffff;
+  --pf-muted:   #9ca3af;
+  --pf-subtle:  #6b7280;
+  --pf-card:    rgba(255,255,255,0.03);
+  --pf-card-h:  rgba(255,255,255,0.06);
+  --pf-border:  rgba(255,255,255,0.08);
+  --pf-nav-bg:  rgba(10,10,15,0.85);
+}
+[data-pf-theme="light"] {
+  --pf-bg:      #f8fafc;
+  --pf-bg2:     #f1f5f9;
+  --pf-text:    #0f172a;
+  --pf-muted:   #475569;
+  --pf-subtle:  #64748b;
+  --pf-card:    rgba(0,0,0,0.04);
+  --pf-card-h:  rgba(0,0,0,0.07);
+  --pf-border:  rgba(0,0,0,0.09);
+  --pf-nav-bg:  rgba(248,250,252,0.85);
+}
+
+/* Scroll offset for fixed header */
+[data-pf-theme] [id] { scroll-margin-top: 5rem; }
+
+/* Light mode overrides for Tailwind utility classes inside portfolio */
+[data-pf-theme="light"] .text-white   { color: #0f172a !important; }
+[data-pf-theme="light"] .text-gray-300 { color: #334155 !important; }
+[data-pf-theme="light"] .text-gray-400 { color: #475569 !important; }
+[data-pf-theme="light"] .text-gray-500 { color: #64748b !important; }
+[data-pf-theme="light"] .text-gray-600 { color: #64748b !important; }
+[data-pf-theme="light"] .border-white\/5  { border-color: rgba(0,0,0,0.08) !important; }
+[data-pf-theme="light"] .border-white\/10 { border-color: rgba(0,0,0,0.1)  !important; }
+[data-pf-theme="light"] .bg-white\/\[0\.02\] { background-color: rgba(0,0,0,0.03) !important; }
+[data-pf-theme="light"] .bg-white\/\[0\.03\] { background-color: rgba(0,0,0,0.04) !important; }
+[data-pf-theme="light"] .bg-white\/5  { background-color: rgba(0,0,0,0.05) !important; }
+[data-pf-theme="light"] .bg-white\/10 { background-color: rgba(0,0,0,0.06) !important; }
+[data-pf-theme="light"] .bg-white\/\[0\.06\] { background-color: rgba(0,0,0,0.06) !important; }
+[data-pf-theme="light"] footer.border-t { border-color: rgba(0,0,0,0.08) !important; }

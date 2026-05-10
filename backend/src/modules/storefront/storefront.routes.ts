@@ -139,6 +139,9 @@ router.get(
             IF(p.available_for_delivery, 1, 0) as availableForDelivery,
             p.delivery_type as deliveryType,
             p.sede_id as sedeId,
+            p.product_type as productType,
+            p.weight as weight,
+            p.hardware_weight_unit as hardwareWeightUnit,
             p.tenant_id as tenantId, t.name as storeName, t.slug as storeSlug
           FROM products p
           LEFT JOIN tenants t ON t.id = p.tenant_id
@@ -162,6 +165,9 @@ router.get(
             IF(p.available_for_delivery, 1, 0) as availableForDelivery,
             NULL as deliveryType,
             NULL as sedeId,
+            p.product_type as productType,
+            p.weight as weight,
+            NULL as hardwareWeightUnit,
             p.tenant_id as tenantId, t.name as storeName, t.slug as storeSlug
           FROM products p
           LEFT JOIN tenants t ON t.id = p.tenant_id
@@ -852,6 +858,18 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
       customSections = csRows || [];
     } catch { /* table may not exist yet */ }
 
+    // Cart min purchase (public — needed for progress bar in landing page)
+    let cartMinPurchase = 0;
+    try {
+      const [cartRows] = await pool.query(
+        'SELECT cart_min_purchase as cartMinPurchase FROM store_info WHERE tenant_id = ?',
+        [tenantId]
+      ) as any;
+      if (cartRows.length > 0 && cartRows[0].cartMinPurchase != null) {
+        cartMinPurchase = Number(cartRows[0].cartMinPurchase);
+      }
+    } catch { /* column not yet added */ }
+
     res.json({
       success: true,
       data: {
@@ -869,6 +887,7 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
         platformBgColor,
         publicMenuEnabled,
         customSections,
+        cartMinPurchase,
       },
     });
   } catch (error) {
@@ -1053,6 +1072,18 @@ router.get('/customization', authenticate, requirePlan('empresarial'), async (re
       } catch { /* columns not yet added */ }
     }
 
+    // Cart min purchase
+    let cartMinPurchase = 0;
+    try {
+      const [cartRows] = await pool.query(
+        'SELECT cart_min_purchase as cartMinPurchase FROM store_info WHERE tenant_id = ?',
+        [tenantId]
+      ) as any;
+      if (cartRows.length > 0 && cartRows[0].cartMinPurchase != null) {
+        cartMinPurchase = Number(cartRows[0].cartMinPurchase);
+      }
+    } catch { /* column not yet added */ }
+
     // Published products for featured selection (stock filter removed so admins can feature any published product)
     const [publishedProducts] = await pool.query(
       `SELECT id, name, image_url as imageUrl, sale_price as salePrice, category
@@ -1110,6 +1141,7 @@ router.get('/customization', authenticate, requirePlan('empresarial'), async (re
         publishedProducts,
         announcementBar,
         drops,
+        cartMinPurchase,
       },
     });
   } catch (error) {
@@ -1720,6 +1752,52 @@ router.get('/drop/:dropId', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Get drop error:', error);
     res.status(500).json({ success: false, error: 'Error al obtener drop' });
+  }
+});
+
+// =============================================
+// CART SETTINGS: Mínimo de compra para domicilio con flota
+// =============================================
+
+// PUT /api/storefront/cart-settings — Authenticated: save cart_min_purchase
+router.put('/cart-settings', authenticate, requirePlan('empresarial'), async (req: Request, res: Response) => {
+  try {
+    const tenantId = (req as any).user.tenantId;
+
+    if (!tenantId) {
+      res.status(400).json({ success: false, error: 'Esta configuración aplica solo a tiendas de comerciantes' });
+      return;
+    }
+
+    const { cartMinPurchase } = req.body;
+    const safeMin = Math.max(0, parseInt(cartMinPurchase) || 0);
+
+    // Ensure column exists (migration for existing DBs)
+    try {
+      await pool.query(
+        `ALTER TABLE store_info ADD COLUMN cart_min_purchase INT NOT NULL DEFAULT 0 COMMENT 'Monto mínimo COP para domicilio con flota'`
+      );
+    } catch { /* column already exists — ignore */ }
+
+    // Try UPDATE first (row already exists)
+    const [updateResult] = await pool.query(
+      `UPDATE store_info SET cart_min_purchase = ? WHERE tenant_id = ?`,
+      [safeMin, tenantId]
+    ) as any;
+
+    // If no row existed yet, create it pulling the name from tenants
+    if (updateResult.affectedRows === 0) {
+      await pool.query(
+        `INSERT INTO store_info (tenant_id, name, cart_min_purchase)
+         SELECT ?, t.name, ? FROM tenants t WHERE t.id = ?`,
+        [tenantId, safeMin, tenantId]
+      );
+    }
+
+    res.json({ success: true, data: { cartMinPurchase: safeMin } });
+  } catch (error) {
+    console.error('Update cart settings error:', error);
+    res.status(500).json({ success: false, error: 'Error al guardar configuración del carrito' });
   }
 });
 

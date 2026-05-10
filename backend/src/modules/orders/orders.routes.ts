@@ -8,6 +8,7 @@ import { config } from '../../config/env';
 import { MercadoPagoConfig, Preference } from 'mercadopago';
 import crypto from 'crypto';
 import { audit } from '../../utils/audit-logger';
+import { autoAssignVehicle, calcOrderWeight } from '../fleet';
 
 const router: ReturnType<typeof Router> = Router();
 
@@ -74,17 +75,27 @@ router.post(
         : '';
       const finalNotes = (notes || '') + couponNote;
 
+      // Calcular peso total del pedido y auto-asignar vehículo
+      const totalWeightKg = await calcOrderWeight(
+        items.map((i: any) => ({ productId: i.productId, quantity: i.quantity }))
+      );
+      const assignedVehicleId = totalWeightKg > 0
+        ? await autoAssignVehicle(tenantId, totalWeightKg)
+        : null;
+
       // Insert order
       await pool.query(
         `INSERT INTO storefront_orders
           (id, tenant_id, order_number, customer_name, customer_phone, customer_email, customer_cedula,
            department, municipality, address, neighborhood, delivery_latitude, delivery_longitude,
-           notes, subtotal, shipping_cost, discount, total, payment_method, client_user_id, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendiente')`,
+           notes, subtotal, shipping_cost, discount, total, payment_method, client_user_id,
+           total_weight_kg, vehicle_id, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendiente')`,
         [orderId, tenantId, orderNumber, customerName, customerPhone, customerEmail || null, customerCedula || null,
           department || null, municipality || null, address || null, neighborhood || null,
           deliveryLatitude || null, deliveryLongitude || null, finalNotes,
-          subtotal, shippingCost, discount, total, paymentMethod || null, clientUserId || null]
+          subtotal, shippingCost, discount, total, paymentMethod || null, clientUserId || null,
+          totalWeightKg || null, assignedVehicleId]
       );
 
       // Insert order items (con descuento por item para reportes DIAN)
@@ -117,6 +128,8 @@ router.post(
           orderId,
           orderNumber,
           total,
+          totalWeightKg,
+          vehicleAssigned: !!assignedVehicleId,
           status: 'pendiente',
           message: 'Pedido creado exitosamente'
         }

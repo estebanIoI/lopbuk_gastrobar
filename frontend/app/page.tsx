@@ -34,6 +34,9 @@ import { MeseroPanel } from '@/components/mesero-panel'
 import { BartenderPanel } from '@/components/bartender-panel'
 import { CocineroPanel } from '@/components/cocinero-panel'
 import { CajeroPanel } from '@/components/cajero-panel'
+import { DeveloperRequests } from '@/components/developer-requests'
+import { DispatchPanel } from '@/components/dispatch-panel'
+import { FleetManagement } from '@/components/fleet-management'
 
 export default function Home() {
   const { activeSection, setActiveSection } = useStore()
@@ -99,6 +102,11 @@ export default function Home() {
   // Repartidor gets their own full-screen panel (no sidebar)
   if (isAuthenticated && user?.role === 'repartidor') {
     return <DriverPanel />
+  }
+
+  // Despachador gets their own full-screen dispatch panel (no sidebar)
+  if (isAuthenticated && user?.role === 'despachador') {
+    return <DispatchPanel />
   }
 
   // Mesero gets full-screen panel (no sidebar)
@@ -221,6 +229,14 @@ export default function Home() {
         return <RestBar />
       case 'finances':
         return <Finances />
+      case 'dev-requests':
+        return <DeveloperRequests />
+      case 'fleet':
+        return (
+          <div className="p-6 h-full">
+            <FleetManagement />
+          </div>
+        )
       default:
         return <Dashboard />
     }

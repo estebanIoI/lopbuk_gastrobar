@@ -73,4 +73,7 @@ router.put('/payroll/mark-paid', vendedoresController.markPayrollPaid.bind(vende
 // DELETE /api/vendedores/payroll/:id          – eliminar borrador
 router.delete('/payroll/:id', vendedoresController.deletePayrollRecord.bind(vendedoresController));
 
+// GET  /api/vendedores/restbar-performance    – rendimiento del staff restbar por período
+router.get('/restbar-performance', vendedoresController.getRestbarPerformance.bind(vendedoresController));
+
 export default router;

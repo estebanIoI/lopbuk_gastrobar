@@ -93,6 +93,14 @@ export class VendedoresController {
       res.json({ success: true });
     } catch (e) { next(e); }
   }
+
+  async getRestbarPerformance(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { from, to } = req.query as { from?: string; to?: string };
+      const data = await vendedoresService.getRestbarPerformance(req.user!.tenantId!, from, to);
+      res.json({ success: true, data });
+    } catch (e) { next(e); }
+  }
 }
 
 export const vendedoresController = new VendedoresController();

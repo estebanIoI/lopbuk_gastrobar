@@ -16,6 +16,9 @@ export interface ProductoCarrito {
   storeName?: string;
   availableForDelivery?: boolean;
   deliveryType?: 'domicilio' | 'envio' | 'ambos' | null;
+  // Peso del producto (ferretería) en kg para cálculo de flota
+  weightKg?: number | null;
+  productType?: string;
 }
 
 export interface PedidoForm {
@@ -36,6 +39,7 @@ export interface PedidoConfirmado {
   productos: ProductoCarrito[];
   total: number;
   fecha: string;
+  vehiculoAsignado?: { tipoVehiculo: string; pesoTotal: number } | null;
 }
 
 export interface CuponValidacion {

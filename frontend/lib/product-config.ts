@@ -78,7 +78,7 @@ export const PRODUCT_TYPES: Record<ProductType, ProductTypeConfig> = {
     icon: '🔧',
     description: 'Herramientas y materiales de construccion',
     color: 'orange',
-    fields: ['brand', 'model', 'dimensions', 'weight', 'material', 'caliber', 'resistance', 'finish', 'recommendedUse', 'warrantyMonths', 'locationInStore', 'notes']
+    fields: ['brand', 'model', 'dimensions', 'weight', 'hardwareWeightUnit', 'material', 'caliber', 'resistance', 'finish', 'recommendedUse', 'warrantyMonths', 'locationInStore', 'notes']
   },
   libreria: {
     id: 'libreria',
@@ -233,7 +233,16 @@ export const FIELD_DEFINITIONS: Record<string, FieldDefinition> = {
   contraindications: { name: 'contraindications', label: 'Contraindicaciones', type: 'textarea', placeholder: 'Situaciones en que no se debe usar' },
   // Ferreteria
   dimensions: { name: 'dimensions', label: 'Dimensiones', type: 'text', placeholder: 'Ej: 10 x 20 x 30 cm' },
-  weight: { name: 'weight', label: 'Peso (kg)', type: 'number', min: 0, step: 0.01, placeholder: '2.5' },
+  weight: { name: 'weight', label: 'Peso', type: 'number', min: 0, step: 0.001, placeholder: '2.5', description: 'Usado para asignar vehículo de despacho' },
+  hardwareWeightUnit: {
+    name: 'hardwareWeightUnit', label: 'Unidad de Peso', type: 'select', defaultValue: 'kg',
+    options: [
+      { value: 'kg', label: 'Kilogramos (kg)' },
+      { value: 'ton', label: 'Toneladas (ton)' },
+      { value: 'lb', label: 'Libras (lb)' },
+      { value: 'g', label: 'Gramos (g)' },
+    ]
+  },
   caliber: { name: 'caliber', label: 'Calibre/Grosor', type: 'text', placeholder: 'Ej: 1/2", 3/4"' },
   resistance: { name: 'resistance', label: 'Resistencia', type: 'text', placeholder: 'Ej: 500 PSI' },
   finish: { name: 'finish', label: 'Acabado', type: 'text', placeholder: 'Ej: Galvanizado, Cromado' },

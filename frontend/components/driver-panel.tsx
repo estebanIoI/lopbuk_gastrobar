@@ -30,6 +30,9 @@ interface DeliveryOrder {
   deliveryLatitude: number | null; deliveryLongitude: number | null;
   deliveryStatus: string; total: number; status: string; notes: string;
   createdAt: string; items: OrderItem[]; storeName?: string;
+  // Campos de despacho (ferretería)
+  dispatchStatus?: string; vehicleName?: string | null; vehiclePlate?: string | null;
+  totalWeightKg?: number | null;
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -301,6 +304,24 @@ export function DriverPanel() {
                 </div>
               )}
               {order.notes && <p className="text-xs text-gray-500 bg-gray-50 rounded p-2">📝 {order.notes}</p>}
+            {/* Despacho: vehículo y estado */}
+            {order.vehicleName && (
+              <div className="flex items-center gap-2 bg-blue-50 rounded-lg px-3 py-2 text-sm">
+                <Truck className="h-4 w-4 text-blue-500 shrink-0" />
+                <div>
+                  <p className="text-blue-700 font-medium text-xs">{order.vehicleName}{order.vehiclePlate ? ` (${order.vehiclePlate})` : ''}</p>
+                  {order.totalWeightKg != null && (
+                    <p className="text-blue-500 text-xs">Peso: {order.totalWeightKg.toFixed(2)} kg</p>
+                  )}
+                </div>
+                {order.dispatchStatus === 'despachado' && (
+                  <span className="ml-auto text-[10px] bg-orange-500 text-white px-2 py-0.5 rounded-full font-semibold">✅ Salida dada</span>
+                )}
+                {order.dispatchStatus && order.dispatchStatus !== 'despachado' && order.dispatchStatus !== 'entregado' && (
+                  <span className="ml-auto text-[10px] bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">En pista</span>
+                )}
+              </div>
+            )}
             </div>
 
             {order.items?.length > 0 && (

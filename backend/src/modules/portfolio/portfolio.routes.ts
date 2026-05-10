@@ -17,9 +17,8 @@ router.get('/public', async (_req: Request, res: Response) => {
 
     let featuredStores: any[] = [];
     try {
-      const ids: string[] = config.featured_tenant_ids
-        ? JSON.parse(config.featured_tenant_ids)
-        : [];
+      const _raw = config.featured_tenant_ids
+      const ids: any[] = Array.isArray(_raw) ? _raw : (_raw ? JSON.parse(_raw) : []);
       if (ids.length > 0) {
         const placeholders = ids.map(() => '?').join(',');
         const [stores] = await pool.query(
@@ -93,7 +92,7 @@ router.get('/config', authenticate, async (req: Request, res: Response) => {
         brandDescription: config.brand_description || '',
         showPricing: config.show_pricing !== undefined ? Boolean(config.show_pricing) : true,
         showFeaturedStores: config.show_featured_stores !== undefined ? Boolean(config.show_featured_stores) : true,
-        featuredTenantIds: config.featured_tenant_ids ? JSON.parse(config.featured_tenant_ids) : [],
+        featuredTenantIds: (() => { const r = config.featured_tenant_ids; return Array.isArray(r) ? r : (r ? JSON.parse(r) : []) })(),
         contactEmail: config.contact_email || '',
         contactWhatsapp: config.contact_whatsapp || '',
         contactInstagram: config.contact_instagram || '',
@@ -317,5 +316,323 @@ router.delete('/team/:id', authenticate, async (req: Request, res: Response) => 
     res.status(500).json({ success: false, error: 'Error al eliminar tarjeta' });
   }
 });
+
+// ─────────────────────────────────────────────────────────────
+// Helpers: auto-crear tablas de features y servicios
+// ─────────────────────────────────────────────────────────────
+async function ensureFeatureTable() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS portfolio_feature_cards (
+      id          INT AUTO_INCREMENT PRIMARY KEY,
+      icon        VARCHAR(10) NOT NULL DEFAULT '⚡',
+      title       VARCHAR(120) NOT NULL,
+      description TEXT,
+      sort_order  INT NOT NULL DEFAULT 0,
+      is_active   TINYINT(1) NOT NULL DEFAULT 1,
+      created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+}
+
+async function ensureServiceTables() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS portfolio_service_categories (
+      id         INT AUTO_INCREMENT PRIMARY KEY,
+      icon       VARCHAR(10) NOT NULL DEFAULT '📦',
+      label      VARCHAR(120) NOT NULL,
+      type       ENUM('package','subscription','addon') NOT NULL DEFAULT 'package',
+      sort_order INT NOT NULL DEFAULT 0,
+      is_active  TINYINT(1) NOT NULL DEFAULT 1,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS portfolio_service_options (
+      id          INT AUTO_INCREMENT PRIMARY KEY,
+      category_id INT NOT NULL,
+      title       VARCHAR(120) NOT NULL,
+      description TEXT,
+      savings     VARCHAR(50),
+      price       DECIMAL(12,0) NOT NULL DEFAULT 0,
+      is_popular  TINYINT(1) NOT NULL DEFAULT 0,
+      sort_order  INT NOT NULL DEFAULT 0,
+      is_active   TINYINT(1) NOT NULL DEFAULT 1,
+      created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (category_id) REFERENCES portfolio_service_categories(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+}
+
+// ─────────────────────────────────────────────────────────────
+// Feature Cards — sección Características
+// ─────────────────────────────────────────────────────────────
+router.get('/features', async (_req: Request, res: Response) => {
+  try {
+    await ensureFeatureTable();
+    const [rows] = await pool.query(
+      'SELECT * FROM portfolio_feature_cards WHERE is_active = 1 ORDER BY sort_order ASC, id ASC'
+    ) as any;
+    res.json({ success: true, data: rows });
+  } catch (err) {
+    console.error('Portfolio features get error:', err);
+    res.status(500).json({ success: false, error: 'Error al cargar características' });
+  }
+});
+
+router.get('/features/all', authenticate, async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    if (user.role !== 'superadmin') { res.status(403).json({ success: false, error: 'Solo superadmin' }); return; }
+    await ensureFeatureTable();
+    const [rows] = await pool.query(
+      'SELECT * FROM portfolio_feature_cards ORDER BY sort_order ASC, id ASC'
+    ) as any;
+    res.json({ success: true, data: rows });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'Error' });
+  }
+});
+
+router.post('/features', authenticate, async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    if (user.role !== 'superadmin') { res.status(403).json({ success: false, error: 'Solo superadmin' }); return; }
+    await ensureFeatureTable();
+    const { icon, title, description, sortOrder, isActive } = req.body;
+    if (!title) { res.status(400).json({ success: false, error: 'Título requerido' }); return; }
+    const [result] = await pool.query(
+      'INSERT INTO portfolio_feature_cards (icon, title, description, sort_order, is_active) VALUES (?, ?, ?, ?, ?)',
+      [icon || '⚡', title, description || '', sortOrder ?? 0, isActive !== false ? 1 : 0]
+    ) as any;
+    res.json({ success: true, id: result.insertId });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'Error al crear' });
+  }
+});
+
+router.put('/features/:id', authenticate, async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    if (user.role !== 'superadmin') { res.status(403).json({ success: false, error: 'Solo superadmin' }); return; }
+    const { icon, title, description, sortOrder, isActive } = req.body;
+    await pool.query(
+      'UPDATE portfolio_feature_cards SET icon=?, title=?, description=?, sort_order=?, is_active=?, updated_at=NOW() WHERE id=?',
+      [icon || '⚡', title, description || '', sortOrder ?? 0, isActive !== false ? 1 : 0, req.params.id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'Error al actualizar' });
+  }
+});
+
+router.delete('/features/:id', authenticate, async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    if (user.role !== 'superadmin') { res.status(403).json({ success: false, error: 'Solo superadmin' }); return; }
+    await pool.query('DELETE FROM portfolio_feature_cards WHERE id = ?', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'Error al eliminar' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
+// Service Catalog — sección Servicios
+// ─────────────────────────────────────────────────────────────
+router.get('/services', async (_req: Request, res: Response) => {
+  try {
+    await ensureServiceTables();
+    const [cats] = await pool.query(
+      'SELECT * FROM portfolio_service_categories WHERE is_active = 1 ORDER BY sort_order ASC, id ASC'
+    ) as any;
+    for (const cat of cats as any[]) {
+      const [opts] = await pool.query(
+        'SELECT * FROM portfolio_service_options WHERE category_id = ? AND is_active = 1 ORDER BY sort_order ASC, id ASC',
+        [cat.id]
+      ) as any;
+      cat.options = opts;
+    }
+    res.json({ success: true, data: cats });
+  } catch (err) {
+    console.error('Portfolio services get error:', err);
+    res.status(500).json({ success: false, error: 'Error al cargar servicios' });
+  }
+});
+
+router.get('/services/all', authenticate, async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    if (user.role !== 'superadmin') { res.status(403).json({ success: false, error: 'Solo superadmin' }); return; }
+    await ensureServiceTables();
+    const [cats] = await pool.query(
+      'SELECT * FROM portfolio_service_categories ORDER BY sort_order ASC, id ASC'
+    ) as any;
+    for (const cat of cats as any[]) {
+      const [opts] = await pool.query(
+        'SELECT * FROM portfolio_service_options WHERE category_id = ? ORDER BY sort_order ASC, id ASC',
+        [cat.id]
+      ) as any;
+      cat.options = opts;
+    }
+    res.json({ success: true, data: cats });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'Error' });
+  }
+});
+
+router.post('/services/categories', authenticate, async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    if (user.role !== 'superadmin') { res.status(403).json({ success: false, error: 'Solo superadmin' }); return; }
+    await ensureServiceTables();
+    const { icon, label, type, sortOrder, isActive } = req.body;
+    if (!label) { res.status(400).json({ success: false, error: 'Etiqueta requerida' }); return; }
+    const [r] = await pool.query(
+      'INSERT INTO portfolio_service_categories (icon, label, type, sort_order, is_active) VALUES (?, ?, ?, ?, ?)',
+      [icon || '📦', label, type || 'package', sortOrder ?? 0, isActive !== false ? 1 : 0]
+    ) as any;
+    res.json({ success: true, id: r.insertId });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'Error al crear categoría' });
+  }
+});
+
+router.put('/services/categories/:id', authenticate, async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    if (user.role !== 'superadmin') { res.status(403).json({ success: false, error: 'Solo superadmin' }); return; }
+    const { icon, label, type, sortOrder, isActive } = req.body;
+    await pool.query(
+      'UPDATE portfolio_service_categories SET icon=?, label=?, type=?, sort_order=?, is_active=?, updated_at=NOW() WHERE id=?',
+      [icon || '📦', label, type || 'package', sortOrder ?? 0, isActive !== false ? 1 : 0, req.params.id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'Error al actualizar' });
+  }
+});
+
+router.delete('/services/categories/:id', authenticate, async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    if (user.role !== 'superadmin') { res.status(403).json({ success: false, error: 'Solo superadmin' }); return; }
+    await pool.query('DELETE FROM portfolio_service_categories WHERE id = ?', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'Error al eliminar' });
+  }
+});
+
+router.post('/services/options', authenticate, async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    if (user.role !== 'superadmin') { res.status(403).json({ success: false, error: 'Solo superadmin' }); return; }
+    await ensureServiceTables();
+    const { categoryId, title, description, savings, price, isPopular, sortOrder, isActive } = req.body;
+    if (!categoryId || !title) { res.status(400).json({ success: false, error: 'Categoría y título requeridos' }); return; }
+    const [r] = await pool.query(
+      'INSERT INTO portfolio_service_options (category_id, title, description, savings, price, is_popular, sort_order, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [categoryId, title, description || '', savings || '', price || 0, isPopular ? 1 : 0, sortOrder ?? 0, isActive !== false ? 1 : 0]
+    ) as any;
+    res.json({ success: true, id: r.insertId });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'Error al crear opción' });
+  }
+});
+
+router.put('/services/options/:id', authenticate, async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    if (user.role !== 'superadmin') { res.status(403).json({ success: false, error: 'Solo superadmin' }); return; }
+    const { title, description, savings, price, isPopular, sortOrder, isActive } = req.body;
+    await pool.query(
+      'UPDATE portfolio_service_options SET title=?, description=?, savings=?, price=?, is_popular=?, sort_order=?, is_active=?, updated_at=NOW() WHERE id=?',
+      [title, description || '', savings || '', price || 0, isPopular ? 1 : 0, sortOrder ?? 0, isActive !== false ? 1 : 0, req.params.id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'Error al actualizar' });
+  }
+});
+
+router.delete('/services/options/:id', authenticate, async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    if (user.role !== 'superadmin') { res.status(403).json({ success: false, error: 'Solo superadmin' }); return; }
+    await pool.query('DELETE FROM portfolio_service_options WHERE id = ?', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'Error al eliminar opción' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
+// POST /api/portfolio/checkout — Pública: crea Preference MP para servicios
+// Recibe items (título, cantidad, precio unitario en COP) y devuelve init_point
+// ─────────────────────────────────────────────────────────────
+router.post('/checkout', async (req: Request, res: Response) => {
+  try {
+    const { items, backUrl } = req.body as {
+      items: { title: string; quantity?: number; unit_price: number }[]
+      backUrl?: string
+    }
+
+    if (!Array.isArray(items) || items.length === 0) {
+      res.status(400).json({ success: false, error: 'Se requiere al menos un ítem' })
+      return
+    }
+
+    // Leer Access Token de MercadoPago desde platform_settings
+    const [rows] = await pool.query(
+      `SELECT setting_value FROM platform_settings WHERE setting_key = 'mp_access_token' LIMIT 1`
+    ) as any
+    const mpToken: string | null = (rows as any[])[0]?.setting_value ?? null
+
+    if (!mpToken) {
+      res.status(400).json({
+        success: false,
+        error: 'MercadoPago no está configurado. Contacta al administrador para activar los pagos en línea.',
+      })
+      return
+    }
+
+    const { MercadoPagoConfig, Preference } = await import('mercadopago')
+    const client = new MercadoPagoConfig({ accessToken: mpToken })
+    const preferenceApi = new Preference(client)
+
+    const returnUrl = backUrl || (req.headers.origin as string) || 'http://localhost:3000'
+
+    const pref = await preferenceApi.create({
+      body: {
+        items: items.map((item) => ({
+          title: item.title,
+          quantity: item.quantity ?? 1,
+          unit_price: Math.round(item.unit_price),
+          currency_id: 'COP',
+        })),
+        back_urls: {
+          success: returnUrl,
+          failure: returnUrl,
+          pending: returnUrl,
+        },
+        auto_return: 'approved',
+      } as any,
+    })
+
+    res.json({
+      success: true,
+      data: {
+        init_point: pref.init_point,
+        sandbox_init_point: (pref as any).sandbox_init_point,
+      },
+    })
+  } catch (err: any) {
+    console.error('[Portfolio Checkout]', err)
+    res.status(500).json({ success: false, error: err.message || 'Error al crear el pago' })
+  }
+})
 
 export const portfolioRoutes = router;

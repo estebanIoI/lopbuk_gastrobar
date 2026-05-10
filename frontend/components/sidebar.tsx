@@ -33,6 +33,8 @@ import {
   UtensilsCrossed,
   Wallet,
   Paintbrush,
+  MessageSquarePlus,
+  Truck,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
@@ -90,6 +92,8 @@ const navigation: NavItem[] = [
   { id: 'customers', name: 'Clientes', icon: Users, adminOnly: true, superadminOnly: false, merchantOnly: true, group: 'ops' },
   { id: 'fiados', name: 'Fiados', icon: CreditCard, adminOnly: true, superadminOnly: false, merchantOnly: true, group: 'ops' },
   { id: 'vendedores', name: 'Empleados', icon: UserCheck, adminOnly: true, superadminOnly: false, merchantOnly: true, group: 'ops' },
+  // flota ferretería
+  { id: 'fleet', name: 'Mi Flota', icon: Truck, adminOnly: true, superadminOnly: false, merchantOnly: true, group: 'ops' },
   // reports
   { id: 'history', name: 'Historial', icon: History, adminOnly: false, superadminOnly: false, merchantOnly: true, group: 'reports' },
   { id: 'analytics', name: 'Análisis', icon: TrendingUp, adminOnly: true, superadminOnly: false, merchantOnly: true, group: 'reports' },
@@ -97,6 +101,8 @@ const navigation: NavItem[] = [
   // config
   { id: 'printers', name: 'Impresoras', icon: Printer, adminOnly: true, superadminOnly: false, merchantOnly: true, group: 'config' },
   { id: 'settings', name: 'Configuración', icon: Settings, adminOnly: true, superadminOnly: false, merchantOnly: true, group: 'config' },
+  // dev requests (comerciante only)
+  { id: 'dev-requests', name: 'Solicitudes Dev', icon: MessageSquarePlus, adminOnly: true, superadminOnly: false, merchantOnly: true, group: 'config' },
 ]
 
 const groups = [
