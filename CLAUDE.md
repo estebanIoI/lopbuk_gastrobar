@@ -71,3 +71,20 @@
 | Bug resuelto | `daimuz/memory/important-fixes.md` |
 | Lección / feedback | `daimuz/memory/lessons-learned.md` |
 | Sprint activo | `daimuz/context/current-sprint.md` |
+
+---
+
+## 🔚 Último paso siempre (cierre de sesión)
+
+Al terminar cualquier sesión de trabajo significativa, ejecutar este prompt:
+
+```
+Actualiza los archivos DAIMUZ relevantes basándote en lo que hicimos hoy:
+- memory/current-state.md   → qué cambió, qué funciona ahora
+- memory/changelog.md       → entrada con fecha de hoy
+- context/current-sprint.md → qué hice, qué falta
+- memory/lessons-learned.md → si aprendimos algo nuevo
+- memory/completed-features.md → si terminamos un feature
+```
+
+> **Por qué:** La memoria de DAIMUZ solo vale si se actualiza. Este prompt convierte el mantenimiento en 1 acción, no en disciplina manual.

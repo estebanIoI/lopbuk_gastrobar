@@ -5,6 +5,23 @@
 
 ---
 
+## ⚡ Automatización — El prompt de cierre
+
+En vez de actualizar manualmente cada archivo al final de la sesión, usar este prompt como **último mensaje antes de cerrar**:
+
+```
+Actualiza los archivos DAIMUZ relevantes basándote en lo que hicimos hoy:
+- memory/current-state.md   → qué cambió, qué funciona ahora
+- memory/changelog.md       → entrada con fecha de hoy
+- context/current-sprint.md → qué hice, qué falta
+- memory/lessons-learned.md → si aprendimos algo nuevo
+- memory/completed-features.md → si terminamos un feature
+```
+
+> Este prompt convierte el mantenimiento en 1 acción. La memoria no debe depender de disciplina manual bajo presión.
+
+---
+
 ## Al terminar una sesión de trabajo significativa
 
 ```
@@ -93,6 +110,25 @@
 | Módulos | `indexes/modules-index.md` | `modules/[x]/[x].md` |
 | Reglas | `governance/universal-constraints.md` | `brain/coding-standards.md` |
 | Estado hoy | `memory/current-state.md` | `context/current-sprint.md` |
+
+---
+
+---
+
+## 📐 Niveles de documentación por módulo
+
+> Anti sobre-ingeniería: no todo módulo necesita todos los archivos.
+
+| Tier | Cuándo usarlo | Archivos |
+|---|---|---|
+| **micro** | Wrapper, utility, config pequeña, < 3 endpoints | `compressed.md` solo |
+| **standard** | Módulo con 1-3 entidades, flujo claro | `compressed.md` + `[modulo].md` |
+| **full** | Módulo complejo, múltiples entidades, flujos críticos, reglas de negocio propias | `compressed.md` + `[modulo].md` + `flows/[modulo]-flow.md` |
+
+**Regla:** Empieza siempre en `micro`. Sube de tier solo cuando sientas que necesitas más contexto en la próxima sesión.
+
+**Script de scaffolding inteligente:** `bash daimuz/scripts/new-module.sh`  
+→ Te pregunta el tier y crea solo los archivos necesarios.
 
 ---
 

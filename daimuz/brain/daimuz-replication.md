@@ -49,7 +49,8 @@ PROYECTO_ROOT/
     ├── governance/                  ← reglas absolutas
     │   ├── universal-constraints.md → las reglas que nunca se rompen
     │   ├── why-decisions.md         → por qué existen esas reglas
-    │   └── update-protocol.md       → cuándo actualizar cada parte de daimuz
+    │   ├── update-protocol.md       → cuándo actualizar cada parte de daimuz
+    │   └── api-standards.md         → convenciones REST: respuestas, errores, paginación
     │
     ├── synapses/                    ← mapas de impacto entre módulos
     │   └── [cadena]-chain.md        → si cambio A, qué afecta en B, C, D
@@ -67,7 +68,9 @@ PROYECTO_ROOT/
     ├── context/                     ← estado vivo del trabajo activo
     │   ├── current-sprint.md        → en qué trabajo esta semana
     │   ├── pending.md               → backlog priorizado
-    │   └── environment.md           → variables, servicios, puertos
+    │   ├── environment.md           → variables, servicios, puertos
+    │   └── roles/
+    │       └── roles-map.md         → roles del sistema y sus permisos por módulo
     │
     ├── brain/                       ← ADN del proyecto
     │   ├── identity.md              → qué es el proyecto y para quién
@@ -95,7 +98,10 @@ PROYECTO_ROOT/
         ├── api-routes.md            → todos los endpoints detallados
         ├── business-rules.md        → reglas de negocio por módulo
         ├── glossary.md              → términos del dominio
-        └── integrations.md          → docs de APIs externas
+        ├── integrations.md          → docs de APIs externas
+        ├── external-resources.md    → links y recursos externos del proyecto
+        └── stack/
+            └── tech-stack.md        → decisiones y versiones del stack tecnológico
 ```
 
 ---
@@ -186,6 +192,82 @@ Los demás se van creando **mientras construyes** el proyecto.
 
 ---
 
+## Script de replicación — estructura completa en 1 comando
+
+```bash
+# Crear toda la estructura de carpetas
+mkdir -p daimuz/{indexes,modules,memory,governance,synapses,ontology,architecture,context/roles,brain/patterns,flows,decisions,prompts,vault/stack}
+
+# Crear los 6 archivos MVP
+touch daimuz/DAIMUZ.md
+touch daimuz/indexes/modules-index.md
+touch daimuz/memory/current-state.md
+touch daimuz/governance/universal-constraints.md
+touch daimuz/context/current-sprint.md
+touch CLAUDE.md
+
+# Por cada módulo del proyecto:
+# mkdir daimuz/modules/[nombre]
+# touch daimuz/modules/[nombre]/compressed.md
+```
+
+---
+
+## Templates de los archivos core del MVP
+
+### `memory/current-state.md`
+
+```markdown
+# Estado Actual — [Proyecto]
+
+> Última actualización: [fecha]
+
+## ✅ Funcionando al 100%
+- [módulo]: [qué hace]
+
+## 🔧 En desarrollo activo
+- [módulo]: [qué falta]
+
+## 📋 Cambios recientes
+- [[fecha]] [descripción del cambio]
+```
+
+### `governance/universal-constraints.md`
+
+```markdown
+# Reglas que Nunca se Rompen
+
+1. **[Regla de lógica]** — [dónde va la lógica y dónde NO]
+2. **[Regla de seguridad]** — [tenant_id, auth, etc.]
+3. **[Regla de datos]** — [soft delete, integridad, etc.]
+4. **[Regla de respuestas]** — [formato de API]
+5. **[Regla de errores]** — [cómo se lanzan y manejan]
+
+## ⛔ Nunca tocar sin preguntar
+- [schema DB / auth middleware / config crítico]
+```
+
+### `context/current-sprint.md`
+
+```markdown
+# Sprint Activo — [mes/año]
+
+**Objetivo:** [qué se quiere lograr esta semana]
+
+## Tareas activas
+- [ ] [tarea 1]
+- [ ] [tarea 2]
+
+## Sesión [fecha]
+- ✅ [completado]
+- ⬜ [pendiente]
+
+## Archivos que se están editando
+- `[ruta/al/archivo.ts]`
+```
+
+---
+
 ## Protocolo de mantenimiento
 
 | Cuándo | Qué hacer |
@@ -197,6 +279,31 @@ Los demás se van creando **mientras construyes** el proyecto.
 | Al aprender algo | Añadir a `memory/lessons-learned.md` con datos medidos |
 
 **Regla de oro:** Si en la próxima sesión Claude necesitará saber algo, escríbelo ahora.
+
+### Automatización del cierre de sesión
+
+En vez de actualizar manualmente, usar este prompt al final de cada sesión:
+
+```
+Actualiza los archivos DAIMUZ relevantes basándote en lo que hicimos hoy:
+memory/current-state.md, memory/changelog.md, context/current-sprint.md,
+memory/lessons-learned.md (si aplica), memory/completed-features.md (si aplica).
+```
+
+---
+
+## Niveles de módulo — Anti sobre-ingeniería
+
+No todo módulo necesita documentación completa. Elegir el tier según complejidad:
+
+| Tier | Módulos típicos | Archivos a crear |
+|---|---|---|
+| **micro** | scanner, media-library, sync, printers | `compressed.md` solo |
+| **standard** | coupons, reviews, novedades, fleet | `compressed.md` + `[modulo].md` |
+| **full** | sales, inventory, auth, orders, delivery | `compressed.md` + `[modulo].md` + flujo |
+
+**Usar el script:** `bash daimuz/scripts/new-module.sh`  
+→ Pregunta el tier y crea solo los archivos necesarios, con templates pre-rellenados.
 
 ---
 
@@ -216,3 +323,27 @@ Primera sesión completa con DAIMUZ v3 al 100/100:
 ---
 
 ← [[ai-behavior]] | [[DAIMUZ]] | → [[coding-standards]]
+
+
+pendiente: Si agregas una capa de **Tasks**, una capa de **Agents** y un **Knowledge Graph explícito**, estarías muy cerca de lo que hoy están construyendo los equipos más avanzados que trabajan con Claude Code, Cursor, agentes MCP y flujos multiagente sobre repositorios grandes.
+Si comparo DAIMUZ con lo que veo actualmente en:
+
+- Claude Code
+- Cursor
+- Windsurf
+- OpenCode
+- comunidades Reddit de Agentic Coding
+- repositorios públicos avanzados
+
+tu diseño está aproximadamente en el **top 10-15%** de las arquitecturas de memoria para IA que se están usando hoy.
+
+Sin embargo, si lo optimizas hacia:
+
+- menos índices duplicados,
+- más Skills,
+- más Specs,
+- más ADRs,
+- hooks automatizados,
+- documentación cargada bajo demanda,
+
+podría convertirse fácilmente en un sistema de nivel **9.5/10**, muy cercano a las arquitecturas que están usando equipos que desarrollan productos grandes con Claude Code y agentes especializados.

@@ -176,6 +176,21 @@
 
 ---
 
+## 🔧 Scripts de Mantenimiento
+
+| Script | Uso |
+|---|---|
+| `bash daimuz/scripts/new-module.sh` | Scaffolding inteligente — crea solo los archivos necesarios según tier (micro/standard/full) |
+
+**Prompt de cierre de sesión** (pegar al final de cada sesión):
+```
+Actualiza los archivos DAIMUZ relevantes basándote en lo que hicimos hoy:
+memory/current-state.md, memory/changelog.md, context/current-sprint.md,
+memory/lessons-learned.md (si aplica), memory/completed-features.md (si aplica).
+```
+
+---
+
 ## 📍 Contexto Vivo
 
 | Archivo | Propósito |

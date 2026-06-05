@@ -60,8 +60,9 @@ export async function getAIKey(): Promise<string> {
 // Gemini
 // ─────────────────────────────────────────────────────────────
 
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-flash-latest';
 const GEMINI_URL =
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+  `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 export async function callGemini(
   apiKey: string,
@@ -199,12 +200,44 @@ export async function callOpenAI(
   return data.choices?.[0]?.message?.content || 'Lo siento, no pude procesar tu mensaje.';
 }
 
+// ─────────────────────────────────────────────────────────────
+// Groq (OpenAI-compatible API)
+// ─────────────────────────────────────────────────────────────
+
+const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
+
+export async function callGroq(
+  apiKey: string,
+  systemPrompt: string,
+  messages: { role: string; content: string }[],
+): Promise<string> {
+  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: GROQ_MODEL,
+      messages: [{ role: 'system', content: systemPrompt }, ...messages],
+      max_tokens: 600,
+      temperature: 0.7,
+    }),
+  });
+  if (!response.ok) {
+    if (response.status === 429) {
+      return 'Estoy recibiendo muchas consultas. Por favor espera unos segundos e intenta nuevamente. 🙏';
+    }
+    throw new Error(`Groq error: ${await response.text()}`);
+  }
+  const data = await response.json() as any;
+  return data.choices?.[0]?.message?.content || 'Lo siento, no pude procesar tu mensaje.';
+}
+
 export async function callAI(
   apiKey: string,
   systemPrompt: string,
   messages: { role: string; content: string }[],
 ): Promise<string> {
   if (apiKey.startsWith('AIza')) return callGemini(apiKey, systemPrompt, messages);
+  if (apiKey.startsWith('gsk_')) return callGroq(apiKey, systemPrompt, messages);
   return callOpenAI(apiKey, systemPrompt, messages);
 }
 
