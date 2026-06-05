@@ -24,6 +24,7 @@ import {
   FlaskConical,
   ShoppingBag,
   Scissors,
+  Dumbbell,
   LogOut,
   ChevronRight,
   ChevronDown,
@@ -88,6 +89,7 @@ const navigation: NavItem[] = [
       { id: 'cupones', name: 'Cupones', icon: Ticket, adminOnly: true, superadminOnly: false, merchantOnly: true },
       { id: 'reviews', name: 'Reseñas', icon: Star, adminOnly: true, superadminOnly: false, merchantOnly: true },
       { id: 'services', name: 'Servicios', icon: Scissors, adminOnly: true, superadminOnly: false, merchantOnly: true },
+      { id: 'gym', name: 'Gimnasio', icon: Dumbbell, adminOnly: true, superadminOnly: false, merchantOnly: true },
     ],
   },
   // gastrobar ops

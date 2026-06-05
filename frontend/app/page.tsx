@@ -25,6 +25,7 @@ import { Recipes } from '@/components/recipes'
 import { DriverPanel } from '@/components/driver-panel'
 import { PurchaseInvoices } from '@/components/purchase-invoices'
 import { ServicesManagement } from '@/components/services-management'
+import { GymManagement } from '@/components/gym-management'
 import { PrintersConfig } from '@/components/printers'
 import { VendedoresPanel } from '@/components/vendedores-panel'
 import { ReviewsPanel } from '@/components/reviews-panel'
@@ -207,6 +208,8 @@ export default function Home() {
         return <PurchaseInvoices />
       case 'services':
         return <ServicesManagement />
+      case 'gym':
+        return <GymManagement />
       case 'analytics':
         return <Analytics />
       case 'settings':

@@ -313,7 +313,8 @@ export async function listPlanComidas(userId: string, from?: string, to?: string
   const [rows] = await db.execute<Row[]>(
     `SELECT pc.id, pc.plan_date AS planDate, pc.meal_type AS mealType,
             pc.receta_id AS recetaId, COALESCE(pc.title, r.name) AS title,
-            pc.calories, pc.is_done AS isDone, pc.notes
+            pc.calories, pc.protein_g AS proteinG, pc.carbs_g AS carbsG, pc.fat_g AS fatG,
+            pc.is_done AS isDone, pc.notes
      FROM rutina_plan_comidas pc
      LEFT JOIN rutina_recetas r ON r.id = pc.receta_id
      WHERE ${where}
@@ -448,7 +449,9 @@ export async function generarComprasDesdeReceta(userId: string, recetaId: string
 // ─────────────────────────────────────────────────────────────
 export async function getResumen(userId: string) {
   const [[perfil]] = await db.execute<Row[]>(
-    'SELECT goal, daily_calorie_target AS dailyCalorieTarget FROM rutina_perfil WHERE user_id = ?', [userId]
+    `SELECT goal, daily_calorie_target AS dailyCalorieTarget, target_weight_kg AS targetWeightKg,
+            weight_kg AS weightKg, water_target_ml AS waterTargetMl
+     FROM rutina_perfil WHERE user_id = ?`, [userId]
   ) as any;
   const [[despensa]] = await db.execute<Row[]>(
     'SELECT COUNT(*) AS n FROM rutina_despensa WHERE user_id = ?', [userId]
@@ -463,11 +466,34 @@ export async function getResumen(userId: string) {
   const [[comidasHoy]] = await db.execute<Row[]>(
     'SELECT COUNT(*) AS n FROM rutina_plan_comidas WHERE user_id = ? AND plan_date = CURDATE()', [userId]
   ) as any;
+  // Totales nutricionales del día (consumido = comidas marcadas; planeado = todas)
+  const [[macros]] = await db.execute<Row[]>(
+    `SELECT
+       COALESCE(SUM(calories),0) AS calPlan,
+       COALESCE(SUM(protein_g),0) AS proPlan,
+       COALESCE(SUM(carbs_g),0) AS carbPlan,
+       COALESCE(SUM(fat_g),0) AS fatPlan,
+       COALESCE(SUM(CASE WHEN is_done=1 THEN calories ELSE 0 END),0) AS calDone,
+       COALESCE(SUM(CASE WHEN is_done=1 THEN protein_g ELSE 0 END),0) AS proDone,
+       COALESCE(SUM(CASE WHEN is_done=1 THEN carbs_g ELSE 0 END),0) AS carbDone,
+       COALESCE(SUM(CASE WHEN is_done=1 THEN fat_g ELSE 0 END),0) AS fatDone
+     FROM rutina_plan_comidas WHERE user_id = ? AND plan_date = CURDATE()`, [userId]
+  ) as any;
   return {
     perfil: perfil || null,
     despensaCount: despensa?.n ?? 0,
     porVencerCount: porVencer?.n ?? 0,
     comprasPendientes: compras?.n ?? 0,
     comidasHoy: comidasHoy?.n ?? 0,
+    nutricion: {
+      caloriasPlan: Number(macros?.calPlan ?? 0),
+      caloriasConsumidas: Number(macros?.calDone ?? 0),
+      proteinaPlan: Number(macros?.proPlan ?? 0),
+      proteinaConsumida: Number(macros?.proDone ?? 0),
+      carbsPlan: Number(macros?.carbPlan ?? 0),
+      carbsConsumidos: Number(macros?.carbDone ?? 0),
+      grasaPlan: Number(macros?.fatPlan ?? 0),
+      grasaConsumida: Number(macros?.fatDone ?? 0),
+    },
   };
 }

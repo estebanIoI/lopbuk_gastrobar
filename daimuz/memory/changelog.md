@@ -4,6 +4,48 @@
 
 ---
 
+## [2026-06-05] — Gym: aprovechar al máximo la estructura
+
+Auditoría y completado del módulo gym para usar todo el esquema:
+- Backend: `memberCheckIn`/`memberCheckOut` (auto check-in del miembro, valida membresía activa), `listMemberAttendance` (historial por miembro), `miAsistencia` ahora devuelve `openCheckIn`, `getMemberDetail` incluye asistencia. Rutas: `POST /gym/me/checkin`, `POST /gym/me/checkout`, `GET /gym/members/:id/asistencia`.
+- Frontend staff (`gym-management.tsx`): plan con peso/descanso por ejercicio + descripción; progreso con medidas corporales (cintura/pecho/brazo/pierna/cadera → JSON); detalle de miembro con edición completa de membresía (estado/fechas/auto-renew/notas), acciones rápidas activar/pausar/cancelar, e historial de asistencia.
+- Frontend miembro (`consumer-routine` GymView): botón de auto check-in / marcar salida por gimnasio activo.
+- API: `miGymCheckIn/Out`, `getGymMemberAttendance`.
+
+---
+
+## [2026-06-05] — Rediseño UI módulo CONSUMIDOR (rutina)
+
+La vista del cliente estaba básica y no exponía todo el backend. Rediseño completo de `consumer-routine.tsx`:
+- Header con degradado + anillo SVG de calorías (consumidas/meta) + barras de macros (P/C/F) del día.
+- Editor de **perfil/objetivos** (modal, antes inexistente): objetivo, peso/meta, kcal, agua, nivel actividad, ciudad.
+- Pestaña **Rutina** nueva: constructor de rutinas + actividades (día/hora/tipo), antes sin UI.
+- Pestaña **Cocina** (sub-tabs Despensa/Recetas) con **creación de recetas** completa (macros, dificultad, meal_type, ingredientes) y "qué puedo cocinar".
+- **Plan** con captura y totales de macros + toggle hecho.
+- Chips de objetivo/agua/peso, empty states, tab bar pulido. Pestaña Gym condicional intacta.
+- Backend: `getResumen` ahora devuelve nutrición del día (plan vs consumido) y `listPlanComidas` incluye macros.
+
+Tabs finales: Hoy · Rutina · Cocina · Plan · Compras · Gym(si miembro).
+
+---
+
+## [2026-06-05] — Módulo GIMNASIO end-to-end
+
+### Backend (`/api/gym`)
+- `gym.service.ts` (nuevo): membresías con cobro (registrarPago avanza next_payment según ciclo), planes+ejercicios (transacción), progreso, asistencia check-in/out, stats del gym, detalle de miembro, y vistas del miembro (misMembresias, miPlan, miProgreso, miAsistencia con cálculo de racha/streak).
+- `gym.routes.ts` (nuevo): authorize POR RUTA — staff (`comerciante`/`administrador_rb`/`vendedor`/`cajero`) en `/gym/...`, miembro (`cliente`) en `/gym/me/...`. `index.ts` + montado en `src/index.ts`.
+
+### Frontend
+- `components/gym-management.tsx` (nuevo): panel del comercio — stats, tabla de miembros, alta de miembro (por email), modal de detalle con planes/progreso, registrar pago, crear plan con ejercicios, registrar progreso, y pestaña de asistencia con check-out.
+- Montado en dashboard: `app/page.tsx` (import + `case 'gym'`) y entrada "Gimnasio" (icono Dumbbell) en `components/sidebar.tsx`.
+- Vista del miembro: pestaña "Gym" agregada a `consumer-routine.tsx` (solo si tiene membresía) — membresías, racha de asistencia, plan de entrenamiento y progreso reciente.
+
+### Pendiente
+- Correr migraciones en MySQL prod (categorías, identidad, lifestyle/gym) + push.
+- Cobro real de membresías (hoy `registrarPago` solo avanza fechas; integrar con pasarela/efectivo si se requiere).
+
+---
+
 ## [2026-06-05] — Categorías PK compuesta + base de datos módulo Consumidor/Gimnasio
 
 ### Fixes

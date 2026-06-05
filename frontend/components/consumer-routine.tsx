@@ -6,16 +6,17 @@
  * que NO modifica las secciones existentes del marketplace; se abre como el
  * carrito. Cross-comercio: los datos pertenecen al usuario, no a un tenant.
  *
- * Pestañas internas: Hoy (resumen) · Despensa · Recetas · Plan · Compras
+ * Pestañas: Hoy · Rutina · Cocina (despensa+recetas) · Plan · Compras · Gym(*)
  */
 import { useState, useEffect, useCallback } from 'react'
 import {
-  X, Home, Carrot, ChefHat, CalendarDays, ShoppingBasket, Plus, Trash2,
-  Check, Clock, AlertTriangle, Sparkles, Loader2,
+  X, Home, ChefHat, CalendarDays, ShoppingBasket, Plus, Trash2, Check, Clock,
+  AlertTriangle, Sparkles, Loader2, Dumbbell, Flame, TrendingUp, Settings,
+  Droplet, Target, Carrot, ListChecks, Utensils, Repeat,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 
-type Tab = 'hoy' | 'despensa' | 'recetas' | 'plan' | 'compras'
+type Tab = 'hoy' | 'rutina' | 'cocina' | 'plan' | 'compras' | 'gym'
 
 const MEALS = [
   { key: 'desayuno', label: 'Desayuno' },
@@ -25,300 +26,723 @@ const MEALS = [
   { key: 'cena', label: 'Cena' },
   { key: 'snack', label: 'Snack' },
 ]
+const DAYS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
+const GOAL_LABEL: Record<string, string> = {
+  bajar_peso: 'Bajar de peso', subir_masa: 'Subir masa', mantener: 'Mantener', salud_general: 'Salud general',
+}
 
 export default function ConsumerRoutine({ onClose }: { onClose: () => void }) {
   const [tab, setTab] = useState<Tab>('hoy')
   const [loading, setLoading] = useState(false)
+  const [showPerfil, setShowPerfil] = useState(false)
 
   const [resumen, setResumen] = useState<any>(null)
   const [despensa, setDespensa] = useState<any[]>([])
   const [recetas, setRecetas] = useState<any[]>([])
   const [puedoHacer, setPuedoHacer] = useState<any[]>([])
+  const [rutinas, setRutinas] = useState<any[]>([])
   const [plan, setPlan] = useState<any[]>([])
   const [compras, setCompras] = useState<any[]>([])
+  const [hasGym, setHasGym] = useState(false)
+  const [gym, setGym] = useState<any>({ membresias: [], plan: [], progreso: [], asistencia: null })
 
   const today = new Date().toISOString().slice(0, 10)
+
+  useEffect(() => {
+    api.getMisMembresias().then(r => { if (r.success && (r.data || []).length) setHasGym(true) })
+  }, [])
 
   const load = useCallback(async (t: Tab) => {
     setLoading(true)
     try {
       if (t === 'hoy') {
-        const [r, p] = await Promise.all([api.getRutinaResumen(), api.getPlanComidas(today, today)])
-        if (r.success) setResumen(r.data); if (p.success) setPlan(p.data || [])
-      } else if (t === 'despensa') {
-        const r = await api.getDespensa(); if (r.success) setDespensa(r.data || [])
-      } else if (t === 'recetas') {
-        const [a, b] = await Promise.all([api.getRutinaRecetas(), api.getRecetasQuePuedoHacer()])
-        if (a.success) setRecetas(a.data || []); if (b.success) setPuedoHacer(b.data || [])
+        const [r, p, ru] = await Promise.all([api.getRutinaResumen(), api.getPlanComidas(today, today), api.getRutinas()])
+        if (r.success) setResumen(r.data)
+        if (p.success) setPlan(p.data || [])
+        if (ru.success) setRutinas(ru.data || [])
+      } else if (t === 'rutina') {
+        const r = await api.getRutinas(); if (r.success) setRutinas(r.data || [])
+      } else if (t === 'cocina') {
+        const [d, a, b] = await Promise.all([api.getDespensa(), api.getRutinaRecetas(), api.getRecetasQuePuedoHacer()])
+        if (d.success) setDespensa(d.data || [])
+        if (a.success) setRecetas(a.data || [])
+        if (b.success) setPuedoHacer(b.data || [])
       } else if (t === 'plan') {
         const r = await api.getPlanComidas(today, today); if (r.success) setPlan(r.data || [])
       } else if (t === 'compras') {
         const r = await api.getListaCompras(); if (r.success) setCompras(r.data || [])
+      } else if (t === 'gym') {
+        const [mem, pl, pr, as] = await Promise.all([
+          api.getMisMembresias(), api.getMiPlanGym(), api.getMiProgresoGym(), api.getMiAsistenciaGym(),
+        ])
+        setGym({
+          membresias: mem.success ? mem.data || [] : [],
+          plan: pl.success ? pl.data || [] : [],
+          progreso: pr.success ? pr.data || [] : [],
+          asistencia: as.success ? as.data : null,
+        })
       }
     } finally { setLoading(false) }
   }, [today])
 
   useEffect(() => { load(tab) }, [tab, load])
 
+  const tabs = [
+    { k: 'hoy', icon: Home, label: 'Hoy' },
+    { k: 'rutina', icon: Repeat, label: 'Rutina' },
+    { k: 'cocina', icon: ChefHat, label: 'Cocina' },
+    { k: 'plan', icon: CalendarDays, label: 'Plan' },
+    { k: 'compras', icon: ShoppingBasket, label: 'Compras' },
+    ...(hasGym ? [{ k: 'gym', icon: Dumbbell, label: 'Gym' }] : []),
+  ] as const
+
   return (
-    <div className="fixed inset-0 z-[80] bg-white text-neutral-900 flex flex-col md:hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 h-14 border-b border-black/10 flex-shrink-0">
-        <div className="flex items-center gap-2">
-          <Sparkles className="w-5 h-5 text-amber-400" />
-          <span className="text-sm font-semibold tracking-wide uppercase">Mi Rutina</span>
+    <div className="fixed inset-0 z-[80] bg-neutral-50 text-neutral-900 flex flex-col md:hidden">
+      {/* Header con degradado */}
+      <div className="flex-shrink-0 bg-gradient-to-br from-amber-400 to-orange-500 text-white px-4 pt-4 pb-5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-5 h-5" />
+            <span className="text-sm font-semibold tracking-wide uppercase">Mi Rutina</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <button onClick={() => setShowPerfil(true)} className="p-2 rounded-full hover:bg-white/20" title="Mi perfil"><Settings className="w-5 h-5" /></button>
+            <button onClick={onClose} className="p-2 rounded-full hover:bg-white/20"><X className="w-5 h-5" /></button>
+          </div>
         </div>
-        <button onClick={onClose} className="p-2 -mr-2 text-neutral-500 hover:text-neutral-900"><X className="w-5 h-5" /></button>
+        {tab === 'hoy' && <HeaderRings resumen={resumen} />}
       </div>
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto pb-20">
-        {loading && (
-          <div className="flex justify-center py-10 text-neutral-400"><Loader2 className="w-6 h-6 animate-spin" /></div>
-        )}
-
-        {!loading && tab === 'hoy' && <HoyView resumen={resumen} plan={plan} onReload={() => load('hoy')} onGoTo={setTab} />}
-        {!loading && tab === 'despensa' && <DespensaView items={despensa} onReload={() => load('despensa')} />}
-        {!loading && tab === 'recetas' && <RecetasView recetas={recetas} puedoHacer={puedoHacer} onReload={() => load('recetas')} />}
+        {loading && <div className="flex justify-center py-12 text-neutral-300"><Loader2 className="w-7 h-7 animate-spin" /></div>}
+        {!loading && tab === 'hoy' && <HoyView resumen={resumen} plan={plan} rutinas={rutinas} onReload={() => load('hoy')} onGoTo={setTab} />}
+        {!loading && tab === 'rutina' && <RutinaView rutinas={rutinas} onReload={() => load('rutina')} />}
+        {!loading && tab === 'cocina' && <CocinaView despensa={despensa} recetas={recetas} puedoHacer={puedoHacer} onReload={() => load('cocina')} />}
         {!loading && tab === 'plan' && <PlanView plan={plan} recetas={recetas} onReload={() => load('plan')} today={today} />}
         {!loading && tab === 'compras' && <ComprasView items={compras} onReload={() => load('compras')} />}
+        {!loading && tab === 'gym' && <GymView data={gym} onReload={() => load('gym')} />}
       </div>
 
-      {/* Internal tab bar */}
-      <div className="absolute bottom-0 left-0 right-0 h-16 border-t border-black/10 bg-white flex items-center justify-around" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
-        {([
-          { k: 'hoy', icon: Home, label: 'Hoy' },
-          { k: 'despensa', icon: Carrot, label: 'Despensa' },
-          { k: 'recetas', icon: ChefHat, label: 'Recetas' },
-          { k: 'plan', icon: CalendarDays, label: 'Plan' },
-          { k: 'compras', icon: ShoppingBasket, label: 'Compras' },
-        ] as const).map(({ k, icon: Icon, label }) => (
-          <button key={k} onClick={() => setTab(k)}
-            className={`flex flex-col items-center gap-0.5 flex-1 h-full justify-center transition-colors ${tab === k ? 'text-amber-600' : 'text-neutral-400'}`}>
+      {/* Tab bar */}
+      <div className="absolute bottom-0 left-0 right-0 h-16 border-t border-black/10 bg-white flex items-center justify-around shadow-[0_-2px_10px_rgba(0,0,0,0.04)]" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+        {tabs.map(({ k, icon: Icon, label }) => (
+          <button key={k} onClick={() => setTab(k as Tab)}
+            className={`flex flex-col items-center gap-0.5 flex-1 h-full justify-center transition-colors ${tab === k ? 'text-orange-600' : 'text-neutral-400'}`}>
             <Icon className="w-5 h-5" />
-            <span className="text-[10px]">{label}</span>
+            <span className="text-[10px] font-medium">{label}</span>
           </button>
         ))}
       </div>
+
+      {showPerfil && <PerfilModal onClose={() => setShowPerfil(false)} onSaved={() => { setShowPerfil(false); load('hoy') }} />}
     </div>
   )
 }
 
-// ─────────────────────────── HOY ───────────────────────────
-function HoyView({ resumen, plan, onReload, onGoTo }: any) {
-  const cards = [
-    { label: 'En despensa', value: resumen?.despensaCount ?? 0, icon: Carrot, color: 'text-emerald-400' },
-    { label: 'Por vencer', value: resumen?.porVencerCount ?? 0, icon: AlertTriangle, color: 'text-orange-400' },
-    { label: 'Por comprar', value: resumen?.comprasPendientes ?? 0, icon: ShoppingBasket, color: 'text-sky-400' },
-    { label: 'Comidas hoy', value: resumen?.comidasHoy ?? 0, icon: CalendarDays, color: 'text-amber-400' },
+// ═══════════════════ UI helpers ═══════════════════
+function Ring({ value, max, size = 88, stroke = 9, color = '#ea580c', label, sub }: any) {
+  const r = (size - stroke) / 2
+  const c = 2 * Math.PI * r
+  const pct = max > 0 ? Math.min(1, value / max) : 0
+  return (
+    <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90">
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth={stroke} />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={stroke}
+          strokeDasharray={c} strokeDashoffset={c * (1 - pct)} strokeLinecap="round" />
+      </svg>
+      <div className="absolute text-center leading-none">
+        <div className="text-lg font-bold">{label}</div>
+        {sub && <div className="text-[9px] opacity-80 mt-0.5">{sub}</div>}
+      </div>
+    </div>
+  )
+}
+function MacroBar({ label, value, max, color }: any) {
+  const pct = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : 0
+  return (
+    <div className="flex-1">
+      <div className="flex justify-between text-[10px] mb-1 opacity-90"><span>{label}</span><span>{Math.round(value)}{max ? `/${Math.round(max)}` : ''}g</span></div>
+      <div className="h-1.5 rounded-full bg-white/30 overflow-hidden"><div className="h-full rounded-full" style={{ width: `${pct}%`, background: color }} /></div>
+    </div>
+  )
+}
+function Section({ title, action, children }: any) {
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2"><h3 className="text-sm font-bold text-neutral-800">{title}</h3>{action}</div>
+      {children}
+    </div>
+  )
+}
+function Empty({ icon: Icon, text }: any) {
+  return <div className="text-center py-8 text-neutral-400"><Icon className="w-8 h-8 mx-auto mb-2 opacity-40" /><p className="text-xs">{text}</p></div>
+}
+function Card({ children, className = '' }: any) {
+  return <div className={`rounded-2xl bg-white border border-black/5 shadow-sm ${className}`}>{children}</div>
+}
+const inputCls = 'w-full bg-neutral-100 border border-transparent focus:border-orange-400 focus:bg-white rounded-xl px-3 py-2.5 text-sm outline-none transition-colors placeholder:text-neutral-400'
+
+// ═══════════════════ HEADER RINGS (Hoy) ═══════════════════
+function HeaderRings({ resumen }: any) {
+  const n = resumen?.nutricion
+  const target = resumen?.perfil?.dailyCalorieTarget || 0
+  const consumed = n?.caloriasConsumidas || 0
+  const remaining = Math.max(0, target - consumed)
+  return (
+    <div className="mt-4 flex items-center gap-4">
+      <Ring value={consumed} max={target || 1} label={target ? remaining : (n?.caloriasPlan || 0)} sub={target ? 'kcal rest.' : 'kcal plan'} color="#fff" />
+      <div className="flex-1 space-y-2">
+        <MacroBar label="Proteína" value={n?.proteinaConsumida || 0} max={n?.proteinaPlan || 0} color="#34d399" />
+        <MacroBar label="Carbos" value={n?.carbsConsumidos || 0} max={n?.carbsPlan || 0} color="#fbbf24" />
+        <MacroBar label="Grasa" value={n?.grasaConsumida || 0} max={n?.grasaPlan || 0} color="#f472b6" />
+      </div>
+    </div>
+  )
+}
+
+// ═══════════════════ HOY ═══════════════════
+function HoyView({ resumen, plan, rutinas, onReload, onGoTo }: any) {
+  const dow = new Date().getDay()
+  const todayActs = (rutinas || []).flatMap((r: any) =>
+    (r.activities || []).filter((a: any) => a.dayOfWeek === null || a.dayOfWeek === dow).map((a: any) => ({ ...a, rutina: r.name }))
+  ).sort((a: any, b: any) => (a.startTime || '').localeCompare(b.startTime || ''))
+
+  const chips = [
+    { icon: Carrot, label: 'Despensa', value: resumen?.despensaCount ?? 0, color: 'text-emerald-600 bg-emerald-50' },
+    { icon: AlertTriangle, label: 'Por vencer', value: resumen?.porVencerCount ?? 0, color: 'text-orange-600 bg-orange-50' },
+    { icon: ShoppingBasket, label: 'Comprar', value: resumen?.comprasPendientes ?? 0, color: 'text-sky-600 bg-sky-50' },
   ]
+  const water = resumen?.perfil?.waterTargetMl
+  const weight = resumen?.perfil?.weightKg, tgt = resumen?.perfil?.targetWeightKg
+
   return (
     <div className="p-4 space-y-5">
-      <div className="grid grid-cols-2 gap-3">
-        {cards.map(c => (
-          <div key={c.label} className="rounded-2xl bg-black/5 border border-black/10 p-4">
-            <c.icon className={`w-5 h-5 ${c.color}`} />
-            <div className="text-2xl font-bold mt-2">{c.value}</div>
-            <div className="text-[11px] text-neutral-500">{c.label}</div>
-          </div>
+      {/* Chips de objetivos */}
+      {(water || (weight && tgt) || resumen?.perfil?.goal) && (
+        <div className="flex gap-2 flex-wrap">
+          {resumen?.perfil?.goal && <span className="text-xs px-3 py-1.5 rounded-full bg-violet-50 text-violet-700 flex items-center gap-1"><Target className="w-3.5 h-3.5" />{GOAL_LABEL[resumen.perfil.goal] || resumen.perfil.goal}</span>}
+          {water ? <span className="text-xs px-3 py-1.5 rounded-full bg-sky-50 text-sky-700 flex items-center gap-1"><Droplet className="w-3.5 h-3.5" />{water} ml/día</span> : null}
+          {weight && tgt ? <span className="text-xs px-3 py-1.5 rounded-full bg-amber-50 text-amber-700 flex items-center gap-1"><TrendingUp className="w-3.5 h-3.5" />{weight}→{tgt} kg</span> : null}
+        </div>
+      )}
+
+      {/* Stat chips */}
+      <div className="grid grid-cols-3 gap-3">
+        {chips.map(c => (
+          <button key={c.label} onClick={() => onGoTo(c.label === 'Comprar' ? 'compras' : 'cocina')} className="rounded-2xl bg-white border border-black/5 shadow-sm p-3 text-left">
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${c.color}`}><c.icon className="w-4 h-4" /></div>
+            <div className="text-xl font-bold mt-2">{c.value}</div>
+            <div className="text-[10px] text-neutral-500">{c.label}</div>
+          </button>
         ))}
       </div>
 
-      {resumen?.perfil?.dailyCalorieTarget ? (
-        <div className="rounded-2xl bg-black/5 border border-black/10 p-4 text-sm text-neutral-600">
-          Meta diaria: <span className="text-neutral-900 font-semibold">{resumen.perfil.dailyCalorieTarget} kcal</span>
-          {resumen.perfil.goal && <span className="text-neutral-500"> · {String(resumen.perfil.goal).replace('_', ' ')}</span>}
-        </div>
-      ) : null}
-
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <h3 className="text-sm font-semibold">Comidas de hoy</h3>
-          <button onClick={() => onGoTo('plan')} className="text-xs text-amber-600">Ver plan</button>
-        </div>
+      {/* Comidas de hoy */}
+      <Section title="Comidas de hoy" action={<button onClick={() => onGoTo('plan')} className="text-xs text-orange-600 font-medium">Ver plan</button>}>
         {plan?.length ? (
           <div className="space-y-2">
             {plan.map((m: any) => (
-              <div key={m.id} className="flex items-center gap-3 rounded-xl bg-black/5 border border-black/10 px-3 py-2.5">
-                <Check className={`w-4 h-4 ${m.isDone ? 'text-emerald-400' : 'text-neutral-300'}`} />
+              <Card key={m.id} className="flex items-center gap-3 px-3 py-2.5">
+                <button onClick={async () => { await api.togglePlanComida(m.id); onReload() }} className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${m.isDone ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-neutral-300'}`}>
+                  {m.isDone && <Check className="w-3.5 h-3.5" />}
+                </button>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm truncate">{m.title || 'Comida'}</div>
-                  <div className="text-[11px] text-neutral-500 capitalize">{String(m.mealType).replace('_', ' ')}</div>
+                  <div className={`text-sm truncate ${m.isDone ? 'line-through text-neutral-400' : 'font-medium'}`}>{m.title || 'Comida'}</div>
+                  <div className="text-[11px] text-neutral-400 capitalize">{String(m.mealType).replace('_', ' ')}{m.calories ? ` · ${m.calories} kcal` : ''}</div>
                 </div>
+              </Card>
+            ))}
+          </div>
+        ) : <Empty icon={Utensils} text="Sin comidas planeadas para hoy." />}
+      </Section>
+
+      {/* Actividades de hoy */}
+      <Section title="Tu día" action={<button onClick={() => onGoTo('rutina')} className="text-xs text-orange-600 font-medium">Editar rutina</button>}>
+        {todayActs.length ? (
+          <div className="space-y-2">
+            {todayActs.map((a: any) => (
+              <Card key={a.id} className="flex items-center gap-3 px-3 py-2.5">
+                <div className="w-12 text-center flex-shrink-0">
+                  <div className="text-xs font-bold text-orange-600">{a.startTime ? a.startTime.slice(0, 5) : '—'}</div>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium truncate">{a.title}</div>
+                  <div className="text-[11px] text-neutral-400 capitalize">{a.type} · {a.rutina}</div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        ) : <Empty icon={ListChecks} text="No tienes actividades para hoy. Crea tu rutina." />}
+      </Section>
+    </div>
+  )
+}
+
+// ═══════════════════ RUTINA (actividades) ═══════════════════
+function RutinaView({ rutinas, onReload }: any) {
+  const [newName, setNewName] = useState('')
+  const [addingTo, setAddingTo] = useState<string | null>(null)
+
+  const crear = async () => { if (!newName.trim()) return; await api.createRutina({ name: newName, type: 'general' }); setNewName(''); onReload() }
+
+  return (
+    <div className="p-4 space-y-5">
+      <div className="flex gap-2">
+        <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Nueva rutina (ej: Mañanas)" className={inputCls} />
+        <button onClick={crear} className="bg-orange-500 text-white rounded-xl px-3 flex-shrink-0"><Plus className="w-5 h-5" /></button>
+      </div>
+
+      {rutinas?.length ? rutinas.map((r: any) => (
+        <Card key={r.id} className="p-4">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2"><Repeat className="w-4 h-4 text-orange-500" /><span className="font-semibold">{r.name}</span></div>
+            <button onClick={async () => { await api.deleteRutina(r.id); onReload() }} className="text-neutral-300 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
+          </div>
+          <div className="space-y-1.5">
+            {(r.activities || []).map((a: any) => (
+              <div key={a.id} className="flex items-center gap-2 text-sm bg-neutral-50 rounded-lg px-3 py-2">
+                <span className="text-[11px] font-bold text-orange-600 w-10">{a.startTime ? a.startTime.slice(0, 5) : '—'}</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-neutral-200 text-neutral-600">{a.dayOfWeek === null ? 'Diario' : DAYS[a.dayOfWeek]}</span>
+                <span className="flex-1 truncate">{a.title}</span>
+                <button onClick={async () => { await api.deleteActividad(a.id); onReload() }} className="text-neutral-300 hover:text-red-500"><Trash2 className="w-3.5 h-3.5" /></button>
               </div>
             ))}
           </div>
-        ) : (
-          <p className="text-xs text-neutral-500">Aún no has planeado comidas para hoy.</p>
-        )}
+          {addingTo === r.id
+            ? <ActividadForm rutinaId={r.id} onDone={() => { setAddingTo(null); onReload() }} onCancel={() => setAddingTo(null)} />
+            : <button onClick={() => setAddingTo(r.id)} className="mt-2 text-xs text-orange-600 flex items-center gap-1"><Plus className="w-3.5 h-3.5" />Agregar actividad</button>}
+        </Card>
+      )) : <Empty icon={Repeat} text="Crea tu primera rutina para organizar tu día." />}
+    </div>
+  )
+}
+
+function ActividadForm({ rutinaId, onDone, onCancel }: any) {
+  const [f, setF] = useState({ title: '', startTime: '', dayOfWeek: '', type: 'habito' })
+  const save = async () => {
+    if (!f.title.trim()) return
+    await api.addActividad(rutinaId, {
+      title: f.title, startTime: f.startTime || null,
+      dayOfWeek: f.dayOfWeek === '' ? null : Number(f.dayOfWeek), type: f.type,
+    })
+    onDone()
+  }
+  return (
+    <div className="mt-3 space-y-2 bg-neutral-50 rounded-xl p-3">
+      <input value={f.title} onChange={e => setF({ ...f, title: e.target.value })} placeholder="¿Qué actividad?" className={inputCls} />
+      <div className="grid grid-cols-3 gap-2">
+        <input type="time" value={f.startTime} onChange={e => setF({ ...f, startTime: e.target.value })} className={inputCls} />
+        <select value={f.dayOfWeek} onChange={e => setF({ ...f, dayOfWeek: e.target.value })} className={inputCls}>
+          <option value="">Diario</option>
+          {DAYS.map((d, i) => <option key={i} value={i}>{d}</option>)}
+        </select>
+        <select value={f.type} onChange={e => setF({ ...f, type: e.target.value })} className={inputCls}>
+          <option value="habito">Hábito</option><option value="ejercicio">Ejercicio</option>
+          <option value="comida">Comida</option><option value="compra">Compra</option><option value="otro">Otro</option>
+        </select>
+      </div>
+      <div className="flex gap-2">
+        <button onClick={save} className="flex-1 bg-orange-500 text-white rounded-xl py-2 text-sm font-medium">Guardar</button>
+        <button onClick={onCancel} className="px-4 text-sm text-neutral-500">Cancelar</button>
       </div>
     </div>
   )
 }
 
-// ─────────────────────────── DESPENSA ───────────────────────────
+// ═══════════════════ COCINA (despensa + recetas) ═══════════════════
+function CocinaView({ despensa, recetas, puedoHacer, onReload }: any) {
+  const [sub, setSub] = useState<'despensa' | 'recetas'>('despensa')
+  const [showRecipe, setShowRecipe] = useState(false)
+  return (
+    <div className="p-4 space-y-4">
+      <div className="flex bg-neutral-100 rounded-xl p-1">
+        {([['despensa', 'Despensa'], ['recetas', 'Recetas']] as const).map(([k, l]) => (
+          <button key={k} onClick={() => setSub(k)} className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${sub === k ? 'bg-white shadow-sm text-orange-600' : 'text-neutral-500'}`}>{l}</button>
+        ))}
+      </div>
+
+      {sub === 'despensa' ? <DespensaView items={despensa} onReload={onReload} /> : (
+        <div className="space-y-5">
+          <button onClick={() => setShowRecipe(true)} className="w-full bg-orange-500 text-white rounded-xl py-2.5 text-sm font-medium flex items-center justify-center gap-2"><Plus className="w-4 h-4" />Nueva receta</button>
+          <Section title="Puedo cocinar ahora">
+            {puedoHacer?.length ? (
+              <div className="space-y-2">
+                {puedoHacer.slice(0, 8).map((r: any) => (
+                  <Card key={r.id} className="px-3 py-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">{r.name}</span>
+                      <span className={`text-xs font-bold ${r.canCook ? 'text-emerald-600' : 'text-neutral-400'}`}>{r.matchPct}%</span>
+                    </div>
+                    <div className="mt-1.5 h-1.5 rounded-full bg-neutral-100 overflow-hidden"><div className={`h-full ${r.canCook ? 'bg-emerald-500' : 'bg-amber-400'}`} style={{ width: `${r.matchPct}%` }} /></div>
+                    {r.missing?.length > 0 && (
+                      <div className="mt-1.5 flex items-center justify-between">
+                        <span className="text-[11px] text-neutral-400 truncate">Falta: {r.missing.join(', ')}</span>
+                        <button onClick={async () => { await api.recetaALista(r.id); alert('Agregado a tu lista de compras') }} className="text-[11px] text-sky-600 flex-shrink-0 ml-2 font-medium">+ Lista</button>
+                      </div>
+                    )}
+                  </Card>
+                ))}
+              </div>
+            ) : <Empty icon={Sparkles} text="Registra despensa y recetas para ver qué puedes cocinar." />}
+          </Section>
+          <Section title="Mis recetas">
+            {recetas?.length ? (
+              <div className="space-y-2">
+                {recetas.map((r: any) => (
+                  <Card key={r.id} className="flex items-center gap-3 px-3 py-2.5">
+                    <div className="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0"><ChefHat className="w-4 h-4 text-amber-500" /></div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium truncate">{r.name}</div>
+                      <div className="text-[11px] text-neutral-400 flex items-center gap-2">
+                        {r.prepMinutes ? <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{r.prepMinutes}m</span> : null}
+                        {r.calories ? <span>{r.calories} kcal</span> : null}
+                      </div>
+                    </div>
+                    <button onClick={async () => { await api.deleteRutinaReceta(r.id); onReload() }} className="text-neutral-300 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
+                  </Card>
+                ))}
+              </div>
+            ) : <Empty icon={ChefHat} text="Aún no tienes recetas guardadas." />}
+          </Section>
+        </div>
+      )}
+
+      {showRecipe && <RecipeModal onClose={() => setShowRecipe(false)} onSaved={() => { setShowRecipe(false); onReload() }} />}
+    </div>
+  )
+}
+
 function DespensaView({ items, onReload }: any) {
-  const [name, setName] = useState(''); const [qty, setQty] = useState(''); const [unit, setUnit] = useState('')
+  const [f, setF] = useState({ name: '', quantity: '', unit: '', category: '', expiresAt: '' })
   const [saving, setSaving] = useState(false)
   const add = async () => {
-    if (!name.trim()) return
+    if (!f.name.trim()) return
     setSaving(true)
-    await api.addDespensa({ name, quantity: Number(qty) || 0, unit: unit || null })
-    setName(''); setQty(''); setUnit(''); setSaving(false); onReload()
+    await api.addDespensa({ name: f.name, quantity: Number(f.quantity) || 0, unit: f.unit || null, category: f.category || null, expiresAt: f.expiresAt || null })
+    setF({ name: '', quantity: '', unit: '', category: '', expiresAt: '' }); setSaving(false); onReload()
   }
   const expSoon = (d: string | null) => d && new Date(d) <= new Date(Date.now() + 3 * 864e5)
   return (
-    <div className="p-4 space-y-4">
-      <div className="flex gap-2">
-        <input value={name} onChange={e => setName(e.target.value)} placeholder="Ej: Pechuga de pollo"
-          className="flex-1 bg-black/5 border border-black/10 rounded-xl px-3 py-2.5 text-sm placeholder:text-neutral-400 outline-none focus:border-amber-500/60" />
-        <input value={qty} onChange={e => setQty(e.target.value)} placeholder="Cant." inputMode="decimal"
-          className="w-16 bg-black/5 border border-black/10 rounded-xl px-2 py-2.5 text-sm text-center placeholder:text-neutral-400 outline-none" />
-        <button onClick={add} disabled={saving} className="bg-amber-400 text-black rounded-xl px-3 disabled:opacity-50"><Plus className="w-5 h-5" /></button>
-      </div>
-      {items?.length ? (
-        <div className="space-y-2">
-          {items.map((it: any) => (
-            <div key={it.id} className="flex items-center gap-3 rounded-xl bg-black/5 border border-black/10 px-3 py-2.5">
-              <Carrot className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-              <div className="flex-1 min-w-0">
-                <div className="text-sm truncate">{it.name}</div>
-                <div className="text-[11px] text-neutral-500">
-                  {it.quantity}{it.unit ? ` ${it.unit}` : ''}
-                  {it.expiresAt && <span className={expSoon(it.expiresAt) ? 'text-orange-400 ml-2' : 'text-neutral-400 ml-2'}>· vence {String(it.expiresAt).slice(0, 10)}</span>}
-                </div>
-              </div>
-              <button onClick={async () => { await api.deleteDespensa(it.id); onReload() }} className="text-neutral-400 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
-            </div>
-          ))}
+    <div className="space-y-3">
+      <Card className="p-3 space-y-2">
+        <input value={f.name} onChange={e => setF({ ...f, name: e.target.value })} placeholder="Ej: Pechuga de pollo" className={inputCls} />
+        <div className="grid grid-cols-4 gap-2">
+          <input value={f.quantity} onChange={e => setF({ ...f, quantity: e.target.value })} placeholder="Cant." inputMode="decimal" className={inputCls} />
+          <input value={f.unit} onChange={e => setF({ ...f, unit: e.target.value })} placeholder="g/ud" className={inputCls} />
+          <input value={f.category} onChange={e => setF({ ...f, category: e.target.value })} placeholder="Categoría" className={`${inputCls} col-span-2`} />
         </div>
-      ) : <p className="text-xs text-neutral-500">Tu despensa está vacía. Agrega lo que tienes en casa.</p>}
+        <div className="flex gap-2">
+          <input type="date" value={f.expiresAt} onChange={e => setF({ ...f, expiresAt: e.target.value })} className={inputCls} />
+          <button onClick={add} disabled={saving} className="bg-orange-500 text-white rounded-xl px-4 flex-shrink-0 disabled:opacity-50"><Plus className="w-5 h-5" /></button>
+        </div>
+      </Card>
+      {items?.length ? items.map((it: any) => (
+        <Card key={it.id} className="flex items-center gap-3 px-3 py-2.5">
+          <div className="w-9 h-9 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0"><Carrot className="w-4 h-4 text-emerald-500" /></div>
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-medium truncate">{it.name}</div>
+            <div className="text-[11px] text-neutral-400">
+              {it.quantity}{it.unit ? ` ${it.unit}` : ''}{it.category ? ` · ${it.category}` : ''}
+              {it.expiresAt && <span className={expSoon(it.expiresAt) ? 'text-orange-500 ml-1 font-medium' : 'text-neutral-300 ml-1'}>· vence {String(it.expiresAt).slice(0, 10)}</span>}
+            </div>
+          </div>
+          <button onClick={async () => { await api.deleteDespensa(it.id); onReload() }} className="text-neutral-300 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
+        </Card>
+      )) : <Empty icon={Carrot} text="Tu despensa está vacía. Agrega lo que tienes en casa." />}
     </div>
   )
 }
 
-// ─────────────────────────── RECETAS ───────────────────────────
-function RecetasView({ recetas, puedoHacer, onReload }: any) {
-  return (
-    <div className="p-4 space-y-5">
-      <div>
-        <h3 className="text-sm font-semibold mb-2 flex items-center gap-2"><Sparkles className="w-4 h-4 text-amber-400" /> Puedo cocinar ahora</h3>
-        {puedoHacer?.length ? (
-          <div className="space-y-2">
-            {puedoHacer.slice(0, 8).map((r: any) => (
-              <div key={r.id} className="rounded-xl bg-black/5 border border-black/10 px-3 py-2.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm">{r.name}</span>
-                  <span className={`text-xs font-semibold ${r.canCook ? 'text-emerald-400' : 'text-neutral-500'}`}>{r.matchPct}%</span>
-                </div>
-                <div className="mt-1.5 h-1.5 rounded-full bg-black/10 overflow-hidden">
-                  <div className={`h-full ${r.canCook ? 'bg-emerald-400' : 'bg-amber-400'}`} style={{ width: `${r.matchPct}%` }} />
-                </div>
-                {r.missing?.length > 0 && (
-                  <div className="mt-1.5 flex items-center justify-between">
-                    <span className="text-[11px] text-neutral-500 truncate">Falta: {r.missing.join(', ')}</span>
-                    <button onClick={async () => { await api.recetaALista(r.id); alert('Agregado a tu lista de compras') }} className="text-[11px] text-sky-600 flex-shrink-0 ml-2">+ Lista</button>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        ) : <p className="text-xs text-neutral-500">Crea recetas y registra tu despensa para ver qué puedes cocinar.</p>}
-      </div>
-
-      <div>
-        <h3 className="text-sm font-semibold mb-2">Mis recetas</h3>
-        {recetas?.length ? (
-          <div className="space-y-2">
-            {recetas.map((r: any) => (
-              <div key={r.id} className="flex items-center gap-3 rounded-xl bg-black/5 border border-black/10 px-3 py-2.5">
-                <ChefHat className="w-4 h-4 text-amber-400 flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm truncate">{r.name}</div>
-                  <div className="text-[11px] text-neutral-500 flex items-center gap-2">
-                    {r.prepMinutes ? <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{r.prepMinutes}m</span> : null}
-                    {r.calories ? <span>{r.calories} kcal</span> : null}
-                  </div>
-                </div>
-                <button onClick={async () => { await api.deleteRutinaReceta(r.id); onReload() }} className="text-neutral-400 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
-              </div>
-            ))}
-          </div>
-        ) : <p className="text-xs text-neutral-500">Aún no tienes recetas guardadas.</p>}
-      </div>
-    </div>
-  )
-}
-
-// ─────────────────────────── PLAN ───────────────────────────
-function PlanView({ plan, onReload, today }: any) {
-  const [meal, setMeal] = useState('almuerzo'); const [title, setTitle] = useState('')
-  const add = async () => {
-    if (!title.trim()) return
-    await api.addPlanComida({ planDate: today, mealType: meal, title })
-    setTitle(''); onReload()
+function RecipeModal({ onClose, onSaved }: any) {
+  const [f, setF] = useState({ name: '', servings: '1', prepMinutes: '', calories: '', proteinG: '', carbsG: '', fatG: '', difficulty: '', mealType: 'cualquiera', instructions: '' })
+  const [ings, setIngs] = useState<any[]>([{ name: '', quantity: '', unit: '' }])
+  const [saving, setSaving] = useState(false)
+  const save = async () => {
+    if (!f.name.trim()) return
+    setSaving(true)
+    await api.createRutinaReceta({
+      name: f.name, servings: Number(f.servings) || 1, prepMinutes: Number(f.prepMinutes) || null,
+      calories: Number(f.calories) || null, proteinG: Number(f.proteinG) || null, carbsG: Number(f.carbsG) || null,
+      fatG: Number(f.fatG) || null, difficulty: f.difficulty || null, mealType: f.mealType, instructions: f.instructions || null,
+      ingredients: ings.filter(i => i.name.trim()).map(i => ({ name: i.name, quantity: Number(i.quantity) || 0, unit: i.unit || null })),
+    })
+    setSaving(false); onSaved()
   }
   return (
-    <div className="p-4 space-y-4">
-      <div className="text-xs text-neutral-500">Plan para hoy · {today}</div>
-      <div className="flex gap-2">
-        <select value={meal} onChange={e => setMeal(e.target.value)} className="bg-black/5 border border-black/10 rounded-xl px-2 py-2.5 text-sm outline-none">
-          {MEALS.map(m => <option key={m.key} value={m.key} className="bg-white">{m.label}</option>)}
-        </select>
-        <input value={title} onChange={e => setTitle(e.target.value)} placeholder="¿Qué vas a comer?"
-          className="flex-1 bg-black/5 border border-black/10 rounded-xl px-3 py-2.5 text-sm placeholder:text-neutral-400 outline-none focus:border-amber-500/60" />
-        <button onClick={add} className="bg-amber-400 text-black rounded-xl px-3"><Plus className="w-5 h-5" /></button>
-      </div>
-      {plan?.length ? (
-        <div className="space-y-2">
-          {plan.map((m: any) => (
-            <div key={m.id} className="flex items-center gap-3 rounded-xl bg-black/5 border border-black/10 px-3 py-2.5">
-              <button onClick={async () => { await api.togglePlanComida(m.id); onReload() }}>
-                <Check className={`w-5 h-5 ${m.isDone ? 'text-emerald-400' : 'text-neutral-300'}`} />
-              </button>
-              <div className="flex-1 min-w-0">
-                <div className={`text-sm truncate ${m.isDone ? 'line-through text-neutral-500' : ''}`}>{m.title || 'Comida'}</div>
-                <div className="text-[11px] text-neutral-500 capitalize">{String(m.mealType).replace('_', ' ')}</div>
-              </div>
-              <button onClick={async () => { await api.deletePlanComida(m.id); onReload() }} className="text-neutral-400 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
-            </div>
-          ))}
+    <Modal title="Nueva receta" onClose={onClose}>
+      <div className="space-y-3">
+        <input value={f.name} onChange={e => setF({ ...f, name: e.target.value })} placeholder="Nombre de la receta" className={inputCls} />
+        <div className="grid grid-cols-3 gap-2">
+          <LabeledInput label="Porciones" value={f.servings} onChange={(v: string) => setF({ ...f, servings: v })} />
+          <LabeledInput label="Min" value={f.prepMinutes} onChange={(v: string) => setF({ ...f, prepMinutes: v })} />
+          <LabeledInput label="Kcal" value={f.calories} onChange={(v: string) => setF({ ...f, calories: v })} />
         </div>
-      ) : <p className="text-xs text-neutral-500">Sin comidas planeadas para hoy.</p>}
+        <div className="grid grid-cols-3 gap-2">
+          <LabeledInput label="Proteína g" value={f.proteinG} onChange={(v: string) => setF({ ...f, proteinG: v })} />
+          <LabeledInput label="Carbos g" value={f.carbsG} onChange={(v: string) => setF({ ...f, carbsG: v })} />
+          <LabeledInput label="Grasa g" value={f.fatG} onChange={(v: string) => setF({ ...f, fatG: v })} />
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <select value={f.difficulty} onChange={e => setF({ ...f, difficulty: e.target.value })} className={inputCls}>
+            <option value="">Dificultad</option><option value="fácil">Fácil</option><option value="medio">Medio</option><option value="difícil">Difícil</option>
+          </select>
+          <select value={f.mealType} onChange={e => setF({ ...f, mealType: e.target.value })} className={inputCls}>
+            <option value="cualquiera">Cualquiera</option><option value="desayuno">Desayuno</option><option value="almuerzo">Almuerzo</option><option value="cena">Cena</option><option value="snack">Snack</option>
+          </select>
+        </div>
+        <div>
+          <div className="text-xs font-medium text-neutral-500 mb-1">Ingredientes</div>
+          <div className="space-y-2">
+            {ings.map((ing, i) => (
+              <div key={i} className="grid grid-cols-12 gap-2">
+                <input value={ing.name} onChange={e => { const n = [...ings]; n[i].name = e.target.value; setIngs(n) }} placeholder="Ingrediente" className={`${inputCls} col-span-7`} />
+                <input value={ing.quantity} onChange={e => { const n = [...ings]; n[i].quantity = e.target.value; setIngs(n) }} placeholder="Cant" inputMode="decimal" className={`${inputCls} col-span-2`} />
+                <input value={ing.unit} onChange={e => { const n = [...ings]; n[i].unit = e.target.value; setIngs(n) }} placeholder="ud" className={`${inputCls} col-span-3`} />
+              </div>
+            ))}
+          </div>
+          <button onClick={() => setIngs([...ings, { name: '', quantity: '', unit: '' }])} className="mt-2 text-xs text-orange-600 flex items-center gap-1"><Plus className="w-3.5 h-3.5" />Ingrediente</button>
+        </div>
+        <textarea value={f.instructions} onChange={e => setF({ ...f, instructions: e.target.value })} placeholder="Preparación (opcional)" rows={2} className={inputCls} />
+        <button onClick={save} disabled={saving} className="w-full bg-orange-500 text-white rounded-xl py-2.5 text-sm font-medium disabled:opacity-50">{saving ? 'Guardando…' : 'Guardar receta'}</button>
+      </div>
+    </Modal>
+  )
+}
+
+// ═══════════════════ PLAN ═══════════════════
+function PlanView({ plan, onReload, today }: any) {
+  const [open, setOpen] = useState(false)
+  const totals = (plan || []).reduce((a: any, m: any) => ({
+    cal: a.cal + (m.calories || 0), pro: a.pro + (m.proteinG || 0), carb: a.carb + (m.carbsG || 0), fat: a.fat + (m.fatG || 0),
+  }), { cal: 0, pro: 0, carb: 0, fat: 0 })
+
+  return (
+    <div className="p-4 space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="text-sm font-bold">Hoy · {today}</div>
+        <button onClick={() => setOpen(true)} className="text-xs bg-orange-500 text-white rounded-full px-3 py-1.5 flex items-center gap-1"><Plus className="w-3.5 h-3.5" />Comida</button>
+      </div>
+
+      <Card className="p-4 grid grid-cols-4 gap-2 text-center">
+        {[['Kcal', totals.cal], ['Prot', totals.pro + 'g'], ['Carb', totals.carb + 'g'], ['Grasa', totals.fat + 'g']].map(([l, v]) => (
+          <div key={l as string}><div className="text-lg font-bold">{v}</div><div className="text-[10px] text-neutral-400">{l}</div></div>
+        ))}
+      </Card>
+
+      {MEALS.map(meal => {
+        const items = (plan || []).filter((m: any) => m.mealType === meal.key)
+        if (!items.length) return null
+        return (
+          <Section key={meal.key} title={meal.label}>
+            <div className="space-y-2">
+              {items.map((m: any) => (
+                <Card key={m.id} className="flex items-center gap-3 px-3 py-2.5">
+                  <button onClick={async () => { await api.togglePlanComida(m.id); onReload() }} className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${m.isDone ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-neutral-300'}`}>{m.isDone && <Check className="w-3.5 h-3.5" />}</button>
+                  <div className="flex-1 min-w-0">
+                    <div className={`text-sm ${m.isDone ? 'line-through text-neutral-400' : 'font-medium'}`}>{m.title || 'Comida'}</div>
+                    <div className="text-[11px] text-neutral-400">{m.calories ? `${m.calories} kcal` : ''}{m.proteinG ? ` · P${m.proteinG} C${m.carbsG || 0} G${m.fatG || 0}` : ''}</div>
+                  </div>
+                  <button onClick={async () => { await api.deletePlanComida(m.id); onReload() }} className="text-neutral-300 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
+                </Card>
+              ))}
+            </div>
+          </Section>
+        )
+      })}
+      {!plan?.length && <Empty icon={CalendarDays} text="Sin comidas planeadas. Agrega la primera." />}
+
+      {open && <PlanModal today={today} onClose={() => setOpen(false)} onSaved={() => { setOpen(false); onReload() }} />}
     </div>
   )
 }
 
-// ─────────────────────────── COMPRAS ───────────────────────────
+function PlanModal({ today, onClose, onSaved }: any) {
+  const [f, setF] = useState({ mealType: 'almuerzo', title: '', calories: '', proteinG: '', carbsG: '', fatG: '' })
+  const save = async () => {
+    if (!f.title.trim()) return
+    await api.addPlanComida({ planDate: today, mealType: f.mealType, title: f.title, calories: Number(f.calories) || null, proteinG: Number(f.proteinG) || null, carbsG: Number(f.carbsG) || null, fatG: Number(f.fatG) || null })
+    onSaved()
+  }
+  return (
+    <Modal title="Agregar comida" onClose={onClose}>
+      <div className="space-y-3">
+        <select value={f.mealType} onChange={e => setF({ ...f, mealType: e.target.value })} className={inputCls}>
+          {MEALS.map(m => <option key={m.key} value={m.key}>{m.label}</option>)}
+        </select>
+        <input value={f.title} onChange={e => setF({ ...f, title: e.target.value })} placeholder="¿Qué vas a comer?" className={inputCls} />
+        <div className="grid grid-cols-4 gap-2">
+          <LabeledInput label="Kcal" value={f.calories} onChange={(v: string) => setF({ ...f, calories: v })} />
+          <LabeledInput label="Prot" value={f.proteinG} onChange={(v: string) => setF({ ...f, proteinG: v })} />
+          <LabeledInput label="Carb" value={f.carbsG} onChange={(v: string) => setF({ ...f, carbsG: v })} />
+          <LabeledInput label="Grasa" value={f.fatG} onChange={(v: string) => setF({ ...f, fatG: v })} />
+        </div>
+        <button onClick={save} className="w-full bg-orange-500 text-white rounded-xl py-2.5 text-sm font-medium">Agregar</button>
+      </div>
+    </Modal>
+  )
+}
+
+// ═══════════════════ COMPRAS ═══════════════════
 function ComprasView({ items, onReload }: any) {
   const [name, setName] = useState('')
   const add = async () => { if (!name.trim()) return; await api.addListaCompra({ name }); setName(''); onReload() }
+  const pend = (items || []).filter((i: any) => !i.isPurchased)
+  const done = (items || []).filter((i: any) => i.isPurchased)
+  const Row = (it: any) => (
+    <Card key={it.id} className="flex items-center gap-3 px-3 py-2.5">
+      <button onClick={async () => { await api.toggleListaCompra(it.id); onReload() }} className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${it.isPurchased ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-neutral-300'}`}>{it.isPurchased && <Check className="w-3.5 h-3.5" />}</button>
+      <div className="flex-1 min-w-0">
+        <div className={`text-sm ${it.isPurchased ? 'line-through text-neutral-400' : 'font-medium'}`}>{it.name}</div>
+        <div className="text-[11px] text-neutral-400">{it.quantity}{it.unit ? ` ${it.unit}` : ''}{it.tenantName && <span className="text-sky-600 ml-1">· {it.tenantName}</span>}</div>
+      </div>
+      <button onClick={async () => { await api.deleteListaCompra(it.id); onReload() }} className="text-neutral-300 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
+    </Card>
+  )
   return (
     <div className="p-4 space-y-4">
       <div className="flex gap-2">
-        <input value={name} onChange={e => setName(e.target.value)} placeholder="Ej: Leche, huevos…"
-          className="flex-1 bg-black/5 border border-black/10 rounded-xl px-3 py-2.5 text-sm placeholder:text-neutral-400 outline-none focus:border-amber-500/60" />
-        <button onClick={add} className="bg-amber-400 text-black rounded-xl px-3"><Plus className="w-5 h-5" /></button>
+        <input value={name} onChange={e => setName(e.target.value)} placeholder="Ej: Leche, huevos…" className={inputCls} />
+        <button onClick={add} className="bg-orange-500 text-white rounded-xl px-4 flex-shrink-0"><Plus className="w-5 h-5" /></button>
       </div>
-      {items?.length ? (
-        <div className="space-y-2">
-          {items.map((it: any) => (
-            <div key={it.id} className="flex items-center gap-3 rounded-xl bg-black/5 border border-black/10 px-3 py-2.5">
-              <button onClick={async () => { await api.toggleListaCompra(it.id); onReload() }}>
-                <Check className={`w-5 h-5 ${it.isPurchased ? 'text-emerald-400' : 'text-neutral-300'}`} />
-              </button>
-              <div className="flex-1 min-w-0">
-                <div className={`text-sm truncate ${it.isPurchased ? 'line-through text-neutral-500' : ''}`}>{it.name}</div>
-                <div className="text-[11px] text-neutral-500">
-                  {it.quantity}{it.unit ? ` ${it.unit}` : ''}
-                  {it.tenantName && <span className="text-sky-600 ml-2">· {it.tenantName}</span>}
-                </div>
-              </div>
-              <button onClick={async () => { await api.deleteListaCompra(it.id); onReload() }} className="text-neutral-400 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
-            </div>
-          ))}
-        </div>
-      ) : <p className="text-xs text-neutral-500">Tu lista de compras está vacía.</p>}
+      {pend.length ? <div className="space-y-2">{pend.map(Row)}</div> : <Empty icon={ShoppingBasket} text="Tu lista está vacía." />}
+      {done.length > 0 && <Section title={`Comprados (${done.length})`}><div className="space-y-2">{done.map(Row)}</div></Section>}
     </div>
+  )
+}
+
+// ═══════════════════ GYM (miembro) ═══════════════════
+function GymView({ data, onReload }: any) {
+  const { membresias, plan, progreso, asistencia } = data
+  const ultimoPeso = progreso?.length ? progreso[progreso.length - 1].weightKg : null
+  const openTenant = asistencia?.openCheckIn?.tenantId || null
+  const doCheckIn = async (tenantId: string) => { await api.miGymCheckIn(tenantId); onReload?.() }
+  const doCheckOut = async () => { await api.miGymCheckOut(); onReload?.() }
+  return (
+    <div className="p-4 space-y-5">
+      {membresias?.map((m: any) => (
+        <Card key={m.tenantId} className="p-4 bg-violet-50 border-violet-100">
+          <div className="flex items-center gap-2">
+            <Dumbbell className="w-5 h-5 text-violet-600" /><span className="font-semibold">{m.gymName}</span>
+            <span className="ml-auto text-[11px] px-2 py-0.5 rounded-full bg-violet-200 text-violet-800 capitalize">{m.status}</span>
+          </div>
+          <div className="text-xs text-neutral-500 mt-1">{m.planName || 'Plan'}{m.nextPaymentAt ? ` · próx. pago ${String(m.nextPaymentAt).slice(0, 10)}` : ''}</div>
+          {m.status === 'activa' && (
+            openTenant === m.tenantId
+              ? <button onClick={doCheckOut} className="mt-3 w-full bg-neutral-800 text-white rounded-xl py-2 text-sm font-medium flex items-center justify-center gap-2"><Check className="w-4 h-4" />Marcar salida</button>
+              : <button onClick={() => doCheckIn(m.tenantId)} className="mt-3 w-full bg-violet-600 text-white rounded-xl py-2 text-sm font-medium flex items-center justify-center gap-2"><Dumbbell className="w-4 h-4" />Registrar entrada</button>
+          )}
+        </Card>
+      ))}
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          { icon: Flame, color: 'text-orange-500', val: asistencia?.streak ?? 0, lbl: 'Racha (días)' },
+          { icon: CalendarDays, color: 'text-sky-500', val: asistencia?.last30 ?? 0, lbl: 'Visitas (30d)' },
+          { icon: TrendingUp, color: 'text-emerald-500', val: ultimoPeso ?? '—', lbl: 'Peso (kg)' },
+        ].map((s, i) => (
+          <Card key={i} className="p-4 text-center"><s.icon className={`w-5 h-5 mx-auto ${s.color}`} /><div className="text-2xl font-bold mt-1">{s.val}</div><div className="text-[10px] text-neutral-500">{s.lbl}</div></Card>
+        ))}
+      </div>
+      <Section title="Mi plan">
+        {plan?.length ? plan.map((p: any) => (
+          <Card key={p.id} className="p-3 mb-2">
+            <div className="text-sm font-medium">{p.name}{p.daysPerWeek ? ` · ${p.daysPerWeek}x/sem` : ''}</div>
+            <div className="mt-2 space-y-1">
+              {(p.exercises || []).map((e: any, i: number) => (
+                <div key={i} className="flex items-center justify-between text-xs text-neutral-600">
+                  <span>{e.dayLabel ? `${e.dayLabel} · ` : ''}{e.name}</span>
+                  <span className="text-neutral-400">{e.sets ? `${e.sets}x` : ''}{e.reps || ''}{e.weightKg ? ` · ${e.weightKg}kg` : ''}</span>
+                </div>
+              ))}
+            </div>
+          </Card>
+        )) : <Empty icon={Dumbbell} text="Tu gimnasio aún no te ha asignado un plan." />}
+      </Section>
+      {progreso?.length > 0 && (
+        <Section title="Progreso reciente">
+          <div className="space-y-1.5">
+            {progreso.slice(-6).reverse().map((p: any, i: number) => (
+              <Card key={i} className="flex items-center justify-between text-xs px-3 py-2">
+                <span className="text-neutral-500">{String(p.logDate).slice(0, 10)}</span>
+                <span>{p.weightKg ? `${p.weightKg} kg` : ''}{p.bodyFatPct ? ` · ${p.bodyFatPct}% grasa` : ''}</span>
+              </Card>
+            ))}
+          </div>
+        </Section>
+      )}
+    </div>
+  )
+}
+
+// ═══════════════════ PERFIL ═══════════════════
+function PerfilModal({ onClose, onSaved }: any) {
+  const [f, setF] = useState<any>(null)
+  const [saving, setSaving] = useState(false)
+  useEffect(() => {
+    api.getRutinaPerfil().then(r => setF({
+      sex: r.data?.sex || '', heightCm: r.data?.height_cm || '', weightKg: r.data?.weight_kg || '',
+      targetWeightKg: r.data?.target_weight_kg || '', goal: r.data?.goal || '', activityLevel: r.data?.activity_level || '',
+      dailyCalorieTarget: r.data?.daily_calorie_target || '', waterTargetMl: r.data?.water_target_ml || '', city: r.data?.city || '',
+    }))
+  }, [])
+  const save = async () => {
+    setSaving(true)
+    await api.saveRutinaPerfil({
+      sex: f.sex || null, heightCm: Number(f.heightCm) || null, weightKg: Number(f.weightKg) || null,
+      targetWeightKg: Number(f.targetWeightKg) || null, goal: f.goal || null, activityLevel: f.activityLevel || null,
+      dailyCalorieTarget: Number(f.dailyCalorieTarget) || null, waterTargetMl: Number(f.waterTargetMl) || null, city: f.city || null,
+    })
+    setSaving(false); onSaved()
+  }
+  return (
+    <Modal title="Mi perfil" onClose={onClose}>
+      {!f ? <div className="flex justify-center py-8 text-neutral-300"><Loader2 className="w-5 h-5 animate-spin" /></div> : (
+        <div className="space-y-3">
+          <select value={f.goal} onChange={e => setF({ ...f, goal: e.target.value })} className={inputCls}>
+            <option value="">Objetivo</option><option value="bajar_peso">Bajar de peso</option><option value="subir_masa">Subir masa</option><option value="mantener">Mantener</option><option value="salud_general">Salud general</option>
+          </select>
+          <div className="grid grid-cols-3 gap-2">
+            <LabeledInput label="Estatura cm" value={f.heightCm} onChange={(v: string) => setF({ ...f, heightCm: v })} />
+            <LabeledInput label="Peso kg" value={f.weightKg} onChange={(v: string) => setF({ ...f, weightKg: v })} />
+            <LabeledInput label="Meta kg" value={f.targetWeightKg} onChange={(v: string) => setF({ ...f, targetWeightKg: v })} />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <LabeledInput label="Meta kcal/día" value={f.dailyCalorieTarget} onChange={(v: string) => setF({ ...f, dailyCalorieTarget: v })} />
+            <LabeledInput label="Agua ml/día" value={f.waterTargetMl} onChange={(v: string) => setF({ ...f, waterTargetMl: v })} />
+          </div>
+          <select value={f.activityLevel} onChange={e => setF({ ...f, activityLevel: e.target.value })} className={inputCls}>
+            <option value="">Nivel de actividad</option><option value="sedentario">Sedentario</option><option value="ligero">Ligero</option><option value="moderado">Moderado</option><option value="activo">Activo</option><option value="muy_activo">Muy activo</option>
+          </select>
+          <input value={f.city} onChange={e => setF({ ...f, city: e.target.value })} placeholder="Ciudad" className={inputCls} />
+          <button onClick={save} disabled={saving} className="w-full bg-orange-500 text-white rounded-xl py-2.5 text-sm font-medium disabled:opacity-50">{saving ? 'Guardando…' : 'Guardar perfil'}</button>
+        </div>
+      )}
+    </Modal>
+  )
+}
+
+// ═══════════════════ Modal + LabeledInput ═══════════════════
+function Modal({ title, onClose, children }: any) {
+  return (
+    <div className="fixed inset-0 z-[90] flex items-end sm:items-center justify-center">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative bg-white rounded-t-3xl sm:rounded-3xl w-full sm:max-w-md max-h-[90vh] overflow-y-auto shadow-2xl">
+        <div className="flex items-center justify-between px-5 h-14 border-b border-black/5 sticky top-0 bg-white z-10">
+          <h3 className="font-bold">{title}</h3>
+          <button onClick={onClose} className="text-neutral-400 hover:text-neutral-700"><X className="w-5 h-5" /></button>
+        </div>
+        <div className="p-5">{children}</div>
+      </div>
+    </div>
+  )
+}
+function LabeledInput({ label, value, onChange }: any) {
+  return (
+    <label className="block">
+      <span className="text-[10px] text-neutral-500 mb-1 block">{label}</span>
+      <input value={value} onChange={e => onChange(e.target.value)} inputMode="decimal" className={inputCls} />
+    </label>
   )
 }

@@ -49,6 +49,7 @@ import whatsappRoutes from './modules/whatsapp/whatsapp.routes';
 import { mermaRoutes } from './modules/merma';
 import { gastrobarRoutes } from './modules/gastrobar-ops';
 import { rutinaRoutes } from './modules/rutina';
+import { gymRoutes } from './modules/gym';
 
 const app = express();
 
@@ -162,6 +163,7 @@ app.use(`${apiPrefix}/whatsapp`, whatsappRoutes);
 app.use(`${apiPrefix}/merma`, mermaRoutes);
 app.use(`${apiPrefix}/gastrobar-ops`, gastrobarRoutes);
 app.use(`${apiPrefix}/rutina`, rutinaRoutes);
+app.use(`${apiPrefix}/gym`, gymRoutes);
 
 // Error handling
 app.use(notFoundHandler);

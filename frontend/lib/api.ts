@@ -2514,6 +2514,33 @@ class ApiService {
   async addListaCompra(data: any) { return this.request<any>('/rutina/lista-compras', { method: 'POST', body: JSON.stringify(data) }) }
   async toggleListaCompra(id: string) { return this.request<any>(`/rutina/lista-compras/${id}/toggle`, { method: 'PATCH' }) }
   async deleteListaCompra(id: string) { return this.request<any>(`/rutina/lista-compras/${id}`, { method: 'DELETE' }) }
+
+  // ── Módulo GIMNASIO — miembro (cliente) ──
+  async getMisMembresias() { return this.request<any[]>('/gym/me/membresias') }
+  async getMiPlanGym() { return this.request<any[]>('/gym/me/plan') }
+  async getMiProgresoGym() { return this.request<any[]>('/gym/me/progreso') }
+  async getMiAsistenciaGym() { return this.request<any>('/gym/me/asistencia') }
+  async miGymCheckIn(tenantId: string) { return this.request<any>('/gym/me/checkin', { method: 'POST', body: JSON.stringify({ tenantId }) }) }
+  async miGymCheckOut() { return this.request<any>('/gym/me/checkout', { method: 'POST' }) }
+
+  // ── Módulo GIMNASIO — staff ──
+  async getGymStats() { return this.request<any>('/gym/stats') }
+  async getGymMembers(status?: string) { return this.request<any[]>(`/gym/members${status ? `?status=${status}` : ''}`) }
+  async addGymMember(data: any) { return this.request<any>('/gym/members', { method: 'POST', body: JSON.stringify(data) }) }
+  async getGymMember(userId: string) { return this.request<any>(`/gym/members/${userId}`) }
+  async updateGymMembership(userId: string, data: any) { return this.request<any>(`/gym/members/${userId}/membership`, { method: 'PUT', body: JSON.stringify(data) }) }
+  async gymRegistrarPago(userId: string) { return this.request<any>(`/gym/members/${userId}/pago`, { method: 'POST' }) }
+  async removeGymMember(userId: string) { return this.request<any>(`/gym/members/${userId}`, { method: 'DELETE' }) }
+  async getGymMemberPlans(userId: string) { return this.request<any[]>(`/gym/members/${userId}/plans`) }
+  async createGymPlan(userId: string, data: any) { return this.request<any>(`/gym/members/${userId}/plans`, { method: 'POST', body: JSON.stringify(data) }) }
+  async getGymPlan(planId: string) { return this.request<any>(`/gym/plans/${planId}`) }
+  async deleteGymPlan(planId: string) { return this.request<any>(`/gym/plans/${planId}`, { method: 'DELETE' }) }
+  async getGymMemberProgress(userId: string) { return this.request<any[]>(`/gym/members/${userId}/progress`) }
+  async getGymMemberAttendance(userId: string) { return this.request<any[]>(`/gym/members/${userId}/asistencia`) }
+  async addGymProgress(userId: string, data: any) { return this.request<any>(`/gym/members/${userId}/progress`, { method: 'POST', body: JSON.stringify(data) }) }
+  async getGymTodayAttendance() { return this.request<any[]>('/gym/asistencia/hoy') }
+  async gymCheckIn(userId: string) { return this.request<any>(`/gym/members/${userId}/checkin`, { method: 'POST' }) }
+  async gymCheckOut(asistenciaId: string) { return this.request<any>(`/gym/asistencia/${asistenciaId}/checkout`, { method: 'PATCH' }) }
 }
 
 export const api = new ApiService()
