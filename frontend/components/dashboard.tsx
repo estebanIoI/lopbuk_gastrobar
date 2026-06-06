@@ -40,6 +40,26 @@ import {
   Legend
 } from 'recharts'
 
+function AssistantConnectedBanner() {
+  const [on, setOn] = useState(false)
+  useEffect(() => { api.getPlatformAssistant().then(r => { if (r.success && r.data?.enabled) setOn(true) }) }, [])
+  if (!on) return null
+  return (
+    <div className="rounded-xl border border-green-500/30 bg-green-500/10 p-4 flex items-center gap-3">
+      <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center text-xl">✨</div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+          <p className="font-semibold text-sm">Asistente conectado a tu negocio</p>
+        </div>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          El asistente de la plataforma recomienda tus productos a los usuarios según sus objetivos y situación. Mantén tu catálogo publicado y con stock para aparecer.
+        </p>
+      </div>
+    </div>
+  )
+}
+
 export function Dashboard() {
   const { products, sales, fetchProducts, fetchSales, categories, fetchCategories, navigateToInvoices } = useStore()
   const [accountsReceivable, setAccountsReceivable] = useState(0)
@@ -291,6 +311,7 @@ export function Dashboard() {
   
   return (
     <div className="space-y-4 sm:space-y-6 lg:space-y-8">
+      <AssistantConnectedBanner />
       {/* ========== HERO: Sales Trend Line (Shopify-style) ========== */}
       <Card className="border-border bg-card overflow-hidden">
         <div className="p-4 sm:p-6 pb-0">

@@ -2527,6 +2527,13 @@ class ApiService {
   // Cumplimiento de rutina semanal (consumidor)
   async getActividadesLog(from: string, to: string) { return this.request<any[]>(`/rutina/actividades-log?from=${from}&to=${to}`) }
   async toggleActividadLog(id: string, date: string) { return this.request<any>(`/rutina/actividades/${id}/toggle-log`, { method: 'POST', body: JSON.stringify({ date }) }) }
+  // Asistente IA del usuario
+  async getPlatformAssistant() { return this.request<any>('/chatbot/platform-assistant') }
+  async assistantSend(message: string, history: any[]) { return this.request<any>('/rutina/assistant', { method: 'POST', body: JSON.stringify({ message, history }) }) }
+  // Superadmin: activar/desactivar asistente de plataforma
+  async setPlatformAssistant(enabled: boolean) { return this.request<any>('/chatbot/superadmin/platform-assistant', { method: 'PUT', body: JSON.stringify({ enabled }) }) }
+  // Asistente personal de plataforma (comerciante / superadmin)
+  async platformAssistantSend(message: string, history: any[]) { return this.request<any>('/assistant', { method: 'POST', body: JSON.stringify({ message, history }) }) }
 
   // ── Módulo GIMNASIO — staff ──
   async getGymStats() { return this.request<any>('/gym/stats') }

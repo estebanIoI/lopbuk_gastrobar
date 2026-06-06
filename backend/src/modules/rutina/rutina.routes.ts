@@ -6,6 +6,7 @@
 import { Router, Response } from 'express';
 import { authenticate, authorize, AuthRequest } from '../../common/middleware';
 import * as svc from './rutina.service';
+import { runAssistant, isPlatformAssistantEnabled } from './rutina.assistant';
 
 const router: ReturnType<typeof Router> = Router();
 
@@ -18,6 +19,23 @@ const fail = (res: Response, e: any, msg: string) => {
   if (code === 500) console.error(`${msg}:`, e);
   res.status(code).json({ success: false, error: e?.message || msg });
 };
+
+// ── Asistente IA (solo si la plataforma lo tiene habilitado) ──
+router.get('/assistant/status', async (_req: AuthRequest, res) => {
+  try { ok(res, { enabled: await isPlatformAssistantEnabled() }); }
+  catch (e) { fail(res, e, 'Error al consultar el asistente'); }
+});
+router.post('/assistant', async (req: AuthRequest, res) => {
+  try {
+    if (!(await isPlatformAssistantEnabled())) {
+      res.status(403).json({ success: false, error: 'El asistente no está habilitado' });
+      return;
+    }
+    const { message, history } = req.body || {};
+    if (!message?.trim()) { res.status(400).json({ success: false, error: 'Mensaje requerido' }); return; }
+    ok(res, await runAssistant(req.user!.userId, message.trim(), history || []));
+  } catch (e) { fail(res, e, 'Error en el asistente'); }
+});
 
 // ── Resumen (home del consumidor) ──
 router.get('/resumen', async (req: AuthRequest, res) => {

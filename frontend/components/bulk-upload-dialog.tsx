@@ -108,11 +108,8 @@ function validateRow(
     const matched = categories.find(
       c => c.id === catInput || c.name.toLowerCase() === catInput.toLowerCase()
     )
-    if (matched) {
-      data.category = matched.id
-    } else {
-      errors.push(`Categoría "${catInput}" no encontrada`)
-    }
+    // Si no existe, se envía el nombre crudo: el backend la crea automáticamente.
+    data.category = matched ? matched.id : catInput
   }
 
   // Required: purchasePrice
@@ -144,13 +141,15 @@ function validateRow(
     else data.entryDate = d.substring(0, 10)
   }
 
-  // Optional: productType
+  // Optional: productType — normaliza sinónimos comunes y cae a 'general' si no es válido
   if (rawRow.productType?.trim()) {
-    if (VALID_PRODUCT_TYPES.includes(rawRow.productType.trim())) {
-      data.productType = rawRow.productType.trim()
-    } else {
-      errors.push(`Tipo "${rawRow.productType}" inválido`)
+    const raw = rawRow.productType.trim().toLowerCase()
+    const SYNONYMS: Record<string, string> = {
+      finished: 'alimentos', terminado: 'alimentos', plato: 'alimentos', comida: 'alimentos',
+      ingredient: 'alimentos', ingrediente: 'alimentos', insumo: 'alimentos', materia_prima: 'alimentos',
+      bebida: 'bebidas', drink: 'bebidas', licor: 'bebidas', cerveza: 'bebidas', coctel: 'bebidas',
     }
+    data.productType = VALID_PRODUCT_TYPES.includes(raw) ? raw : (SYNONYMS[raw] || 'general')
   }
 
   // Optional: articulo (inventario)

@@ -277,6 +277,44 @@ router.get('/cloudinary-config', authenticate, async (req: Request, res: Respons
 });
 
 // =============================================
+// PLATFORM ASSISTANT: estado (cualquier usuario autenticado)
+// GET /api/chatbot/platform-assistant
+// =============================================
+router.get('/platform-assistant', authenticate, async (_req: Request, res: Response) => {
+  try {
+    const [rows] = await pool.query(
+      "SELECT setting_value FROM platform_settings WHERE setting_key = 'platform_assistant_enabled' LIMIT 1"
+    ) as any;
+    const enabled = rows?.[0]?.setting_value === '1' || rows?.[0]?.setting_value === 'true';
+    res.json({ success: true, data: { enabled } });
+  } catch {
+    res.json({ success: true, data: { enabled: false } });
+  }
+});
+
+// =============================================
+// SUPERADMIN: activar/desactivar asistente de plataforma
+// PUT /api/chatbot/superadmin/platform-assistant  Body: { enabled }
+// =============================================
+router.put('/superadmin/platform-assistant', authenticate, async (req: Request, res: Response) => {
+  try {
+    if ((req as any).user.role !== 'superadmin') {
+      res.status(403).json({ success: false, error: 'Solo superadmin' });
+      return;
+    }
+    const value = req.body?.enabled ? '1' : '0';
+    await pool.query(
+      "INSERT INTO platform_settings (setting_key, setting_value) VALUES ('platform_assistant_enabled', ?) ON DUPLICATE KEY UPDATE setting_value = ?",
+      [value, value]
+    );
+    res.json({ success: true, data: { enabled: value === '1' } });
+  } catch (error) {
+    console.error('Platform assistant toggle error:', error);
+    res.status(500).json({ success: false, error: 'Error al actualizar el asistente de plataforma' });
+  }
+});
+
+// =============================================
 // SUPERADMIN: GET integrations
 // =============================================
 router.get('/superadmin/integrations', authenticate, async (req: Request, res: Response) => {

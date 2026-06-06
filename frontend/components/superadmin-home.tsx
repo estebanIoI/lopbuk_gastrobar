@@ -402,6 +402,10 @@ export function SuperadminHome() {
   const [isSavingIntegrations, setIsSavingIntegrations] = useState(false)
   const [integrationsMsg, setIntegrationsMsg] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
 
+  // ── Asistente de plataforma (toda la infraestructura) ──
+  const [platformAssistant, setPlatformAssistant] = useState(false)
+  const [togglingAssistant, setTogglingAssistant] = useState(false)
+
   // ── Chatbot per-tenant management ──
   const [chatbotTenants, setChatbotTenants] = useState<any[]>([])
   const [isLoadingChatbotTenants, setIsLoadingChatbotTenants] = useState(false)
@@ -439,7 +443,17 @@ export function SuperadminHome() {
         openaiApiKey: result.data.openaiApiKey || '',
       })
     }
+    const pa = await api.getPlatformAssistant()
+    if (pa.success) setPlatformAssistant(!!pa.data?.enabled)
   }, [])
+
+  const toggleAssistant = async () => {
+    setTogglingAssistant(true)
+    const next = !platformAssistant
+    const r = await api.setPlatformAssistant(next)
+    if (r.success) setPlatformAssistant(next)
+    setTogglingAssistant(false)
+  }
 
   const fetchChatbotTenants = useCallback(async () => {
     setIsLoadingChatbotTenants(true)
@@ -1759,6 +1773,36 @@ export function SuperadminHome() {
             {isSavingIntegrations ? <RefreshCw className="h-4 w-4 animate-spin" /> : integrationsMsg?.type === 'ok' ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />}
             Guardar Integraciones
           </Button>
+
+          {/* ── Asistente de plataforma ── */}
+          <Card className="border-border bg-card">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Bot className="h-5 w-5 text-muted-foreground" />
+                  Asistente de Plataforma
+                </CardTitle>
+                <CardDescription>
+                  Actívalo en toda la infraestructura. El usuario verá un asistente que lo ayuda a llenar su perfil, armar su rutina a medida, plan de comidas y recomendarle productos de los comercios. Requiere la API Key de IA configurada arriba.
+                </CardDescription>
+              </div>
+              <button
+                onClick={toggleAssistant}
+                disabled={togglingAssistant}
+                className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors flex-shrink-0 ${platformAssistant ? 'bg-green-500' : 'bg-muted-foreground/30'}`}
+              >
+                <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${platformAssistant ? 'translate-x-6' : 'translate-x-1'}`} />
+              </button>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-2 p-2.5 rounded-lg bg-secondary/40 text-sm">
+                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${platformAssistant ? 'bg-green-500' : 'bg-amber-400'}`} />
+                <span className="text-muted-foreground text-xs">
+                  {platformAssistant ? 'Activo — el asistente aparece para los usuarios de la plataforma' : 'Desactivado — los usuarios no ven el asistente'}
+                </span>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* ── Chatbot por comercio ── */}
           <Card className="border-border bg-card">

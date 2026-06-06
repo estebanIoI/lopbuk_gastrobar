@@ -26,6 +26,7 @@ import { DriverPanel } from '@/components/driver-panel'
 import { PurchaseInvoices } from '@/components/purchase-invoices'
 import { ServicesManagement } from '@/components/services-management'
 import { GymManagement } from '@/components/gym-management'
+import { PlatformAssistant } from '@/components/platform-assistant'
 import { PrintersConfig } from '@/components/printers'
 import { VendedoresPanel } from '@/components/vendedores-panel'
 import { ReviewsPanel } from '@/components/reviews-panel'
@@ -268,6 +269,7 @@ export default function Home() {
   return (
     <MainLayout>
       {renderSection()}
+      <PlatformAssistant />
     </MainLayout>
   )
 }

@@ -4,6 +4,32 @@
 
 ---
 
+## [2026-06-05] — Asistente personal en toda la plataforma (role-aware)
+
+Reutilizando la estructura de chat, el asistente ahora es personal y consciente del rol, disponible en admin/comerciante:
+- **Backend** `backend/src/modules/assistant/` (service+routes, montado en `/api/assistant`): runner Gemini role-aware.
+  - superadmin → **Agente Maestro**: tools de solo lectura sobre TODA la red (kpis_globales, top_comercios, pedidos_pendientes_globales, stock_critico_global, comercios_inactivos).
+  - comerciante/administrador_rb → asistente de SU negocio (mis_ventas, mis_pedidos_pendientes, mi_stock_critico, mis_citas) scoped por tenant_id.
+  - cliente → sigue usando `/rutina/assistant`.
+- **Frontend** `platform-assistant.tsx`: widget flotante (botón ✨ abajo-derecha) montado en `app/page.tsx` (MainLayout). Solo se muestra a superadmin/comerciante si el asistente de plataforma está habilitado.
+- Mismo gate global `platform_assistant_enabled` (lo controla el superadmin). Sin migración nueva.
+- Esto es el primer paso del "Epicentro IA": el Agente Maestro responde preguntas de la red. Pendiente (fases siguientes): dashboards visuales de pedidos/citas/conversaciones globales, monitor IA, alertas, BI.
+
+---
+
+## [2026-06-05] — Asistente IA de plataforma (superadmin → toda la infraestructura)
+
+Asistente activable a nivel plataforma (no solo por comercio):
+- **Toggle**: `platform_settings.platform_assistant_enabled`. Superadmin lo activa en Integraciones (`superadmin-home.tsx`, switch). Endpoints `GET /chatbot/platform-assistant`, `PUT /chatbot/superadmin/platform-assistant`.
+- **Asistente del usuario** (`backend/src/modules/rutina/rutina.assistant.ts`): Gemini con function-calling y acceso CONTROLADO a los datos del propio usuario. Tools: guardar_perfil, crear_rutina_ejercicio, agregar_comida, agregar_lista_compras, recomendar_productos (búsqueda cross-comercio real). Reusa `getAIKey()`. Ruta `POST /rutina/assistant` (gate: plataforma activa) + `GET /rutina/assistant/status`.
+- **Chat del usuario** (`consumer-routine.tsx` → `ChatAssistant`): botón "Asistente" en el header (solo si plataforma activa); hace cuestionario breve, arma rutina/plan a medida y muestra tarjetas de productos recomendados. Tras cada acción refresca la vista.
+- **Vista comerciante** (`dashboard.tsx` → `AssistantConnectedBanner`): banner "Asistente conectado a tu negocio" cuando está activo (recuerda publicar catálogo con stock para aparecer en recomendaciones).
+- Rutinas verificadas: generadas a medida por IA (decisión del usuario), sin catálogo curado.
+
+Sin migración nueva (reusa platform_settings + tablas rutina_*).
+
+---
+
 ## [2026-06-05] — Importación masiva: auto-crear categorías inexistentes
 
 `products.service.bulkCreate` ahora resuelve la categoría del CSV (por id o por nombre) y, si no existe para el tenant, la crea automáticamente dentro de la misma transacción (slug como id, nombre original). Mapas en memoria evitan duplicados intra-lote y respetan el UNIQUE (tenant_id, name). Texto de ayuda del modal actualizado en `bulk-upload-dialog.tsx`.

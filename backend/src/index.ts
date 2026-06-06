@@ -50,6 +50,7 @@ import { mermaRoutes } from './modules/merma';
 import { gastrobarRoutes } from './modules/gastrobar-ops';
 import { rutinaRoutes } from './modules/rutina';
 import { gymRoutes } from './modules/gym';
+import assistantRoutes from './modules/assistant/assistant.routes';
 
 const app = express();
 
@@ -164,6 +165,7 @@ app.use(`${apiPrefix}/merma`, mermaRoutes);
 app.use(`${apiPrefix}/gastrobar-ops`, gastrobarRoutes);
 app.use(`${apiPrefix}/rutina`, rutinaRoutes);
 app.use(`${apiPrefix}/gym`, gymRoutes);
+app.use(`${apiPrefix}/assistant`, assistantRoutes);
 
 // Error handling
 app.use(notFoundHandler);

@@ -8,7 +8,7 @@
  *
  * Pestañas: Hoy · Rutina · Cocina (despensa+recetas) · Plan · Compras · Gym(*)
  */
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   X, Home, ChefHat, CalendarDays, ShoppingBasket, Plus, Trash2, Check, Clock,
   AlertTriangle, Sparkles, Loader2, Dumbbell, Flame, TrendingUp, Settings,
@@ -36,6 +36,8 @@ export default function ConsumerRoutine({ onClose }: { onClose: () => void }) {
   const [tab, setTab] = useState<Tab>('hoy')
   const [loading, setLoading] = useState(false)
   const [showPerfil, setShowPerfil] = useState(false)
+  const [showAssistant, setShowAssistant] = useState(false)
+  const [assistantOn, setAssistantOn] = useState(false)
 
   const [resumen, setResumen] = useState<any>(null)
   const [despensa, setDespensa] = useState<any[]>([])
@@ -51,6 +53,7 @@ export default function ConsumerRoutine({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     api.getMisMembresias().then(r => { if (r.success && (r.data || []).length) setHasGym(true) })
+    api.getPlatformAssistant().then(r => { if (r.success && r.data?.enabled) setAssistantOn(true) })
   }, [])
 
   const load = useCallback(async (t: Tab) => {
@@ -108,6 +111,7 @@ export default function ConsumerRoutine({ onClose }: { onClose: () => void }) {
             <span className="text-sm font-semibold tracking-wide uppercase">Mi Rutina</span>
           </div>
           <div className="flex items-center gap-1">
+            {assistantOn && <button onClick={() => setShowAssistant(true)} className="px-3 py-1.5 rounded-full bg-white/20 hover:bg-white/30 flex items-center gap-1.5 text-xs font-semibold" title="Asistente IA"><Sparkles className="w-4 h-4" />Asistente</button>}
             <button onClick={() => setShowPerfil(true)} className="p-2 rounded-full hover:bg-white/20" title="Mi perfil"><Settings className="w-5 h-5" /></button>
             <button onClick={onClose} className="p-2 rounded-full hover:bg-white/20"><X className="w-5 h-5" /></button>
           </div>
@@ -138,6 +142,77 @@ export default function ConsumerRoutine({ onClose }: { onClose: () => void }) {
       </div>
 
       {showPerfil && <PerfilModal onClose={() => setShowPerfil(false)} onSaved={() => { setShowPerfil(false); load('hoy') }} />}
+      {showAssistant && <ChatAssistant onClose={() => setShowAssistant(false)} onChanged={() => load(tab)} />}
+    </div>
+  )
+}
+
+// ═══════════════════ ASISTENTE IA (chat) ═══════════════════
+function ChatAssistant({ onClose, onChanged }: any) {
+  const [msgs, setMsgs] = useState<any[]>([
+    { role: 'assistant', content: '¡Hola! Soy tu asistente de bienestar. Cuéntame tu objetivo (bajar de peso, ganar músculo, salud…) y armo tu rutina y plan a tu medida. ¿Empezamos?' },
+  ])
+  const [input, setInput] = useState('')
+  const [sending, setSending] = useState(false)
+  const endRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [msgs])
+
+  const send = async () => {
+    const text = input.trim()
+    if (!text || sending) return
+    setInput(''); setSending(true)
+    const history = msgs.map(m => ({ role: m.role, content: m.content }))
+    setMsgs(m => [...m, { role: 'user', content: text }])
+    const r = await api.assistantSend(text, history)
+    setSending(false)
+    if (r.success) {
+      setMsgs(m => [...m, { role: 'assistant', content: r.data.reply, products: r.data.products, action: r.data.action }])
+      if (r.data.action && r.data.action !== 'productos') onChanged?.()
+    } else {
+      setMsgs(m => [...m, { role: 'assistant', content: r.error || 'No pude procesar eso. Intenta de nuevo.' }])
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[95] bg-white flex flex-col">
+      <div className="flex items-center justify-between px-4 h-14 border-b border-black/10 bg-gradient-to-br from-amber-400 to-orange-500 text-white flex-shrink-0">
+        <div className="flex items-center gap-2"><Sparkles className="w-5 h-5" /><span className="font-semibold">Asistente de bienestar</span></div>
+        <button onClick={onClose} className="p-2 -mr-2 hover:bg-white/20 rounded-full"><X className="w-5 h-5" /></button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-neutral-50">
+        {msgs.map((m, i) => (
+          <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+            <div className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm ${m.role === 'user' ? 'bg-orange-500 text-white' : 'bg-white border border-black/5 shadow-sm'}`}>
+              <div className="whitespace-pre-wrap">{m.content}</div>
+              {m.products?.length > 0 && (
+                <div className="mt-2 space-y-1.5">
+                  {m.products.map((p: any) => (
+                    <div key={p.id} className="flex items-center gap-2 bg-neutral-50 rounded-lg p-2 border border-black/5">
+                      <div className="w-9 h-9 rounded-lg bg-neutral-200 overflow-hidden flex-shrink-0">
+                        {p.imageUrl && <img src={p.imageUrl} alt="" className="w-full h-full object-cover" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-medium truncate text-neutral-900">{p.name}</div>
+                        <div className="text-[11px] text-neutral-500">${Number(p.salePrice).toLocaleString('es-CO')} · {p.tenantName}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+        {sending && <div className="flex justify-start"><div className="bg-white border border-black/5 rounded-2xl px-3.5 py-2.5"><Loader2 className="w-4 h-4 animate-spin text-orange-500" /></div></div>}
+        <div ref={endRef} />
+      </div>
+
+      <div className="p-3 border-t border-black/10 bg-white flex gap-2 flex-shrink-0" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)' }}>
+        <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && send()}
+          placeholder="Escribe tu mensaje…" className={inputCls} />
+        <button onClick={send} disabled={sending} className="bg-orange-500 text-white rounded-xl px-4 flex-shrink-0 disabled:opacity-50 font-medium text-sm">Enviar</button>
+      </div>
     </div>
   )
 }
