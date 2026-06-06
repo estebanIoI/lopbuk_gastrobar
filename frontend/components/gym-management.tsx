@@ -6,11 +6,13 @@
  * entrenamiento, progreso y asistencia. Tenant-scoped (el backend filtra por
  * tenant_id del JWT). Se monta en el dashboard del comerciante (case 'gym').
  */
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   Dumbbell, Users, CalendarCheck, DollarSign, Plus, Trash2, X, LogIn, LogOut,
-  TrendingUp, CreditCard, Loader2, ChevronRight, Pencil,
+  TrendingUp, CreditCard, Loader2, ChevronRight, Pencil, QrCode, ShieldCheck,
+  ShieldX, ShieldAlert, Camera,
 } from 'lucide-react'
+import { BrowserMultiFormatReader } from '@zxing/library'
 import { api } from '@/lib/api'
 
 const fmt = (n: number) => `$${Number(n || 0).toLocaleString('es-CO')}`
@@ -18,7 +20,7 @@ const CYCLES = ['mensual', 'trimestral', 'semestral', 'anual']
 const STATUSES = ['activa', 'pausada', 'vencida', 'cancelada']
 
 export function GymManagement() {
-  const [tab, setTab] = useState<'miembros' | 'asistencia'>('miembros')
+  const [tab, setTab] = useState<'miembros' | 'asistencia' | 'acceso'>('miembros')
   const [stats, setStats] = useState<any>(null)
   const [members, setMembers] = useState<any[]>([])
   const [attendance, setAttendance] = useState<any[]>([])
@@ -77,7 +79,7 @@ export function GymManagement() {
 
       {/* Tabs */}
       <div className="flex gap-2 border-b border-gray-200">
-        {([['miembros', 'Miembros'], ['asistencia', 'Asistencia hoy']] as const).map(([k, label]) => (
+        {([['miembros', 'Miembros'], ['asistencia', 'Asistencia hoy'], ['acceso', 'Acceso QR']] as const).map(([k, label]) => (
           <button key={k} onClick={() => setTab(k)}
             className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${tab === k ? 'border-violet-600 text-violet-700' : 'border-transparent text-gray-500'}`}>
             {label}
@@ -85,12 +87,14 @@ export function GymManagement() {
         ))}
       </div>
 
-      {loading ? (
+      {loading && tab !== 'acceso' ? (
         <div className="flex justify-center py-10 text-gray-400"><Loader2 className="w-6 h-6 animate-spin" /></div>
       ) : tab === 'miembros' ? (
         <MembersTable members={members} onOpen={setDetail} onCheckIn={async (id) => { await api.gymCheckIn(id); alert('Entrada registrada') }} />
-      ) : (
+      ) : tab === 'asistencia' ? (
         <AttendanceTable rows={attendance} onCheckout={async (id) => { await api.gymCheckOut(id); loadAttendance() }} />
+      ) : (
+        <AccessScanner onScanned={() => { loadAll() }} />
       )}
 
       {showAdd && <AddMemberModal onClose={() => setShowAdd(false)} onSaved={() => { setShowAdd(false); loadAll() }} />}
@@ -391,6 +395,84 @@ function NewProgressModal({ userId, onClose, onSaved }: any) {
         <button onClick={save} className="w-full bg-violet-600 hover:bg-violet-700 text-white py-2.5 rounded-lg text-sm font-medium">Guardar</button>
       </div>
     </Modal>
+  )
+}
+
+// ── Escáner de acceso (recepción) ──
+const ACCESS_CFG: Record<string, any> = {
+  permitido:  { icon: ShieldCheck, color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200', label: 'ACCESO PERMITIDO' },
+  por_vencer: { icon: ShieldAlert, color: 'text-amber-700',   bg: 'bg-amber-50 border-amber-200',     label: 'POR VENCER' },
+  denegado:   { icon: ShieldX,     color: 'text-red-700',     bg: 'bg-red-50 border-red-200',         label: 'ACCESO DENEGADO' },
+}
+function AccessScanner({ onScanned }: any) {
+  const [result, setResult] = useState<any>(null)
+  const [manual, setManual] = useState('')
+  const [scanning, setScanning] = useState(false)
+  const [err, setErr] = useState('')
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const readerRef = useRef<any>(null)
+
+  const stop = useCallback(() => {
+    try { readerRef.current?.reset() } catch {}
+    readerRef.current = null
+    setScanning(false)
+  }, [])
+
+  const process = useCallback(async (code: string) => {
+    stop()
+    const r = await api.gymScan(code)
+    if (r.success) { setResult(r.data); onScanned?.() }
+    else setErr(r.error || 'Error al procesar')
+  }, [stop, onScanned])
+
+  const start = async () => {
+    setErr(''); setResult(null); setScanning(true)
+    try {
+      const reader = new BrowserMultiFormatReader()
+      readerRef.current = reader
+      await reader.decodeFromVideoDevice(null as any, videoRef.current!, (res: any) => {
+        if (res) process(res.getText())
+      })
+    } catch (e: any) {
+      setErr('No se pudo acceder a la cámara. Usa el código manual.')
+      setScanning(false)
+    }
+  }
+
+  useEffect(() => () => { try { readerRef.current?.reset() } catch {} }, [])
+
+  if (result) {
+    const cfg = ACCESS_CFG[result.status] || ACCESS_CFG.denegado
+    return (
+      <div className={`rounded-2xl border p-8 text-center ${cfg.bg}`}>
+        <cfg.icon className={`w-20 h-20 mx-auto ${cfg.color}`} />
+        <div className={`text-2xl font-extrabold mt-3 ${cfg.color}`}>{cfg.label}</div>
+        {result.name && <div className="text-lg font-medium mt-1">{result.name}</div>}
+        <div className="text-sm text-gray-500 mt-1">{result.reason}{result.daysRemaining != null && result.status !== 'denegado' ? ` · ${result.daysRemaining} días restantes` : ''}</div>
+        {result.checkedIn && <div className="text-xs text-emerald-600 mt-2">Ingreso registrado ✓</div>}
+        {result.status === 'denegado' && <div className="text-xs text-red-600 mt-2">Renovar membresía en la pestaña Miembros.</div>}
+        <button onClick={() => { setResult(null); setManual('') }} className="mt-5 bg-violet-600 hover:bg-violet-700 text-white px-5 py-2.5 rounded-lg text-sm font-medium">Escanear otro</button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="max-w-md mx-auto space-y-4">
+      <div className="rounded-2xl bg-black aspect-square overflow-hidden flex items-center justify-center relative">
+        <video ref={videoRef} className="w-full h-full object-cover" />
+        {!scanning && <div className="absolute inset-0 flex flex-col items-center justify-center text-white/60"><QrCode className="w-16 h-16" /><span className="text-xs mt-2">Cámara apagada</span></div>}
+      </div>
+      <div className="flex gap-2">
+        {!scanning
+          ? <button onClick={start} className="flex-1 bg-violet-600 hover:bg-violet-700 text-white py-2.5 rounded-lg text-sm font-medium flex items-center justify-center gap-2"><Camera className="w-4 h-4" />Escanear QR</button>
+          : <button onClick={stop} className="flex-1 bg-gray-200 text-gray-700 py-2.5 rounded-lg text-sm font-medium">Detener cámara</button>}
+      </div>
+      <div className="flex gap-2">
+        <input value={manual} onChange={e => setManual(e.target.value)} placeholder="O ingresa el código manual" className="flex-1 border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-violet-500" />
+        <button onClick={() => manual.trim() && process(manual.trim())} className="bg-gray-800 text-white px-4 rounded-lg text-sm">Validar</button>
+      </div>
+      {err && <p className="text-sm text-red-600 text-center">{err}</p>}
+    </div>
   )
 }
 

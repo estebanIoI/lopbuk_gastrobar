@@ -424,6 +424,94 @@ export async function memberCheckOut(userId: string) {
   return { ok: true };
 }
 
+// ─────────────────────────────────────────────────────────────
+// CONTROL DE ACCESO (QR)
+// ─────────────────────────────────────────────────────────────
+type AccessResult = {
+  status: 'permitido' | 'por_vencer' | 'denegado';
+  reason: string;
+  daysRemaining: number | null;
+  name?: string;
+  gymName?: string;
+  planName?: string | null;
+};
+
+/** Calcula el estado de acceso a partir de una fila de membresía + datos del usuario. */
+function computeAccess(m: any): AccessResult {
+  const expiryRaw = m.end_date || m.next_payment_at || null;
+  const expiry = expiryRaw ? new Date(expiryRaw) : null;
+  const now = new Date();
+  const daysRemaining = expiry
+    ? Math.ceil((expiry.getTime() - now.getTime()) / 86400000)
+    : null;
+
+  if (m.status === 'cancelada') return { status: 'denegado', reason: 'Membresía cancelada', daysRemaining };
+  if (m.status === 'pausada')   return { status: 'denegado', reason: 'Membresía pausada', daysRemaining };
+  if (m.status === 'vencida')   return { status: 'denegado', reason: 'Membresía vencida', daysRemaining };
+  // activa
+  if (expiry && daysRemaining !== null && daysRemaining < 0)
+    return { status: 'denegado', reason: 'Membresía vencida', daysRemaining };
+  if (daysRemaining !== null && daysRemaining <= 5)
+    return { status: 'por_vencer', reason: `Vence en ${daysRemaining} día(s)`, daysRemaining };
+  return { status: 'permitido', reason: 'Acceso permitido', daysRemaining };
+}
+
+/** Vista del miembro: su código QR + estado de acceso de su membresía principal. */
+export async function memberAccess(userId: string) {
+  const [rows] = await db.execute<Row[]>(
+    `SELECT m.*, t.name AS gymName, u.name AS userName
+     FROM gym_membresias m JOIN tenants t ON t.id = m.tenant_id JOIN users u ON u.id = m.user_id
+     WHERE m.user_id = ?
+     ORDER BY FIELD(m.status,'activa','pausada','vencida','cancelada')`,
+    [userId]
+  );
+  // QR codifica el id del usuario (el gym lo escanea para registrar ingreso)
+  const qrCode = `GYM:${userId}`;
+  if (!rows.length) return { qrCode, memberships: [] };
+  const memberships = (rows as any[]).map(m => {
+    const acc = computeAccess(m);
+    return {
+      tenantId: m.tenant_id, gymName: m.gymName, planName: m.plan_name,
+      status: m.status, ...acc,
+    };
+  });
+  return { qrCode, memberships };
+}
+
+/** El staff escanea el QR de un miembro. Valida membresía, registra ingreso si procede. */
+export async function scanAccess(tenantId: string, code: string, _staffUserId: string): Promise<AccessResult & { userId?: string; checkedIn?: boolean }> {
+  const userId = String(code || '').replace(/^GYM:/, '').trim();
+  if (!userId) throw new AppError('Código inválido', 400);
+
+  const [rows] = await db.execute<Row[]>(
+    `SELECT m.*, u.name AS userName
+     FROM gym_membresias m JOIN users u ON u.id = m.user_id
+     WHERE m.tenant_id = ? AND m.user_id = ?`,
+    [tenantId, userId]
+  );
+  if (!rows.length) {
+    return { status: 'denegado', reason: 'No es miembro de este gimnasio', daysRemaining: null };
+  }
+  const m: any = rows[0];
+  const acc = computeAccess(m);
+  const result: AccessResult & { userId?: string; checkedIn?: boolean } = {
+    ...acc, name: m.userName, gymName: undefined, planName: m.plan_name, userId, checkedIn: false,
+  };
+
+  if (acc.status !== 'denegado') {
+    // Si la membresía marcaba vencida pero sigue vigente, no tocamos; registramos ingreso.
+    await checkIn(tenantId, userId);
+    result.checkedIn = true;
+  } else if (m.status === 'activa' && acc.reason === 'Membresía vencida') {
+    // Auto-marcar vencida para reflejar el estado real
+    await db.execute<ResultSetHeader>(
+      "UPDATE gym_membresias SET status='vencida' WHERE tenant_id=? AND user_id=?",
+      [tenantId, userId]
+    );
+  }
+  return result;
+}
+
 /** Historial de asistencia de un miembro (staff). */
 export async function listMemberAttendance(tenantId: string, userId: string) {
   const [rows] = await db.execute<Row[]>(

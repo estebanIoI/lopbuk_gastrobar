@@ -302,6 +302,43 @@ export async function deleteActividad(userId: string, id: string) {
   if (r.affectedRows === 0) throw new AppError('Actividad no encontrada', 404);
 }
 
+/** Marca/desmarca una actividad como cumplida en una fecha (rutina_actividades_log). */
+export async function toggleActividadLog(userId: string, actividadId: string, date: string) {
+  const [owner] = await db.execute<Row[]>(
+    'SELECT id FROM rutina_actividades WHERE id = ? AND user_id = ?', [actividadId, userId]
+  );
+  if (!owner.length) throw new AppError('Actividad no encontrada', 404);
+  const logDate = date || new Date().toISOString().slice(0, 10);
+
+  const [existing] = await db.execute<Row[]>(
+    'SELECT id, completed FROM rutina_actividades_log WHERE actividad_id = ? AND log_date = ?',
+    [actividadId, logDate]
+  );
+  if (existing.length) {
+    const next = existing[0].completed ? 0 : 1;
+    await db.execute<ResultSetHeader>(
+      'UPDATE rutina_actividades_log SET completed = ? WHERE id = ?', [next, existing[0].id]
+    );
+    return { completed: next === 1 };
+  }
+  await db.execute<ResultSetHeader>(
+    'INSERT INTO rutina_actividades_log (id, actividad_id, user_id, log_date, completed) VALUES (?, ?, ?, ?, 1)',
+    [uuidv4(), actividadId, userId, logDate]
+  );
+  return { completed: true };
+}
+
+/** Logs de cumplimiento del usuario en un rango (para la vista semanal). */
+export async function getActividadesLog(userId: string, from: string, to: string) {
+  const [rows] = await db.execute<Row[]>(
+    `SELECT actividad_id AS actividadId, log_date AS logDate, completed
+     FROM rutina_actividades_log
+     WHERE user_id = ? AND log_date >= ? AND log_date <= ? AND completed = 1`,
+    [userId, from, to]
+  );
+  return rows;
+}
+
 // ─────────────────────────────────────────────────────────────
 // PLAN DE COMIDAS
 // ─────────────────────────────────────────────────────────────

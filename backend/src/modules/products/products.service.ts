@@ -662,6 +662,37 @@ export class ProductsService {
       const batchSkuSet = new Set<string>();
       const batchBarcodeSet = new Set<string>();
 
+      // Pre-fetch categorías del tenant para resolver/crear automáticamente
+      const [catRows] = await connection.execute(
+        'SELECT id, name FROM categories WHERE tenant_id = ?',
+        [tenantId]
+      ) as [RowDataPacket[], any];
+      const catById = new Set<string>(catRows.map((c: any) => String(c.id)));
+      const catByName = new Map<string, string>(
+        catRows.map((c: any) => [String(c.name).toLowerCase().trim(), String(c.id)])
+      );
+      const slugify = (s: string) =>
+        String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+          .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 50) || uuidv4().slice(0, 8);
+
+      // Resuelve el valor de categoría (id o nombre) a un id; crea la categoría si no existe.
+      const resolveCategory = async (value: string): Promise<string> => {
+        const raw = String(value).trim();
+        if (catById.has(raw)) return raw;
+        const lower = raw.toLowerCase();
+        if (catByName.has(lower)) return catByName.get(lower)!;
+        // Crear nueva categoría
+        let id = slugify(raw);
+        if (catById.has(id)) return id; // el slug ya existe → reutilizar
+        await connection.execute(
+          'INSERT INTO categories (id, tenant_id, name) VALUES (?, ?, ?)',
+          [id, tenantId, raw]
+        );
+        catById.add(id);
+        catByName.set(lower, id);
+        return id;
+      };
+
       for (let i = 0; i < products.length; i++) {
         const data = products[i];
         const rowNum = i + 2; // row 1 = header
@@ -669,6 +700,9 @@ export class ProductsService {
           if (!data.name || !data.sku || !data.category) {
             throw new Error('Faltan campos requeridos (name, sku, category)');
           }
+
+          // Resuelve la categoría (id o nombre); la crea automáticamente si no existe
+          data.category = await resolveCategory(data.category);
 
           if (skuSet.has(data.sku) || batchSkuSet.has(data.sku)) {
             throw new Error(`SKU "${data.sku}" duplicado`);

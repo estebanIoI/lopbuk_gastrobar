@@ -4,6 +4,22 @@
 
 ---
 
+## [2026-06-05] — Importación masiva: auto-crear categorías inexistentes
+
+`products.service.bulkCreate` ahora resuelve la categoría del CSV (por id o por nombre) y, si no existe para el tenant, la crea automáticamente dentro de la misma transacción (slug como id, nombre original). Mapas en memoria evitan duplicados intra-lote y respetan el UNIQUE (tenant_id, name). Texto de ayuda del modal actualizado en `bulk-upload-dialog.tsx`.
+Archivos: `backend/src/modules/products/products.service.ts`, `frontend/components/bulk-upload-dialog.tsx`.
+
+---
+
+## [2026-06-05] — Gym: control de acceso QR + rutina semanal
+
+Tres piezas integradas en la vista del usuario logueado (sin migración nueva, reusa gym_asistencia, gym_membresias, rutina_actividades_log):
+- **QR de acceso**: el miembro ve su QR (codifica `GYM:<userId>`, lib `qrcode.react`) y un banner de estado (permitido/por_vencer/denegado) en su pestaña Gym. Endpoint `GET /gym/me/acceso` (`memberAccess` + `computeAccess`).
+- **Escáner + resultado (recepción)**: pestaña "Acceso QR" en `gym-management.tsx` con cámara `@zxing/browser` + código manual; muestra pantalla de resultado a pantalla completa (verde/ámbar/rojo) y registra el ingreso si procede. Endpoint `POST /gym/scan` (`scanAccess` valida membresía, auto-marca vencida, registra check-in).
+- **Mi semana (Lun–Dom)**: componente `WeekStrip` en la pestaña Rutina — bloques por día, marca actividades cumplidas (`rutina_actividades_log` vía `POST /rutina/actividades/:id/toggle-log` + `GET /rutina/actividades-log`) y cruza con la asistencia real al gym (puntos violeta).
+
+---
+
 ## [2026-06-05] — Gym: aprovechar al máximo la estructura
 
 Auditoría y completado del módulo gym para usar todo el esquema:

@@ -50,6 +50,10 @@ router.post('/me/checkout', MEMBER, async (req: AuthRequest, res) => {
   try { ok(res, await svc.memberCheckOut(req.user!.userId)); }
   catch (e) { fail(res, e, 'Error al registrar salida'); }
 });
+router.get('/me/acceso', MEMBER, async (req: AuthRequest, res) => {
+  try { ok(res, await svc.memberAccess(req.user!.userId)); }
+  catch (e) { fail(res, e, 'Error al obtener acceso'); }
+});
 
 // ════════════════ STAFF ════════════════
 const tid = (req: AuthRequest) => req.user!.tenantId as string;
@@ -58,6 +62,12 @@ const tid = (req: AuthRequest) => req.user!.tenantId as string;
 router.get('/stats', STAFF, async (req: AuthRequest, res) => {
   try { ok(res, await svc.getStats(tid(req))); }
   catch (e) { fail(res, e, 'Error al obtener estadísticas'); }
+});
+
+// Escaneo de QR de acceso (recepción)
+router.post('/scan', STAFF, async (req: AuthRequest, res) => {
+  try { ok(res, await svc.scanAccess(tid(req), req.body?.code, req.user!.userId)); }
+  catch (e) { fail(res, e, 'Error al procesar el acceso'); }
 });
 
 // Miembros + membresías

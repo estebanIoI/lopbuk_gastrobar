@@ -12,8 +12,9 @@ import { useState, useEffect, useCallback } from 'react'
 import {
   X, Home, ChefHat, CalendarDays, ShoppingBasket, Plus, Trash2, Check, Clock,
   AlertTriangle, Sparkles, Loader2, Dumbbell, Flame, TrendingUp, Settings,
-  Droplet, Target, Carrot, ListChecks, Utensils, Repeat,
+  Droplet, Target, Carrot, ListChecks, Utensils, Repeat, QrCode, ShieldCheck, ShieldX, ShieldAlert,
 } from 'lucide-react'
+import { QRCodeSVG } from 'qrcode.react'
 import { api } from '@/lib/api'
 
 type Tab = 'hoy' | 'rutina' | 'cocina' | 'plan' | 'compras' | 'gym'
@@ -44,7 +45,7 @@ export default function ConsumerRoutine({ onClose }: { onClose: () => void }) {
   const [plan, setPlan] = useState<any[]>([])
   const [compras, setCompras] = useState<any[]>([])
   const [hasGym, setHasGym] = useState(false)
-  const [gym, setGym] = useState<any>({ membresias: [], plan: [], progreso: [], asistencia: null })
+  const [gym, setGym] = useState<any>({ membresias: [], plan: [], progreso: [], asistencia: null, acceso: null })
 
   const today = new Date().toISOString().slice(0, 10)
 
@@ -72,14 +73,15 @@ export default function ConsumerRoutine({ onClose }: { onClose: () => void }) {
       } else if (t === 'compras') {
         const r = await api.getListaCompras(); if (r.success) setCompras(r.data || [])
       } else if (t === 'gym') {
-        const [mem, pl, pr, as] = await Promise.all([
-          api.getMisMembresias(), api.getMiPlanGym(), api.getMiProgresoGym(), api.getMiAsistenciaGym(),
+        const [mem, pl, pr, as, ac] = await Promise.all([
+          api.getMisMembresias(), api.getMiPlanGym(), api.getMiProgresoGym(), api.getMiAsistenciaGym(), api.getMiAccesoGym(),
         ])
         setGym({
           membresias: mem.success ? mem.data || [] : [],
           plan: pl.success ? pl.data || [] : [],
           progreso: pr.success ? pr.data || [] : [],
           asistencia: as.success ? as.data : null,
+          acceso: ac.success ? ac.data : null,
         })
       }
     } finally { setLoading(false) }
@@ -289,6 +291,8 @@ function RutinaView({ rutinas, onReload }: any) {
 
   return (
     <div className="p-4 space-y-5">
+      <WeekStrip rutinas={rutinas} />
+
       <div className="flex gap-2">
         <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Nueva rutina (ej: Mañanas)" className={inputCls} />
         <button onClick={crear} className="bg-orange-500 text-white rounded-xl px-3 flex-shrink-0"><Plus className="w-5 h-5" /></button>
@@ -316,6 +320,65 @@ function RutinaView({ rutinas, onReload }: any) {
         </Card>
       )) : <Empty icon={Repeat} text="Crea tu primera rutina para organizar tu día." />}
     </div>
+  )
+}
+
+function WeekStrip({ rutinas }: any) {
+  const [logs, setLogs] = useState<Set<string>>(new Set())
+  const [attDays, setAttDays] = useState<Set<string>>(new Set())
+
+  const today = new Date()
+  const todayStr = today.toISOString().slice(0, 10)
+  const monday = new Date(today)
+  monday.setDate(today.getDate() - ((today.getDay() + 6) % 7))
+  const week = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(monday); d.setDate(monday.getDate() + i)
+    return { date: d.toISOString().slice(0, 10), dow: d.getDay() }
+  })
+  const [sel, setSel] = useState(() => { const idx = week.findIndex(w => w.date === todayStr); return idx < 0 ? 0 : idx })
+
+  const from = week[0].date, to = week[6].date
+  const load = useCallback(async () => {
+    const [lg, as] = await Promise.all([api.getActividadesLog(from, to), api.getMiAsistenciaGym()])
+    if (lg.success) setLogs(new Set((lg.data || []).map((l: any) => `${l.actividadId}|${String(l.logDate).slice(0, 10)}`)))
+    if (as.success) setAttDays(new Set((as.data?.recentDays) || []))
+  }, [from, to])
+  useEffect(() => { load() }, [load])
+
+  const acts = (rutinas || []).flatMap((r: any) => (r.activities || []).map((a: any) => ({ ...a, rutina: r.name })))
+  const dayActs = acts.filter((a: any) => a.dayOfWeek === null || a.dayOfWeek === week[sel].dow)
+    .sort((a: any, b: any) => (a.startTime || '').localeCompare(b.startTime || ''))
+  const isDone = (a: any) => logs.has(`${a.id}|${week[sel].date}`)
+  const toggle = async (a: any) => { await api.toggleActividadLog(a.id, week[sel].date); load() }
+
+  return (
+    <Card className="p-3">
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="text-sm font-bold">Mi semana</h3>
+        <span className="text-[10px] text-neutral-400 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-violet-500" /> asistencia al gym</span>
+      </div>
+      <div className="grid grid-cols-7 gap-1">
+        {week.map((w, i) => (
+          <button key={w.date} onClick={() => setSel(i)}
+            className={`flex flex-col items-center py-2 rounded-xl transition-colors ${i === sel ? 'bg-orange-500 text-white' : w.date === todayStr ? 'bg-orange-50 text-orange-600' : 'text-neutral-500'}`}>
+            <span className="text-[9px] uppercase">{DAYS[w.dow]}</span>
+            <span className="text-sm font-bold">{w.date.slice(8, 10)}</span>
+            <span className={`w-1.5 h-1.5 rounded-full mt-0.5 ${attDays.has(w.date) ? (i === sel ? 'bg-white' : 'bg-violet-500') : 'bg-transparent'}`} />
+          </button>
+        ))}
+      </div>
+      <div className="mt-3 space-y-2">
+        {dayActs.length ? dayActs.map((a: any) => (
+          <div key={a.id} className="flex items-center gap-3 bg-neutral-50 rounded-xl px-3 py-2.5">
+            <button onClick={() => toggle(a)} className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${isDone(a) ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-neutral-300'}`}>{isDone(a) && <Check className="w-3.5 h-3.5" />}</button>
+            <div className="flex-1 min-w-0">
+              <div className={`text-sm truncate ${isDone(a) ? 'line-through text-neutral-400' : 'font-medium'}`}>{a.title}</div>
+              <div className="text-[11px] text-neutral-400 capitalize">{a.startTime ? a.startTime.slice(0, 5) + ' · ' : ''}{a.type} · {a.rutina}</div>
+            </div>
+          </div>
+        )) : <p className="text-xs text-neutral-400 py-2 text-center">Sin actividades para este día.</p>}
+      </div>
+    </Card>
   )
 }
 
@@ -615,13 +678,41 @@ function ComprasView({ items, onReload }: any) {
 
 // ═══════════════════ GYM (miembro) ═══════════════════
 function GymView({ data, onReload }: any) {
-  const { membresias, plan, progreso, asistencia } = data
+  const { membresias, plan, progreso, asistencia, acceso } = data
+  const [showQR, setShowQR] = useState(false)
   const ultimoPeso = progreso?.length ? progreso[progreso.length - 1].weightKg : null
   const openTenant = asistencia?.openCheckIn?.tenantId || null
   const doCheckIn = async (tenantId: string) => { await api.miGymCheckIn(tenantId); onReload?.() }
   const doCheckOut = async () => { await api.miGymCheckOut(); onReload?.() }
+
+  // Estado de acceso principal (primera membresía)
+  const acc = acceso?.memberships?.[0] || null
+  const accCfg: Record<string, any> = {
+    permitido: { icon: ShieldCheck, color: 'text-emerald-600', bg: 'bg-emerald-50 border-emerald-200', label: 'Acceso permitido' },
+    por_vencer: { icon: ShieldAlert, color: 'text-amber-600', bg: 'bg-amber-50 border-amber-200', label: 'Por vencer' },
+    denegado: { icon: ShieldX, color: 'text-red-600', bg: 'bg-red-50 border-red-200', label: 'Acceso denegado' },
+  }
+  const cfg = acc ? accCfg[acc.status] : null
+
   return (
     <div className="p-4 space-y-5">
+      {/* Tarjeta de acceso QR */}
+      {acceso && (
+        <Card className={`p-4 border ${cfg ? cfg.bg : 'border-black/5'}`}>
+          <div className="flex items-center gap-3">
+            {cfg && <cfg.icon className={`w-8 h-8 ${cfg.color}`} />}
+            <div className="flex-1 min-w-0">
+              <div className={`font-bold ${cfg ? cfg.color : ''}`}>{cfg ? cfg.label : 'Mi acceso'}</div>
+              <div className="text-xs text-neutral-500">{acc?.reason || 'Presenta tu QR en recepción'}{acc?.daysRemaining != null && acc.status !== 'denegado' ? ` · ${acc.daysRemaining} días` : ''}</div>
+            </div>
+            <button onClick={() => setShowQR(true)} className="bg-violet-600 text-white rounded-xl px-3 py-2 text-xs font-medium flex items-center gap-1.5"><QrCode className="w-4 h-4" />Mi QR</button>
+          </div>
+          {acc?.status === 'denegado' && (
+            <p className="mt-2 text-xs text-red-600">Tu membresía no está vigente. Acércate a recepción para renovar.</p>
+          )}
+        </Card>
+      )}
+
       {membresias?.map((m: any) => (
         <Card key={m.tenantId} className="p-4 bg-violet-50 border-violet-100">
           <div className="flex items-center gap-2">
@@ -671,6 +762,18 @@ function GymView({ data, onReload }: any) {
             ))}
           </div>
         </Section>
+      )}
+
+      {showQR && acceso && (
+        <Modal title="Mi código de acceso" onClose={() => setShowQR(false)}>
+          <div className="flex flex-col items-center gap-4 py-2">
+            <div className="bg-white p-4 rounded-2xl border border-black/10">
+              <QRCodeSVG value={acceso.qrCode} size={220} level="M" />
+            </div>
+            <p className="text-sm text-neutral-500 text-center">Muéstralo en la recepción del gimnasio para registrar tu ingreso.</p>
+            {cfg && <div className={`text-sm font-medium ${cfg.color} flex items-center gap-1.5`}><cfg.icon className="w-4 h-4" />{cfg.label}{acc?.daysRemaining != null && acc.status !== 'denegado' ? ` · ${acc.daysRemaining} días` : ''}</div>}
+          </div>
+        </Modal>
       )}
     </div>
   )

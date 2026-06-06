@@ -447,7 +447,7 @@ export function BulkUploadDialog({ open, onOpenChange }: BulkUploadDialogProps) 
               <p>articulo, productType, brand, model, description, barcode, supplier, locationInStore, notes</p>
               <p className="font-medium text-foreground mt-2">Campos por tipo de producto:</p>
               <p>La plantilla incluye todos los campos posibles. Solo llena los que apliquen al tipo de producto.</p>
-              <p className="mt-2">La categoría puede ser el nombre o el ID. Las fechas en formato YYYY-MM-DD. El separador del CSV es punto y coma (;).</p>
+              <p className="mt-2">La categoría puede ser el nombre o el ID; si no existe, se crea automáticamente. Las fechas en formato YYYY-MM-DD. El separador del CSV es punto y coma (;).</p>
             </div>
           </div>
         )}

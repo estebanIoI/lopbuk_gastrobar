@@ -100,6 +100,14 @@ router.delete('/actividades/:id', async (req: AuthRequest, res) => {
   try { await svc.deleteActividad(req.user!.userId, req.params.id); ok(res, { deleted: true }); }
   catch (e) { fail(res, e, 'Error al eliminar actividad'); }
 });
+router.get('/actividades-log', async (req: AuthRequest, res) => {
+  try { ok(res, await svc.getActividadesLog(req.user!.userId, req.query.from as string, req.query.to as string)); }
+  catch (e) { fail(res, e, 'Error al obtener cumplimiento'); }
+});
+router.post('/actividades/:id/toggle-log', async (req: AuthRequest, res) => {
+  try { ok(res, await svc.toggleActividadLog(req.user!.userId, req.params.id, req.body?.date)); }
+  catch (e) { fail(res, e, 'Error al marcar actividad'); }
+});
 
 // ── Plan de comidas ──
 router.get('/plan-comidas', async (req: AuthRequest, res) => {

@@ -2522,6 +2522,11 @@ class ApiService {
   async getMiAsistenciaGym() { return this.request<any>('/gym/me/asistencia') }
   async miGymCheckIn(tenantId: string) { return this.request<any>('/gym/me/checkin', { method: 'POST', body: JSON.stringify({ tenantId }) }) }
   async miGymCheckOut() { return this.request<any>('/gym/me/checkout', { method: 'POST' }) }
+  async getMiAccesoGym() { return this.request<any>('/gym/me/acceso') }
+  async gymScan(code: string) { return this.request<any>('/gym/scan', { method: 'POST', body: JSON.stringify({ code }) }) }
+  // Cumplimiento de rutina semanal (consumidor)
+  async getActividadesLog(from: string, to: string) { return this.request<any[]>(`/rutina/actividades-log?from=${from}&to=${to}`) }
+  async toggleActividadLog(id: string, date: string) { return this.request<any>(`/rutina/actividades/${id}/toggle-log`, { method: 'POST', body: JSON.stringify({ date }) }) }
 
   // ── Módulo GIMNASIO — staff ──
   async getGymStats() { return this.request<any>('/gym/stats') }
