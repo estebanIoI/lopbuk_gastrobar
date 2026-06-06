@@ -23,7 +23,7 @@ router.post('/', async (req: AuthRequest, res: Response) => {
     if (!message?.trim()) { res.status(400).json({ success: false, error: 'Mensaje requerido' }); return; }
     const u = req.user!;
     const data = await runPlatformAssistant(
-      { userId: u.userId, role: u.role, tenantId: u.tenantId },
+      { userId: u.userId, role: u.role, tenantId: u.tenantId ?? undefined },
       message.trim(), history || []
     );
     res.json({ success: true, data });

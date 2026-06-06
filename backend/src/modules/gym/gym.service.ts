@@ -472,7 +472,7 @@ export async function memberAccess(userId: string) {
     const acc = computeAccess(m);
     return {
       tenantId: m.tenant_id, gymName: m.gymName, planName: m.plan_name,
-      status: m.status, ...acc,
+      membershipStatus: m.status, ...acc,
     };
   });
   return { qrCode, memberships };

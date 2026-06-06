@@ -282,8 +282,40 @@ export interface CategoryItem {
   name: string
   description?: string
   isActive?: boolean
+  isHidden?: boolean
   color?: string
   sortOrder?: number
+}
+
+// ─── Daily closing report ────────────────────────────────────────────────────
+export interface ProductReportItem {
+  productId: string
+  productName: string
+  productSku: string
+  quantity: number
+  subtotal: number
+}
+
+export interface SedeReportData {
+  sedeId: string | null
+  sedeName?: string | null
+  salesCount: number
+  subtotal: number
+  tax: number
+  discount: number
+  total: number
+  byPaymentMethod: Record<string, { count: number; total: number; mixedEfectivo?: number; mixedSecondMethod?: string; mixedSecond?: number }>
+  products: ProductReportItem[]
+}
+
+export interface DailyReportData {
+  date: string
+  sedes: SedeReportData[]
+  totalSales: number
+  grandSubtotal: number
+  grandTax: number
+  grandDiscount: number
+  grandTotal: number
 }
 
 export const SIZES: Size[] = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL']

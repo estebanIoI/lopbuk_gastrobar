@@ -1,3 +1,5 @@
+import type { DailyReportData } from './types'
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'
 
 class ApiService {
@@ -607,6 +609,17 @@ class ApiService {
       method: 'POST',
       body: JSON.stringify(data),
     })
+  }
+
+  async bulkCreateCustomers(customers: Array<{ cedula: string; name: string; phone?: string; email?: string; address?: string; creditLimit?: number; notes?: string }>) {
+    return this.request<{ totalCreated: number; totalSkipped?: number; errors?: any[] }>('/customers/bulk', {
+      method: 'POST',
+      body: JSON.stringify({ customers }),
+    })
+  }
+
+  async getDailyReport(date: string) {
+    return this.request<DailyReportData>(`/sales/daily-report?date=${encodeURIComponent(date)}`)
   }
 
   async updateCustomer(id: string, data: { cedula?: string; name?: string; phone?: string; email?: string; address?: string; creditLimit?: number; notes?: string }) {

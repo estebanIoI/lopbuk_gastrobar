@@ -43,6 +43,12 @@
 - Los bugs más costosos fueron en módulos sin documentación de reglas de negocio
 - Trabajar con Claude es 3x más rápido cuando tienes el contexto correcto listo
 
+### TypeScript / deuda de tipos (2026-06-06)
+- **`req.user` en controllers** SIEMPRE tipar el handler con `AuthRequest` (de `common/middleware`) y usar `req.user!.tenantId!` — `tenantId` es `string | null` en `JWTPayload`, los services esperan `string`. Patrón de referencia: `sales.controller.ts`.
+- **Tipos compartidos front/back**: cuando el front consume un endpoint, replicar el tipo del service backend en `frontend/lib/types.ts` (ej. `DailyReportData`/`SedeReportData`) en vez de dejar `any`; evita la cascada de `TS18046 'is of type unknown'`.
+- **react-joyride 3.x rompió la API v2**: ya no hay `callback`/`CallBackProps`/`styles.options`/`disableBeacon`. Equivalencias: `onEvent`+`EventData`, prop `options`, `skipBeacon`. Fijar major version antes de actualizar librerías de UI.
+- Los imports dinámicos (`await import('...')`) también fallan el build si el módulo no existe (`TS2307`); si una integración queda pendiente, dejar un **stub tipado** en vez de un import a un archivo inexistente.
+
 ## Eficiencia DAIMUZ — Datos Medidos
 
 ### Sesión 2026-05-27 (primera sesión con DAIMUZ v3 al 100/100)

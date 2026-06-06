@@ -90,9 +90,9 @@ export function GymManagement() {
       {loading && tab !== 'acceso' ? (
         <div className="flex justify-center py-10 text-gray-400"><Loader2 className="w-6 h-6 animate-spin" /></div>
       ) : tab === 'miembros' ? (
-        <MembersTable members={members} onOpen={setDetail} onCheckIn={async (id) => { await api.gymCheckIn(id); alert('Entrada registrada') }} />
+        <MembersTable members={members} onOpen={setDetail} onCheckIn={async (id: string) => { await api.gymCheckIn(id); alert('Entrada registrada') }} />
       ) : tab === 'asistencia' ? (
-        <AttendanceTable rows={attendance} onCheckout={async (id) => { await api.gymCheckOut(id); loadAttendance() }} />
+        <AttendanceTable rows={attendance} onCheckout={async (id: string) => { await api.gymCheckOut(id); loadAttendance() }} />
       ) : (
         <AccessScanner onScanned={() => { loadAll() }} />
       )}

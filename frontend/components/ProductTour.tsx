@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { Joyride, CallBackProps, STATUS, Step, TooltipRenderProps } from 'react-joyride'
+import { Joyride, EventData, STATUS, Step, TooltipRenderProps } from 'react-joyride'
 import { ChevronRight, ChevronLeft, X, CheckCircle2 } from 'lucide-react'
 import { useStore } from '@/lib/store'
 
@@ -11,70 +11,70 @@ const STEPS: Step[] = [
     title: '¡Bienvenido a Lopbuk!',
     content: 'Tu sistema de gestión todo en uno. En 2 minutos te mostramos todo lo que puedes hacer.',
     placement: 'right',
-    disableBeacon: true,
+    skipBeacon: true,
   },
   {
     target: '[data-tour="header-search"]',
     title: 'Búsqueda global',
     content: 'Busca productos, facturas y clientes desde aquí. Los resultados aparecen en tiempo real.',
     placement: 'bottom',
-    disableBeacon: true,
+    skipBeacon: true,
   },
   {
     target: '[data-tour="header-notifications"]',
     title: 'Notificaciones',
     content: 'Aquí ves alertas de stock bajo, productos agotados y pedidos pendientes de tu tienda online.',
     placement: 'bottom',
-    disableBeacon: true,
+    skipBeacon: true,
   },
   {
     target: '[data-tour="sidebar-dashboard"]',
     title: 'Dashboard',
     content: 'Tu pantalla principal. Ve las ventas del día, pedidos activos y alertas de inventario de un solo vistazo.',
     placement: 'right',
-    disableBeacon: true,
+    skipBeacon: true,
   },
   {
     target: '[data-tour="sidebar-inventory"]',
     title: 'Inventario',
     content: 'Gestiona tus productos: crea nuevos, edita precios, controla el stock y organiza por categorías.',
     placement: 'right',
-    disableBeacon: true,
+    skipBeacon: true,
   },
   {
     target: '[data-tour="sidebar-pos"]',
     title: 'Punto de Venta',
     content: 'Registra ventas presenciales rápidamente. Busca productos, selecciona el método de pago y genera la factura.',
     placement: 'right',
-    disableBeacon: true,
+    skipBeacon: true,
   },
   {
     target: '[data-tour="sidebar-tienda"]',
     title: 'Tienda Online',
     content: 'Administra tu tienda online: personaliza colores y logo, gestiona pedidos, crea cupones y modera reseñas.',
     placement: 'right',
-    disableBeacon: true,
+    skipBeacon: true,
   },
   {
     target: '[data-tour="sidebar-history"]',
     title: 'Historial de Ventas',
     content: 'Consulta todas las ventas registradas desde el POS y la tienda online. Filtra por fecha y descarga facturas.',
     placement: 'right',
-    disableBeacon: true,
+    skipBeacon: true,
   },
   {
     target: '[data-tour="sidebar-settings"]',
     title: 'Configuración',
     content: 'Ajusta los datos de tu empresa, usuarios, integraciones (Cloudinary, WhatsApp) y preferencias generales.',
     placement: 'right',
-    disableBeacon: true,
+    skipBeacon: true,
   },
   {
     target: '[data-tour="header-guide"]',
     title: '¡Siempre disponible!',
     content: 'Puedes volver a esta guía cuando quieras desde el botón "Guía" en el header. ¡Eso es todo!',
     placement: 'bottom',
-    disableBeacon: true,
+    skipBeacon: true,
   },
 ]
 
@@ -206,7 +206,7 @@ export function ProductTour({ open, onClose }: ProductTourProps) {
     }
   }, [open, setSidebarOpen])
 
-  const handleCallback = (data: CallBackProps) => {
+  const handleCallback = (data: EventData) => {
     const { status } = data
     if (status === STATUS.FINISHED || status === STATUS.SKIPPED) {
       onClose()
@@ -222,19 +222,16 @@ export function ProductTour({ open, onClose }: ProductTourProps) {
       disableOverlayClose
       scrollToFirstStep
       spotlightClicks={false}
-      callback={handleCallback}
+      onEvent={handleCallback}
       tooltipComponent={CustomTooltip}
-      floaterProps={{ disableAnimation: false }}
-      styles={{
-        options: {
-          primaryColor: '#6366f1',
-          zIndex: 10000,
-          arrowColor: 'white',
-          overlayColor: 'rgba(0,0,0,0.58)',
-          spotlightRadius: 10,
-          spotlightPadding: 8,
-          width: 320,
-        },
+      options={{
+        primaryColor: '#6366f1',
+        zIndex: 10000,
+        arrowColor: 'white',
+        overlayColor: 'rgba(0,0,0,0.58)',
+        spotlightRadius: 10,
+        spotlightPadding: 8,
+        width: 320,
       }}
       locale={{
         back: 'Atrás',

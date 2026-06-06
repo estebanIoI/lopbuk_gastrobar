@@ -18,6 +18,12 @@ Completar el ecosistema del agente IA multicanal (Fases 3 y 4).
 | Fase 5 — n8n automatizaciones | ⬜ Pendiente | Después de Fase 4 |
 | Fase 6 — Gemini Live + Qdrant | ⬜ Futuro | — |
 
+### Sesión [2026-06-06]
+- ✅ **Build TypeScript verde** — corregidos 68 errores (`tsc --noEmit`): 53 frontend (8 archivos) + 15 backend (4 archivos). Ver changelog `[2026-06-06]`.
+- ✅ Nuevo stub `backend/src/modules/alegra/alegra.service.ts` (desbloquea import dinámico en `orders.routes.ts`).
+- ⏳ Pendiente: implementar `POST /customers/bulk` (backend) e integración real de Alegra.
+- ⚠️ Limpiar 2 archivos vacíos generados al verificar: `frontend/.fe_check.log` y `backend/.be_check.log`.
+
 ### Sesión [2026-05-28]
 - ✅ **SQL v3.8 sincronizado** — Migración agrega `categories.is_active/color/sort_order` + `rb_gastos/rb_ingresos_diarios/rb_gastos_fijos`
 - ✅ **DAIMUZ auditado** — files-index, modules-index, endpoints-index, db-tables-index completos al 100%; neurona `restbar-finanzas`; lib/ completada; integrations.md corregida; ontology roles corregidos; pending actualizado

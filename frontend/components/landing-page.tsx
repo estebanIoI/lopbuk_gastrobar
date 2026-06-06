@@ -1374,7 +1374,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               const t = e.touches[0]
               const dx = t.pageX - touchStartX
               if (!touchDecided) {
-                const dy = Math.abs((e.touches[0] as any).clientY - (e.touches[0] as any).startY ?? 0)
+                const dy = Math.abs(((e.touches[0] as any).clientY ?? 0) - ((e.touches[0] as any).startY ?? 0))
                 touchIsHoriz = Math.abs(dx) > 6
                 touchDecided = true
               }

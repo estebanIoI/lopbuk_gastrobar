@@ -4,6 +4,29 @@
 
 ---
 
+## [2026-06-06] — Build verde: 68 errores TypeScript corregidos (frontend + backend)
+
+`pnpm exec tsc --noEmit` arrojaba 53 errores en frontend (8 archivos) y 15 en backend (4 archivos). Todos corregidos con cambios puntuales:
+
+**Frontend**
+- `lib/types.ts`: `CategoryItem.isHidden?`; nuevos tipos `DailyReportData` / `SedeReportData` / `ProductReportItem` (espejo de `sales.service.ts`).
+- `lib/api.ts`: métodos `getDailyReport(date)` (`GET /sales/daily-report`) y `bulkCreateCustomers(customers)` (`POST /customers/bulk`).
+- `ChatWidget.tsx`: `useRef<string|undefined>(undefined)` (React 19 exige argumento).
+- `gym-management.tsx`: tipado explícito `id: string` en callbacks.
+- `landing-page.tsx`: `?? 0` aplicado a cada operando de la resta de touch.
+- `restbar.tsx`: `user?.storeName` -> `user?.tenantName` (x3; `User` no tiene `storeName`).
+- `ProductTour.tsx`: migración a react-joyride **3.1** — `CallBackProps`->`EventData`, `disableBeacon`->`skipBeacon`, `styles.options`->prop `options`, `callback`->`onEvent`.
+
+**Backend**
+- `assistant.routes.ts`: `tenantId: u.tenantId ?? undefined` (`string|null`->`string|undefined`).
+- `gym.service.ts`: `status: m.status` lo pisaba `...acc`; renombrado a `membershipStatus`.
+- `workorders.controller.ts`: handlers tipados con `AuthRequest` + `req.user!.tenantId!` (patrón de `sales.controller`).
+- **Nuevo** `modules/alegra/alegra.service.ts`: stub tipado de facturación electrónica (el import dinámico en `orders.routes.ts` no resolvía). `createInvoice` es no-op hasta implementar el cliente real.
+
+**Pendiente real (no bloquea build):** implementar endpoint backend `POST /customers/bulk` e integración real de Alegra.
+
+---
+
 ## [2026-06-05] — Asistente personal en toda la plataforma (role-aware)
 
 Reutilizando la estructura de chat, el asistente ahora es personal y consciente del rol, disponible en admin/comerciante:

@@ -126,7 +126,7 @@ export function ChatWidget({ storeSlug, botName, botAvatarUrl, accentColor = '#f
   const [sending, setSending] = useState(false)
   const [sessionToken, setSessionToken] = useState<string | undefined>()
   const bottomRef = useRef<HTMLDivElement>(null)
-  const sessionTokenRef = useRef<string | undefined>()
+  const sessionTokenRef = useRef<string | undefined>(undefined)
 
   useEffect(() => { sessionTokenRef.current = sessionToken }, [sessionToken])
 

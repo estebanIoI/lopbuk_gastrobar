@@ -1919,7 +1919,7 @@ function ReporteSocioView({ from, to, onClose }: { from: string; to: string; onC
     if (!win) return
     win.document.write(`<!DOCTYPE html><html><head>
       <meta charset="utf-8"/>
-      <title>Reporte Quincenal - ${user?.storeName ?? user?.name ?? 'Gastrobar'}</title>
+      <title>Reporte Quincenal - ${user?.tenantName ?? user?.name ?? 'Gastrobar'}</title>
       <style>
         body{font-family:sans-serif;color:#111;padding:32px;max-width:700px;margin:auto}
         h1{font-size:22px;margin:0 0 4px}
@@ -1946,7 +1946,7 @@ function ReporteSocioView({ from, to, onClose }: { from: string; to: string; onC
     new Date(d + 'T12:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'long', year: 'numeric' })
 
   const exportToExcel = () => {
-    const storeName = user?.storeName ?? user?.name ?? 'Gastrobar'
+    const storeName = user?.tenantName ?? user?.name ?? 'Gastrobar'
     const wb = XLSX.utils.book_new()
 
     // ── helper: apply header style to a range ──
@@ -2166,7 +2166,7 @@ function ReporteSocioView({ from, to, onClose }: { from: string; to: string; onC
 
             {/* Header */}
             <div>
-              <h1 className="text-2xl font-black">{user?.storeName ?? user?.name ?? 'Gastrobar'}</h1>
+              <h1 className="text-2xl font-black">{user?.tenantName ?? user?.name ?? 'Gastrobar'}</h1>
               <p className="text-sm text-muted-foreground mt-1">
                 Reporte Quincenal · {fmtDate(from)} al {fmtDate(to)}
               </p>
