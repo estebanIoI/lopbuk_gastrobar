@@ -48,6 +48,15 @@
 
 ---
 
+### [2026-06-05] — Panel "Mi cuenta" mobile quedaba flotando sobre el fondo
+**Síntoma:** En mobile, estando en "Mi cuenta", abrir el menú lateral y tocar Inicio actualizaba el fondo pero el panel de cuenta seguía en primer plano.
+**Causa:** Los botones del menú mobile cambiaban los flags `show*` pero no reseteaban `mobileActiveTab`, que seguía en `'cuenta'`; el panel está gated por `mobileActiveTab === 'cuenta'`.
+**Fix:** Agregar `setMobileActiveTab('tienda')` a los botones de navegación del menú (Inicio, Catálogo, Sedes, Nuevos Lanzamientos, Servicios, Drop, Ofertas).
+**Archivos:** `frontend/components/landing-page.tsx`
+**Regla:** En la vista mobile, cualquier navegación debe resetear `mobileActiveTab`, no solo los flags `show*`.
+
+---
+
 ### [2026-06-05] — Módulo gym no aparecía en el modal de activación
 **Síntoma:** El gimnasio no salía en "Módulos — [tenant]" del superadmin ni se podía activar por comercio.
 **Causa:** Se registró en `sidebar.tsx` y `page.tsx` pero NO en `lib/modules.ts` (`ALL_MODULES`), que es la fuente del modal de activación y del gating del sidebar (`activeModules.includes(item.id)`).
