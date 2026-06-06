@@ -168,7 +168,10 @@ function validateRow(
   // Pass through any extra columns (type-specific fields like expiryDate, size, color, etc.)
   const knownFields = new Set([...CSV_TEMPLATE_HEADERS, ...optionalFields])
   for (const [key, value] of Object.entries(rawRow)) {
-    if (!knownFields.has(key) && value?.trim()) {
+    // Skip PapaParse's __parsed_extra (array of surplus columns when a row
+    // has more values than headers) and any non-string value
+    if (key === '__parsed_extra') continue
+    if (!knownFields.has(key) && typeof value === 'string' && value.trim()) {
       data[key] = value.trim()
     }
   }
