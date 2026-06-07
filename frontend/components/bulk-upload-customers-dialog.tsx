@@ -211,13 +211,27 @@ export function BulkUploadCustomersDialog({ open, onOpenChange, onImported }: Pr
   }, [processFile])
 
   const handleImport = async () => {
-    const validCustomers = validatedRows.filter(r => r.isValid).map(r => r.data)
+    const validCustomers = validatedRows
+      .filter(r => r.isValid)
+      .map(r => ({
+        cedula: r.data.cedula as string,
+        name: r.data.name as string,
+        phone: r.data.phone as string | undefined,
+        email: r.data.email as string | undefined,
+        address: r.data.address as string | undefined,
+        creditLimit: r.data.creditLimit as number | undefined,
+        notes: r.data.notes as string | undefined,
+      }))
     if (validCustomers.length === 0) return
     setIsImporting(true)
     const result = await api.bulkCreateCustomers(validCustomers)
     setIsImporting(false)
     if (result.success && result.data) {
-      setImportResult(result.data)
+      setImportResult({
+        totalCreated: result.data.totalCreated,
+        totalFailed: result.data.totalSkipped ?? 0,
+        errors: result.data.errors ?? [],
+      })
       setStep('results')
       if (result.data.totalCreated > 0) {
         toast.success(`${result.data.totalCreated} clientes importados`)

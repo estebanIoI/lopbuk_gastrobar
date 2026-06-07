@@ -218,10 +218,6 @@ export function ProductTour({ open, onClose }: ProductTourProps) {
       steps={STEPS}
       run={open}
       continuous
-      showSkipButton={false}
-      disableOverlayClose
-      scrollToFirstStep
-      spotlightClicks={false}
       onEvent={handleCallback}
       tooltipComponent={CustomTooltip}
       options={{

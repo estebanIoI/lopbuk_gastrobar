@@ -640,7 +640,7 @@ function PricingBuilder({ accentColor, contactWhatsapp, apiUrl, catalog }: {
   }
 
   return (
-    <section id="constructor" className="py-24 px-6 max-w-6xl mx-auto">
+    <section id="constructor" className="py-16 sm:py-24 px-6 max-w-6xl mx-auto">
       <div className="text-center mb-12">
         <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: accentColor }}>
           Constructor de plan
@@ -658,7 +658,7 @@ function PricingBuilder({ accentColor, contactWhatsapp, apiUrl, catalog }: {
             <button
               key={cat.id}
               onClick={() => setSelectedCat(cat.id)}
-              className="relative flex flex-col items-center gap-1.5 px-4 py-3 rounded-2xl border transition-all min-w-[80px]"
+              className="relative flex flex-col items-center gap-1.5 px-2.5 sm:px-4 py-2.5 sm:py-3 rounded-2xl border transition-all text-center"
               style={
                 active
                   ? { borderColor: accentColor, background: `${accentColor}18`, color: accentColor }
@@ -672,13 +672,13 @@ function PricingBuilder({ accentColor, contactWhatsapp, apiUrl, catalog }: {
                 />
               )}
               <span className="text-2xl">{cat.icon}</span>
-              <span className="text-[10px] font-semibold leading-tight text-center">{cat.label}</span>
+              <span className="text-[10px] font-semibold leading-tight text-center whitespace-nowrap">{cat.label}</span>
             </button>
           )
         })}
       </div>
 
-      <div className="grid lg:grid-cols-[1fr_320px] gap-6 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6 items-start">
         {/* Panel de opciones */}
         <div>
           {currentCat && (
@@ -749,7 +749,7 @@ function PricingBuilder({ accentColor, contactWhatsapp, apiUrl, catalog }: {
         </div>
 
         {/* Panel resumen */}
-        <div className="lg:sticky lg:top-24">
+        <div className="sticky top-24 max-h-fit">
           <div className="rounded-2xl border p-5 space-y-4" style={{ borderColor: 'var(--pf-border)', background: 'var(--pf-card)' }}>
             <p className="font-bold text-sm" style={{ color: 'var(--pf-text)' }}>Resumen de Inversión</p>
 
@@ -1036,7 +1036,7 @@ function EcosistemaConectado({ accentColor, brandTitle }: { accentColor: string;
   const activeData = ECO_NODES.find(n => n.id === activeNode)
 
   return (
-    <section className="py-24 px-6">
+    <section className="py-16 sm:py-24 px-6">
       <div className="max-w-5xl mx-auto">
         <div className="text-center mb-14">
           <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: accentColor }}>
@@ -1050,7 +1050,7 @@ function EcosistemaConectado({ accentColor, brandTitle }: { accentColor: string;
         </div>
 
         {/* Contenedor del grafo — overflow hidden, sin scroll */}
-        <div className="relative mx-auto" style={{ width: '100%', maxWidth: 700, height: 500, overflow: 'hidden' }}>
+        <div className="relative mx-auto w-full max-w-md sm:max-w-lg md:max-w-2xl" style={{ height: 'auto', minHeight: 400, aspectRatio: '1', overflow: 'hidden' }}>
 
           {/* SVG líneas — sin overflow, sin dasharray, sin transiciones */}
           <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}>
@@ -1197,9 +1197,9 @@ function EcosistemaConectado({ accentColor, brandTitle }: { accentColor: string;
 }
 
 // ─── Íconos redes sociales ────────────────────────────────────────────────────
-function WhatsAppIcon() {
+function WhatsAppIcon({ size = 'w-5 h-5' }: { size?: string } = {}) {
   return (
-    <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+    <svg viewBox="0 0 24 24" fill="currentColor" className={size}>
       <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
     </svg>
   )
@@ -1426,6 +1426,26 @@ export default function PortfolioPage() {
         onToggle={toggleTheme}
       />
 
+      {/* ── BOTÓN FLOTANTE MOBILE ────────────────────────────────────────── */}
+      {data?.contactWhatsapp && (
+        <a
+          href={`https://wa.me/${data.contactWhatsapp.replace(/\D/g, '')}`}
+          target="_blank" rel="noopener noreferrer"
+          className="md:hidden fixed bottom-0 left-0 right-0 z-40 flex items-center justify-center gap-3 px-6 py-4 mx-auto transition-all hover:scale-y-105 active:scale-95"
+          style={{
+            background: `linear-gradient(180deg, transparent 0%, ${accent} 50%, ${accent}ff 100%)`,
+            borderTop: `3px solid rgba(255,255,255,0.2)`,
+            color: '#ffffff',
+            fontSize: '16px',
+            fontWeight: 700,
+            boxShadow: `0 -4px 24px ${accent}55, inset 0 1px 0 rgba(255,255,255,0.1)`,
+            letterSpacing: '0.3px',
+          }}
+        >
+          <WhatsAppIcon size="w-6 h-6" /> Solicitar demo
+        </a>
+      )}
+
       {/* ── HERO ──────────────────────────────────────────────────────────── */}
       <section id="inicio" className="relative min-h-screen flex items-center justify-center px-6 overflow-hidden">
         {/* Fondo decorativo */}
@@ -1434,7 +1454,7 @@ export default function PortfolioPage() {
           style={{ background: `radial-gradient(ellipse 80% 60% at 50% 0%, ${accent}22 0%, transparent 70%)` }}
         />
         <div
-          className="glow-pulse absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[600px] rounded-full pointer-events-none"
+          className="glow-pulse absolute top-0 left-1/2 -translate-x-1/2 w-72 sm:w-96 md:w-[600px] h-72 sm:h-96 md:h-[600px] rounded-full pointer-events-none"
           style={{ background: `radial-gradient(circle, ${accent}18 0%, transparent 70%)` }}
         />
 
@@ -1446,14 +1466,14 @@ export default function PortfolioPage() {
             <span>⚡</span> Plataforma SaaS Multi-Negocio
           </div>
 
-          <h1 className="text-5xl sm:text-7xl font-black tracking-tight leading-none">
+          <h1 className="text-3xl sm:text-5xl md:text-7xl font-black tracking-tight leading-none">
             {title}
           </h1>
 
-          <p className="text-xl text-gray-400 leading-relaxed">{subtitle}</p>
+          <p className="text-base sm:text-lg md:text-xl text-gray-400 leading-relaxed max-w-2xl">{subtitle}</p>
 
           {description && (
-            <p className="text-sm text-gray-500 leading-relaxed">{description}</p>
+            <p className="text-xs sm:text-sm text-gray-500 leading-relaxed max-w-2xl">{description}</p>
           )}
 
           <div className="flex flex-wrap justify-center gap-3 pt-2">
@@ -1461,8 +1481,13 @@ export default function PortfolioPage() {
               <a
                 href={`https://wa.me/${data.contactWhatsapp.replace(/\D/g, '')}`}
                 target="_blank" rel="noopener noreferrer"
-                className="flex items-center gap-2 px-6 py-3 rounded-full text-sm font-semibold text-white transition-all hover:scale-105 active:scale-95"
-                style={{ background: accent }}
+                className="flex items-center gap-2 px-6 py-3 rounded-full text-sm font-semibold transition-all hover:scale-105 active:scale-95 border-2"
+                style={{ 
+                  background: '#ffffff',
+                  color: '#000000',
+                  borderColor: accent,
+                  boxShadow: `0 4px 24px ${accent}44`
+                }}
               >
                 <WhatsAppIcon /> Solicitar demo
               </a>
@@ -1506,9 +1531,9 @@ export default function PortfolioPage() {
 
       {/* ── EQUIPO + COMERCIOS DESTACADOS ────────────────────────────────── */}
       {(teamCards.length > 0 || (data?.showFeaturedStores && (data?.featuredStores?.length ?? 0) > 0)) && (
-        <section id="equipo" className="py-24 px-6">
+        <section id="equipo" className="py-16 sm:py-24 px-6">
           <div className="max-w-6xl mx-auto">
-            <div className={`grid gap-16 items-start ${teamCards.length > 0 && data?.showFeaturedStores && (data?.featuredStores?.length ?? 0) > 0 ? 'lg:grid-cols-2' : ''}`}>
+            <div className={`grid gap-8 sm:gap-16 items-start ${teamCards.length > 0 && data?.showFeaturedStores && (data?.featuredStores?.length ?? 0) > 0 ? 'grid-cols-1 lg:grid-cols-2' : ''}`}>
 
               {/* ── Izquierda: Comercios destacados ── */}
               {data?.showFeaturedStores && (data?.featuredStores?.length ?? 0) > 0 && (
@@ -1598,7 +1623,7 @@ export default function PortfolioPage() {
       )}
 
       {/* ── CARACTERÍSTICAS ───────────────────────────────────────────────── */}
-      <section id="caracteristicas" className="py-24 px-6 max-w-6xl mx-auto">
+      <section id="caracteristicas" className="py-16 sm:py-24 px-6 max-w-6xl mx-auto">
         <div className="text-center mb-14">
           <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: accent }}>
             Plataforma completa
@@ -1606,7 +1631,7 @@ export default function PortfolioPage() {
           <h2 className="text-3xl sm:text-4xl font-bold">Todo lo que tu negocio necesita</h2>
         </div>
 
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {features.map(f => (
             <div
               key={f.title}
@@ -1631,7 +1656,7 @@ export default function PortfolioPage() {
 
       {/* ── PRECIOS ───────────────────────────────────────────────────────── */}
       {data?.showPricing !== false && (
-        <section id="precios" className="py-24 px-6 relative overflow-hidden">
+        <section id="precios" className="py-16 sm:py-24 px-6 relative overflow-hidden">
           <div
             className="absolute inset-0 pointer-events-none"
             style={{ background: `radial-gradient(ellipse 80% 50% at 50% 50%, ${accent}0f 0%, transparent 70%)` }}
@@ -1645,7 +1670,7 @@ export default function PortfolioPage() {
               <p className="text-sm text-gray-500 mt-2">Precios en COP · IVA no incluido · Contrato mensual</p>
             </div>
 
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-10">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-10">
               {PLANS.map(plan => (
                 <div
                   key={plan.name}
@@ -1725,7 +1750,7 @@ export default function PortfolioPage() {
 
       {/* ── COMERCIOS INTEGRADOS ──────────────────────────────────────────── */}
       {data?.showFeaturedStores && (data?.featuredStores?.length ?? 0) > 0 && (
-        <section className="py-24 px-6 max-w-6xl mx-auto">
+        <section className="py-16 sm:py-24 px-6 max-w-6xl mx-auto">
           <div className="text-center mb-14">
             <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: accent }}>
               Nuestros clientes
@@ -1733,7 +1758,7 @@ export default function PortfolioPage() {
             <h2 className="text-3xl sm:text-4xl font-bold">Negocios que confían en DAIMUZ</h2>
           </div>
 
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {data!.featuredStores.map(store => (
               <div
                 key={store.id}
@@ -1768,7 +1793,7 @@ export default function PortfolioPage() {
       )}
 
       {/* ── CONTACTO ──────────────────────────────────────────────────── */}
-      <section id="contacto" className="py-24 px-6">
+      <section id="contacto" className="py-16 sm:py-24 px-6 pb-32 md:pb-16">
         <div className="max-w-3xl mx-auto">
           {/* Header */}
           <div className="text-center mb-12 space-y-3">
@@ -1783,7 +1808,7 @@ export default function PortfolioPage() {
 
           {/* Canales de contacto */}
           {(data?.contactWhatsapp || data?.contactEmail || data?.contactInstagram) && (
-            <div className={`grid gap-3 ${[data?.contactWhatsapp, data?.contactEmail, data?.contactInstagram].filter(Boolean).length === 1 ? 'grid-cols-1 max-w-sm mx-auto' : [data?.contactWhatsapp, data?.contactEmail, data?.contactInstagram].filter(Boolean).length === 2 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1 sm:grid-cols-3'}`}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-w-4xl mx-auto">
               {data?.contactWhatsapp && (
                 <a
                   href={`https://wa.me/${data.contactWhatsapp.replace(/\D/g, '')}?text=Hola!%20Quiero%20agendar%20una%20demo%20de%20DAIMUZ`}
