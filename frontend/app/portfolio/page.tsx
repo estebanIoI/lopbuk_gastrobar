@@ -1304,6 +1304,9 @@ export default function PortfolioPage() {
   const [scrolled, setScrolled] = useState(false)
   const [features, setFeatures] = useState(FEATURES)
   const [serviceCatalog, setServiceCatalog] = useState<ServiceCategory[]>(SERVICE_CATALOG)
+  // Floating CTA: aparece cuando el botón del hero sale de la vista
+  const heroCTARef = useRef<HTMLAnchorElement>(null)
+  const [showFloatingCta, setShowFloatingCta] = useState(false)
 
   useEffect(() => {
     const saved = typeof localStorage !== 'undefined' ? localStorage.getItem('pf-theme') : null
@@ -1312,6 +1315,18 @@ export default function PortfolioPage() {
     window.addEventListener('scroll', onScroll, { passive: true })
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
+
+  // Observa el botón CTA del hero — muestra el flotante cuando sale de la vista
+  useEffect(() => {
+    const el = heroCTARef.current
+    if (!el) return
+    const observer = new IntersectionObserver(
+      ([entry]) => setShowFloatingCta(!entry.isIntersecting),
+      { threshold: 0, rootMargin: '-64px 0px 0px 0px' }
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [data])
 
   const toggleTheme = useCallback(() => {
     setIsDark(prev => {
@@ -1426,20 +1441,24 @@ export default function PortfolioPage() {
         onToggle={toggleTheme}
       />
 
-      {/* ── BOTÓN FLOTANTE MOBILE ────────────────────────────────────────── */}
+      {/* ── BOTÓN FLOTANTE MOBILE (aparece al hacer scroll, slide-up) ────── */}
       {data?.contactWhatsapp && (
         <a
           href={`https://wa.me/${data.contactWhatsapp.replace(/\D/g, '')}`}
           target="_blank" rel="noopener noreferrer"
-          className="md:hidden fixed bottom-0 left-0 right-0 z-40 flex items-center justify-center gap-3 px-6 py-4 mx-auto transition-all hover:scale-y-105 active:scale-95"
+          aria-label="Solicitar demo por WhatsApp"
+          className="md:hidden fixed bottom-0 left-0 right-0 z-40 flex items-center justify-center gap-3 px-6 py-4 mx-auto active:scale-95"
           style={{
-            background: `linear-gradient(180deg, transparent 0%, ${accent} 50%, ${accent}ff 100%)`,
-            borderTop: `3px solid rgba(255,255,255,0.2)`,
+            background: `linear-gradient(160deg, ${accent}ee 0%, ${accent}ff 100%)`,
+            borderTop: `2px solid rgba(255,255,255,0.25)`,
             color: '#ffffff',
             fontSize: '16px',
             fontWeight: 700,
-            boxShadow: `0 -4px 24px ${accent}55, inset 0 1px 0 rgba(255,255,255,0.1)`,
+            boxShadow: `0 -6px 32px ${accent}60, inset 0 1px 0 rgba(255,255,255,0.15)`,
             letterSpacing: '0.3px',
+            transform: showFloatingCta ? 'translateY(0)' : 'translateY(100%)',
+            transition: 'transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
+            pointerEvents: showFloatingCta ? 'auto' : 'none',
           }}
         >
           <WhatsAppIcon size="w-6 h-6" /> Solicitar demo
@@ -1479,6 +1498,7 @@ export default function PortfolioPage() {
           <div className="flex flex-wrap justify-center gap-3 pt-2">
             {data?.contactWhatsapp && (
               <a
+                ref={heroCTARef}
                 href={`https://wa.me/${data.contactWhatsapp.replace(/\D/g, '')}`}
                 target="_blank" rel="noopener noreferrer"
                 className="flex items-center gap-2 px-6 py-3 rounded-full text-sm font-semibold transition-all hover:scale-105 active:scale-95 border-2"
