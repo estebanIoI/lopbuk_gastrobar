@@ -56,6 +56,25 @@ router.delete(
   tenantsController.deleteBusinessType.bind(tenantsController)
 );
 
+// GET /api/tenants/marketplace-cards - Tarjetas de comercios para la página principal (BEFORE /:id)
+router.get('/marketplace-cards', tenantsController.getMarketplaceCards.bind(tenantsController));
+
+// PUT /api/tenants/:id/marketplace-card - Configurar la tarjeta de presentación de un comercio
+router.put(
+  '/:id/marketplace-card',
+  [
+    param('id').notEmpty().withMessage('ID requerido'),
+    body('coverUrl').optional({ nullable: true }).isString().isLength({ max: 500 }),
+    body('cardDescription').optional({ nullable: true }).isString().isLength({ max: 300 }),
+    body('isVerified').optional().isBoolean(),
+    body('openState').optional().isIn(['open', 'closed']).withMessage('openState inválido'),
+    body('marketplaceVisible').optional().isBoolean(),
+    body('marketplaceOrder').optional().isInt({ min: 0 }).withMessage('Orden inválido'),
+    validateRequest,
+  ],
+  tenantsController.updateMarketplaceCard.bind(tenantsController)
+);
+
 // GET /api/tenants/:id - Get tenant detail (MUST be after static routes to avoid conflict)
 router.get(
   '/:id',

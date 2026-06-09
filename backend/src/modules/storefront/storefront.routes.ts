@@ -335,12 +335,19 @@ router.get('/stores', async (req: Request, res: Response) => {
       `SELECT t.id, t.name, t.slug, t.business_type as businessType,
               si.logo_url as logoUrl, si.address, si.latitude, si.longitude,
               si.municipality, si.department,
+              si.municipality as city,
+              si.card_cover_url as coverUrl,
+              si.card_description as cardDescription,
+              COALESCE(si.is_verified, 0) as isVerified,
+              COALESCE(si.open_state, 'open') as openState,
+              (SELECT COUNT(*) FROM sedes s WHERE s.tenant_id = t.id) as sedeCount,
               (SELECT COUNT(*) FROM products p WHERE p.tenant_id = t.id AND p.stock > 0 AND p.published_in_store = 1) as productCount
        FROM tenants t
        LEFT JOIN store_info si ON si.tenant_id = t.id
        WHERE t.status = 'activo'
+         AND (si.marketplace_visible IS NULL OR si.marketplace_visible = 1)
        ${municipalityFilter}
-       ORDER BY t.name ASC`,
+       ORDER BY COALESCE(si.marketplace_order, 0) ASC, t.name ASC`,
       params
     ) as any;
 

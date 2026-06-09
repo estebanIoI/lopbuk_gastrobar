@@ -345,6 +345,14 @@ const startServer = async () => {
       await addCol(`ALTER TABLE store_info ADD COLUMN contact_page_image VARCHAR(500) NULL`);
       await addCol(`ALTER TABLE store_info ADD COLUMN meta_pixel_id VARCHAR(50) NULL DEFAULT NULL COMMENT 'ID del pixel de Meta/Facebook para tracking de conversiones'`);
       await addCol(`ALTER TABLE store_info ADD COLUMN enable_iva TINYINT(1) NOT NULL DEFAULT 0 COMMENT '1 = aplicar IVA 19% al registrar venta'`);
+
+      // ── Tarjeta de presentación en el marketplace (página principal) ──────────
+      await addCol(`ALTER TABLE store_info ADD COLUMN card_cover_url VARCHAR(500) NULL COMMENT 'Imagen de portada de la tarjeta del comercio en el marketplace'`);
+      await addCol(`ALTER TABLE store_info ADD COLUMN card_description VARCHAR(300) NULL COMMENT 'Descripción corta mostrada en la tarjeta del marketplace'`);
+      await addCol(`ALTER TABLE store_info ADD COLUMN is_verified TINYINT(1) NOT NULL DEFAULT 0 COMMENT '1 = comercio verificado (check azul)'`);
+      await addCol(`ALTER TABLE store_info ADD COLUMN open_state ENUM('open','closed') NOT NULL DEFAULT 'open' COMMENT 'Estado manual abierto/cerrado de la tarjeta'`);
+      await addCol(`ALTER TABLE store_info ADD COLUMN marketplace_visible TINYINT(1) NOT NULL DEFAULT 1 COMMENT '1 = visible en la página principal'`);
+      await addCol(`ALTER TABLE store_info ADD COLUMN marketplace_order INT NOT NULL DEFAULT 0 COMMENT 'Orden de aparición en el marketplace (menor primero)'`);
     }
 
     // ── restBar + Finances migrations ────────────────────────────────────────

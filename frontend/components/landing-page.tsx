@@ -219,7 +219,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [loadingProducts, setLoadingProducts] = useState(false)
-  const [stores, setStores] = useState<{ id: string; name: string; slug: string; businessType: string | null; logoUrl: string | null; address: string | null; productCount: number }[]>([])
+  const [stores, setStores] = useState<{ id: string; name: string; slug: string; businessType: string | null; logoUrl: string | null; address: string | null; productCount: number; coverUrl?: string | null; cardDescription?: string | null; city?: string | null; isVerified?: number | boolean; openState?: 'open' | 'closed'; sedeCount?: number }[]>([])
   const [selectedStore, setSelectedStore] = useState<string>(() => {
     if (typeof window !== 'undefined') {
       return new URLSearchParams(window.location.search).get('store') || 'all'
@@ -6387,7 +6387,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                               if (isEmpty) return
                               setSelectedStore(store.slug); setShowStoresView(false); setActiveSede(null); setStoreSedes([]); window.scrollTo({ top: 0, behavior: 'smooth' })
                             }}
-                            className={`group relative bg-white rounded-2xl overflow-hidden text-left flex flex-col shadow-sm transition-all duration-300 border ${isEmpty ? 'cursor-default border-gray-100 opacity-75' : 'hover:shadow-xl border-gray-100 hover:border-neutral-300 cursor-pointer'}`}
+                            className={`group relative bg-[#171717] rounded-2xl overflow-hidden text-left flex flex-col shadow-sm transition-all duration-300 border ${isEmpty ? 'cursor-default border-white/5 opacity-70' : 'hover:shadow-xl border-white/10 hover:border-white/25 cursor-pointer'}`}
                           >
                             {/* Próximamente overlay for empty stores */}
                             {isEmpty && (
@@ -6406,73 +6406,67 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                               </div>
                             )}
 
-                            {/* Banner image — object-contain so logos no se recortan */}
-                            <div className="relative w-full bg-gray-50 overflow-hidden shrink-0" style={{ aspectRatio: '16/9' }}>
-                              {store.logoUrl ? (
+                            {/* ── Portada / banner ── */}
+                            <div className="relative w-full bg-[#0e0e0e] overflow-hidden shrink-0" style={{ aspectRatio: '16/10' }}>
+                              {(store.coverUrl || store.logoUrl) ? (
                                 // eslint-disable-next-line @next/next/no-img-element
                                 <img
-                                  src={ensureAbsoluteUrl(store.logoUrl)}
+                                  src={ensureAbsoluteUrl((store.coverUrl || store.logoUrl) as string)}
                                   alt={store.name}
-                                  className={`w-full h-full object-contain p-3 ${isEmpty ? '' : 'group-hover:scale-105'} transition-transform duration-500`}
+                                  className={`w-full h-full ${store.coverUrl ? 'object-cover' : 'object-contain p-4'} ${isEmpty ? '' : 'group-hover:scale-105'} transition-transform duration-500`}
                                 />
                               ) : (
                                 <div className="w-full h-full flex items-center justify-center">
-                                  <Store className={`w-10 h-10 text-gray-200 ${isEmpty ? '' : 'group-hover:text-neutral-400'} transition-colors duration-500`} />
+                                  <Store className="w-10 h-10 text-white/15" />
                                 </div>
                               )}
-                              {/* Product count badge */}
-                              <span className="absolute top-2 right-2 bg-white/90 border border-gray-200 text-gray-500 text-[9px] font-medium px-1.5 py-0.5 rounded-full flex items-center gap-0.5 shadow-sm">
-                                <Package className="w-2.5 h-2.5" />{store.productCount}
-                              </span>
-                            </div>
-
-                            {/* Info */}
-                            <div className="px-3 pt-2.5 pb-2">
-                              <h3 className={`text-xs sm:text-sm font-semibold text-gray-800 ${isEmpty ? '' : 'group-hover:text-neutral-600'} transition-colors truncate`}>{store.name}</h3>
-                              {store.businessType && (
-                                <p className="text-[9px] sm:text-[10px] text-white/70 uppercase tracking-widest mt-0.5 font-medium truncate">{store.businessType}</p>
-                              )}
-                              {store.address && (
-                                <p className="hidden sm:flex text-[11px] text-gray-400 items-center gap-1 mt-1 truncate">
-                                  <MapPin className="w-2.5 h-2.5 shrink-0" />{store.address}
-                                </p>
+                              {/* Degradado inferior para fundir con la tarjeta */}
+                              <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-[#171717] to-transparent pointer-events-none" />
+                              {/* Badge Abierto / Cerrado */}
+                              {!isEmpty && (
+                                <span className={`absolute top-2.5 right-2.5 flex items-center gap-1 text-[9px] sm:text-[10px] font-bold px-2 py-1 rounded-full backdrop-blur-sm ${store.openState === 'closed' ? 'bg-red-500/20 text-red-300 border border-red-400/40' : 'bg-green-500/20 text-green-300 border border-green-400/50'}`}>
+                                  <span className={`w-1.5 h-1.5 rounded-full ${store.openState === 'closed' ? 'bg-red-400' : 'bg-green-400'}`} />
+                                  {store.openState === 'closed' ? 'CERRADO' : 'ABIERTO'}
+                                </span>
                               )}
                             </div>
 
-                            {/* Product previews */}
-                            {loadingAllProducts ? (
-                              <div className="px-3 pb-3 flex gap-1">
-                                {[0,1,2,3].map(i => <div key={i} className="flex-1 aspect-square bg-gray-100 animate-pulse rounded-lg" />)}
+                            {/* ── Logo circular superpuesto ── */}
+                            <div className="px-4 -mt-7 relative z-10 flex">
+                              <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl overflow-hidden bg-[#1f1f1f] border-2 border-[#171717] shadow-lg flex items-center justify-center shrink-0">
+                                {store.logoUrl ? (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img src={ensureAbsoluteUrl(store.logoUrl)} alt={store.name} className="w-full h-full object-cover" />
+                                ) : (
+                                  <Store className="w-6 h-6 text-white/30" />
+                                )}
                               </div>
-                            ) : storeProducts.length > 0 ? (
-                              <div className="px-3 pb-2 grid grid-cols-4 gap-1">
-                                {storeProducts.map(p => (
-                                  <div key={p.id} className="aspect-square bg-gray-50 border border-gray-100 overflow-hidden rounded-lg">
-                                    {p.imageUrl ? (
-                                      // eslint-disable-next-line @next/next/no-img-element
-                                      <img src={ensureAbsoluteUrl(p.imageUrl)} alt={p.name} className={`w-full h-full object-cover ${isEmpty ? '' : 'group-hover:scale-110'} transition-transform duration-500`} />
-                                    ) : (
-                                      <div className="w-full h-full flex items-center justify-center"><Sparkles className="w-3 h-3 text-gray-200" /></div>
-                                    )}
-                                  </div>
-                                ))}
-                                {Array.from({ length: Math.max(0, 4 - storeProducts.length) }).map((_, i) => (
-                                  <div key={`ep-${i}`} className="aspect-square bg-gray-50 rounded-lg border border-gray-100" />
-                                ))}
-                              </div>
-                            ) : (
-                              <div className="px-3 pb-3">
-                                <p className="text-[9px] text-gray-300 italic">Sin productos publicados</p>
-                              </div>
-                            )}
+                            </div>
 
-                            {/* CTA */}
-                            {!isEmpty && (
-                              <div className="px-3 pb-3 mt-auto flex items-center gap-1 text-white/40 text-[9px] sm:text-[10px] uppercase tracking-widest group-hover:text-white/70 transition-colors font-medium">
-                                <span>Explorar</span>
-                                <ArrowRight className="w-2.5 h-2.5" />
+                            {/* ── Info ── */}
+                            <div className="px-4 pt-2 pb-4 flex flex-col gap-1 mt-auto">
+                              <div className="flex items-center gap-1.5">
+                                <h3 className="text-sm sm:text-base font-bold text-white truncate">{store.name}</h3>
+                                {Boolean(store.isVerified) && (
+                                  <svg viewBox="0 0 24 24" className="w-4 h-4 shrink-0" role="img" aria-label="Verificado">
+                                    <path fill="#3b82f6" d="M12 1l2.4 1.8 3 .2.9 2.9 2.4 1.8-.9 2.9.9 2.9-2.4 1.8-.9 2.9-3 .2L12 23l-2.4-1.8-3-.2-.9-2.9L3.3 16l.9-2.9-.9-2.9 2.4-1.8.9-2.9 3-.2z"/>
+                                    <path fill="#fff" d="M10.6 14.6l-2.2-2.2-1.1 1.1 3.3 3.3 6-6-1.1-1.1z"/>
+                                  </svg>
+                                )}
                               </div>
-                            )}
+                              {(store.cardDescription || store.businessType) && (
+                                <p className="text-[11px] sm:text-xs text-white/50 truncate">{store.cardDescription || store.businessType}</p>
+                              )}
+                              <div className="flex items-center gap-1 mt-1 text-[11px] text-white/40">
+                                <MapPin className="w-3 h-3 text-rose-400 shrink-0" />
+                                <span className="truncate">
+                                  {[
+                                    typeof store.sedeCount === 'number' ? `${store.sedeCount} Sede(s)` : null,
+                                    store.city || (!store.city && typeof store.sedeCount !== 'number' ? store.address : null),
+                                  ].filter(Boolean).join(' · ')}
+                                </span>
+                              </div>
+                            </div>
                           </button>
                         )
                       })}

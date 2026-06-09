@@ -164,6 +164,24 @@ export class TenantsController {
       next(error);
     }
   }
+
+  async getMarketplaceCards(_req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const data = await tenantsService.getMarketplaceCards();
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async updateMarketplaceCard(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      await tenantsService.updateMarketplaceCard(req.params.id, req.body);
+      res.json({ success: true, message: 'Tarjeta actualizada' });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const tenantsController = new TenantsController();

@@ -28,6 +28,7 @@ import {
   Sparkles,
   TrendingUp,
   Store,
+  MapPin,
   Star,
   Search,
   X,
@@ -228,7 +229,47 @@ const TENANT_COLORS = [
 
 export function SuperadminHome() {
   // ── Tab state ──
-  const [activeTab, setActiveTab] = useState<'pagina' | 'timeline' | 'destacados' | 'integraciones' | 'pagos' | 'portafolio' | 'solicitudes'>('pagina')
+  const [activeTab, setActiveTab] = useState<'pagina' | 'comercios' | 'timeline' | 'destacados' | 'integraciones' | 'pagos' | 'portafolio' | 'solicitudes'>('pagina')
+
+  // ── Tarjetas de comercios (marketplace) ──
+  const [marketplaceCards, setMarketplaceCards] = useState<any[]>([])
+  const [isLoadingCards, setIsLoadingCards] = useState(false)
+  const [cardSearch, setCardSearch] = useState('')
+  const [savingCardId, setSavingCardId] = useState<string | null>(null)
+
+  const fetchMarketplaceCards = async () => {
+    setIsLoadingCards(true)
+    try {
+      const res = await api.getMarketplaceCards()
+      if (res.success && res.data) setMarketplaceCards(res.data as any[])
+    } catch { /* noop */ }
+    setIsLoadingCards(false)
+  }
+
+  // Actualiza un campo localmente sin guardar todavía
+  const patchCardLocal = (id: string, patch: Record<string, any>) => {
+    setMarketplaceCards(prev => prev.map(c => (c.id === id ? { ...c, ...patch } : c)))
+  }
+
+  // Guarda en el backend los campos editables de una tarjeta
+  const saveMarketplaceCard = async (card: any) => {
+    setSavingCardId(card.id)
+    try {
+      const res = await api.updateMarketplaceCard(card.id, {
+        coverUrl: card.coverUrl ?? null,
+        cardDescription: card.cardDescription ?? null,
+        isVerified: Boolean(card.isVerified),
+        openState: card.openState === 'closed' ? 'closed' : 'open',
+        marketplaceVisible: Boolean(card.marketplaceVisible),
+        marketplaceOrder: Number(card.marketplaceOrder) || 0,
+      })
+      if (res.success) toast.success('Tarjeta actualizada')
+      else toast.error(res.error || 'No se pudo guardar')
+    } catch {
+      toast.error('Error al guardar la tarjeta')
+    }
+    setSavingCardId(null)
+  }
 
   // ── Dev Requests ──
   const [devRequests, setDevRequests] = useState<any[]>([])
@@ -556,6 +597,7 @@ export function SuperadminHome() {
     }
     if (activeTab === 'portafolio') { fetchPortfolioConfig(); fetchTeamCards(); fetchFeatureCards(); fetchServiceCatalog() }
     if (activeTab === 'solicitudes') fetchDevRequests()
+    if (activeTab === 'comercios') fetchMarketplaceCards()
   }, [activeTab, timelinePeriod, fetchTimeline, fetchIntegrations, fetchChatbotTenants, fetchDevRequests])
 
   useEffect(() => {
@@ -967,6 +1009,7 @@ export function SuperadminHome() {
       <div className="flex gap-1 p-1 bg-muted rounded-lg w-fit">
         {[
           { id: 'pagina', label: 'Página Principal', icon: LayoutTemplate },
+          { id: 'comercios', label: 'Tarjetas de Comercios', icon: Store },
           { id: 'timeline', label: 'Línea de Ventas', icon: TrendingUp },
           { id: 'destacados', label: 'Productos Destacados', icon: Star },
           { id: 'integraciones', label: 'Integraciones', icon: Plug },
@@ -1421,6 +1464,172 @@ export function SuperadminHome() {
       {/* ══════════════════════════════════════
           TAB: PRODUCTOS DESTACADOS (Platform Featured)
       ══════════════════════════════════════ */}
+      {/* ══════════════════════════════════════
+          TAB: TARJETAS DE COMERCIOS (marketplace)
+      ══════════════════════════════════════ */}
+      {activeTab === 'comercios' && (
+        <div className="space-y-6">
+          <Card className="border-border bg-card">
+            <CardHeader className="pb-3">
+              <div className="flex flex-row items-center justify-between gap-2">
+                <div>
+                  <CardTitle className="text-base lg:text-lg flex items-center gap-2">
+                    <Store className="h-5 w-5 text-muted-foreground" />
+                    Tarjetas de Comercios en la Página Principal
+                  </CardTitle>
+                  <CardDescription>
+                    Configura cómo se presenta cada comercio en el marketplace: verificado, abierto/cerrado, portada, descripción, visibilidad y orden.
+                  </CardDescription>
+                </div>
+                <Button variant="outline" size="sm" onClick={fetchMarketplaceCards} disabled={isLoadingCards}>
+                  <RefreshCw className={`h-4 w-4 ${isLoadingCards ? 'animate-spin' : ''}`} />
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Buscador */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  value={cardSearch}
+                  onChange={(e) => setCardSearch(e.target.value)}
+                  placeholder="Buscar comercio por nombre o slug..."
+                  className="pl-9 pr-4"
+                />
+              </div>
+
+              {isLoadingCards ? (
+                <div className="flex items-center justify-center py-12">
+                  <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
+                </div>
+              ) : marketplaceCards.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-10">No hay comercios activos</p>
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {marketplaceCards
+                    .filter(c => {
+                      const q = cardSearch.trim().toLowerCase()
+                      if (!q) return true
+                      return (c.name || '').toLowerCase().includes(q) || (c.slug || '').toLowerCase().includes(q)
+                    })
+                    .map(card => (
+                      <div key={card.id} className="rounded-xl border border-border bg-background overflow-hidden">
+                        {/* Encabezado: preview */}
+                        <div className="flex items-center gap-3 p-3 border-b border-border bg-secondary/20">
+                          <div className="w-12 h-12 rounded-lg overflow-hidden bg-muted flex items-center justify-center shrink-0">
+                            {(card.coverUrl || card.logoUrl) ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={card.coverUrl || card.logoUrl} alt={card.name} className="w-full h-full object-cover" />
+                            ) : (
+                              <Store className="h-5 w-5 text-muted-foreground/40" />
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5">
+                              <p className="text-sm font-semibold truncate">{card.name}</p>
+                              {Boolean(card.isVerified) && <CheckCircle2 className="h-3.5 w-3.5 text-blue-500 shrink-0" />}
+                            </div>
+                            <p className="text-xs text-muted-foreground truncate">
+                              /{card.slug}
+                              {card.city ? ` · ${card.city}` : ''}
+                              {typeof card.sedeCount === 'number' ? ` · ${card.sedeCount} sede(s)` : ''}
+                            </p>
+                          </div>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${card.openState === 'closed' ? 'bg-red-500/15 text-red-500' : 'bg-green-500/15 text-green-600'}`}>
+                            {card.openState === 'closed' ? 'CERRADO' : 'ABIERTO'}
+                          </span>
+                        </div>
+
+                        {/* Cuerpo: campos editables */}
+                        <div className="p-3 space-y-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                              <label className="text-xs font-medium text-muted-foreground mb-1 block">URL de portada</label>
+                              <Input
+                                value={card.coverUrl ?? ''}
+                                onChange={(e) => patchCardLocal(card.id, { coverUrl: e.target.value })}
+                                placeholder="https://..."
+                                className="h-9 text-sm"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-xs font-medium text-muted-foreground mb-1 block">Descripción corta</label>
+                              <Input
+                                value={card.cardDescription ?? ''}
+                                onChange={(e) => patchCardLocal(card.id, { cardDescription: e.target.value })}
+                                placeholder="Ej: Cocina peruana auténtica"
+                                maxLength={300}
+                                className="h-9 text-sm"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-2">
+                            {/* Verificado */}
+                            <button
+                              type="button"
+                              onClick={() => patchCardLocal(card.id, { isVerified: !card.isVerified })}
+                              className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border transition-colors ${card.isVerified ? 'bg-blue-500/10 border-blue-500/40 text-blue-600' : 'border-border text-muted-foreground hover:bg-muted'}`}
+                            >
+                              <CheckCircle2 className="h-3.5 w-3.5" />
+                              {card.isVerified ? 'Verificado' : 'Sin verificar'}
+                            </button>
+
+                            {/* Abierto / Cerrado */}
+                            <button
+                              type="button"
+                              onClick={() => patchCardLocal(card.id, { openState: card.openState === 'closed' ? 'open' : 'closed' })}
+                              className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border transition-colors ${card.openState === 'closed' ? 'bg-red-500/10 border-red-500/40 text-red-600' : 'bg-green-500/10 border-green-500/40 text-green-600'}`}
+                            >
+                              <span className={`w-1.5 h-1.5 rounded-full ${card.openState === 'closed' ? 'bg-red-500' : 'bg-green-500'}`} />
+                              {card.openState === 'closed' ? 'Cerrado' : 'Abierto'}
+                            </button>
+
+                            {/* Visible */}
+                            <button
+                              type="button"
+                              onClick={() => patchCardLocal(card.id, { marketplaceVisible: !card.marketplaceVisible })}
+                              className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border transition-colors ${card.marketplaceVisible ? 'border-border text-foreground hover:bg-muted' : 'bg-amber-500/10 border-amber-500/40 text-amber-600'}`}
+                            >
+                              {card.marketplaceVisible ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+                              {card.marketplaceVisible ? 'Visible' : 'Oculto'}
+                            </button>
+
+                            {/* Orden */}
+                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                              <span>Orden</span>
+                              <Input
+                                type="number"
+                                min={0}
+                                value={card.marketplaceOrder ?? 0}
+                                onChange={(e) => patchCardLocal(card.id, { marketplaceOrder: e.target.value })}
+                                className="h-8 w-16 text-sm"
+                              />
+                            </div>
+
+                            {/* Guardar */}
+                            <Button
+                              size="sm"
+                              className="ml-auto"
+                              onClick={() => saveMarketplaceCard(card)}
+                              disabled={savingCardId === card.id}
+                            >
+                              {savingCardId === card.id
+                                ? <RefreshCw className="h-4 w-4 animate-spin" />
+                                : <Save className="h-4 w-4" />}
+                              <span className="ml-1.5">Guardar</span>
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       {activeTab === 'destacados' && (
         <div className="space-y-6">
           <Card className="border-border bg-card">

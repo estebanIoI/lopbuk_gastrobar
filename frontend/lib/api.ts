@@ -885,6 +885,25 @@ class ApiService {
     })
   }
 
+  // ── Tarjetas del marketplace (página principal, superadmin) ──
+  async getMarketplaceCards() {
+    return this.request<any[]>('/tenants/marketplace-cards')
+  }
+
+  async updateMarketplaceCard(id: string, data: {
+    coverUrl?: string | null
+    cardDescription?: string | null
+    isVerified?: boolean
+    openState?: 'open' | 'closed'
+    marketplaceVisible?: boolean
+    marketplaceOrder?: number
+  }) {
+    return this.request<any>(`/tenants/${id}/marketplace-card`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  }
+
   // =============================================
   // Storefront management endpoints (authenticated)
   // =============================================

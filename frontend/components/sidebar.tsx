@@ -1,9 +1,11 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useStore } from '@/lib/store'
 import { useAuthStore } from '@/lib/auth-store'
 import { cn } from '@/lib/utils'
+import { panelHref } from '@/lib/panel-sections'
 import {
   LayoutDashboard,
   Package,
@@ -137,6 +139,7 @@ export function Sidebar() {
     sidebarOpen, setSidebarOpen,
   } = useStore()
   const { user, logout } = useAuthStore()
+  const router = useRouter()
 
   const [isHovered, setIsHovered] = useState(false)
   // Expanded = hovering on desktop OR open overlay on mobile
@@ -174,6 +177,8 @@ export function Sidebar() {
   const navigate = (id: string) => {
     setActiveSection(id)
     setSidebarOpen(false)
+    // Mantiene la URL en sync para que cada sección sea compartible (/panel/<slug>)
+    router.push(panelHref(id))
   }
 
   const handleTiendaClick = () => {

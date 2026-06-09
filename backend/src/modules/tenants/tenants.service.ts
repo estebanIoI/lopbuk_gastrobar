@@ -503,6 +503,76 @@ export class TenantsService {
     await db.execute('UPDATE tenants SET enabled_modules = ? WHERE id = ?', [JSON.stringify(modules), tenantId]);
     return { enabledModules: modules };
   }
+
+  // ── Tarjetas del marketplace (página principal) ─────────────────────────────
+  async getMarketplaceCards(): Promise<any[]> {
+    const [rows] = await db.execute<RowDataPacket[]>(
+      `SELECT t.id, t.name, t.slug, t.business_type AS businessType, t.status,
+              si.logo_url        AS logoUrl,
+              si.card_cover_url  AS coverUrl,
+              si.card_description AS cardDescription,
+              si.municipality    AS city,
+              COALESCE(si.is_verified, 0)          AS isVerified,
+              COALESCE(si.open_state, 'open')      AS openState,
+              COALESCE(si.marketplace_visible, 1)  AS marketplaceVisible,
+              COALESCE(si.marketplace_order, 0)    AS marketplaceOrder,
+              (SELECT COUNT(*) FROM sedes s WHERE s.tenant_id = t.id) AS sedeCount,
+              (SELECT COUNT(*) FROM products p WHERE p.tenant_id = t.id AND p.stock > 0 AND p.published_in_store = 1) AS productCount
+       FROM tenants t
+       LEFT JOIN store_info si ON si.tenant_id = t.id
+       WHERE t.status = 'activo'
+       ORDER BY COALESCE(si.marketplace_order, 0) ASC, t.name ASC`
+    );
+    return rows.map((r) => ({
+      ...r,
+      isVerified: Boolean(r.isVerified),
+      marketplaceVisible: Boolean(r.marketplaceVisible),
+    }));
+  }
+
+  async updateMarketplaceCard(
+    tenantId: string,
+    data: {
+      coverUrl?: string | null;
+      cardDescription?: string | null;
+      isVerified?: boolean;
+      openState?: 'open' | 'closed';
+      marketplaceVisible?: boolean;
+      marketplaceOrder?: number;
+    }
+  ): Promise<void> {
+    const [tRows] = await db.execute<RowDataPacket[]>('SELECT id, name FROM tenants WHERE id = ?', [tenantId]);
+    if (tRows.length === 0) throw new AppError('Tenant no encontrado', 404);
+
+    // Construye SET dinámico solo con los campos provistos
+    const fields: string[] = [];
+    const values: any[] = [];
+    if (data.coverUrl !== undefined)         { fields.push('card_cover_url = ?');     values.push(data.coverUrl || null); }
+    if (data.cardDescription !== undefined)  { fields.push('card_description = ?');    values.push(data.cardDescription || null); }
+    if (data.isVerified !== undefined)       { fields.push('is_verified = ?');        values.push(data.isVerified ? 1 : 0); }
+    if (data.openState !== undefined)        { fields.push('open_state = ?');         values.push(data.openState === 'closed' ? 'closed' : 'open'); }
+    if (data.marketplaceVisible !== undefined){ fields.push('marketplace_visible = ?'); values.push(data.marketplaceVisible ? 1 : 0); }
+    if (data.marketplaceOrder !== undefined) { fields.push('marketplace_order = ?');   values.push(Number(data.marketplaceOrder) || 0); }
+
+    if (fields.length === 0) return;
+
+    const [result] = await db.execute<ResultSetHeader>(
+      `UPDATE store_info SET ${fields.join(', ')} WHERE tenant_id = ?`,
+      [...values, tenantId]
+    );
+
+    // Tenant legacy sin fila en store_info: la creamos y reintentamos
+    if (result.affectedRows === 0) {
+      await db.execute(
+        'INSERT INTO store_info (tenant_id, name) VALUES (?, ?)',
+        [tenantId, tRows[0].name]
+      );
+      await db.execute(
+        `UPDATE store_info SET ${fields.join(', ')} WHERE tenant_id = ?`,
+        [...values, tenantId]
+      );
+    }
+  }
 }
 
 export const tenantsService = new TenantsService();

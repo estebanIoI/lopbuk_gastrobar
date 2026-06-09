@@ -3,46 +3,9 @@
 import { useEffect, useState } from 'react'
 import { useStore } from '@/lib/store'
 import { useAuthStore } from '@/lib/auth-store'
-import { MainLayout } from '@/components/main-layout'
-import { Dashboard } from '@/components/dashboard'
-import { Analytics } from '@/components/analytics'
-import { InventoryList } from '@/components/inventory-list'
-import { PointOfSale } from '@/components/point-of-sale'
-import { SalesHistory } from '@/components/sales-history'
-import { Invoicing } from '@/components/invoicing'
-import { Settings } from '@/components/settings'
-import { Customers } from '@/components/customers'
-import { Fiados } from '@/components/fiados'
-import { CashRegister } from '@/components/cash-register'
-import { TenantManagement } from '@/components/tenant-management'
-import { SuperadminHome } from '@/components/superadmin-home'
 import { AuthForm } from '@/components/auth-form'
 import { LandingPage } from '@/components/landing-page'
-import { Tienda } from '@/components/tienda'
-import { Pedidos } from '@/components/pedidos'
-import { Cupones } from '@/components/cupones'
-import { Recipes } from '@/components/recipes'
-import { DriverPanel } from '@/components/driver-panel'
-import { PurchaseInvoices } from '@/components/purchase-invoices'
-import { ServicesManagement } from '@/components/services-management'
-import { GymManagement } from '@/components/gym-management'
-import { PlatformAssistant } from '@/components/platform-assistant'
-import { PrintersConfig } from '@/components/printers'
-import { VendedoresPanel } from '@/components/vendedores-panel'
-import { ReviewsPanel } from '@/components/reviews-panel'
-import { RestBar } from '@/components/restbar'
-import { Finances } from '@/components/finances'
-import { MeseroPanel } from '@/components/mesero-panel'
-import { BartenderPanel } from '@/components/bartender-panel'
-import { CocineroPanel } from '@/components/cocinero-panel'
-import { CajeroPanel } from '@/components/cajero-panel'
-import { DeveloperRequests } from '@/components/developer-requests'
-import { DispatchPanel } from '@/components/dispatch-panel'
-import { FleetManagement } from '@/components/fleet-management'
-import { RealEstate } from '@/components/realestate'
-import { Tapiceria } from '@/components/tapiceria'
-import { Merma } from '@/components/merma'
-import { GastrobarOps } from '@/components/gastrobar-ops'
+import { MerchantPanel } from '@/components/merchant-panel'
 
 export default function Home() {
   const { activeSection, setActiveSection } = useStore()
@@ -121,42 +84,12 @@ export default function Home() {
     return <LandingPage onGoToLogin={() => setShowLogin(true)} />
   }
 
-  // Repartidor gets their own full-screen panel (no sidebar)
-  if (isAuthenticated && user?.role === 'repartidor') {
-    return <DriverPanel />
-  }
-
-  // Despachador gets their own full-screen dispatch panel (no sidebar)
-  if (isAuthenticated && user?.role === 'despachador') {
-    return <DispatchPanel />
-  }
-
-  // Mesero gets full-screen panel (no sidebar)
-  if (isAuthenticated && user?.role === 'mesero') {
-    return <MeseroPanel />
-  }
-
-  // Bartender gets full-screen panel (no sidebar)
-  if (isAuthenticated && user?.role === 'bartender') {
-    return <BartenderPanel />
-  }
-
-  // Cocinero gets full-screen kitchen display
-  if (isAuthenticated && user?.role === 'cocinero') {
-    return <CocineroPanel />
-  }
-
-  // Cajero gets full-screen panel (no sidebar)
-  if (isAuthenticated && user?.role === 'cajero') {
-    return <CajeroPanel />
-  }
-
-  // Cliente gets LandingPage with active session
+  // Cliente: LandingPage con sesión activa
   if (isAuthenticated && user?.role === 'cliente') {
     return <LandingPage onGoToLogin={() => {}} />
   }
 
-  // Show login if not authenticated
+  // Sin sesión: landing pública y, al pulsar acceder, el formulario de login
   if (!isAuthenticated) {
     if (!showLogin) {
       return <LandingPage onGoToLogin={() => setShowLogin(true)} />
@@ -164,128 +97,7 @@ export default function Home() {
     return <AuthForm onGoBack={() => setShowLogin(false)} />
   }
 
-  // Guard: secciones de Tienda requieren plan empresarial
-  const isEmpresarial = user?.tenantPlan === 'empresarial' || user?.role === 'superadmin'
-  const TIENDA_SECTIONS = ['tienda', 'pedidos', 'cupones', 'reviews', 'services']
-
-  const renderSection = () => {
-    // Redirect a dashboard si intenta acceder a Tienda sin plan
-    if (TIENDA_SECTIONS.includes(activeSection) && !isEmpresarial) {
-      return (
-        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-center p-8">
-          <div className="rounded-full bg-amber-400/10 p-5">
-            <svg className="h-10 w-10 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-            </svg>
-          </div>
-          <h2 className="text-xl font-bold">Plan empresarial requerido</h2>
-          <p className="text-muted-foreground max-w-sm">
-            El módulo Tienda está disponible únicamente en el plan empresarial. Actualiza tu plan para publicar productos, gestionar pedidos, crear cupones y personalizar tu página.
-          </p>
-          <button
-            onClick={() => setActiveSection('dashboard')}
-            className="mt-2 rounded-md bg-primary px-5 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-          >
-            Volver al Dashboard
-          </button>
-        </div>
-      )
-    }
-
-    switch (activeSection) {
-      case 'superadmin':
-        return user?.role === 'superadmin' ? <TenantManagement /> : <Dashboard />
-      case 'pagina-principal':
-        return user?.role === 'superadmin' ? <SuperadminHome /> : <Dashboard />
-      case 'dashboard':
-        return <Dashboard />
-      case 'inventory':
-        return <InventoryList />
-      case 'tienda':
-        return <Tienda />
-      case 'pedidos':
-        return <Pedidos />
-      case 'cupones':
-        return <Cupones />
-      case 'recipes':
-        return <Recipes />
-      case 'pos':
-        return <PointOfSale />
-      case 'cash-register':
-        return <CashRegister />
-      case 'history':
-        return <SalesHistory />
-      case 'invoices':
-        return <Invoicing />
-      case 'customers':
-        return <Customers />
-      case 'fiados':
-        return <Fiados />
-      case 'purchases':
-        return <PurchaseInvoices />
-      case 'services':
-        return <ServicesManagement />
-      case 'gym':
-        return <GymManagement />
-      case 'analytics':
-        return <Analytics />
-      case 'settings':
-        return <Settings />
-      case 'printers':
-        return <PrintersConfig />
-      case 'vendedores':
-        return <VendedoresPanel />
-      case 'reviews':
-        return (
-          <div className="p-6 space-y-4">
-            <div>
-              <h1 className="text-2xl font-bold">Reseñas de productos</h1>
-              <p className="text-gray-500 text-sm">Gestiona las reseñas que los clientes dejan en tu tienda</p>
-            </div>
-            <ReviewsPanel />
-          </div>
-        )
-      case 'restbar':
-        if (user?.role === 'mesero')    return <MeseroPanel />
-        if (user?.role === 'bartender') return <BartenderPanel />
-        if (user?.role === 'cocinero')  return <CocineroPanel />
-        if (user?.role === 'cajero')    return <CajeroPanel />
-        return <RestBar />
-      case 'finances':
-        return <Finances />
-      case 'dev-requests':
-        return <DeveloperRequests />
-      case 'fleet':
-        return (
-          <div className="p-6 h-full">
-            <FleetManagement />
-          </div>
-        )
-      case 'realestate':
-        return (
-          <div className="h-full flex flex-col">
-            <RealEstate />
-          </div>
-        )
-      case 'workorders':
-        return (
-          <div className="h-full flex flex-col">
-            <Tapiceria />
-          </div>
-        )
-      case 'merma':
-        return <Merma />
-      case 'gastrobar-ops':
-        return <GastrobarOps />
-      default:
-        return <Dashboard />
-    }
-  }
-
-  return (
-    <MainLayout>
-      {renderSection()}
-      <PlatformAssistant />
-    </MainLayout>
-  )
+  // Autenticado (comerciante, vendedor, staff de restaurante, etc.):
+  // el panel del comerciante decide qué mostrar según el rol y la sección activa.
+  return <MerchantPanel />
 }
