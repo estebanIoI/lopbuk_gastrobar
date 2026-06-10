@@ -40,6 +40,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { CloudinaryUpload } from '@/components/ui/cloudinary-upload'
 import { VariantManager } from '@/components/variant-manager'
+import { ProductModifiersManager } from '@/components/product-modifiers-manager'
 import {
   Search,
   Plus,
@@ -52,6 +53,7 @@ import {
   Smartphone,
   Upload,
   Layers,
+  SlidersHorizontal,
   MapPin,
   ChevronDown,
   Settings2,
@@ -77,6 +79,7 @@ export function InventoryList() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [variantProduct, setVariantProduct] = useState<Product | null>(null)
+  const [modifiersProduct, setModifiersProduct] = useState<Product | null>(null)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isCategoryDialogOpen, setIsCategoryDialogOpen] = useState(false)
   const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false)
@@ -508,6 +511,15 @@ export function InventoryList() {
                             className="h-8 w-8 lg:h-9 lg:w-9 text-primary hover:text-primary"
                           >
                             <Layers className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title="Modificadores (adiciones, combos, sin X)"
+                            onClick={() => setModifiersProduct(product)}
+                            className="h-8 w-8 lg:h-9 lg:w-9 text-primary hover:text-primary"
+                          >
+                            <SlidersHorizontal className="h-4 w-4" />
                           </Button>
                           <Button
                             variant="ghost"
@@ -977,6 +989,14 @@ export function InventoryList() {
           productName={variantProduct.name}
           open={!!variantProduct}
           onClose={() => setVariantProduct(null)}
+        />
+      )}
+
+      {modifiersProduct && (
+        <ProductModifiersManager
+          productId={modifiersProduct.id}
+          productName={modifiersProduct.name}
+          onClose={() => setModifiersProduct(null)}
         />
       )}
     </div>

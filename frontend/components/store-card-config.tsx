@@ -67,6 +67,7 @@ export function StoreCardConfig() {
   const [coverUrl, setCoverUrl] = useState('')
   const [cardDescription, setCardDescription] = useState('')
   const [hours, setHours] = useState<Hours>({})
+  const [theme, setTheme] = useState<'theme1' | 'theme2'>('theme1')
 
   useEffect(() => {
     (async () => {
@@ -76,6 +77,7 @@ export function StoreCardConfig() {
           setCoverUrl(res.data.coverUrl ?? '')
           setCardDescription(res.data.cardDescription ?? '')
           setHours((res.data.businessHours as Hours) ?? {})
+          setTheme(res.data.theme === 'theme2' ? 'theme2' : 'theme1')
         }
       } catch { /* noop */ }
       setLoading(false)
@@ -119,6 +121,7 @@ export function StoreCardConfig() {
         coverUrl: coverUrl.trim() || null,
         cardDescription: cardDescription.trim() || null,
         businessHours: Object.keys(clean).length ? clean : null,
+        theme,
       })
       if (res.success) toast.success('Tarjeta guardada')
       else toast.error(res.error || 'No se pudo guardar')
@@ -153,6 +156,33 @@ export function StoreCardConfig() {
             Ahora: {openNow ? 'ABIERTO' : 'CERRADO'}
           </span>
         )}
+      </div>
+
+      {/* Selector de tema de la tienda */}
+      <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+        <div>
+          <h3 className="text-sm font-semibold">Tema de la tienda</h3>
+          <p className="text-xs text-muted-foreground">Elige cómo se ve tu tienda pública. Puedes cambiarlo cuando quieras.</p>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {([
+            { id: 'theme1', name: 'Tema 1 · Clásico', desc: 'Tu diseño actual de tienda.' },
+            { id: 'theme2', name: 'Tema 2 · Gastronómico', desc: 'Estilo oscuro con hero, favoritos, sedes y pedidos.' },
+          ] as const).map(opt => (
+            <button
+              key={opt.id}
+              type="button"
+              onClick={() => setTheme(opt.id)}
+              className={`text-left rounded-lg border p-3 transition-colors ${theme === opt.id ? 'border-primary bg-primary/5 ring-1 ring-primary/30' : 'border-border hover:bg-muted'}`}
+            >
+              <div className="flex items-center gap-2">
+                <span className={`w-3.5 h-3.5 rounded-full border-2 ${theme === opt.id ? 'border-primary bg-primary' : 'border-muted-foreground/40'}`} />
+                <span className="text-sm font-medium">{opt.name}</span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1 pl-5">{opt.desc}</p>
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Portada + descripción */}

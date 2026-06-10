@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 
 const formatCOP = (value: number) =>
   new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value)
@@ -227,7 +227,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [loadingProducts, setLoadingProducts] = useState(false)
-  const [stores, setStores] = useState<{ id: string; name: string; slug: string; businessType: string | null; logoUrl: string | null; address: string | null; productCount: number; coverUrl?: string | null; cardDescription?: string | null; city?: string | null; isVerified?: number | boolean; openState?: 'open' | 'closed'; nextOpenLabel?: string | null; sedeCount?: number }[]>([])
+  const [stores, setStores] = useState<{ id: string; name: string; slug: string; businessType: string | null; logoUrl: string | null; address: string | null; productCount: number; coverUrl?: string | null; cardDescription?: string | null; city?: string | null; isVerified?: number | boolean; openState?: 'open' | 'closed'; nextOpenLabel?: string | null; sedeCount?: number; theme?: string }[]>([])
   const [selectedStore, setSelectedStore] = useState<string>(() => {
     return getStoreSlugFromUrl() || 'all'
   })
@@ -300,6 +300,10 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   const [selectedProduct, setSelectedProduct] = useState<StorefrontProduct | null>(null)
   const [showProductModal, setShowProductModal] = useState(false)
   const [productQuantity, setProductQuantity] = useState(1)
+  // Modificadores del producto en el modal (compartidos con el Tema 2)
+  const [t1Mods, setT1Mods] = useState<any[]>([])
+  const [t1ModsLoading, setT1ModsLoading] = useState(false)
+  const [t1Sel, setT1Sel] = useState<Record<string, Set<string>>>({})
   const [activeImageIdx, setActiveImageIdx] = useState(0)
   const [viewersCount, setViewersCount] = useState(0)
   const viewersIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -1506,6 +1510,11 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     setShowReviewForm(false)
     setReviewForm({ reviewerName: '', reviewerEmail: '', rating: 5, title: '', body: '', imageUrl1: '' })
     setReviewError('')
+    // Carga modificadores (adiciones, combos, "sin X")
+    setT1Mods([]); setT1Sel({}); setT1ModsLoading(true)
+    fetch(`${API_URL}/modifiers/public/${product.id}`).then(r => r.json()).catch(() => null)
+      .then(res => setT1Mods(res?.data || []))
+      .finally(() => setT1ModsLoading(false))
     // Load approved reviews for this product
     const tid = product.tenantId || stores.find(s => s.slug === selectedStore)?.id
     if (tid) {
@@ -1556,8 +1565,30 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [products])
 
+  // ── Modificadores: selección, precio extra y validación ──
+  const toggleT1Mod = (g: any, optId: string) => setT1Sel(prev => {
+    const cur = new Set(prev[g.id] ?? [])
+    if (g.selectionType === 'single') { cur.clear(); cur.add(optId) }
+    else {
+      if (cur.has(optId)) cur.delete(optId)
+      else { if (g.maxSelect && cur.size >= g.maxSelect) return prev; cur.add(optId) }
+    }
+    return { ...prev, [g.id]: cur }
+  })
+  const t1SelMods = useMemo(() => {
+    const out: { groupName: string; optionName: string; priceDelta: number }[] = []
+    for (const g of t1Mods) {
+      const ids = t1Sel[g.id]; if (!ids) continue
+      for (const o of g.options) if (ids.has(o.id)) out.push({ groupName: g.name, optionName: o.name, priceDelta: Number(o.priceDelta) || 0 })
+    }
+    return out
+  }, [t1Mods, t1Sel])
+  const t1Extra = t1SelMods.reduce((s, m) => s + m.priceDelta, 0)
+  const t1Missing = useMemo(() => t1Mods.filter((g: any) => g.isRequired && (t1Sel[g.id]?.size ?? 0) < Math.max(1, g.minSelect || 0)), [t1Mods, t1Sel])
+
   const addFromModal = () => {
     if (!selectedProduct) return
+    if (t1Missing.length > 0) return
 
     // Check if this product is in the active drop
     const dropProduct = showDrop && storeConfig?.activeDrop
@@ -1577,8 +1608,13 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       precioOriginal = selectedProduct.salePrice
     }
 
+    // Modificadores: suma el extra al precio y diferencia el item por combinación
+    finalPrice = finalPrice + t1Extra
+    const modSuffix = t1SelMods.length ? ` (${t1SelMods.map(m => m.optionName).join(', ')})` : ''
+    const modSig = t1SelMods.length ? `#${t1SelMods.map(m => m.optionName).sort().join('|')}` : ''
+
     setCarrito(prev => {
-      const tempId = String(selectedProduct.id)
+      const tempId = String(selectedProduct.id) + modSig
       const existingIndex = prev.findIndex(p => (p.tempId || String(p.id)) === tempId)
       if (existingIndex >= 0) {
         const newCart = [...prev]
@@ -1591,7 +1627,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       return [...prev, {
         id: selectedProduct.id,
         tempId,
-        nombre: selectedProduct.name,
+        nombre: selectedProduct.name + modSuffix,
         precio: finalPrice,
         precioOriginal,
         descuentoPorcentaje,
@@ -3022,6 +3058,44 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   </div>
                 )}
 
+                {/* Modificadores (adiciones, combos, "sin X") */}
+                {t1ModsLoading ? (
+                  <div className="flex justify-center py-3"><div className={`h-5 w-5 animate-spin rounded-full border-2 ${isLightBg ? 'border-black/20 border-t-black/60' : 'border-white/20 border-t-white/60'}`} /></div>
+                ) : t1Mods.map((g: any) => {
+                  const count = t1Sel[g.id]?.size ?? 0
+                  const incomplete = g.isRequired && count < Math.max(1, g.minSelect || 0)
+                  return (
+                    <div key={g.id} className={`rounded-xl border ${isLightBg ? 'border-black/10' : 'border-white/10'} overflow-hidden`}>
+                      <div className={`flex items-center justify-between px-3 py-2.5 ${isLightBg ? 'bg-black/[0.03]' : 'bg-white/[0.04]'}`}>
+                        <p className={`text-[11px] uppercase tracking-widest font-medium ${isLightBg ? 'text-black/70' : 'text-white/70'}`}>{g.name}</p>
+                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${g.isRequired ? (incomplete ? 'bg-red-500/15 text-red-500' : 'bg-green-500/15 text-green-600') : (isLightBg ? 'bg-black/10 text-black/40' : 'bg-white/10 text-white/40')}`}>
+                          {g.isRequired ? (incomplete ? 'OBLIGATORIO' : 'LISTO') : 'OPCIONAL'}
+                        </span>
+                      </div>
+                      <div className={`divide-y ${isLightBg ? 'divide-black/5' : 'divide-white/5'}`}>
+                        {g.options.map((o: any) => {
+                          const on = t1Sel[g.id]?.has(o.id) ?? false
+                          return (
+                            <button key={o.id} type="button" onClick={() => toggleT1Mod(g, o.id)} className={`w-full flex items-center gap-3 px-3 py-2.5 text-left ${isLightBg ? 'hover:bg-black/[0.03]' : 'hover:bg-white/[0.03]'}`}>
+                              {o.imageUrl
+                                // eslint-disable-next-line @next/next/no-img-element
+                                ? <img src={ensureAbsoluteUrl(o.imageUrl)} alt={o.name} className="w-8 h-8 rounded-md object-cover shrink-0" />
+                                : <span className={`w-8 h-8 rounded-md shrink-0 ${isLightBg ? 'bg-black/5' : 'bg-white/5'}`} />}
+                              <span className={`flex-1 text-sm ${isLightBg ? 'text-black/80' : 'text-white/80'}`}>{o.name}</span>
+                              {Number(o.priceDelta) > 0
+                                ? <span className={`text-xs shrink-0 ${isLightBg ? 'text-black/50' : 'text-white/50'}`}>+{formatCOP(Number(o.priceDelta))}</span>
+                                : <span className={`text-[11px] shrink-0 ${isLightBg ? 'text-black/30' : 'text-white/30'}`}>Sin costo</span>}
+                              <span className={`shrink-0 flex items-center justify-center w-5 h-5 ${g.selectionType === 'single' ? 'rounded-full' : 'rounded-md'} border-2 ${on ? 'border-current text-current' : (isLightBg ? 'border-black/25' : 'border-white/25')}`} style={on ? { backgroundColor: isLightBg ? '#111' : '#fff' } : undefined}>
+                                {on && <span className={`${isLightBg ? 'bg-white' : 'bg-black'} ${g.selectionType === 'single' ? 'w-2 h-2 rounded-full' : 'w-2.5 h-2.5 rounded-[2px]'}`} />}
+                              </span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                })}
+
                 {/* Quantity + Heart */}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
@@ -3065,28 +3139,31 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   const previewRemaining = Math.max(0, DELIVERY_FREE_MIN - previewTotal)
                   return (
                     <div className="space-y-3 pt-1">
+                      {t1Missing.length > 0 && (
+                        <p className="text-center text-[11px] text-red-400">Elige: {t1Missing.map((g: any) => g.name).join(', ')}</p>
+                      )}
                       <button
                         onClick={addFromModal}
-                        disabled={selectedProduct.stock === 0}
-                        style={selectedProduct.stock > 0 ? { backgroundColor: isLightBg ? '#111111' : '#ffffff', color: isLightBg ? '#ffffff' : '#000000' } : undefined}
+                        disabled={selectedProduct.stock === 0 || t1Missing.length > 0}
+                        style={selectedProduct.stock > 0 && t1Missing.length === 0 ? { backgroundColor: isLightBg ? '#111111' : '#ffffff', color: isLightBg ? '#ffffff' : '#000000' } : undefined}
                         className={`w-full py-4 flex items-center justify-center gap-2.5 text-sm uppercase tracking-[0.15em] font-medium rounded-xl transition-opacity ${
-                          selectedProduct.stock === 0 ? 'opacity-30 cursor-not-allowed bg-black/10 text-white/30' : 'hover:opacity-85'
+                          selectedProduct.stock === 0 || t1Missing.length > 0 ? 'opacity-30 cursor-not-allowed bg-black/10 text-white/30' : 'hover:opacity-85'
                         }`}
                       >
                         <ShoppingCart className="w-4 h-4 flex-shrink-0" />
-                        Añadir al carrito
+                        {t1Extra > 0 ? `Añadir · ${formatCOP((selectedProduct.offerPrice && selectedProduct.isOnOffer ? selectedProduct.offerPrice : selectedProduct.salePrice) + t1Extra)}` : 'Añadir al carrito'}
                       </button>
                       <button
                         onClick={() => {
-                          if (selectedProduct.stock === 0) return
+                          if (selectedProduct.stock === 0 || t1Missing.length > 0) return
                           addFromModal()
                           setShowCart(false)
                           handleIrAlCheckout()
                         }}
-                        disabled={selectedProduct.stock === 0}
-                        style={selectedProduct.stock > 0 ? { backgroundColor: isLightBg ? '#111111' : '#ffffff', color: isLightBg ? '#ffffff' : '#000000' } : undefined}
+                        disabled={selectedProduct.stock === 0 || t1Missing.length > 0}
+                        style={selectedProduct.stock > 0 && t1Missing.length === 0 ? { backgroundColor: isLightBg ? '#111111' : '#ffffff', color: isLightBg ? '#ffffff' : '#000000' } : undefined}
                         className={`w-full py-4 flex items-center justify-center gap-2 text-sm uppercase tracking-[0.15em] font-semibold rounded-xl transition-opacity ${
-                          selectedProduct.stock === 0 ? 'opacity-30 cursor-not-allowed bg-black/10 text-white/30' : 'hover:opacity-85'
+                          selectedProduct.stock === 0 || t1Missing.length > 0 ? 'opacity-30 cursor-not-allowed bg-black/10 text-white/30' : 'hover:opacity-85'
                         }`}
                       >
                         {isDeliveryItem ? <Truck className="w-4 h-4 flex-shrink-0" /> : null}
@@ -6414,6 +6491,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                             key={store.id}
                             onClick={() => {
                               if (isEmpty) return
+                              // Tema 2: abre la página completa de la tienda (estilo gastronómico)
+                              if (store.theme === 'theme2') { window.location.href = `/t/${store.slug}`; return }
                               setSelectedStore(store.slug); setShowStoresView(false); setActiveSede(null); setStoreSedes([]); window.scrollTo({ top: 0, behavior: 'smooth' })
                             }}
                             className={`group relative bg-[#171717] rounded-2xl overflow-hidden text-left flex flex-col shadow-sm transition-all duration-300 border ${isEmpty ? 'cursor-default border-white/5 opacity-70' : 'hover:shadow-xl border-white/10 hover:border-white/25 cursor-pointer'}`}

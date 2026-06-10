@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import {
-  Mail, Lock, User, AlertCircle, Eye, EyeOff, ArrowLeft, ShieldX, Phone, Timer,
+  Mail, Lock, User, AlertCircle, Eye, EyeOff, ShieldX, Phone, Timer,
   Code2, Smartphone, Globe, FileSpreadsheet, Megaphone, Wrench, Bot, MessageCircle, MousePointerClick, PartyPopper, Sparkles, ArrowRight,
   MapPin, Home, Building2, CreditCard,
 } from 'lucide-react'
@@ -300,25 +300,13 @@ export function AuthForm({ onGoBack }: AuthFormProps) {
       {/* ═══ RIGHT — Form panel ═══ */}
       <div className="w-full lg:w-[48%] flex flex-col bg-[#0a0a0a] border-l border-white/[0.06]">
 
-        {/* Top bar */}
-        <div className="flex items-center justify-between px-8 py-5 border-b border-white/[0.06]">
-          {/* Mobile logo */}
-          <div className="flex items-center gap-2.5 lg:hidden">
+        {/* Top bar — solo logo en móvil (vista minimalista, sin botón Volver) */}
+        <div className="flex items-center justify-center px-8 py-5 lg:hidden">
+          <div className="flex items-center gap-2.5">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/image/lopbukicon.png" alt="Lopbuk" width={28} height={28} className="rounded-md" />
             <span className="text-sm font-light text-white/70 tracking-widest uppercase">Lopbuk</span>
           </div>
-          <div className="hidden lg:block" />
-
-          {onGoBack && (
-            <button
-              onClick={onGoBack}
-              className="flex items-center gap-1.5 text-[11px] text-white/30 hover:text-white/70 transition-colors uppercase tracking-widest font-light"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              Volver
-            </button>
-          )}
         </div>
 
         {/* Scrollable form area */}
@@ -614,13 +602,19 @@ export function AuthForm({ onGoBack }: AuthFormProps) {
             </button>
           </form>
 
-          {/* Footer links */}
-          <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 pt-2 border-t border-white/[0.06]">
-            <AboutModal />
-            <span className="text-white/10 hidden sm:inline">|</span>
-            <DataPolicyModal />
-            <span className="text-white/10 hidden sm:inline">|</span>
-            <ContactModal />
+          {/* Términos + footer minimalista */}
+          <div className="pt-4 border-t border-white/[0.06] space-y-3">
+            <p className="text-[10px] leading-relaxed text-center text-white/25 font-light">
+              Al continuar, aceptas los Términos de Servicio y la Política de Tratamiento de Datos de{' '}
+              <span className="text-white/40">DAIMUZ · Soluciones Digitales</span>.
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-x-1 gap-y-1">
+              <AboutModal />
+              <span className="text-white/10 hidden sm:inline">·</span>
+              <DataPolicyModal />
+              <span className="text-white/10 hidden sm:inline">·</span>
+              <ContactModal />
+            </div>
           </div>
 
           </div>

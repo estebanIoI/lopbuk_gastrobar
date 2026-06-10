@@ -53,6 +53,7 @@ import variantsRoutes from './modules/variants/variants.routes';
 import suppliersRoutes from './modules/suppliers/suppliers.routes';
 import { gymRoutes } from './modules/gym';
 import assistantRoutes from './modules/assistant/assistant.routes';
+import modifiersRoutes from './modules/modifiers/modifiers.routes';
 
 const app = express();
 
@@ -92,7 +93,9 @@ function stripHtml(value: unknown): unknown {
   return value;
 }
 app.use((req, _res, next) => {
-  if (req.body && typeof req.body === 'object') {
+  // Las secciones HTML personalizadas requieren HTML crudo: no sanitizar ese endpoint.
+  const isRawHtmlRoute = req.path.includes('/custom-sections');
+  if (!isRawHtmlRoute && req.body && typeof req.body === 'object') {
     req.body = stripHtml(req.body);
   }
   next();
@@ -168,6 +171,7 @@ app.use(`${apiPrefix}/gastrobar-ops`, gastrobarRoutes);
 app.use(`${apiPrefix}/rutina`, rutinaRoutes);
 app.use(`${apiPrefix}/gym`, gymRoutes);
 app.use(`${apiPrefix}/assistant`, assistantRoutes);
+app.use(`${apiPrefix}/modifiers`, modifiersRoutes);
 
 // Variantes + Proveedores
 app.use(`${apiPrefix}`, variantsRoutes);
@@ -354,6 +358,55 @@ const startServer = async () => {
       await addCol(`ALTER TABLE store_info ADD COLUMN marketplace_visible TINYINT(1) NOT NULL DEFAULT 1 COMMENT '1 = visible en la página principal'`);
       await addCol(`ALTER TABLE store_info ADD COLUMN marketplace_order INT NOT NULL DEFAULT 0 COMMENT 'Orden de aparición en el marketplace (menor primero)'`);
       await addCol(`ALTER TABLE store_info ADD COLUMN business_hours JSON NULL COMMENT 'Horario de atención por día con franjas: {"mon":[{"open":"08:00","close":"22:00"}],...}'`);
+      await addCol(`ALTER TABLE store_info ADD COLUMN store_theme VARCHAR(20) NOT NULL DEFAULT 'theme1' COMMENT 'Tema visual de la tienda pública: theme1 (clásico) o theme2 (gastronómico)'`);
+
+      // ── Modificadores de producto (adiciones, combos, "sin X") ────────────────
+      await mPool.query(`
+        CREATE TABLE IF NOT EXISTS product_modifier_groups (
+          id             VARCHAR(36)  NOT NULL PRIMARY KEY,
+          tenant_id      VARCHAR(36)  NOT NULL,
+          product_id     VARCHAR(36)  NOT NULL,
+          name           VARCHAR(150) NOT NULL,
+          selection_type ENUM('single','multiple') NOT NULL DEFAULT 'multiple',
+          is_required    TINYINT(1)   NOT NULL DEFAULT 0,
+          min_select     INT          NOT NULL DEFAULT 0,
+          max_select     INT          NULL,
+          sort_order     INT          NOT NULL DEFAULT 0,
+          created_at     TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_pmg_product (product_id),
+          INDEX idx_pmg_tenant  (tenant_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `).catch(() => {});
+      // ── Secciones HTML personalizadas de la tienda ────────────────────────────
+      await mPool.query(`
+        CREATE TABLE IF NOT EXISTS store_custom_sections (
+          id            INT AUTO_INCREMENT PRIMARY KEY,
+          tenant_id     VARCHAR(36)   NOT NULL,
+          name          VARCHAR(255)  NOT NULL,
+          slug          VARCHAR(255)  NOT NULL,
+          html_content  LONGTEXT      NOT NULL,
+          is_active     TINYINT(1)    NOT NULL DEFAULT 0,
+          created_at    TIMESTAMP     DEFAULT CURRENT_TIMESTAMP,
+          updated_at    TIMESTAMP     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          UNIQUE KEY idx_tenant_slug (tenant_id, slug),
+          INDEX idx_scs_tenant (tenant_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `).catch(() => {});
+
+      await mPool.query(`
+        CREATE TABLE IF NOT EXISTS product_modifier_options (
+          id          VARCHAR(36)   NOT NULL PRIMARY KEY,
+          tenant_id   VARCHAR(36)   NOT NULL,
+          group_id    VARCHAR(36)   NOT NULL,
+          name        VARCHAR(150)  NOT NULL,
+          image_url   VARCHAR(500)  NULL,
+          price_delta DECIMAL(12,2) NOT NULL DEFAULT 0,
+          is_active   TINYINT(1)    NOT NULL DEFAULT 1,
+          sort_order  INT           NOT NULL DEFAULT 0,
+          INDEX idx_pmo_group  (group_id),
+          INDEX idx_pmo_tenant (tenant_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `).catch(() => {});
     }
 
     // ── restBar + Finances migrations ────────────────────────────────────────

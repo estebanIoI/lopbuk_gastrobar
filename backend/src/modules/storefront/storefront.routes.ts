@@ -340,6 +340,7 @@ router.get('/stores', async (req: Request, res: Response) => {
               si.card_cover_url as coverUrl,
               si.card_description as cardDescription,
               COALESCE(si.is_verified, 0) as isVerified,
+              COALESCE(si.store_theme, 'theme1') as theme,
               si.business_hours as businessHours,
               COALESCE(si.open_state, 'open') as openStateFallback,
               (SELECT COUNT(*) FROM sedes s WHERE s.tenant_id = t.id) as sedeCount,
@@ -805,6 +806,9 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
                 si.social_instagram as socialInstagram, si.social_facebook as socialFacebook,
                 si.social_tiktok as socialTiktok, si.social_whatsapp as socialWhatsapp,
                 si.product_card_style as productCardStyle,
+                si.store_theme as theme,
+                si.card_cover_url as cardCoverUrl,
+                si.card_description as cardDescription,
                 si.show_info_module as showInfoModule,
                 si.info_module_description as infoModuleDescription
          FROM store_info si
@@ -971,11 +975,26 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
       }
     } catch { /* column not yet added */ }
 
+    // Estado abierto/cerrado de la tienda (calculado del horario, para el Tema 2)
+    let openState: 'open' | 'closed' = 'open';
+    let nextOpenLabel: string | null = null;
+    try {
+      const [bhRows] = await pool.query(
+        'SELECT business_hours FROM store_info WHERE tenant_id = ? LIMIT 1',
+        [tenantId]
+      ) as any;
+      const bh = (bhRows as any[])[0]?.business_hours ?? null;
+      openState = computeOpenState(bh, 'open');
+      if (openState === 'closed') nextOpenLabel = computeNextOpen(bh);
+    } catch { /* business_hours may not exist yet */ }
+
     res.json({
       success: true,
       data: {
         banners,
         categories,
+        openState,
+        nextOpenLabel,
         featuredProducts: (featured as any[]).map(parseImages),
         trendingProducts: (trending as any[]).map(parseImages),
         newLaunches: (newLaunches as any[]).map(parseImages),
@@ -1073,7 +1092,7 @@ router.get('/card-config', authenticate, async (req: Request, res: Response) => 
   try {
     const tenantId = (req as any).user.tenantId;
     const [rows] = await pool.query(
-      `SELECT card_cover_url AS coverUrl, card_description AS cardDescription, business_hours AS businessHours
+      `SELECT card_cover_url AS coverUrl, card_description AS cardDescription, business_hours AS businessHours, store_theme AS theme
        FROM store_info WHERE tenant_id = ? LIMIT 1`,
       [tenantId]
     ) as any;
@@ -1088,6 +1107,7 @@ router.get('/card-config', authenticate, async (req: Request, res: Response) => 
         coverUrl: row.coverUrl ?? null,
         cardDescription: row.cardDescription ?? null,
         businessHours: businessHours ?? null,
+        theme: row.theme === 'theme2' ? 'theme2' : 'theme1',
       },
     });
   } catch (error) {
@@ -1104,18 +1124,20 @@ router.put(
     body('coverUrl').optional({ nullable: true }).isString().isLength({ max: 500 }),
     body('cardDescription').optional({ nullable: true }).isString().isLength({ max: 300 }),
     body('businessHours').optional({ nullable: true }),
+    body('theme').optional().isIn(['theme1', 'theme2']).withMessage('Tema inválido'),
     validateRequest,
   ],
   async (req: Request, res: Response) => {
     try {
       const tenantId = (req as any).user.tenantId;
-      const { coverUrl, cardDescription, businessHours } = req.body;
+      const { coverUrl, cardDescription, businessHours, theme } = req.body;
 
       const fields: string[] = [];
       const values: any[] = [];
       if (coverUrl !== undefined)        { fields.push('card_cover_url = ?');  values.push(coverUrl || null); }
       if (cardDescription !== undefined) { fields.push('card_description = ?'); values.push(cardDescription || null); }
       if (businessHours !== undefined)   { fields.push('business_hours = ?');  values.push(businessHours ? JSON.stringify(businessHours) : null); }
+      if (theme !== undefined)           { fields.push('store_theme = ?');     values.push(theme === 'theme2' ? 'theme2' : 'theme1'); }
 
       if (fields.length === 0) {
         res.json({ success: true, message: 'Sin cambios' });
@@ -1142,6 +1164,140 @@ router.put(
     }
   }
 );
+
+// ── Secciones HTML personalizadas ───────────────────────────────────────────
+function slugify(text: string): string {
+  return String(text || '')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .toLowerCase().trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 200) || 'seccion';
+}
+
+async function uniqueSlug(tenantId: string, base: string, excludeId?: number): Promise<string> {
+  let slug = base; let n = 1;
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const [rows] = await pool.query(
+      `SELECT id FROM store_custom_sections WHERE tenant_id = ? AND slug = ?${excludeId ? ' AND id <> ?' : ''} LIMIT 1`,
+      excludeId ? [tenantId, slug, excludeId] : [tenantId, slug]
+    ) as any;
+    if ((rows as any[]).length === 0) return slug;
+    n += 1; slug = `${base}-${n}`;
+  }
+}
+
+// GET /api/storefront/custom-sections — Authenticated: lista del comercio
+router.get('/custom-sections', authenticate, async (req: Request, res: Response) => {
+  try {
+    const tenantId = (req as any).user.tenantId;
+    const [rows] = await pool.query(
+      'SELECT id, name, slug, is_active AS isActive FROM store_custom_sections WHERE tenant_id = ? ORDER BY created_at DESC',
+      [tenantId]
+    ) as any;
+    res.json({ success: true, data: (rows as any[]).map(r => ({ ...r, isActive: !!r.isActive })) });
+  } catch (error) {
+    console.error('List custom sections error:', error);
+    res.status(500).json({ success: false, error: 'Error al listar secciones' });
+  }
+});
+
+// POST /api/storefront/custom-sections — Authenticated: crear
+router.post('/custom-sections', authenticate, async (req: Request, res: Response) => {
+  try {
+    const tenantId = (req as any).user.tenantId;
+    const { name, htmlContent, isActive } = req.body || {};
+    if (!name || !String(name).trim()) { res.status(400).json({ success: false, error: 'El nombre es requerido' }); return; }
+    if (!htmlContent || !String(htmlContent).trim()) { res.status(400).json({ success: false, error: 'El contenido HTML es requerido' }); return; }
+    const slug = await uniqueSlug(tenantId, slugify(name));
+    const [result] = await pool.query(
+      'INSERT INTO store_custom_sections (tenant_id, name, slug, html_content, is_active) VALUES (?, ?, ?, ?, ?)',
+      [tenantId, String(name).slice(0, 255), slug, String(htmlContent), isActive ? 1 : 0]
+    ) as any;
+    res.json({ success: true, data: { id: result.insertId, name, slug, htmlContent, isActive: !!isActive }, message: 'Sección creada' });
+  } catch (error) {
+    console.error('Create custom section error:', error);
+    res.status(500).json({ success: false, error: 'Error al crear la sección' });
+  }
+});
+
+// PUT /api/storefront/custom-sections/:id — Authenticated: actualizar
+router.put('/custom-sections/:id', authenticate, async (req: Request, res: Response) => {
+  try {
+    const tenantId = (req as any).user.tenantId;
+    const id = Number(req.params.id);
+    const { name, htmlContent, isActive } = req.body || {};
+    const [own] = await pool.query('SELECT id FROM store_custom_sections WHERE id = ? AND tenant_id = ? LIMIT 1', [id, tenantId]) as any;
+    if ((own as any[]).length === 0) { res.status(404).json({ success: false, error: 'Sección no encontrada' }); return; }
+    await pool.query(
+      'UPDATE store_custom_sections SET name = ?, html_content = ?, is_active = ? WHERE id = ? AND tenant_id = ?',
+      [String(name).slice(0, 255), String(htmlContent), isActive ? 1 : 0, id, tenantId]
+    );
+    res.json({ success: true, message: 'Sección actualizada' });
+  } catch (error) {
+    console.error('Update custom section error:', error);
+    res.status(500).json({ success: false, error: 'Error al actualizar la sección' });
+  }
+});
+
+// POST /api/storefront/custom-sections/:id/toggle — Authenticated: activar/desactivar
+router.post('/custom-sections/:id/toggle', authenticate, async (req: Request, res: Response) => {
+  try {
+    const tenantId = (req as any).user.tenantId;
+    const id = Number(req.params.id);
+    const isActive = !!req.body?.isActive;
+    const [result] = await pool.query(
+      'UPDATE store_custom_sections SET is_active = ? WHERE id = ? AND tenant_id = ?',
+      [isActive ? 1 : 0, id, tenantId]
+    ) as any;
+    if (result.affectedRows === 0) { res.status(404).json({ success: false, error: 'Sección no encontrada' }); return; }
+    res.json({ success: true, message: isActive ? 'Sección activada' : 'Sección desactivada' });
+  } catch (error) {
+    console.error('Toggle custom section error:', error);
+    res.status(500).json({ success: false, error: 'Error al cambiar el estado' });
+  }
+});
+
+// DELETE /api/storefront/custom-sections/:id — Authenticated: eliminar
+router.delete('/custom-sections/:id', authenticate, async (req: Request, res: Response) => {
+  try {
+    const tenantId = (req as any).user.tenantId;
+    const id = Number(req.params.id);
+    const [result] = await pool.query(
+      'DELETE FROM store_custom_sections WHERE id = ? AND tenant_id = ?',
+      [id, tenantId]
+    ) as any;
+    if (result.affectedRows === 0) { res.status(404).json({ success: false, error: 'Sección no encontrada' }); return; }
+    res.json({ success: true, message: 'Sección eliminada' });
+  } catch (error) {
+    console.error('Delete custom section error:', error);
+    res.status(500).json({ success: false, error: 'Error al eliminar la sección' });
+  }
+});
+
+// GET /api/storefront/custom-sections/public/:storeSlug/:sectionSlug — Público: ver sección por link
+router.get('/custom-sections/public/:storeSlug/:sectionSlug', async (req: Request, res: Response) => {
+  try {
+    const { storeSlug, sectionSlug } = req.params;
+    const [tenants] = await pool.query(
+      "SELECT id, name FROM tenants WHERE status = 'activo' AND slug = ? LIMIT 1",
+      [storeSlug]
+    ) as any;
+    if (!tenants || (tenants as any[]).length === 0) { res.status(404).json({ success: false, error: 'Tienda no encontrada' }); return; }
+    const tenant = (tenants as any[])[0];
+    const [rows] = await pool.query(
+      'SELECT id, name, slug, html_content AS htmlContent, is_active AS isActive FROM store_custom_sections WHERE tenant_id = ? AND slug = ? LIMIT 1',
+      [tenant.id, sectionSlug]
+    ) as any;
+    if ((rows as any[]).length === 0) { res.status(404).json({ success: false, error: 'Sección no encontrada' }); return; }
+    const section = (rows as any[])[0];
+    res.json({ success: true, data: { ...section, isActive: !!section.isActive, storeName: tenant.name } });
+  } catch (error) {
+    console.error('Public custom section error:', error);
+    res.status(500).json({ success: false, error: 'Error al obtener la sección' });
+  }
+});
 
 // GET /api/storefront/customization — Authenticated: config para admin
 router.get('/customization', authenticate, requirePlan('empresarial'), async (req: Request, res: Response) => {

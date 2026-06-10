@@ -885,6 +885,18 @@ class ApiService {
     })
   }
 
+  // ── Modificadores de producto (merchant) ──
+  async getProductModifiers(productId: string) {
+    return this.request<any[]>(`/modifiers/product/${productId}`)
+  }
+
+  async saveProductModifiers(productId: string, groups: any[]) {
+    return this.request<any[]>(`/modifiers/product/${productId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ groups }),
+    })
+  }
+
   // ── Tarjetas del marketplace (página principal, superadmin) ──
   async getMarketplaceCards() {
     return this.request<any[]>('/tenants/marketplace-cards')
@@ -914,6 +926,7 @@ class ApiService {
       coverUrl: string | null
       cardDescription: string | null
       businessHours: Record<string, { open: string; close: string }[]> | null
+      theme: 'theme1' | 'theme2'
     }>('/storefront/card-config')
   }
 
@@ -921,6 +934,7 @@ class ApiService {
     coverUrl?: string | null
     cardDescription?: string | null
     businessHours?: Record<string, { open: string; close: string }[]> | null
+    theme?: 'theme1' | 'theme2'
   }) {
     return this.request<{ message: string }>('/storefront/card-config', {
       method: 'PUT',
