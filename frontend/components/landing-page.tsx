@@ -5,6 +5,7 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 const formatCOP = (value: number) =>
   new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value)
 import { Button } from '@/components/ui/button'
+import { VariantSelector, type RawVariant, type SelectedVariant } from '@/components/variant-selector'
 import {
   ArrowRight,
   ChevronDown,
@@ -123,6 +124,9 @@ interface StorefrontProduct {
   preorderShipStart?: string | null
   preorderShipEnd?: string | null
   preorderBadgeText?: string | null
+  // Variantes (talla/color/peso/material) adjuntadas por el backend
+  variants?: RawVariant[]
+  hasVariants?: boolean
 }
 
 function CustomSectionFrame({ name, html }: { name: string; html: string }) {
@@ -300,6 +304,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   const [selectedProduct, setSelectedProduct] = useState<StorefrontProduct | null>(null)
   const [showProductModal, setShowProductModal] = useState(false)
   const [productQuantity, setProductQuantity] = useState(1)
+  // Variante elegida en el modal (talla/color/peso). null = sin elegir o sin variantes.
+  const [selectedVariant, setSelectedVariant] = useState<SelectedVariant | null>(null)
   // Modificadores del producto en el modal (compartidos con el Tema 2)
   const [t1Mods, setT1Mods] = useState<any[]>([])
   const [t1ModsLoading, setT1ModsLoading] = useState(false)
@@ -1492,6 +1498,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     setSelectedProduct(product)
     setProductQuantity(1)
     setActiveImageIdx(0)
+    setSelectedVariant(null)
     setShowProductModal(true)
     // Seed viewers count uniquely per product and fluctuate over time
     const seed = (product.id * 2654435761) >>> 0
@@ -1586,9 +1593,14 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   const t1Extra = t1SelMods.reduce((s, m) => s + m.priceDelta, 0)
   const t1Missing = useMemo(() => (Array.isArray(t1Mods) ? t1Mods : []).filter((g: any) => g.isRequired && (t1Sel[g.id]?.size ?? 0) < Math.max(1, g.minSelect || 0)), [t1Mods, t1Sel])
 
+  // ¿El producto tiene variantes pero el cliente aún no elige una?
+  const variantPending = !!(selectedProduct?.variants && selectedProduct.variants.length > 0) && !selectedVariant
+
   const addFromModal = () => {
     if (!selectedProduct) return
     if (t1Missing.length > 0) return
+    // Si el producto tiene variantes, exige elegir una antes de agregar
+    if (variantPending) return
 
     // Check if this product is in the active drop
     const dropProduct = showDrop && storeConfig?.activeDrop
@@ -1599,7 +1611,10 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     let precioOriginal: number | undefined
     let descuentoPorcentaje: number | undefined
 
-    if (dropProduct) {
+    if (selectedVariant) {
+      // El precio de la variante manda (incluye su tier base / override)
+      finalPrice = selectedVariant.price
+    } else if (dropProduct) {
       finalPrice = dropProduct.finalPrice
       precioOriginal = selectedProduct.salePrice
       descuentoPorcentaje = dropProduct.customDiscount ?? storeConfig!.activeDrop!.globalDiscount
@@ -1612,9 +1627,11 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     finalPrice = finalPrice + t1Extra
     const modSuffix = t1SelMods.length ? ` (${t1SelMods.map(m => m.optionName).join(', ')})` : ''
     const modSig = t1SelMods.length ? `#${t1SelMods.map(m => m.optionName).sort().join('|')}` : ''
+    const varSuffix = selectedVariant ? ` — ${selectedVariant.label}` : ''
+    const varSig = selectedVariant ? `~${selectedVariant.id}` : ''
 
     setCarrito(prev => {
-      const tempId = String(selectedProduct.id) + modSig
+      const tempId = String(selectedProduct.id) + varSig + modSig
       const existingIndex = prev.findIndex(p => (p.tempId || String(p.id)) === tempId)
       if (existingIndex >= 0) {
         const newCart = [...prev]
@@ -1627,12 +1644,15 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       return [...prev, {
         id: selectedProduct.id,
         tempId,
-        nombre: selectedProduct.name + modSuffix,
+        nombre: selectedProduct.name + varSuffix + modSuffix,
         precio: finalPrice,
         precioOriginal,
         descuentoPorcentaje,
         cantidad: productQuantity,
-        imagen: selectedProduct.imageUrl || '',
+        imagen: selectedVariant?.image || selectedProduct.imageUrl || '',
+        variantId: selectedVariant?.id,
+        variantLabel: selectedVariant?.label,
+        tallaSeleccionada: selectedVariant?.label,
         tenantId: selectedProduct.tenantId,
         storeName: selectedProduct.storeName,
         availableForDelivery: !!selectedProduct.availableForDelivery,
@@ -3013,7 +3033,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
                 {/* Price */}
                 <div>
-                  {selectedProduct.isOnOffer && selectedProduct.offerPrice ? (
+                  {selectedVariant ? (
+                    <span className={`text-2xl font-bold ${isLightBg ? 'text-black' : 'text-white'}`}>{formatCOP(selectedVariant.price)}</span>
+                  ) : selectedProduct.isOnOffer && selectedProduct.offerPrice ? (
                     <div className="flex items-center gap-3 flex-wrap">
                       <span className={`text-2xl font-bold ${isLightBg ? 'text-black' : 'text-white'}`}>{formatCOP(selectedProduct.offerPrice)}</span>
                       <span className="text-base text-white/30 line-through">{formatCOP(selectedProduct.salePrice)}</span>
@@ -3030,7 +3052,15 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 </div>
 
                 {/* Variants */}
-                {(selectedProduct.color || selectedProduct.size) && (
+                {(selectedProduct.variants && selectedProduct.variants.length > 0) ? (
+                  <VariantSelector
+                    variants={selectedProduct.variants}
+                    basePrice={selectedProduct.salePrice}
+                    isLightBg={isLightBg}
+                    formatPrice={formatCOP}
+                    onChange={setSelectedVariant}
+                  />
+                ) : (selectedProduct.color || selectedProduct.size) ? (
                   <div className="space-y-3">
                     {selectedProduct.color && (
                       <div>
@@ -3056,7 +3086,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       </div>
                     )}
                   </div>
-                )}
+                ) : null}
 
                 {/* Modificadores (adiciones, combos, "sin X") */}
                 {t1ModsLoading ? (
@@ -3144,26 +3174,26 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       )}
                       <button
                         onClick={addFromModal}
-                        disabled={selectedProduct.stock === 0 || t1Missing.length > 0}
-                        style={selectedProduct.stock > 0 && t1Missing.length === 0 ? { backgroundColor: isLightBg ? '#111111' : '#ffffff', color: isLightBg ? '#ffffff' : '#000000' } : undefined}
+                        disabled={selectedProduct.stock === 0 || t1Missing.length > 0 || variantPending}
+                        style={selectedProduct.stock > 0 && t1Missing.length === 0 && !variantPending ? { backgroundColor: isLightBg ? '#111111' : '#ffffff', color: isLightBg ? '#ffffff' : '#000000' } : undefined}
                         className={`w-full py-4 flex items-center justify-center gap-2.5 text-sm uppercase tracking-[0.15em] font-medium rounded-xl transition-opacity ${
-                          selectedProduct.stock === 0 || t1Missing.length > 0 ? 'opacity-30 cursor-not-allowed bg-black/10 text-white/30' : 'hover:opacity-85'
+                          selectedProduct.stock === 0 || t1Missing.length > 0 || variantPending ? 'opacity-30 cursor-not-allowed bg-black/10 text-white/30' : 'hover:opacity-85'
                         }`}
                       >
                         <ShoppingCart className="w-4 h-4 flex-shrink-0" />
-                        {t1Extra > 0 ? `Añadir · ${formatCOP((selectedProduct.offerPrice && selectedProduct.isOnOffer ? selectedProduct.offerPrice : selectedProduct.salePrice) + t1Extra)}` : 'Añadir al carrito'}
+                        {variantPending ? 'Elige una opción' : t1Extra > 0 ? `Añadir · ${formatCOP((selectedProduct.offerPrice && selectedProduct.isOnOffer ? selectedProduct.offerPrice : selectedProduct.salePrice) + t1Extra)}` : 'Añadir al carrito'}
                       </button>
                       <button
                         onClick={() => {
-                          if (selectedProduct.stock === 0 || t1Missing.length > 0) return
+                          if (selectedProduct.stock === 0 || t1Missing.length > 0 || variantPending) return
                           addFromModal()
                           setShowCart(false)
                           handleIrAlCheckout()
                         }}
-                        disabled={selectedProduct.stock === 0 || t1Missing.length > 0}
-                        style={selectedProduct.stock > 0 && t1Missing.length === 0 ? { backgroundColor: isLightBg ? '#111111' : '#ffffff', color: isLightBg ? '#ffffff' : '#000000' } : undefined}
+                        disabled={selectedProduct.stock === 0 || t1Missing.length > 0 || variantPending}
+                        style={selectedProduct.stock > 0 && t1Missing.length === 0 && !variantPending ? { backgroundColor: isLightBg ? '#111111' : '#ffffff', color: isLightBg ? '#ffffff' : '#000000' } : undefined}
                         className={`w-full py-4 flex items-center justify-center gap-2 text-sm uppercase tracking-[0.15em] font-semibold rounded-xl transition-opacity ${
-                          selectedProduct.stock === 0 || t1Missing.length > 0 ? 'opacity-30 cursor-not-allowed bg-black/10 text-white/30' : 'hover:opacity-85'
+                          selectedProduct.stock === 0 || t1Missing.length > 0 || variantPending ? 'opacity-30 cursor-not-allowed bg-black/10 text-white/30' : 'hover:opacity-85'
                         }`}
                       >
                         {isDeliveryItem ? <Truck className="w-4 h-4 flex-shrink-0" /> : null}
@@ -3634,7 +3664,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       <h1 className="text-3xl sm:text-4xl font-light leading-tight">{selectedProduct.name}</h1>
 
                       <div className="space-y-2">
-                        {selectedProduct.isOnOffer && selectedProduct.offerPrice ? (
+                        {selectedVariant ? (
+                          <span className={`text-4xl font-light ${isLightBg ? 'text-black' : 'text-white'}`}>{formatCOP(selectedVariant.price)}</span>
+                        ) : selectedProduct.isOnOffer && selectedProduct.offerPrice ? (
                           <div className="space-y-2">
                             <div className="flex items-end gap-3 flex-wrap">
                               <span className={`text-4xl font-light ${isLightBg ? 'text-black' : 'text-white'}`}>{formatCOP(selectedProduct.offerPrice)}</span>
@@ -3662,7 +3694,15 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       </div>
 
                       {/* Variants — desktop */}
-                      {(selectedProduct.color || selectedProduct.size) && (
+                      {(selectedProduct.variants && selectedProduct.variants.length > 0) ? (
+                        <VariantSelector
+                          variants={selectedProduct.variants}
+                          basePrice={selectedProduct.salePrice}
+                          isLightBg={isLightBg}
+                          formatPrice={formatCOP}
+                          onChange={setSelectedVariant}
+                        />
+                      ) : (selectedProduct.color || selectedProduct.size) ? (
                         <div className="space-y-3">
                           {selectedProduct.color && (
                             <div>
@@ -3683,7 +3723,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                             </div>
                           )}
                         </div>
-                      )}
+                      ) : null}
 
                       {/* Quantity + heart */}
                       <div className="flex items-center justify-between">
@@ -3716,21 +3756,21 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                             <div ref={ctaRef} className="flex gap-3">
                               <button
                                 onClick={addFromModal}
-                                disabled={selectedProduct.stock === 0}
-                                style={selectedProduct.stock > 0 ? { backgroundColor: isLightBg ? '#f5f5f5' : '#1a1a1a', color: isLightBg ? '#111111' : '#ffffff', border: `1px solid ${isLightBg ? '#d1d5db' : '#333333'}` } : undefined}
+                                disabled={selectedProduct.stock === 0 || variantPending}
+                                style={selectedProduct.stock > 0 && !variantPending ? { backgroundColor: isLightBg ? '#f5f5f5' : '#1a1a1a', color: isLightBg ? '#111111' : '#ffffff', border: `1px solid ${isLightBg ? '#d1d5db' : '#333333'}` } : undefined}
                                 className={`flex-1 py-4 text-xs uppercase tracking-[0.1em] font-medium transition-all duration-200 flex items-center justify-center gap-2 rounded-xl ${
-                                  selectedProduct.stock === 0 ? 'bg-black/5 text-black/20 cursor-not-allowed border border-black/10' : 'hover:opacity-75'
+                                  selectedProduct.stock === 0 || variantPending ? 'bg-black/5 text-black/20 cursor-not-allowed border border-black/10' : 'hover:opacity-75'
                                 }`}
                               >
                                 <ShoppingCart className="w-4 h-4 flex-shrink-0" />
-                                <span className="whitespace-nowrap">{selectedProduct.stock === 0 ? 'Agotado' : 'Añadir al carrito'}</span>
+                                <span className="whitespace-nowrap">{selectedProduct.stock === 0 ? 'Agotado' : variantPending ? 'Elige una opción' : 'Añadir al carrito'}</span>
                               </button>
                               <button
-                                onClick={() => { if (selectedProduct.stock === 0) return; addFromModal(); setShowCart(false); handleIrAlCheckout() }}
-                                disabled={selectedProduct.stock === 0}
-                                style={selectedProduct.stock > 0 ? { backgroundColor: isLightBg ? '#111111' : '#ffffff', color: isLightBg ? '#ffffff' : '#000000' } : undefined}
+                                onClick={() => { if (selectedProduct.stock === 0 || variantPending) return; addFromModal(); setShowCart(false); handleIrAlCheckout() }}
+                                disabled={selectedProduct.stock === 0 || variantPending}
+                                style={selectedProduct.stock > 0 && !variantPending ? { backgroundColor: isLightBg ? '#111111' : '#ffffff', color: isLightBg ? '#ffffff' : '#000000' } : undefined}
                                 className={`flex-1 py-4 text-xs uppercase tracking-[0.1em] font-semibold flex items-center justify-center gap-2 rounded-xl transition-opacity ${
-                                  selectedProduct.stock === 0 ? 'bg-black/5 text-black/20 cursor-not-allowed border border-black/10' : 'hover:opacity-80'
+                                  selectedProduct.stock === 0 || variantPending ? 'bg-black/5 text-black/20 cursor-not-allowed border border-black/10' : 'hover:opacity-80'
                                 }`}
                               >
                                 {isDeliveryItem ? <Truck className="w-4 h-4 flex-shrink-0" /> : null}

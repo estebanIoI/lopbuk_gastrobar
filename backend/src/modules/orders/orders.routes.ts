@@ -529,6 +529,8 @@ router.post(
         })),
         redirectUrl: `${frontendUrl}/?addi=success&order=${orderId}`,
         cancelUrl: `${frontendUrl}/?addi=cancel&order=${orderId}`,
+        // Webhook server-side para confirmar el pago aunque el cliente no vuelva por la redirección
+        callbackUrl: `${process.env.BACKEND_URL || 'http://localhost:3001'}/api/orders/addi-webhook`,
       };
 
       if (addiStoreSlug) {
@@ -581,6 +583,113 @@ router.post(
     }
   }
 );
+
+// =============================================
+// PUBLIC: Webhook de ADDI (confirmación server-side)
+// ADDI llama a este callbackUrl al resolver la solicitud. Confirma el pedido
+// aunque el cliente no regrese por la redirección (resuelve la carrera
+// webhook-vs-redirección).
+// =============================================
+router.post('/addi-webhook', async (req: Request, res: Response) => {
+  try {
+    // Basic Auth opcional (addi_webhook_user/password en env o platform_settings)
+    let webhookUser = process.env.ADDI_WEBHOOK_USER || '';
+    let webhookPass = process.env.ADDI_WEBHOOK_PASSWORD || '';
+    if (!webhookUser || !webhookPass) {
+      const [psRows] = await pool.query(
+        "SELECT setting_key, setting_value FROM platform_settings WHERE setting_key IN ('addi_webhook_user','addi_webhook_password')"
+      ) as any;
+      for (const r of psRows) {
+        if (r.setting_key === 'addi_webhook_user') webhookUser = r.setting_value || '';
+        if (r.setting_key === 'addi_webhook_password') webhookPass = r.setting_value || '';
+      }
+    }
+    if (webhookUser && webhookPass) {
+      const authHeader = (req.headers['authorization'] as string) || '';
+      const expected = 'Basic ' + Buffer.from(`${webhookUser}:${webhookPass}`).toString('base64');
+      if (authHeader !== expected) {
+        console.warn('ADDI webhook: unauthorized request');
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
+    } else {
+      console.warn('ADDI webhook: sin credenciales configuradas — aceptando sin auth. Configura addi_webhook_user/addi_webhook_password.');
+    }
+
+    const payload = req.body;
+    const { orderId, status } = payload || {};
+
+    if (orderId && status) {
+      const statusMap: Record<string, string> = {
+        APPROVED: 'confirmado', REJECTED: 'cancelado', DECLINED: 'cancelado', ABANDONED: 'cancelado',
+      };
+      const newStatus = statusMap[String(status).toUpperCase()];
+      if (newStatus) {
+        const [orderRows] = await pool.query(
+          "SELECT id, tenant_id, order_number, customer_name, total, status FROM storefront_orders WHERE id = ? AND payment_method = 'addi' LIMIT 1",
+          [orderId]
+        ) as any;
+        const order = orderRows?.[0];
+        // Idempotencia: no re-procesar pedidos ya cerrados
+        if (order && !['entregado', 'cancelado'].includes(order.status)) {
+          await pool.query(
+            'UPDATE storefront_orders SET status = ?, gateway_payment_id = COALESCE(gateway_payment_id, ?) WHERE id = ?',
+            [newStatus, orderId, orderId]
+          );
+          console.log(`ADDI webhook: order ${orderId} → ${newStatus}`);
+          if (newStatus === 'confirmado') {
+            await extendHolds(orderId, new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)).catch(() => {});
+            try {
+              await pool.query(
+                `INSERT INTO merchant_notifications (tenant_id, type, title, message, data)
+                 VALUES (?, 'new_order', ?, ?, ?)`,
+                [order.tenant_id,
+                 `Pago ADDI confirmado: #${order.order_number}`,
+                 `${order.customer_name} pagó con ADDI $${Number(order.total).toLocaleString('es-CO')}`,
+                 JSON.stringify({ orderId: order.id, orderNumber: order.order_number, paymentMethod: 'addi' })]
+              );
+            } catch { /* notifications non-critical */ }
+          } else if (newStatus === 'cancelado') {
+            await releaseHolds(orderId).catch(() => {});
+          }
+        }
+      }
+    }
+
+    // ADDI espera HTTP 200 devolviendo el cuerpo recibido
+    res.status(200).json(payload);
+  } catch (error) {
+    console.error('ADDI webhook error:', error);
+    res.status(200).json(req.body); // siempre 200 para evitar reintentos de ADDI
+  }
+});
+
+// =============================================
+// PUBLIC: Estado de orden ADDI
+// El frontend lo consulta al volver de ADDI. Reintenta hasta 3 veces (1s) para
+// dar tiempo a que llegue el webhook antes de mostrar el resultado.
+// =============================================
+router.get('/addi-status/:orderId', async (req: Request, res: Response) => {
+  try {
+    const { orderId } = req.params;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const [rows] = await pool.query(
+        "SELECT status FROM storefront_orders WHERE id = ? AND payment_method = 'addi' LIMIT 1",
+        [orderId]
+      ) as any;
+      if (!rows?.length) { res.status(404).json({ success: false }); return; }
+      if (rows[0].status !== 'pendiente') { res.json({ success: true, status: rows[0].status }); return; }
+      if (attempt < 2) await new Promise(r => setTimeout(r, 1000));
+    }
+    const [rows] = await pool.query(
+      "SELECT status FROM storefront_orders WHERE id = ? LIMIT 1",
+      [orderId]
+    ) as any;
+    res.json({ success: true, status: rows?.[0]?.status || 'pendiente' });
+  } catch {
+    res.status(500).json({ success: false });
+  }
+});
 
 // =============================================
 // PUBLIC: Crear solicitud de crédito con Sistecredito
@@ -852,9 +961,10 @@ router.post('/mercadopago-webhook', async (req: Request, res: Response) => {
     }
 
     const topic = req.query.topic || req.body?.type;
-    const paymentId = req.query['data.id'] || req.body?.data?.id;
+    // req.query['data.id'] → webhook firmado nuevo; req.body?.data?.id → cuerpo nuevo; req.query.id → IPN (deprecado)
+    const paymentId = req.query['data.id'] || req.body?.data?.id || req.query.id;
 
-    if (!mpToken || !paymentId || (topic !== 'payment' && topic !== 'payment')) {
+    if (!mpToken || !paymentId || (topic !== 'payment' && topic !== 'payment_intent')) {
       res.status(200).json({ received: true });
       return;
     }
@@ -880,14 +990,36 @@ router.post('/mercadopago-webhook', async (req: Request, res: Response) => {
     }
 
     if (mpStatus === 'approved') {
-      await pool.query(
+      // Guardar idempotencia: solo procesar si la orden seguía 'pendiente' (evita
+      // re-disparar efectos ante webhooks duplicados de MP).
+      const [upd] = await pool.query(
         "UPDATE storefront_orders SET status = 'confirmado', gateway_payment_id = ? WHERE id = ? AND status = 'pendiente'",
         [String(paymentId), orderId]
-      );
-      // Extender hold a 30 días al confirmar pago
-      const holdExpiry30d = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-      await extendHolds(orderId, holdExpiry30d).catch(() => {});
-      console.log(`MP webhook: order ${orderId} confirmed (payment ${paymentId})`);
+      ) as any;
+      if (upd.affectedRows > 0) {
+        console.log(`MP webhook: order ${orderId} confirmed (payment ${paymentId})`);
+        // Extender hold a 30 días al confirmar pago
+        const holdExpiry30d = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+        await extendHolds(orderId, holdExpiry30d).catch(() => {});
+        // Notificar al comerciante (no crítico)
+        try {
+          const [oRows] = await pool.query(
+            'SELECT tenant_id, order_number, customer_name, total FROM storefront_orders WHERE id = ? LIMIT 1',
+            [orderId]
+          ) as any;
+          const o = oRows?.[0];
+          if (o) {
+            await pool.query(
+              `INSERT INTO merchant_notifications (tenant_id, type, title, message, data)
+               VALUES (?, 'new_order', ?, ?, ?)`,
+              [o.tenant_id,
+               `Pago MercadoPago confirmado: #${o.order_number}`,
+               `${o.customer_name} pagó con MercadoPago $${Number(o.total).toLocaleString('es-CO')}`,
+               JSON.stringify({ orderId, orderNumber: o.order_number, paymentMethod: 'mercadopago' })]
+            );
+          }
+        } catch { /* notifications non-critical */ }
+      }
     } else if (mpStatus === 'rejected' || mpStatus === 'cancelled') {
       await pool.query(
         "UPDATE storefront_orders SET status = 'cancelado' WHERE id = ? AND status = 'pendiente'",
@@ -948,7 +1080,7 @@ router.post('/sistecredito-webhook', async (req: Request, res: Response) => {
 
     // Find order by orderId or orderNumber
     const [orderRows] = await pool.query(
-      "SELECT id, status FROM storefront_orders WHERE id = ? OR order_number = ? LIMIT 1",
+      "SELECT id, tenant_id, order_number, customer_name, total, status FROM storefront_orders WHERE id = ? OR order_number = ? LIMIT 1",
       [resolvedRef, resolvedRef]
     ) as any;
 
@@ -962,16 +1094,33 @@ router.post('/sistecredito-webhook', async (req: Request, res: Response) => {
     const normalizedStatus = (status || '').toLowerCase();
 
     if ((normalizedStatus === 'approved' || normalizedStatus === 'aprobado') && order.status === 'pendiente') {
+      // Idempotente: solo confirma si seguía 'pendiente'
+      const [upd] = await pool.query(
+        "UPDATE storefront_orders SET status = 'confirmado', gateway_payment_id = COALESCE(gateway_payment_id, ?) WHERE id = ? AND status = 'pendiente'",
+        [order.id, order.id]
+      ) as any;
+      if (upd.affectedRows > 0) {
+        console.log(`Sistecredito webhook: order ${order.id} confirmed`);
+        // Extender hold a 30 días al confirmar pago
+        await extendHolds(order.id, new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)).catch(() => {});
+        // Notificar al comerciante (no crítico)
+        try {
+          await pool.query(
+            `INSERT INTO merchant_notifications (tenant_id, type, title, message, data)
+             VALUES (?, 'new_order', ?, ?, ?)`,
+            [order.tenant_id,
+             `Pago Sistecredito confirmado: #${order.order_number}`,
+             `${order.customer_name} pagó con Sistecredito $${Number(order.total).toLocaleString('es-CO')}`,
+             JSON.stringify({ orderId: order.id, orderNumber: order.order_number, paymentMethod: 'sistecredito' })]
+          );
+        } catch { /* notifications non-critical */ }
+      }
+    } else if ((normalizedStatus === 'rejected' || normalizedStatus === 'rechazado') && order.status === 'pendiente') {
       await pool.query(
-        "UPDATE storefront_orders SET status = 'confirmado' WHERE id = ?",
+        "UPDATE storefront_orders SET status = 'cancelado' WHERE id = ? AND status = 'pendiente'",
         [order.id]
       );
-      console.log(`Sistecredito webhook: order ${order.id} confirmed`);
-    } else if (normalizedStatus === 'rejected' || normalizedStatus === 'rechazado') {
-      await pool.query(
-        "UPDATE storefront_orders SET status = 'cancelado' WHERE id = ?",
-        [order.id]
-      );
+      await releaseHolds(order.id).catch(() => {});
       console.log(`Sistecredito webhook: order ${order.id} cancelled (rejected)`);
     }
 
@@ -979,6 +1128,33 @@ router.post('/sistecredito-webhook', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Sistecredito webhook error:', error);
     res.status(200).json({ received: true }); // always 200 to avoid retries
+  }
+});
+
+// =============================================
+// PUBLIC: Estado de orden Sistecredito
+// El frontend lo consulta al volver de Sistecredito. Reintenta hasta 3 veces
+// (1s) para dar tiempo a que llegue el webhook (carrera webhook-vs-redirección).
+// =============================================
+router.get('/sistecredito-status/:orderId', async (req: Request, res: Response) => {
+  try {
+    const { orderId } = req.params;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const [rows] = await pool.query(
+        "SELECT status FROM storefront_orders WHERE id = ? AND payment_method = 'sistecredito' LIMIT 1",
+        [orderId]
+      ) as any;
+      if (!rows?.length) { res.status(404).json({ success: false }); return; }
+      if (rows[0].status !== 'pendiente') { res.json({ success: true, status: rows[0].status }); return; }
+      if (attempt < 2) await new Promise(r => setTimeout(r, 1000));
+    }
+    const [rows] = await pool.query(
+      "SELECT status FROM storefront_orders WHERE id = ? LIMIT 1",
+      [orderId]
+    ) as any;
+    res.json({ success: true, status: rows?.[0]?.status || 'pendiente' });
+  } catch {
+    res.status(500).json({ success: false });
   }
 });
 
@@ -1402,4 +1578,4 @@ router.put(
   }
 );
 
-export const ordersRoutes = router;
+export const ordersRoutes: ReturnType<typeof Router> = router;

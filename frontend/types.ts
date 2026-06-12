@@ -12,6 +12,9 @@ export interface ProductoCarrito {
   tallaSeleccionada?: string;
   colorSeleccionado?: string;
   perfumeSeleccionado?: string;
+  // Variante seleccionada (talla/color/peso/material)
+  variantId?: string;
+  variantLabel?: string;
   tenantId?: string;
   storeName?: string;
   availableForDelivery?: boolean;

@@ -417,4 +417,4 @@ router.post(
     }
 );
 
-export const couponsRoutes = router;
+export const couponsRoutes: ReturnType<typeof Router> = router;

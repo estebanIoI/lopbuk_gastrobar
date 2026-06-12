@@ -4,6 +4,31 @@ import { authenticate } from '../../common/middleware';
 
 const router = Router();
 
+// Planes por defecto (se usan si el superadmin aún no los ha personalizado)
+const DEFAULT_PLANS = [
+  { name: 'Micro', tag: 'Tienda única', price: '$80.000', period: '/mes', specs: ['1 sede', '1–3 usuarios', 'POS + Inventario', 'Tienda online básica'], highlighted: false, isEnterprise: false },
+  { name: 'Pyme', tag: 'Negocio en crecimiento', price: '$300.000', period: '/mes', specs: ['2–5 sedes', '4–15 usuarios', 'Tienda + RestBar', 'Reportes avanzados'], highlighted: true, isEnterprise: false },
+  { name: 'Mediana', tag: 'Empresa establecida', price: '$4.000.000', period: '/mes', specs: ['6–20 sedes', '16–60 usuarios', 'Multi-sede + Finanzas', 'Soporte prioritario'], highlighted: false, isEnterprise: false },
+  { name: 'Enterprise', tag: '+20 sedes', price: 'Desde $5.000.000', period: '/mes', specs: ['Sedes ilimitadas', 'Usuarios ilimitados', 'SLA garantizado', 'Soporte 24/7 dedicado'], highlighted: false, isEnterprise: true },
+];
+
+/** Parsea el JSON de planes (string u objeto) a array, o null si vacío/ inválido. */
+function parsePlans(raw: unknown): any[] | null {
+  if (!raw) return null;
+  let arr: any = raw;
+  if (typeof raw === 'string') { try { arr = JSON.parse(raw); } catch { return null; } }
+  if (!Array.isArray(arr) || arr.length === 0) return null;
+  return arr.map((p: any) => ({
+    name: String(p.name || ''),
+    tag: String(p.tag || ''),
+    price: String(p.price || ''),
+    period: String(p.period || '/mes'),
+    specs: Array.isArray(p.specs) ? p.specs.map((s: any) => String(s)) : [],
+    highlighted: !!p.highlighted,
+    isEnterprise: !!p.isEnterprise,
+  }));
+}
+
 // ─────────────────────────────────────────────────────────────
 // GET /api/portfolio/public — Pública: datos del portafolio
 // ─────────────────────────────────────────────────────────────
@@ -635,4 +660,4 @@ router.post('/checkout', async (req: Request, res: Response) => {
   }
 })
 
-export const portfolioRoutes = router;
+export const portfolioRoutes: ReturnType<typeof Router> = router;

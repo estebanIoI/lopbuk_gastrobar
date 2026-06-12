@@ -9,7 +9,7 @@ export class VariantsController {
 
   async findByProduct(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const tenantId = req.user!.tenantId;
+      const tenantId = req.user!.tenantId!;
       const data = await variantsService.findByProduct(req.params.productId, tenantId);
       res.json({ success: true, data });
     } catch (err) { next(err); }
@@ -17,7 +17,7 @@ export class VariantsController {
 
   async findById(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const tenantId = req.user!.tenantId;
+      const tenantId = req.user!.tenantId!;
       const data = await variantsService.findById(req.params.id, tenantId);
       res.json({ success: true, data });
     } catch (err) { next(err); }
@@ -25,7 +25,7 @@ export class VariantsController {
 
   async create(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const tenantId = req.user!.tenantId;
+      const tenantId = req.user!.tenantId!;
       const data = await variantsService.create(req.params.productId, tenantId, req.body);
       res.status(201).json({ success: true, data });
     } catch (err) { next(err); }
@@ -33,7 +33,7 @@ export class VariantsController {
 
   async update(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const tenantId = req.user!.tenantId;
+      const tenantId = req.user!.tenantId!;
       const data = await variantsService.update(req.params.id, tenantId, req.body);
       res.json({ success: true, data });
     } catch (err) { next(err); }
@@ -41,7 +41,7 @@ export class VariantsController {
 
   async delete(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const tenantId = req.user!.tenantId;
+      const tenantId = req.user!.tenantId!;
       await variantsService.softDelete(req.params.id, tenantId);
       res.json({ success: true, data: { message: 'Variante eliminada' } });
     } catch (err) { next(err); }
@@ -49,7 +49,7 @@ export class VariantsController {
 
   async adjustStock(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const tenantId = req.user!.tenantId;
+      const tenantId = req.user!.tenantId!;
       const { quantity, type, reason } = req.body;
       const variant = await variantsService.findById(req.params.id, tenantId);
       const data = await variantsService.adjustStock({
@@ -64,7 +64,7 @@ export class VariantsController {
 
   async getMovements(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const tenantId = req.user!.tenantId;
+      const tenantId = req.user!.tenantId!;
       const data = await variantsService.getMovements(req.params.id, tenantId);
       res.json({ success: true, data });
     } catch (err) { next(err); }
@@ -74,7 +74,7 @@ export class VariantsController {
 
   async getTiers(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const tenantId = req.user!.tenantId;
+      const tenantId = req.user!.tenantId!;
       const data = await variantsService.findTiersByVariant(req.params.id, tenantId);
       res.json({ success: true, data });
     } catch (err) { next(err); }
@@ -82,7 +82,7 @@ export class VariantsController {
 
   async resolvePrice(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const tenantId = req.user!.tenantId;
+      const tenantId = req.user!.tenantId!;
       const qty = Number(req.body.qty ?? req.query.qty ?? 1);
       const data = await variantsService.resolvePrice(req.params.id, qty, tenantId);
       res.json({ success: true, data });
@@ -91,7 +91,7 @@ export class VariantsController {
 
   async createTier(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const tenantId = req.user!.tenantId;
+      const tenantId = req.user!.tenantId!;
       const data = await variantsService.createTier(req.params.id, tenantId, req.body);
       res.status(201).json({ success: true, data });
     } catch (err) { next(err); }
@@ -99,7 +99,7 @@ export class VariantsController {
 
   async updateTier(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const tenantId = req.user!.tenantId;
+      const tenantId = req.user!.tenantId!;
       const data = await variantsService.updateTier(req.params.tierId, tenantId, req.body);
       res.json({ success: true, data });
     } catch (err) { next(err); }
@@ -107,7 +107,7 @@ export class VariantsController {
 
   async deleteTier(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const tenantId = req.user!.tenantId;
+      const tenantId = req.user!.tenantId!;
       await variantsService.deleteTier(req.params.tierId, tenantId);
       res.json({ success: true, data: { message: 'Tier eliminado' } });
     } catch (err) { next(err); }
@@ -117,7 +117,7 @@ export class VariantsController {
 
   async importCsv(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const tenantId = req.user!.tenantId;
+      const tenantId = req.user!.tenantId!;
       const csvText: string = req.body.csv;
       if (!csvText) {
         return res.status(400).json({ success: false, error: 'Campo "csv" requerido' });

@@ -351,6 +351,10 @@ export function SuperadminHome() {
   const [loginImageUrl, setLoginImageUrl] = useState('')
   const [isSavingLogin, setIsSavingLogin] = useState(false)
 
+  // ── Tema del panel del comerciante (global) ──
+  const [panelTheme, setPanelTheme] = useState<'classic' | 'comerciante'>('classic')
+  const [isSavingTheme, setIsSavingTheme] = useState(false)
+
   // ── Portafolio DAIMUZ ──
   const [pfHeroTitle, setPfHeroTitle] = useState('DAIMUZ')
   const [pfHeroSubtitle, setPfHeroSubtitle] = useState('')
@@ -465,6 +469,7 @@ export function SuperadminHome() {
       if (result.data.hero_title) setHeroTitle(result.data.hero_title)
       if (result.data.hero_subtitle) setHeroSubtitle(result.data.hero_subtitle)
       if (result.data.login_image_url) setLoginImageUrl(result.data.login_image_url)
+      if (result.data.panel_theme === 'comerciante' || result.data.panel_theme === 'classic') setPanelTheme(result.data.panel_theme)
       // Populate MP prices from platform settings
       setMpPrices({
         basico:      result.data.plan_price_basico || '',
@@ -901,6 +906,21 @@ export function SuperadminHome() {
     setIsSavingLogin(false)
   }
 
+  const handleSavePanelTheme = async (value: 'classic' | 'comerciante') => {
+    setIsSavingTheme(true)
+    const prev = panelTheme
+    setPanelTheme(value)
+    const result = await api.updatePlatformSetting('panel_theme', value)
+    if (result.success) {
+      try { localStorage.setItem('panel_theme', value) } catch { /* ignore */ }
+      toast.success(value === 'comerciante' ? 'Tema 2 (Panel Comerciante) activado' : 'Tema clásico activado')
+    } else {
+      setPanelTheme(prev)
+      toast.error(result.error || 'Error al guardar el tema')
+    }
+    setIsSavingTheme(false)
+  }
+
   const openCreateDrop = () => {
     setEditingDrop(null)
     setDropForm(emptyDrop())
@@ -1115,6 +1135,53 @@ export function SuperadminHome() {
               <Button size="sm" onClick={handleSaveLoginImage} disabled={isSavingLogin}>
                 {isSavingLogin ? 'Guardando...' : 'Guardar imagen de login'}
               </Button>
+            </CardContent>
+          </Card>
+
+          {/* ── Tema del Panel del Comerciante ── */}
+          <Card className="border-border bg-card">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base lg:text-lg flex items-center gap-2">
+                <LayoutTemplate className="h-5 w-5 text-muted-foreground" />
+                Tema del Panel del Comerciante
+              </CardTitle>
+              <CardDescription>
+                Elige el diseño con el que TODOS los comercios ven su panel de administración. El cambio es global e inmediato.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {([
+                  { value: 'classic', title: 'Tema clásico', desc: 'Barra lateral flotante + secciones. El diseño original.', accent: '#6366f1' },
+                  { value: 'comerciante', title: 'Tema 2 · Comerciante', desc: 'Navbar verde con mega-menús, accesos rápidos, “Requiere tu atención”, guía interactiva y asistente.', accent: '#00833E' },
+                ] as const).map(opt => {
+                  const selected = panelTheme === opt.value
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      disabled={isSavingTheme}
+                      onClick={() => handleSavePanelTheme(opt.value)}
+                      className={`relative text-left rounded-lg border-2 p-4 transition-all disabled:opacity-60 ${
+                        selected ? 'border-primary bg-primary/5 shadow-sm' : 'border-border hover:border-primary/40 bg-background'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex items-center gap-2">
+                          <span className="inline-block h-3 w-3 rounded-full" style={{ background: opt.accent }} />
+                          <span className="text-sm font-semibold text-foreground">{opt.title}</span>
+                        </div>
+                        {selected && <Check className="h-4 w-4 text-primary" />}
+                      </div>
+                      <p className="text-xs text-muted-foreground leading-relaxed">{opt.desc}</p>
+                      {selected && <span className="mt-2 inline-block text-[11px] font-medium text-primary">Activo</span>}
+                    </button>
+                  )
+                })}
+              </div>
+              <p className="text-xs text-muted-foreground mt-3">
+                El superadmin siempre ve el tema clásico. El Tema 2 aplica a comerciantes, vendedores y bodega.
+              </p>
             </CardContent>
           </Card>
 

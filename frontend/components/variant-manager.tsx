@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { api } from '@/lib/api'
-import type { ProductVariant, VariantPriceTier } from '@/lib/types'
+import type { ProductVariant } from '@/lib/types'
 import { formatCOP } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/select'
 import {
   Plus, Trash2, Edit2, Package, Tag, TrendingUp, Upload, ChevronDown, ChevronUp,
+  Wand2, Sparkles, Layers, X,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -32,27 +33,48 @@ interface Props {
 const EMPTY_VARIANT = { sku: '', color: '', size: '', material: '', stock: 0, minStock: 0, costPrice: '', priceOverride: '' }
 const EMPTY_TIER    = { minQty: 1, price: '', tenantMarginPct: 0 }
 
+// ── Ejes del modo guiado (mapeados a las columnas reales del backend) ──
+// El backend solo tiene 3 columnas de variante: color, size, material.
+const GUIDED_AXES = [
+  { key: 'color' as const,    label: 'Color',                  placeholder: 'Negro, Blanco, Rojo, Azul' },
+  { key: 'size' as const,     label: 'Talla / Tamaño / Peso',  placeholder: 'S, M, L, XL  ·  250g, 500g, 1kg' },
+  { key: 'material' as const, label: 'Material / Sabor / Tipo', placeholder: 'Algodón, Cuero  ·  Vainilla, Chocolate' },
+]
+
+const stripDiacritics = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '')
+const slug = (s: string) => stripDiacritics(s.toUpperCase()).replace(/[^A-Z0-9]/g, '').slice(0, 6)
+const parseVals = (s: string) => Array.from(new Set(s.split(/[,\n]/).map(t => t.trim()).filter(Boolean)))
+
 export function VariantManager({ productId, productName, open, onClose }: Props) {
   const [variants, setVariants]           = useState<ProductVariant[]>([])
   const [loading, setLoading]             = useState(false)
   const [expandedId, setExpandedId]       = useState<string | null>(null)
 
-  // Forms
+  // Modo guiado
+  const [guided, setGuided]               = useState(true)
+  const [axisColor, setAxisColor]         = useState('')
+  const [axisSize, setAxisSize]           = useState('')
+  const [axisMaterial, setAxisMaterial]   = useState('')
+  const [gStock, setGStock]               = useState(10)
+  const [gPrice, setGPrice]               = useState('')
+  const [skuPrefix, setSkuPrefix]         = useState('')
+  const [generating, setGenerating]       = useState(false)
+  const [genProgress, setGenProgress]     = useState<{ done: number; total: number } | null>(null)
+
+  // Forms (modo avanzado)
   const [showAddVariant, setShowAddVariant]   = useState(false)
   const [editingVariant, setEditingVariant]   = useState<ProductVariant | null>(null)
   const [variantForm, setVariantForm]         = useState(EMPTY_VARIANT)
   const [savingVariant, setSavingVariant]     = useState(false)
 
-  const [showAddTier, setShowAddTier]         = useState<string | null>(null) // variantId
+  const [showAddTier, setShowAddTier]         = useState<string | null>(null)
   const [tierForm, setTierForm]               = useState(EMPTY_TIER)
   const [savingTier, setSavingTier]           = useState(false)
 
-  // Stock adjustment
   const [stockVariant, setStockVariant]       = useState<ProductVariant | null>(null)
   const [stockForm, setStockForm]             = useState({ quantity: 0, type: 'entrada', reason: '' })
   const [savingStock, setSavingStock]         = useState(false)
 
-  // CSV import
   const [showImport, setShowImport]           = useState(false)
   const [csvText, setCsvText]                 = useState('')
   const [importing, setImporting]             = useState(false)
@@ -61,15 +83,73 @@ export function VariantManager({ productId, productName, open, onClose }: Props)
     setLoading(true)
     try {
       const data = await api.getVariantsByProduct(productId)
-      setVariants(Array.isArray(data) ? data : (data as any)?.data ?? [])
+      const list = Array.isArray(data) ? data : (data as any)?.data ?? []
+      setVariants(list)
+      // Si ya hay variantes, abre directo en modo lista; si no, en modo guiado
+      setGuided(list.length === 0)
     } catch { toast.error('Error cargando variantes') }
     finally { setLoading(false) }
   }, [productId])
 
-  useEffect(() => { if (open) load() }, [open, load])
+  useEffect(() => { if (open) { load(); setSkuPrefix(slug(productName)) } }, [open, load, productName])
 
-  // ── Variant CRUD ────────────────────────────────────────────────────────────
+  // ── Modo guiado: matriz de combinaciones ────────────────────────────────────
+  const combos = useMemo(() => {
+    const colors = parseVals(axisColor)
+    const sizes  = parseVals(axisSize)
+    const mats   = parseVals(axisMaterial)
+    const cAxis = colors.length ? colors : [undefined]
+    const sAxis = sizes.length ? sizes : [undefined]
+    const mAxis = mats.length ? mats : [undefined]
+    const out: { color?: string; size?: string; material?: string }[] = []
+    for (const c of cAxis) for (const s of sAxis) for (const m of mAxis) {
+      if (!c && !s && !m) continue
+      out.push({ color: c, size: s, material: m })
+    }
+    return out
+  }, [axisColor, axisSize, axisMaterial])
 
+  const existingSkus = useMemo(() => new Set(variants.map(v => v.sku)), [variants])
+
+  const buildSku = (combo: { color?: string; size?: string; material?: string }) => {
+    const parts = [combo.color, combo.size, combo.material].filter(Boolean).map(v => slug(v as string))
+    return [skuPrefix || 'VAR', ...parts].filter(Boolean).join('-')
+  }
+
+  const generate = async () => {
+    if (combos.length === 0) { toast.error('Agrega al menos un valor en algún eje'); return }
+    setGenerating(true)
+    setGenProgress({ done: 0, total: combos.length })
+    let created = 0, skipped = 0, failed = 0
+    for (let i = 0; i < combos.length; i++) {
+      const combo = combos[i]
+      const sku = buildSku(combo)
+      if (existingSkus.has(sku)) { skipped++; setGenProgress({ done: i + 1, total: combos.length }); continue }
+      try {
+        await api.createVariant(productId, {
+          sku,
+          color: combo.color || undefined,
+          size: combo.size || undefined,
+          material: combo.material || undefined,
+          stock: Number(gStock) || 0,
+          minStock: 0,
+          priceOverride: gPrice ? Number(gPrice) : undefined,
+        })
+        created++
+      } catch { failed++ }
+      setGenProgress({ done: i + 1, total: combos.length })
+    }
+    setGenerating(false)
+    setGenProgress(null)
+    if (created) toast.success(`${created} variante(s) creada(s)${skipped ? ` · ${skipped} ya existían` : ''}`)
+    else if (skipped) toast.info('Todas esas combinaciones ya existían')
+    if (failed) toast.warning(`${failed} no se pudieron crear`)
+    setAxisColor(''); setAxisSize(''); setAxisMaterial('')
+    await load()
+    setGuided(false)
+  }
+
+  // ── Variant CRUD (avanzado) ─────────────────────────────────────────────────
   const openAdd = () => { setVariantForm(EMPTY_VARIANT); setEditingVariant(null); setShowAddVariant(true) }
   const openEdit = (v: ProductVariant) => {
     setVariantForm({
@@ -119,7 +199,6 @@ export function VariantManager({ productId, productName, open, onClose }: Props)
   }
 
   // ── Price Tiers ─────────────────────────────────────────────────────────────
-
   const saveTier = async () => {
     if (!showAddTier) return
     if (!tierForm.price) return toast.error('Precio requerido')
@@ -148,7 +227,6 @@ export function VariantManager({ productId, productName, open, onClose }: Props)
   }
 
   // ── Stock Adjustment ────────────────────────────────────────────────────────
-
   const saveStock = async () => {
     if (!stockVariant) return
     if (!stockForm.reason.trim()) return toast.error('Motivo requerido')
@@ -168,7 +246,6 @@ export function VariantManager({ productId, productName, open, onClose }: Props)
   }
 
   // ── CSV Import ──────────────────────────────────────────────────────────────
-
   const importCsv = async () => {
     if (!csvText.trim()) return toast.error('CSV vacío')
     setImporting(true)
@@ -185,7 +262,6 @@ export function VariantManager({ productId, productName, open, onClose }: Props)
   }
 
   // ── Render ──────────────────────────────────────────────────────────────────
-
   return (
     <>
       <Dialog open={open} onOpenChange={v => !v && onClose()}>
@@ -197,123 +273,221 @@ export function VariantManager({ productId, productName, open, onClose }: Props)
             </DialogTitle>
           </DialogHeader>
 
-          {/* Actions */}
-          <div className="flex flex-wrap gap-2 mb-4">
-            <Button size="sm" onClick={openAdd}>
-              <Plus className="w-4 h-4 mr-1" /> Nueva variante
+          {/* Conmutador Guiado / Lista */}
+          <div className="flex items-center gap-2 mb-1">
+            <Button size="sm" variant={guided ? 'default' : 'outline'} onClick={() => setGuided(true)} className="gap-1.5">
+              <Wand2 className="w-4 h-4" /> Crear rápido
             </Button>
-            <Button size="sm" variant="outline" onClick={() => setShowImport(true)}>
-              <Upload className="w-4 h-4 mr-1" /> Importar CSV
-            </Button>
-            <Button size="sm" variant="ghost" asChild>
-              <a href={api.getVariantImportTemplateUrl()} download>Descargar plantilla</a>
+            <Button size="sm" variant={!guided ? 'default' : 'outline'} onClick={() => setGuided(false)} className="gap-1.5">
+              <Layers className="w-4 h-4" /> Lista {variants.length > 0 && <Badge variant="secondary" className="ml-1">{variants.length}</Badge>}
             </Button>
           </div>
 
-          {loading ? (
-            <p className="text-muted-foreground text-sm py-4 text-center">Cargando variantes…</p>
-          ) : variants.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <Package className="w-10 h-10 mx-auto mb-2 opacity-40" />
-              <p>No hay variantes. Crea la primera.</p>
+          {/* ─────────── MODO GUIADO ─────────── */}
+          {guided ? (
+            <div className="space-y-4">
+              <div className="rounded-lg border bg-muted/30 p-4 space-y-4">
+                <div className="flex items-start gap-2">
+                  <Sparkles className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+                  <p className="text-sm text-muted-foreground">
+                    Escribe los valores de cada eje separados por comas. El sistema arma <strong>todas las combinaciones</strong> con su SKU, stock y precio. Deja un eje vacío si no aplica.
+                  </p>
+                </div>
+
+                {GUIDED_AXES.map(axis => {
+                  const val = axis.key === 'color' ? axisColor : axis.key === 'size' ? axisSize : axisMaterial
+                  const setVal = axis.key === 'color' ? setAxisColor : axis.key === 'size' ? setAxisSize : setAxisMaterial
+                  const chips = parseVals(val)
+                  return (
+                    <div key={axis.key}>
+                      <Label className="text-xs font-medium">{axis.label}</Label>
+                      <Input
+                        placeholder={axis.placeholder}
+                        value={val}
+                        onChange={e => setVal(e.target.value)}
+                        className="mt-1"
+                      />
+                      {chips.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                          {chips.map(c => (
+                            <Badge key={c} variant="secondary" className="gap-1">
+                              {c}
+                              <button onClick={() => setVal(chips.filter(x => x !== c).join(', '))} className="hover:text-destructive">
+                                <X className="w-3 h-3" />
+                              </button>
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  <div>
+                    <Label className="text-xs">Stock por variante</Label>
+                    <Input type="number" min={0} value={gStock} onChange={e => setGStock(Number(e.target.value))} className="mt-1" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Precio (opcional)</Label>
+                    <Input type="number" min={0} placeholder="Usa precio base" value={gPrice} onChange={e => setGPrice(e.target.value)} className="mt-1" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Prefijo SKU</Label>
+                    <Input value={skuPrefix} onChange={e => setSkuPrefix(e.target.value.toUpperCase())} className="mt-1" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Vista previa de la matriz */}
+              {combos.length > 0 && (
+                <div className="rounded-lg border overflow-hidden">
+                  <div className="flex items-center justify-between px-4 py-2 bg-muted/40">
+                    <p className="text-sm font-medium">Se crearán {combos.filter(c => !existingSkus.has(buildSku(c))).length} variante(s)</p>
+                    <span className="text-xs text-muted-foreground">{combos.length} combinaciones</span>
+                  </div>
+                  <div className="max-h-56 overflow-y-auto divide-y">
+                    {combos.map((c, i) => {
+                      const sku = buildSku(c)
+                      const dup = existingSkus.has(sku)
+                      const label = [c.color, c.size, c.material].filter(Boolean).join(' / ')
+                      return (
+                        <div key={i} className="flex items-center gap-3 px-4 py-2 text-sm">
+                          <span className="flex-1">{label || '—'}</span>
+                          <Badge variant="outline" className="font-mono text-[10px]">{sku}</Badge>
+                          {dup
+                            ? <span className="text-[10px] text-amber-600 w-16 text-right">Ya existe</span>
+                            : <span className="text-[10px] text-muted-foreground w-16 text-right">Stock {gStock}</span>}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-muted-foreground">
+                  {genProgress ? `Creando ${genProgress.done}/${genProgress.total}…` : 'Tip: “Negro, Blanco” × “S, M, L” = 6 variantes.'}
+                </p>
+                <Button onClick={generate} disabled={generating || combos.length === 0} className="gap-1.5">
+                  <Wand2 className="w-4 h-4" />
+                  {generating ? 'Generando…' : `Generar ${combos.filter(c => !existingSkus.has(buildSku(c))).length || ''} variantes`}
+                </Button>
+              </div>
             </div>
           ) : (
-            <div className="space-y-2">
-              {variants.map(v => (
-                <div key={v.id} className="border rounded-lg overflow-hidden">
-                  {/* Header row */}
-                  <div
-                    className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-muted/50"
-                    onClick={() => setExpandedId(expandedId === v.id ? null : v.id)}
-                  >
-                    <div className="flex-1 flex items-center gap-3 flex-wrap">
-                      <span className="font-medium text-sm">{v.label || v.sku}</span>
-                      <Badge variant="outline" className="text-xs">{v.sku}</Badge>
-                      <Badge
-                        variant={v.stock === 0 ? 'destructive' : v.stock <= v.minStock ? 'secondary' : 'default'}
-                        className="text-xs"
-                      >
-                        Stock: {v.stock}
-                      </Badge>
-                      {v.costPrice && (
-                        <span className="text-xs text-muted-foreground">Costo: {formatCOP(v.costPrice)}</span>
-                      )}
-                      {v.priceTiers && v.priceTiers.length > 0 && (
-                        <Badge variant="outline" className="text-xs gap-1">
-                          <Tag className="w-3 h-3" /> {v.priceTiers.length} tiers
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Button size="sm" variant="ghost" onClick={e => { e.stopPropagation(); setStockVariant(v); setStockForm({ quantity: 0, type: 'entrada', reason: '' }) }}>
-                        <TrendingUp className="w-4 h-4" />
-                      </Button>
-                      <Button size="sm" variant="ghost" onClick={e => { e.stopPropagation(); openEdit(v) }}>
-                        <Edit2 className="w-4 h-4" />
-                      </Button>
-                      <Button size="sm" variant="ghost" className="text-destructive" onClick={e => { e.stopPropagation(); deleteVariant(v.id) }}>
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                      {expandedId === v.id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                    </div>
-                  </div>
+            /* ─────────── MODO LISTA (avanzado) ─────────── */
+            <>
+              <div className="flex flex-wrap gap-2 mb-1">
+                <Button size="sm" variant="outline" onClick={openAdd}>
+                  <Plus className="w-4 h-4 mr-1" /> Variante manual
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setShowImport(true)}>
+                  <Upload className="w-4 h-4 mr-1" /> Importar CSV
+                </Button>
+                <Button size="sm" variant="ghost" asChild>
+                  <a href={api.getVariantImportTemplateUrl()} download>Descargar plantilla</a>
+                </Button>
+              </div>
 
-                  {/* Expanded: price tiers */}
-                  {expandedId === v.id && (
-                    <div className="border-t px-4 py-3 bg-muted/20">
-                      <div className="flex items-center justify-between mb-2">
-                        <p className="text-sm font-medium">Precios escalonados (tiers)</p>
-                        <Button size="sm" variant="outline" onClick={() => { setShowAddTier(v.id); setTierForm(EMPTY_TIER) }}>
-                          <Plus className="w-3 h-3 mr-1" /> Agregar tier
-                        </Button>
+              {loading ? (
+                <p className="text-muted-foreground text-sm py-4 text-center">Cargando variantes…</p>
+              ) : variants.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Package className="w-10 h-10 mx-auto mb-2 opacity-40" />
+                  <p>No hay variantes todavía.</p>
+                  <Button size="sm" variant="link" onClick={() => setGuided(true)}>Crear rápido con el asistente →</Button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {variants.map(v => (
+                    <div key={v.id} className="border rounded-lg overflow-hidden">
+                      <div
+                        className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-muted/50"
+                        onClick={() => setExpandedId(expandedId === v.id ? null : v.id)}
+                      >
+                        <div className="flex-1 flex items-center gap-3 flex-wrap">
+                          <span className="font-medium text-sm">{v.label || v.sku}</span>
+                          <Badge variant="outline" className="text-xs">{v.sku}</Badge>
+                          <Badge
+                            variant={v.stock === 0 ? 'destructive' : v.stock <= v.minStock ? 'secondary' : 'default'}
+                            className="text-xs"
+                          >
+                            Stock: {v.stock}
+                          </Badge>
+                          {v.priceOverride != null && (
+                            <span className="text-xs text-muted-foreground">{formatCOP(v.priceOverride)}</span>
+                          )}
+                          {v.priceTiers && v.priceTiers.length > 0 && (
+                            <Badge variant="outline" className="text-xs gap-1">
+                              <Tag className="w-3 h-3" /> {v.priceTiers.length} tiers
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Button size="sm" variant="ghost" onClick={e => { e.stopPropagation(); setStockVariant(v); setStockForm({ quantity: 0, type: 'entrada', reason: '' }) }}>
+                            <TrendingUp className="w-4 h-4" />
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={e => { e.stopPropagation(); openEdit(v) }}>
+                            <Edit2 className="w-4 h-4" />
+                          </Button>
+                          <Button size="sm" variant="ghost" className="text-destructive" onClick={e => { e.stopPropagation(); deleteVariant(v.id) }}>
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                          {expandedId === v.id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                        </div>
                       </div>
-                      {(!v.priceTiers || v.priceTiers.length === 0) ? (
-                        <p className="text-xs text-muted-foreground">Sin tiers — se usa el precio base del producto.</p>
-                      ) : (
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead className="text-xs">Desde (uds.)</TableHead>
-                              <TableHead className="text-xs">Precio</TableHead>
-                              <TableHead className="text-xs">Margen plataforma</TableHead>
-                              <TableHead className="text-xs">Precio proveedor</TableHead>
-                              <TableHead />
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {v.priceTiers.map((t, idx) => {
-                              const nextMin = v.priceTiers![idx + 1]?.minQty
-                              const rangeLabel = nextMin
-                                ? `${t.minQty} – ${nextMin - 1} uds.`
-                                : `${t.minQty}+ uds.`
-                              const providerPrice = v.costPrice
-                                ? t.price * (1 - t.tenantMarginPct / 100)
-                                : null
-                              return (
-                                <TableRow key={t.id}>
-                                  <TableCell className="text-xs">{rangeLabel}</TableCell>
-                                  <TableCell className="text-xs font-medium">{formatCOP(t.price)}</TableCell>
-                                  <TableCell className="text-xs">{t.tenantMarginPct}%</TableCell>
-                                  <TableCell className="text-xs text-muted-foreground">
-                                    {providerPrice ? formatCOP(providerPrice) : '—'}
-                                  </TableCell>
-                                  <TableCell>
-                                    <Button size="sm" variant="ghost" className="text-destructive h-6 w-6 p-0"
-                                      onClick={() => deleteTier(t.id)}>
-                                      <Trash2 className="w-3 h-3" />
-                                    </Button>
-                                  </TableCell>
+
+                      {expandedId === v.id && (
+                        <div className="border-t px-4 py-3 bg-muted/20">
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="text-sm font-medium">Precios por cantidad (mayoreo)</p>
+                            <Button size="sm" variant="outline" onClick={() => { setShowAddTier(v.id); setTierForm(EMPTY_TIER) }}>
+                              <Plus className="w-3 h-3 mr-1" /> Agregar
+                            </Button>
+                          </div>
+                          {(!v.priceTiers || v.priceTiers.length === 0) ? (
+                            <p className="text-xs text-muted-foreground">Sin precios por cantidad — se usa el precio base o el override.</p>
+                          ) : (
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead className="text-xs">Desde (uds.)</TableHead>
+                                  <TableHead className="text-xs">Precio</TableHead>
+                                  <TableHead className="text-xs">Margen plataforma</TableHead>
+                                  <TableHead className="text-xs">Precio proveedor</TableHead>
+                                  <TableHead />
                                 </TableRow>
-                              )
-                            })}
-                          </TableBody>
-                        </Table>
+                              </TableHeader>
+                              <TableBody>
+                                {v.priceTiers.map((t, idx) => {
+                                  const nextMin = v.priceTiers![idx + 1]?.minQty
+                                  const rangeLabel = nextMin ? `${t.minQty} – ${nextMin - 1} uds.` : `${t.minQty}+ uds.`
+                                  const providerPrice = v.costPrice ? t.price * (1 - t.tenantMarginPct / 100) : null
+                                  return (
+                                    <TableRow key={t.id}>
+                                      <TableCell className="text-xs">{rangeLabel}</TableCell>
+                                      <TableCell className="text-xs font-medium">{formatCOP(t.price)}</TableCell>
+                                      <TableCell className="text-xs">{t.tenantMarginPct}%</TableCell>
+                                      <TableCell className="text-xs text-muted-foreground">{providerPrice ? formatCOP(providerPrice) : '—'}</TableCell>
+                                      <TableCell>
+                                        <Button size="sm" variant="ghost" className="text-destructive h-6 w-6 p-0" onClick={() => deleteTier(t.id)}>
+                                          <Trash2 className="w-3 h-3" />
+                                        </Button>
+                                      </TableCell>
+                                    </TableRow>
+                                  )
+                                })}
+                              </TableBody>
+                            </Table>
+                          )}
+                        </div>
                       )}
                     </div>
-                  )}
+                  ))}
                 </div>
-              ))}
-            </div>
+              )}
+            </>
           )}
 
           <DialogFooter>
@@ -341,12 +515,12 @@ export function VariantManager({ productId, productName, open, onClose }: Props)
                   onChange={e => setVariantForm(p => ({ ...p, color: e.target.value }))} />
               </div>
               <div>
-                <Label className="text-xs">Talla</Label>
-                <Input placeholder="M" value={variantForm.size}
+                <Label className="text-xs">Talla / Tamaño</Label>
+                <Input placeholder="M / 500g" value={variantForm.size}
                   onChange={e => setVariantForm(p => ({ ...p, size: e.target.value }))} />
               </div>
               <div>
-                <Label className="text-xs">Material</Label>
+                <Label className="text-xs">Material / Tipo</Label>
                 <Input placeholder="Algodón" value={variantForm.material}
                   onChange={e => setVariantForm(p => ({ ...p, material: e.target.value }))} />
               </div>
@@ -387,7 +561,7 @@ export function VariantManager({ productId, productName, open, onClose }: Props)
       <Dialog open={!!showAddTier} onOpenChange={v => !v && setShowAddTier(null)}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Nuevo precio escalonado</DialogTitle>
+            <DialogTitle>Precio por cantidad</DialogTitle>
           </DialogHeader>
           <div className="grid gap-3">
             <div>
@@ -395,7 +569,7 @@ export function VariantManager({ productId, productName, open, onClose }: Props)
               <Input type="number" min={1} value={tierForm.minQty}
                 onChange={e => setTierForm(p => ({ ...p, minQty: Number(e.target.value) }))} />
               <p className="text-xs text-muted-foreground mt-1">
-                Aplica desde esta cantidad en adelante hasta el siguiente tier.
+                Aplica desde esta cantidad en adelante hasta el siguiente nivel.
               </p>
             </div>
             <div>
@@ -412,7 +586,7 @@ export function VariantManager({ productId, productName, open, onClose }: Props)
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowAddTier(null)}>Cancelar</Button>
             <Button onClick={saveTier} disabled={savingTier}>
-              {savingTier ? 'Guardando…' : 'Crear tier'}
+              {savingTier ? 'Guardando…' : 'Crear'}
             </Button>
           </DialogFooter>
         </DialogContent>

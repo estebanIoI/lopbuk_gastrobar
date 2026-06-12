@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { authenticate } from '../../common/middleware';
 import { workOrdersController as c } from './workorders.controller';
 
-const router = Router();
+const router: ReturnType<typeof Router> = Router();
 router.use(authenticate);
 
 // Dashboard

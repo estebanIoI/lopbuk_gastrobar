@@ -241,7 +241,7 @@ export function PointOfSale() {
     let price = variant.priceOverride ?? variantPickProduct.salePrice
     try {
       const resolved = await api.resolveVariantPrice(variant.id, variantPickQty)
-      price = resolved?.data?.price ?? resolved?.price ?? price
+      price = (resolved?.data as any)?.price ?? price
     } catch { /* usa precio base */ }
 
     // Agregar al carrito como producto con metadata de variante
@@ -626,7 +626,7 @@ export function PointOfSale() {
     <div className="grid gap-6 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_clamp(380px,28vw,420px)] lg:gap-5 xl:gap-6">
       {/* Product Selection */}
       <div className="min-w-0 space-y-4 lg:flex lg:min-h-0 lg:flex-col lg:space-y-4">{/* Search */}
-        <div className="flex shrink-0 gap-2">
+        <div className="flex shrink-0 gap-2" data-tour="pos-search">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -1068,7 +1068,7 @@ export function PointOfSale() {
                 </div>
 
                 {/* Actions */}
-                <div className="space-y-2">
+                <div className="space-y-2" data-tour="pos-charge">
                   <Button
                     className="h-12 w-full gap-2 bg-green-600 text-base font-bold text-white shadow-lg transition-all hover:bg-green-700 hover:shadow-green-600/30"
                     onClick={handleCheckout}

@@ -311,7 +311,7 @@ export function InventoryList() {
             <FileDown className="h-4 w-4 lg:h-5 lg:w-5" />
             {isExporting ? 'Exportando...' : 'Exportar CSV'}
           </Button>
-          <Button onClick={() => setIsAddDialogOpen(true)} className="gap-2 h-10 lg:h-11 text-sm lg:text-base">
+          <Button data-tour="inv-new" onClick={() => setIsAddDialogOpen(true)} className="gap-2 h-10 lg:h-11 text-sm lg:text-base">
             <Plus className="h-4 w-4 lg:h-5 lg:w-5" />
             Agregar Producto
           </Button>
@@ -321,8 +321,8 @@ export function InventoryList() {
       {/* Filters */}
       <Card className="border-border bg-card">
         <CardContent className="p-4 lg:p-6">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center">
-            <div className="relative flex-1">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center" data-tour="inv-filters">
+            <div className="relative flex-1" data-tour="inv-search">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Buscar por nombre, SKU, marca o codigo..."

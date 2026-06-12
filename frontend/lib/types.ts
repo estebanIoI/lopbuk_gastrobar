@@ -42,17 +42,6 @@ export interface ResolvedPrice {
   source: 'tier' | 'override' | 'base'
 }
 
-export interface Supplier {
-  id: string
-  tenantId: string
-  name: string
-  contactInfo?: string
-  phone?: string
-  email?: string
-  paymentTerms?: string
-  isActive: boolean
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type Size = 'XS' | 'S' | 'M' | 'L' | 'XL' | 'XXL' | 'XXXL'

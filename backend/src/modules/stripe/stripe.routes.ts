@@ -2,7 +2,7 @@ import { Router, raw } from 'express';
 import { authenticate } from '../../common/middleware/auth.middleware';
 import * as stripeController from './stripe.controller';
 
-const router = Router();
+const router: ReturnType<typeof Router> = Router();
 
 // Public: Stripe webhook (raw body required for signature verification)
 router.post('/webhook', raw({ type: 'application/json' }), stripeController.webhook);

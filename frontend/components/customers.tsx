@@ -173,14 +173,14 @@ export function Customers() {
           <h1 className="text-2xl font-bold">Clientes</h1>
           <p className="text-muted-foreground">Gestión de clientes y saldos</p>
         </div>
-        <Button onClick={handleOpenNew}>
+        <Button data-tour="cli-new" onClick={handleOpenNew}>
           <Plus className="h-4 w-4 mr-2" />
           Nuevo Cliente
         </Button>
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-3" data-tour="cli-stats">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Clientes</CardTitle>
@@ -213,7 +213,7 @@ export function Customers() {
       {/* Search */}
       <Card>
         <CardContent className="pt-6">
-          <div className="relative">
+          <div className="relative" data-tour="cli-search">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Buscar por cédula, nombre, teléfono o email..."

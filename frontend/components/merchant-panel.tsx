@@ -1,8 +1,13 @@
 'use client'
 
+import { useEffect, useLayoutEffect, useState } from 'react'
 import { useStore } from '@/lib/store'
 import { useAuthStore } from '@/lib/auth-store'
+import { api } from '@/lib/api'
 import { MainLayout } from '@/components/main-layout'
+import { PanelComercianteShell } from '@/components/panel-comerciante-shell'
+import { GuidedTour } from '@/components/guided-tour'
+import { PanelAssistant } from '@/components/panel-assistant'
 import { Dashboard } from '@/components/dashboard'
 import { Analytics } from '@/components/analytics'
 import { InventoryList } from '@/components/inventory-list'
@@ -52,6 +57,29 @@ import { GastrobarOps } from '@/components/gastrobar-ops'
 export function MerchantPanel() {
   const { activeSection, setActiveSection } = useStore()
   const { user } = useAuthStore()
+
+  // ── Tema del panel (global, lo elige el superadmin) ──
+  // 'classic' (Tema 1, sidebar) | 'comerciante' (Tema 2, navbar verde).
+  // Se cachea en localStorage y se lee antes del primer paint para evitar el
+  // parpadeo del tema clásico al recargar.
+  const [panelTheme, setPanelTheme] = useState<'classic' | 'comerciante'>('classic')
+  useLayoutEffect(() => {
+    try {
+      const cached = localStorage.getItem('panel_theme')
+      if (cached === 'comerciante' || cached === 'classic') setPanelTheme(cached)
+    } catch { /* ignore */ }
+  }, [])
+  useEffect(() => {
+    let alive = true
+    api.getPublicPlatformSettings().then(r => {
+      if (!alive) return
+      const t = (r?.data as any)?.panel_theme
+      const next = t === 'comerciante' ? 'comerciante' : 'classic'
+      setPanelTheme(next)
+      try { localStorage.setItem('panel_theme', next) } catch { /* ignore */ }
+    }).catch(() => {})
+    return () => { alive = false }
+  }, [])
 
   // Repartidor: panel full-screen propio (sin sidebar)
   if (user?.role === 'repartidor') return <DriverPanel />
@@ -181,6 +209,19 @@ export function MerchantPanel() {
       default:
         return <Dashboard />
     }
+  }
+
+  // ── Tema 2 (Panel Comerciante): navbar verde + guía interactiva + asistente ──
+  // El superadmin siempre usa el tema clásico (su panel vive en el sidebar).
+  const useComercianteTheme = panelTheme === 'comerciante' && user?.role !== 'superadmin'
+  if (useComercianteTheme) {
+    return (
+      <>
+        <PanelComercianteShell />
+        <GuidedTour autoStart />
+        <PanelAssistant />
+      </>
+    )
   }
 
   return (

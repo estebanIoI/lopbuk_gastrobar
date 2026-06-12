@@ -3,7 +3,7 @@ import { body, param } from 'express-validator';
 import { authenticate, authorize } from '../../common/middleware';
 import { printersController } from './printers.controller';
 
-const router = Router();
+const router: ReturnType<typeof Router> = Router();
 
 // All printer routes require authentication and comerciante/superadmin role
 router.use(authenticate);

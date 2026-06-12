@@ -1,0 +1,166 @@
+'use client'
+
+import { useStore } from '@/lib/store'
+import { useAuthStore } from '@/lib/auth-store'
+import { Dashboard } from '@/components/dashboard'
+import { Analytics } from '@/components/analytics'
+import { InventoryList } from '@/components/inventory-list'
+import { PointOfSale } from '@/components/point-of-sale'
+import { SalesHistory } from '@/components/sales-history'
+import { Invoicing } from '@/components/invoicing'
+import { Settings } from '@/components/settings'
+import { Customers } from '@/components/customers'
+import { Fiados } from '@/components/fiados'
+import { CashRegister } from '@/components/cash-register'
+import { TenantManagement } from '@/components/tenant-management'
+import { SuperadminHome } from '@/components/superadmin-home'
+import { Tienda } from '@/components/tienda'
+import { Pedidos } from '@/components/pedidos'
+import { Cupones } from '@/components/cupones'
+import { Recipes } from '@/components/recipes'
+import { PurchaseInvoices } from '@/components/purchase-invoices'
+import { ServicesManagement } from '@/components/services-management'
+import { GymManagement } from '@/components/gym-management'
+import { PrintersConfig } from '@/components/printers'
+import { VendedoresPanel } from '@/components/vendedores-panel'
+import { ReviewsPanel } from '@/components/reviews-panel'
+import { RestBar } from '@/components/restbar'
+import { Finances } from '@/components/finances'
+import { MeseroPanel } from '@/components/mesero-panel'
+import { BartenderPanel } from '@/components/bartender-panel'
+import { CocineroPanel } from '@/components/cocinero-panel'
+import { CajeroPanel } from '@/components/cajero-panel'
+import { DeveloperRequests } from '@/components/developer-requests'
+import { FleetManagement } from '@/components/fleet-management'
+import { RealEstate } from '@/components/realestate'
+import { Tapiceria } from '@/components/tapiceria'
+import { Merma } from '@/components/merma'
+import { GastrobarOps } from '@/components/gastrobar-ops'
+
+/**
+ * Renderiza el componente correspondiente a la sección activa.
+ * Extraído de merchant-panel.tsx para reutilizarlo tanto en el layout
+ * clásico (Tema 1) como en el shell del Panel Comerciante (Tema 2).
+ *
+ * No incluye los paneles full-screen por rol (mesero, cocinero, etc.):
+ * esos se resuelven antes de llegar a cualquiera de los dos temas.
+ */
+export function SectionRenderer() {
+  const { activeSection, setActiveSection } = useStore()
+  const { user } = useAuthStore()
+
+  // Guard: secciones de Tienda requieren plan empresarial
+  const isEmpresarial = user?.tenantPlan === 'empresarial' || user?.role === 'superadmin'
+  const TIENDA_SECTIONS = ['tienda', 'pedidos', 'cupones', 'reviews', 'services']
+
+  if (TIENDA_SECTIONS.includes(activeSection) && !isEmpresarial) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-center p-8">
+        <div className="rounded-full bg-amber-400/10 p-5">
+          <svg className="h-10 w-10 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+          </svg>
+        </div>
+        <h2 className="text-xl font-bold">Plan empresarial requerido</h2>
+        <p className="text-muted-foreground max-w-sm">
+          El módulo Tienda está disponible únicamente en el plan empresarial. Actualiza tu plan para publicar productos, gestionar pedidos, crear cupones y personalizar tu página.
+        </p>
+        <button
+          onClick={() => setActiveSection('dashboard')}
+          className="mt-2 rounded-md bg-primary px-5 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+        >
+          Volver al Inicio
+        </button>
+      </div>
+    )
+  }
+
+  switch (activeSection) {
+    case 'superadmin':
+      return user?.role === 'superadmin' ? <TenantManagement /> : <Dashboard />
+    case 'pagina-principal':
+      return user?.role === 'superadmin' ? <SuperadminHome /> : <Dashboard />
+    case 'dashboard':
+      return <Dashboard />
+    case 'inventory':
+      return <InventoryList />
+    case 'tienda':
+      return <Tienda />
+    case 'pedidos':
+      return <Pedidos />
+    case 'cupones':
+      return <Cupones />
+    case 'recipes':
+      return <Recipes />
+    case 'pos':
+      return <PointOfSale />
+    case 'cash-register':
+      return <CashRegister />
+    case 'history':
+      return <SalesHistory />
+    case 'invoices':
+      return <Invoicing />
+    case 'customers':
+      return <Customers />
+    case 'fiados':
+      return <Fiados />
+    case 'purchases':
+      return <PurchaseInvoices />
+    case 'services':
+      return <ServicesManagement />
+    case 'gym':
+      return <GymManagement />
+    case 'analytics':
+      return <Analytics />
+    case 'settings':
+      return <Settings />
+    case 'printers':
+      return <PrintersConfig />
+    case 'vendedores':
+      return <VendedoresPanel />
+    case 'reviews':
+      return (
+        <div className="p-6 space-y-4">
+          <div>
+            <h1 className="text-2xl font-bold">Reseñas de productos</h1>
+            <p className="text-gray-500 text-sm">Gestiona las reseñas que los clientes dejan en tu tienda</p>
+          </div>
+          <ReviewsPanel />
+        </div>
+      )
+    case 'restbar':
+      if (user?.role === 'mesero')    return <MeseroPanel />
+      if (user?.role === 'bartender') return <BartenderPanel />
+      if (user?.role === 'cocinero')  return <CocineroPanel />
+      if (user?.role === 'cajero')    return <CajeroPanel />
+      return <RestBar />
+    case 'finances':
+      return <Finances />
+    case 'dev-requests':
+      return <DeveloperRequests />
+    case 'fleet':
+      return (
+        <div className="p-6 h-full">
+          <FleetManagement />
+        </div>
+      )
+    case 'realestate':
+      return (
+        <div className="h-full flex flex-col">
+          <RealEstate />
+        </div>
+      )
+    case 'workorders':
+      return (
+        <div className="h-full flex flex-col">
+          <Tapiceria />
+        </div>
+      )
+    case 'merma':
+      return <Merma />
+    case 'gastrobar-ops':
+      return <GastrobarOps />
+    default:
+      return <Dashboard />
+  }
+}

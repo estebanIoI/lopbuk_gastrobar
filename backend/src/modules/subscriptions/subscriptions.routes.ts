@@ -3,7 +3,7 @@ import { authenticate } from '../../common/middleware/auth.middleware';
 import * as ctrl from './subscriptions.controller';
 import { reconcileSubscriptions } from './subscriptions.service';
 
-const router = Router();
+const router: ReturnType<typeof Router> = Router();
 
 // Public: MP sends webhooks here
 router.post('/webhook', ctrl.webhook);

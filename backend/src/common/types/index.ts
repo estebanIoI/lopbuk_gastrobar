@@ -329,7 +329,78 @@ export interface DashboardMetrics {
   lowStockProducts: number;
   outOfStockProducts: number;
   accountsReceivable?: number;
-  topSellingProducts: Array<{ productId: string; productName: string; totalSold: number; revenue: number }>;
-  salesByCategory: Array<{ category: string; sales: number; revenue: number }>;
+  topSellingProducts: Array<{ id: string; name: string; category: string; totalSold: number; totalRevenue: number }>;
+  salesByCategory: Array<{ category: string; totalQuantity: number; totalRevenue: number }>;
   recentSales: any[];
+}
+
+// ─── Auth ──────────────────────────────────────────────────────────────────────
+export interface JWTPayload {
+  userId: string;
+  id: string;
+  email: string;
+  name: string;
+  role: UserRole;
+  tenantId: string | null;
+  /** Plan del comercio, cargado por el middleware de autenticación. */
+  tenantPlan?: TenantPlan;
+  /** Permisos del cargo, cargados por el middleware de autenticación. */
+  permissions?: string[];
+}
+
+// ─── Respuesta paginada genérica ────────────────────────────────────────────────
+export interface PaginatedResponse<T> {
+  data: T[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+// ─── Caja (cash sessions) ───────────────────────────────────────────────────────
+export type CashSessionStatus = 'abierta' | 'cerrada' | 'completada';
+export type ClosingStatus = 'cuadrado' | 'sobrante' | 'faltante';
+
+export interface CashSession {
+  id: string;
+  openedBy: string;
+  openedByName: string;
+  openingAmount: number;
+  openedAt: Date;
+  closedBy?: string;
+  closedByName?: string;
+  closedAt?: Date;
+  totalCashSales: number;
+  totalCardSales: number;
+  totalTransferSales: number;
+  totalFiadoSales: number;
+  totalCreditPaymentsEfectivo: number;
+  totalCreditPaymentsTarjeta: number;
+  totalCreditPaymentsTransferencia: number;
+  totalSalesCount: number;
+  totalChangeGiven: number;
+  totalCashEntries: number;
+  totalCashWithdrawals: number;
+  expectedCash?: number;
+  actualCash?: number;
+  difference?: number;
+  status: CashSessionStatus;
+  closingStatus?: ClosingStatus;
+  observations?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CashMovement {
+  id: string;
+  sessionId: string;
+  type: 'entrada' | 'salida';
+  amount: number;
+  reason: string;
+  notes?: string;
+  createdBy: string;
+  createdByName: string;
+  createdAt: Date;
 }

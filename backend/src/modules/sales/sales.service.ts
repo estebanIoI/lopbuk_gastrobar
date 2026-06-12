@@ -963,6 +963,93 @@ export class SalesService {
       cancelledTotal: Number(row.cancelledTotal),
     };
   }
+
+  /**
+   * Reporte de cierre diario: agrega las ventas completadas del día (horario
+   * Colombia, UTC-5) por sede, método de pago y producto.
+   */
+  async getDailyReport(tenantId: string, date: string): Promise<DailyReportData> {
+    // Ventana del día en horario Colombia (medianoche local = 05:00 UTC)
+    const start = new Date(date + 'T05:00:00Z');
+    const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+
+    // Nombres de sede para etiquetar el reporte
+    const [sedeRows] = await db.execute<RowDataPacket[]>(
+      'SELECT id, name FROM sedes WHERE tenant_id = ?',
+      [tenantId]
+    );
+    const sedeNames = new Map<string, string>();
+    for (const s of sedeRows as RowDataPacket[]) sedeNames.set(s.id, s.name);
+
+    // Ventas completadas del día
+    const [rows] = await db.execute<SaleRow[]>(
+      `SELECT * FROM sales
+       WHERE tenant_id = ? AND status = 'completada'
+         AND created_at >= ? AND created_at < ?
+       ORDER BY created_at ASC`,
+      [tenantId, start, end]
+    );
+
+    const sedeMap = new Map<string, SedeReportData>();
+    const keyOf = (sedeId?: string) => sedeId ?? '__sin_sede__';
+
+    for (const row of rows) {
+      const [itemRows] = await db.execute<SaleItemRow[]>(
+        'SELECT * FROM sale_items WHERE sale_id = ?',
+        [row.id]
+      );
+      const sale = this.mapSale(row, itemRows.map(this.mapSaleItem));
+      const k = keyOf(sale.sedeId);
+      let sede = sedeMap.get(k);
+      if (!sede) {
+        sede = {
+          sedeId: sale.sedeId ?? null,
+          sedeName: sale.sedeId ? (sedeNames.get(sale.sedeId) ?? null) : null,
+          salesCount: 0, subtotal: 0, tax: 0, discount: 0, total: 0,
+          byPaymentMethod: {}, products: [],
+        };
+        sedeMap.set(k, sede);
+      }
+      sede.salesCount += 1;
+      sede.subtotal += sale.subtotal;
+      sede.tax += sale.tax;
+      sede.discount += sale.discount;
+      sede.total += sale.total;
+
+      // Desglose por método de pago
+      const pm = sede.byPaymentMethod[sale.paymentMethod] ?? { count: 0, total: 0 };
+      pm.count += 1;
+      pm.total += sale.total;
+      if ((sale.paymentMethod as string) === 'mixto') {
+        pm.mixedEfectivo = (pm.mixedEfectivo ?? 0) + (sale.mixedEfectivoAmount ?? 0);
+        if (sale.mixedSecondMethod) pm.mixedSecondMethod = sale.mixedSecondMethod;
+        pm.mixedSecond = (pm.mixedSecond ?? 0) + (sale.mixedSecondAmount ?? 0);
+      }
+      sede.byPaymentMethod[sale.paymentMethod] = pm;
+
+      // Desglose por producto
+      for (const it of sale.items ?? []) {
+        let p = sede.products.find(pp => pp.productId === it.productId);
+        if (!p) {
+          p = { productId: it.productId, productName: it.productName, productSku: it.productSku, quantity: 0, subtotal: 0 };
+          sede.products.push(p);
+        }
+        p.quantity += it.quantity;
+        p.subtotal += it.subtotal;
+      }
+    }
+
+    const sedes = Array.from(sedeMap.values());
+    return {
+      date,
+      sedes,
+      totalSales: rows.length,
+      grandSubtotal: sedes.reduce((acc, x) => acc + x.subtotal, 0),
+      grandTax: sedes.reduce((acc, x) => acc + x.tax, 0),
+      grandDiscount: sedes.reduce((acc, x) => acc + x.discount, 0),
+      grandTotal: sedes.reduce((acc, x) => acc + x.total, 0),
+    };
+  }
 }
 
 export const salesService = new SalesService();

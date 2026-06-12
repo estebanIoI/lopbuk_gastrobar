@@ -4,7 +4,7 @@ import { authenticate, authorize } from '../../common/middleware';
 import { validateRequest } from '../../utils/validators';
 import * as ctrl from './dev-requests.controller';
 
-const router = Router();
+const router: ReturnType<typeof Router> = Router();
 
 const REQUEST_TYPES = ['objetivo', 'mejora', 'actualizacion', 'bug', 'otro'];
 const PRIORITIES    = ['baja', 'media', 'alta'];

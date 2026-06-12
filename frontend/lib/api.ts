@@ -2601,6 +2601,24 @@ class ApiService {
   // Asistente personal de plataforma (comerciante / superadmin)
   async platformAssistantSend(message: string, history: any[]) { return this.request<any>('/assistant', { method: 'POST', body: JSON.stringify({ message, history }) }) }
 
+  // ── Tema 2 del Panel del Comerciante ──
+  // Configuración global pública (incluye panel_theme). La lee cualquier rol.
+  async getPublicPlatformSettings() { return this.request<Record<string, string>>('/storefront/platform-settings') }
+
+  // Asistente del panel (guía + IA). Reutiliza el asistente de plataforma (/assistant)
+  // para el texto; la guía se dispara desde las reglas locales del PanelAssistant.
+  async sendAssistantMessage(messages: { role: string; content: string }[]): Promise<{ success: boolean; data?: { reply: string; action: { tourKey: string; stepId: string; section: string } | null } }> {
+    const last = messages[messages.length - 1]?.content || ''
+    const history = messages.slice(0, -1)
+    try {
+      const r = await this.platformAssistantSend(last, history)
+      const d: any = r?.data
+      const reply: string = d?.reply ?? d?.message ?? (typeof d === 'string' ? d : '')
+      if (r?.success && reply) return { success: true, data: { reply, action: null } }
+    } catch { /* cae a reglas locales */ }
+    return { success: false }
+  }
+
   // ── Módulo GIMNASIO — staff ──
   async getGymStats() { return this.request<any>('/gym/stats') }
   async getGymMembers(status?: string) { return this.request<any[]>(`/gym/members${status ? `?status=${status}` : ''}`) }
