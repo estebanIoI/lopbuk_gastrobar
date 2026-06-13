@@ -4,8 +4,22 @@ import { validateRequest } from '../../utils/validators';
 import pool from '../../config/database';
 import { authenticate, requirePlan } from '../../common/middleware';
 import { computeOpenState, computeNextOpen } from '../../utils/store-hours';
+import { themePaletteService } from './theme-palette.service';
 
 const router: ReturnType<typeof Router> = Router();
+
+const THEME_COLORS_KEY = (tenantId: string) => `store_theme_colors:${tenantId}`;
+
+async function readThemeColors(tenantId: string): Promise<any | null> {
+  try {
+    const [rows] = await pool.query(
+      'SELECT setting_value FROM platform_settings WHERE setting_key = ? LIMIT 1',
+      [THEME_COLORS_KEY(tenantId)]
+    ) as any;
+    if (rows[0]?.setting_value) return JSON.parse(rows[0].setting_value);
+  } catch { /* noop */ }
+  return null;
+}
 
 /** Normaliza el campo images: MySQL puede devolver JSON column como string */
 function parseImages(row: any): any {
@@ -988,6 +1002,9 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
       if (openState === 'closed') nextOpenLabel = computeNextOpen(bh);
     } catch { /* business_hours may not exist yet */ }
 
+    // Paleta de tema generada por IA (si el comerciante la guardó)
+    const themeColors = await readThemeColors(tenantId);
+
     res.json({
       success: true,
       data: {
@@ -995,6 +1012,7 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
         categories,
         openState,
         nextOpenLabel,
+        themeColors,
         featuredProducts: (featured as any[]).map(parseImages),
         trendingProducts: (trending as any[]).map(parseImages),
         newLaunches: (newLaunches as any[]).map(parseImages),
@@ -1684,6 +1702,67 @@ router.delete('/featured-products/:productId', authenticate, requirePlan('empres
   } catch (error) {
     console.error('Remove featured product error:', error);
     res.status(500).json({ success: false, error: 'Error al quitar producto destacado' });
+  }
+});
+
+// POST /api/storefront/theme/generate — Genera paleta desde el logo con IA
+router.post('/theme/generate', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    let { imageBase64, mimeType, logoUrl } = req.body as { imageBase64?: string; mimeType?: string; logoUrl?: string };
+
+    if (!imageBase64 && logoUrl) {
+      const r = await fetch(logoUrl);
+      if (!r.ok) { res.status(400).json({ success: false, error: 'No se pudo descargar el logo' }); return; }
+      mimeType = r.headers.get('content-type') || 'image/png';
+      const buf = Buffer.from(await r.arrayBuffer());
+      imageBase64 = buf.toString('base64');
+    }
+    if (!imageBase64) { res.status(400).json({ success: false, error: 'Falta el logo (imageBase64 o logoUrl)' }); return; }
+
+    const m = /^data:(.+?);base64,(.*)$/.exec(imageBase64);
+    if (m) { mimeType = mimeType || m[1]; imageBase64 = m[2]; }
+    mimeType = mimeType || 'image/png';
+
+    const result = await themePaletteService.generateFromImage(imageBase64, mimeType);
+    res.json({ success: true, data: result });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/storefront/theme/colors — Paleta guardada del tenant actual (panel)
+router.get('/theme/colors', authenticate, async (req: Request, res: Response) => {
+  const tenantId = (req as any).user.tenantId;
+  const palette = await readThemeColors(tenantId);
+  res.json({ success: true, data: palette });
+});
+
+// PUT /api/storefront/theme/colors — Guarda la paleta del tenant actual
+router.put('/theme/colors', authenticate, async (req: Request, res: Response) => {
+  try {
+    const tenantId = (req as any).user.tenantId;
+    const palette = req.body?.palette ?? req.body;
+    if (!palette || !palette.colors) { res.status(400).json({ success: false, error: 'Paleta inválida' }); return; }
+    const value = JSON.stringify(palette);
+    await pool.query(
+      `INSERT INTO platform_settings (setting_key, setting_value) VALUES (?, ?)
+       ON DUPLICATE KEY UPDATE setting_value = ?`,
+      [THEME_COLORS_KEY(tenantId), value, value]
+    );
+    res.json({ success: true, message: 'Tema guardado' });
+  } catch {
+    res.status(500).json({ success: false, error: 'Error al guardar el tema' });
+  }
+});
+
+// DELETE /api/storefront/theme/colors — Restablece el tema (vuelve al diseño base)
+router.delete('/theme/colors', authenticate, async (req: Request, res: Response) => {
+  try {
+    const tenantId = (req as any).user.tenantId;
+    await pool.query('DELETE FROM platform_settings WHERE setting_key = ?', [THEME_COLORS_KEY(tenantId)]);
+    res.json({ success: true, message: 'Tema restablecido' });
+  } catch {
+    res.status(500).json({ success: false, error: 'Error al restablecer' });
   }
 });
 

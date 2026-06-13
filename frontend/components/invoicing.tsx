@@ -152,10 +152,13 @@ export function Invoicing() {
             .payment-info p { margin: 3px 0; font-size: 13px; }
             .footer { text-align: center; margin-top: 30px; padding-top: 15px; border-top: 1px dashed #ccc; font-size: 12px; color: #777; }
             .footer p { margin: 4px 0; }
-            @media print { body { padding: 15px; } }
+            .daimuz-watermark { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 55%; max-width: 360px; opacity: 0.05; z-index: 0; pointer-events: none; }
+            body > *:not(.daimuz-watermark) { position: relative; z-index: 1; }
+            @media print { body { padding: 15px; -webkit-print-color-adjust: exact; print-color-adjust: exact; } .daimuz-watermark { opacity: 0.045; } }
           </style>
         </head>
         <body>
+          <img class="daimuz-watermark" src="${typeof window !== 'undefined' ? window.location.origin : ''}/daimuz-icon-transparent.png" alt="" />
           <div class="header">
             ${storeInfo.invoiceLogo ? `<img src="${storeInfo.invoiceLogo}" alt="Logo" style="max-height:70px;max-width:200px;object-fit:contain;margin-bottom:8px;" />` : ''}
             <h1>${storeInfo.name}</h1>

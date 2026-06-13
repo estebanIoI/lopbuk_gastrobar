@@ -126,12 +126,16 @@ export function SalesHistory() {
               .totals .row { display: flex; justify-content: space-between; padding: 8px 0; }
               .totals .total { border-top: 2px solid #333; font-size: 18px; font-weight: bold; margin-top: 8px; padding-top: 12px; }
               .footer { text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #eee; color: #666; font-size: 14px; }
+              .daimuz-watermark { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 55%; max-width: 360px; opacity: 0.05; z-index: 0; pointer-events: none; }
+              body > *:not(.daimuz-watermark) { position: relative; z-index: 1; }
               @media print {
-                body { padding: 20px; }
+                body { padding: 20px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                .daimuz-watermark { opacity: 0.045; }
               }
             </style>
           </head>
           <body>
+            <img class="daimuz-watermark" src="${typeof window !== 'undefined' ? window.location.origin : ''}/daimuz-icon-transparent.png" alt="" />
             <div class="header">
               <h1>${storeInfo.name}</h1>
               <p>${storeInfo.address}</p>

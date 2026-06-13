@@ -117,7 +117,7 @@ export function RegisterModal({ open, onOpenChange }: RegisterModalProps) {
               <DialogHeader>
                 <div className="flex items-center gap-4">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src="/image/lopbukicon.png" alt="DAIMUZ" width={48} height={48} className="rounded-xl ring-1 ring-white/10" />
+                  <img src="/daimuz-isotipo.png" alt="DAIMUZ" width={48} height={48} className="rounded-xl ring-1 ring-white/10" />
                   <div>
                     <DialogTitle className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
                       DAIMUZ

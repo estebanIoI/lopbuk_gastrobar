@@ -16,6 +16,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { BRAND } from '@/lib/brand'
 import {
   ChevronLeft, ChevronRight, Store, UtensilsCrossed, Zap, Tag, Package,
   Sparkles, ShoppingBag, Pill, Apple, Wrench, Scissors, Dog, Wine,
@@ -305,7 +306,10 @@ function StoreCard({
           // eslint-disable-next-line @next/next/no-img-element
           <img src={ensureAbsoluteUrl((store.coverUrl || store.logoUrl) as string)} alt={store.name} className={`w-full h-full ${store.coverUrl ? 'object-cover' : 'object-contain p-4'} ${isEmpty ? '' : 'group-hover:scale-105'} transition-transform duration-500`} />
         ) : (
-          <div className="w-full h-full flex items-center justify-center"><Store className="w-10 h-10 text-white/15" /></div>
+          <div className="w-full h-full flex items-center justify-center">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={BRAND.isotipo} alt={BRAND.name} className="w-16 h-16 object-contain opacity-30" />
+          </div>
         )}
         <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-[#171717] to-transparent pointer-events-none" />
         {!isEmpty && (
@@ -321,7 +325,8 @@ function StoreCard({
             // eslint-disable-next-line @next/next/no-img-element
             <img src={ensureAbsoluteUrl(store.logoUrl)} alt={store.name} className="w-full h-full object-cover" />
           ) : (
-            <Store className="w-6 h-6 text-white/30" />
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={BRAND.isotipo} alt={BRAND.name} className="w-full h-full object-contain p-1.5" />
           )}
         </div>
       </div>
@@ -366,7 +371,10 @@ function ProductCard({ product, onOpen }: { product: MarketProduct; onOpen: (p: 
           // eslint-disable-next-line @next/next/no-img-element
           <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
         ) : (
-          <div className="w-full h-full flex items-center justify-center"><Package className="w-8 h-8 text-gray-300" /></div>
+          <div className="w-full h-full flex items-center justify-center">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={BRAND.isotipo} alt={BRAND.name} className="w-12 h-12 object-contain opacity-40" />
+          </div>
         )}
         {isOffer && (
           <span className="absolute top-2 left-2 flex items-center gap-1 text-white text-[10px] font-bold px-2 py-0.5 rounded" style={{ background: '#dc2626' }}>
@@ -538,8 +546,9 @@ export function MarketplaceHomeGovCo({
       <header className="bg-white border-b border-gray-200 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center gap-3 sm:gap-5">
           <button onClick={scrollToGrid} className="flex items-center gap-2 shrink-0">
-            <span className="inline-flex items-center justify-center w-9 h-9 rounded-lg text-white font-extrabold" style={{ background: GREEN }}>L</span>
-            <span className="text-lg sm:text-xl font-extrabold tracking-tight" style={{ color: GREEN_DARK }}>Lopbuk</span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={BRAND.isotipo} alt={BRAND.name} className="w-9 h-9 object-contain shrink-0" />
+            <span className="text-lg sm:text-xl font-extrabold tracking-tight" style={{ color: GREEN_DARK }}>{BRAND.name}</span>
           </button>
 
           <div className="relative flex-1 max-w-2xl">
@@ -615,7 +624,7 @@ export function MarketplaceHomeGovCo({
         <div className="text-gray-900" style={{ background: GOLD }}>
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 flex items-center gap-2 text-sm">
             <Bell className="w-4 h-4 shrink-0" />
-            <span className="flex-1">{heroTitle || 'Bienvenido a Lopbuk — descubre los comercios locales y sus productos.'}</span>
+            <span className="flex-1">{heroTitle || `Bienvenido a ${BRAND.name} — descubre los comercios locales y sus productos.`}</span>
             <button onClick={() => setAlertOpen(false)} className="p-1 hover:bg-black/10 rounded" aria-label="Cerrar"><X className="w-4 h-4" /></button>
           </div>
         </div>
@@ -688,7 +697,7 @@ export function MarketplaceHomeGovCo({
               {/* CTA secundario */}
               <button onClick={onGoToLogin} className="rounded-xl border border-gray-200 bg-white p-4 text-left hover:shadow-md transition-shadow flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-bold" style={{ color: GREEN_DARK }}>Únete a Lopbuk</p>
+                  <p className="text-sm font-bold" style={{ color: GREEN_DARK }}>Únete a {BRAND.name}</p>
                   <p className="text-[11px] text-gray-500">{stats.comercios} comercios · {stats.ofertas} ofertas</p>
                 </div>
                 <span className="inline-flex items-center justify-center w-9 h-9 rounded-lg text-white shrink-0" style={{ background: GOLD }}><ArrowRight className="w-4 h-4" /></span>
@@ -896,7 +905,7 @@ export function MarketplaceHomeGovCo({
               {/* Enlaces */}
               <div className="rounded-xl p-4 text-white" style={{ background: GREEN_DARK }}>
                 <h3 className="text-sm font-bold mb-2">¿Tienes un comercio?</h3>
-                <p className="text-xs text-white/80 mb-3">Publica tus productos y llega a más clientes en Lopbuk.</p>
+                <p className="text-xs text-white/80 mb-3">Publica tus productos y llega a más clientes en {BRAND.name}.</p>
                 <button onClick={onGoToLogin} className="inline-flex items-center gap-1.5 text-sm font-semibold px-3 py-2 rounded-lg text-gray-900" style={{ background: GOLD }}>
                   Empezar <ArrowRight className="w-4 h-4" />
                 </button>
@@ -911,8 +920,9 @@ export function MarketplaceHomeGovCo({
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 grid grid-cols-2 md:grid-cols-4 gap-8">
           <div className="col-span-2 md:col-span-1">
             <div className="flex items-center gap-2 mb-3">
-              <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg font-extrabold text-gray-900" style={{ background: GOLD }}>L</span>
-              <span className="text-lg font-extrabold">Lopbuk</span>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={BRAND.isotipo} alt={BRAND.name} className="w-8 h-8 object-contain bg-white rounded-lg p-0.5" />
+              <span className="text-lg font-extrabold">{BRAND.name}</span>
             </div>
             <p className="text-sm text-white/70">Marketplace de comercios locales. Encuentra tiendas, productos y ofertas cerca de ti.</p>
             <div className="flex items-center gap-2 mt-4">
@@ -948,7 +958,7 @@ export function MarketplaceHomeGovCo({
         </div>
         <div className="border-t border-white/10">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-white/60">
-            <p>© {new Date().getFullYear()} Lopbuk. Todos los derechos reservados.</p>
+            <p>© {new Date().getFullYear()} {BRAND.name}. Todos los derechos reservados.</p>
             <div className="flex items-center gap-4">
               <a href="#" className="hover:text-white">Términos</a>
               <a href="#" className="hover:text-white">Privacidad</a>

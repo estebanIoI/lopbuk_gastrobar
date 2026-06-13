@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { GoogleLogin, type CredentialResponse } from '@react-oauth/google'
+import { BRAND } from '@/lib/brand'
 import { useAuthStore } from '@/lib/auth-store'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -238,8 +239,8 @@ export function AuthForm({ onGoBack }: AuthFormProps) {
           {/* Logo */}
           <div className="flex items-center gap-3">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/image/lopbukicon.png" alt="Lopbuk" width={40} height={40} className="rounded-lg" />
-            <span className="text-lg font-light tracking-[0.15em] uppercase">Lopbuk</span>
+            <img src={BRAND.isotipo} alt={BRAND.name} width={40} height={40} className="rounded-lg object-contain bg-white p-0.5" />
+            <span className="text-lg font-light tracking-[0.15em] uppercase">{BRAND.name}</span>
           </div>
 
           {/* Hero copy */}
@@ -292,7 +293,7 @@ export function AuthForm({ onGoBack }: AuthFormProps) {
           </div>
 
           <p className="text-[9px] text-white/20 font-light uppercase tracking-widest">
-            © 2026 Lopbuk · DAIMUZ · Desarrollo, Asesoría & Innovación
+            © 2026 DAIMUZ · Desarrollo, Asesoría & Innovación
           </p>
         </div>
       </div>
@@ -304,8 +305,8 @@ export function AuthForm({ onGoBack }: AuthFormProps) {
         <div className="flex items-center justify-center px-8 py-5 lg:hidden">
           <div className="flex items-center gap-2.5">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/image/lopbukicon.png" alt="Lopbuk" width={28} height={28} className="rounded-md" />
-            <span className="text-sm font-light text-white/70 tracking-widest uppercase">Lopbuk</span>
+            <img src={BRAND.isotipo} alt={BRAND.name} width={28} height={28} className="rounded-md object-contain bg-white p-0.5" />
+            <span className="text-sm font-light text-white/70 tracking-widest uppercase">{BRAND.name}</span>
           </div>
         </div>
 

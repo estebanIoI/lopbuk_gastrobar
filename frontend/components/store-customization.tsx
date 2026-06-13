@@ -44,6 +44,7 @@ import {
   QrCode,
 } from 'lucide-react'
 import { CloudinaryUpload } from '@/components/ui/cloudinary-upload'
+import { LogoThemeGenerator } from '@/components/logo-theme-generator'
 import { departamentosMunicipios } from '@/constants'
 
 interface Banner {
@@ -1430,6 +1431,9 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
               />
             </CardContent>
           </Card>
+
+          {/* Tema automático desde el logo (IA) */}
+          <LogoThemeGenerator logoUrl={storeInfo.logoUrl} />
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Schedule & Location */}

@@ -45,6 +45,7 @@ import { RealEstate } from '@/components/realestate'
 import { Tapiceria } from '@/components/tapiceria'
 import { Merma } from '@/components/merma'
 import { GastrobarOps } from '@/components/gastrobar-ops'
+import { applyAdminAccent } from '@/lib/theme-vars'
 
 /**
  * Render del panel del comerciante para un usuario YA autenticado.
@@ -80,6 +81,18 @@ export function MerchantPanel() {
     }).catch(() => {})
     return () => { alive = false }
   }, [])
+
+  // ── Acento de marca en el panel (paleta generada por IA desde el logo) ──
+  useEffect(() => {
+    let alive = true
+    if (user?.role === 'superadmin') { applyAdminAccent(null); return }
+    api.getStoreThemeColors().then(r => {
+      if (!alive) return
+      const accent = (r?.data as any)?.colors?.admin_accent
+      if (accent) applyAdminAccent(accent)
+    }).catch(() => {})
+    return () => { alive = false }
+  }, [user?.role])
 
   // Repartidor: panel full-screen propio (sin sidebar)
   if (user?.role === 'repartidor') return <DriverPanel />

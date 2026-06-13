@@ -1713,7 +1713,7 @@ export function Tienda() {
                         level="H"
                         includeMargin={false}
                         imageSettings={{
-                          src: '/image/lopbukicon.png',
+                          src: '/daimuz-isotipo.png',
                           height: 32,
                           width: 32,
                           excavate: true,
@@ -2234,7 +2234,7 @@ export function Tienda() {
                       <div className="flex flex-col sm:flex-row items-center gap-4">
                         <div ref={contactQrRef} className="p-3 bg-white border rounded-xl shadow-sm shrink-0">
                           <QRCodeSVG value={linksUrl} size={140} bgColor="#ffffff" fgColor="#000000" level="H" includeMargin={false}
-                            imageSettings={{ src: '/image/lopbukicon.png', height: 24, width: 24, excavate: true }} />
+                            imageSettings={{ src: '/daimuz-isotipo.png', height: 24, width: 24, excavate: true }} />
                         </div>
                         <div className="space-y-2 w-full">
                           <p className="text-xs text-muted-foreground">Comparte este QR para que tus clientes accedan a tus links directamente.</p>

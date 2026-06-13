@@ -937,6 +937,23 @@ class ApiService {
   // Storefront management endpoints (authenticated)
   // =============================================
 
+  // ── Tema automático desde el logo (IA) ──
+  async generateStoreTheme(payload: { imageBase64?: string; mimeType?: string; logoUrl?: string }) {
+    return this.request<{ palette: any; provider: string }>('/storefront/theme/generate', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+  }
+  async getStoreThemeColors() {
+    return this.request<any>('/storefront/theme/colors')
+  }
+  async saveStoreThemeColors(palette: any) {
+    return this.request<any>('/storefront/theme/colors', { method: 'PUT', body: JSON.stringify({ palette }) })
+  }
+  async resetStoreTheme() {
+    return this.request<any>('/storefront/theme/colors', { method: 'DELETE' })
+  }
+
   // ── Tarjeta de presentación del comercio propio (portada, descripción, horario) ──
   async getCardConfig() {
     return this.request<{

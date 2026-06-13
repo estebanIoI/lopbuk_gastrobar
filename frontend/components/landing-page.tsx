@@ -309,6 +309,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     customSections?: Array<{ id: number; name: string; slug: string; htmlContent?: string }>
     cartMinPurchase?: number
     cartDeliveryFee?: number
+    themeColors?: { theme_type?: 'light' | 'dark'; colors?: Record<string, string> } | null
   } | null>(null)
 
   // ====== PRODUCT DETAIL MODAL STATE ======
@@ -2346,7 +2347,11 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   }
 
   // Effective background color: store-specific overrides platform global
-  const effectiveBgColor = (storeConfig?.bgColor && storeConfig.bgColor !== '#000000') ? storeConfig.bgColor : platformBgColor
+  // Paleta IA del comercio (si la guardó): tiñe el fondo de la tienda
+  const storeThemeColors = storeConfig?.themeColors?.colors || null
+  const effectiveBgColor = storeThemeColors?.background_store
+    ? storeThemeColors.background_store
+    : (storeConfig?.bgColor && storeConfig.bgColor !== '#000000') ? storeConfig.bgColor : platformBgColor
   // Card style chosen by the merchant
   const productCardStyle = storeConfig?.storeInfo?.productCardStyle || 'style1'
 
@@ -2511,6 +2516,14 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     <div className={`min-h-screen ${textClass} overflow-x-hidden pb-16 md:pb-0`} style={{ scrollBehavior: 'smooth', backgroundColor: effectiveBgColor }}>
       {/* Dynamic background overrides */}
       <style>{`
+        ${storeThemeColors ? `:root{
+          --color-primary:${storeThemeColors.primary || '#00833E'};
+          --color-primary-hover:${storeThemeColors.primary_hover || '#005C2A'};
+          --color-secondary:${storeThemeColors.secondary || '#666'};
+          --color-bg-store:${storeThemeColors.background_store || effectiveBgColor};
+          --color-surface:${storeThemeColors.surface_store || altBgColor};
+          --color-text:${storeThemeColors.text_main || '#fff'};
+        }` : ''}
         .landing-nav { background-color: ${effectiveBgColor}cc !important; }
         .landing-section-bg { background-color: ${effectiveBgColor} !important; }
         .landing-section-alt { background-color: ${altBgColor} !important; }

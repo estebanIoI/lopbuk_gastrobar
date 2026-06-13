@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useStore } from '@/lib/store'
 import { useAuthStore } from '@/lib/auth-store'
 import { cn } from '@/lib/utils'
+import { BRAND } from '@/lib/brand'
 import { panelHref } from '@/lib/panel-sections'
 import {
   LayoutDashboard,
@@ -214,10 +215,10 @@ export function Sidebar() {
         <div className="flex h-14 shrink-0 items-center border-b border-black/[0.06] px-3">
           <div data-tour="sidebar-logo" className={cn("flex items-center gap-2.5 min-w-0", !isExpanded && "justify-center w-full")}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/image/lopbukicon.png" alt="Lopbuk" width={30} height={30} className="rounded-md shrink-0" />
+            <img src={BRAND.isotipo} alt={BRAND.name} width={30} height={30} className="rounded-md shrink-0 object-contain" />
             {isExpanded && (
               <div className="flex flex-col leading-none min-w-0">
-                <span className="text-sm font-bold text-gray-900 tracking-tight">Lopbuk</span>
+                <span className="text-sm font-bold text-gray-900 tracking-tight">{BRAND.name}</span>
                 <span className="text-[10px] text-gray-400">Gestión de Inventario</span>
               </div>
             )}

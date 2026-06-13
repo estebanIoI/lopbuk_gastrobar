@@ -13,14 +13,36 @@ const montserrat = Montserrat({
   weight: ['100', '200', '300', '400', '500', '600', '700', '800', '900'],
 });
 
+const BRAND_ISOTIPO = '/daimuz-isotipo.png'
+const BRAND_ICON = '/daimuz-icon.png'
+
 export const metadata: Metadata = {
   title: 'DAIMUZ - !Bienvenido al epicentro digital de colombia!',
   description: 'Sistema completo de gestión de inventario para tiendas',
   generator: 'v0.app',
+  manifest: '/manifest.json',
+  applicationName: 'DAIMUZ',
   icons: {
-    icon: '/image/lopbukicon.png',
-    apple: '/image/lopbukicon.png',
+    icon: BRAND_ISOTIPO,
+    shortcut: BRAND_ISOTIPO,
+    apple: BRAND_ICON,
   },
+  openGraph: {
+    title: 'DAIMUZ — Epicentro digital de Colombia',
+    description: 'Plataforma de comercios, catálogo y gestión.',
+    type: 'website',
+    images: [{ url: BRAND_ICON, width: 512, height: 512, alt: 'DAIMUZ' }],
+  },
+  twitter: {
+    card: 'summary',
+    title: 'DAIMUZ',
+    description: 'Plataforma de comercios, catálogo y gestión.',
+    images: [BRAND_ICON],
+  },
+}
+
+export const viewport = {
+  themeColor: '#00833E',
 }
 
 export default function RootLayout({

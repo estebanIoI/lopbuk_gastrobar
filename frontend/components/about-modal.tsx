@@ -65,8 +65,8 @@ export function AboutModal() {
               <div className="flex items-start gap-4">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src="/image/lopbukicon.png"
-                  alt="Lopbuk"
+                  src="/daimuz-isotipo.png"
+                  alt="DAIMUZ"
                   width={44}
                   height={44}
                   className="rounded-lg ring-1 ring-white/10 shrink-0 mt-0.5"
