@@ -377,7 +377,66 @@ export function InventoryList() {
 
       {/* Products Table */}
       <Card className="border-border bg-card">
-        <CardContent className="p-0 overflow-x-auto">
+        <CardContent className="p-0">
+          {/* ── Tarjetas (móvil) ── */}
+          <div className="md:hidden">
+            {filteredProducts.length === 0 ? (
+              <div className="flex flex-col items-center gap-2 py-12">
+                <Package className="h-8 w-8 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">No se encontraron productos</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-border">
+                {filteredProducts.map((product) => {
+                  const status = getStockStatus(product)
+                  const typeInfo = getProductTypeInfo(product.productType)
+                  const mainImg = product.imageUrl || (Array.isArray(product.images) ? product.images[0] : '') || ''
+                  return (
+                    <div
+                      key={product.id}
+                      id={`product-m-${product.id}`}
+                      className={`p-3 ${highlightedProduct === product.id ? 'bg-primary/10' : ''}`}
+                    >
+                      <div className="flex gap-3">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenImageDialog(product)}
+                          className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-secondary text-lg"
+                        >
+                          {mainImg ? <img src={mainImg} alt={product.name} className="h-full w-full object-cover" /> : <span>{typeInfo.icon}</span>}
+                        </button>
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium text-sm text-foreground truncate">{product.name}</p>
+                          <p className="text-xs text-muted-foreground font-mono">{product.sku}</p>
+                          <div className="flex flex-wrap items-center gap-1 mt-1">
+                            <Badge variant="secondary" className="bg-secondary text-muted-foreground text-[10px]">{typeInfo.icon} {typeInfo.name}</Badge>
+                            <Badge variant="secondary" className="bg-secondary text-muted-foreground text-[10px]">{getCategoryName(product.category)}</Badge>
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="font-semibold text-sm">{formatCOP(product.salePrice)}</p>
+                          <p className="text-[11px] text-muted-foreground">Costo {formatCOP(product.purchasePrice)}</p>
+                          <div className="flex items-center justify-end gap-1 mt-1">
+                            <span className={`h-2 w-2 rounded-full ${status === 'suficiente' ? 'bg-primary' : status === 'bajo' ? 'bg-warning' : 'bg-destructive'}`} />
+                            <span className={`text-xs font-medium ${status === 'suficiente' ? 'text-primary' : status === 'bajo' ? 'text-warning' : 'text-destructive'}`}>{product.stock}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-end gap-1 mt-2 pt-2 border-t border-border/60">
+                        <Button variant="ghost" size="icon" title="Variantes / Tiers" onClick={() => setVariantProduct(product)} className="h-8 w-8 text-primary"><Layers className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" title="Modificadores" onClick={() => setModifiersProduct(product)} className="h-8 w-8 text-primary"><SlidersHorizontal className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" onClick={() => handleEdit(product)} className="h-8 w-8"><Edit2 className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" onClick={() => handleDelete(product)} className="h-8 w-8 text-destructive"><Trash2 className="h-4 w-4" /></Button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* ── Tabla (escritorio) ── */}
+          <div className="hidden md:block overflow-x-auto">
           <Table className="min-w-[800px]">
             <TableHeader>
               <TableRow className="border-border hover:bg-transparent">
@@ -545,6 +604,7 @@ export function InventoryList() {
               )}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
 

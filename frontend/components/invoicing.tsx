@@ -362,7 +362,38 @@ export function Invoicing() {
           <CardTitle>Lista de Facturas</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="rounded-lg border border-border overflow-hidden">
+          {/* ── Tarjetas (móvil) ── */}
+          <div className="md:hidden space-y-2.5">
+            {filteredSales.length === 0 ? (
+              <p className="text-center py-8 text-muted-foreground text-sm">No se encontraron facturas</p>
+            ) : (
+              filteredSales.map((sale) => (
+                <div key={sale.id} className="rounded-lg border border-border bg-background p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-medium text-sm truncate">{sale.invoiceNumber}</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {new Date(sale.createdAt).toLocaleDateString('es-CO')}
+                        {(sale.sellerName || sale.seller) ? ` · ${sale.sellerName || sale.seller}` : ''}
+                        {` · ${sale.items.length} prod.`}
+                      </p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="font-semibold text-sm">{formatCOP(sale.total)}</p>
+                      <div className="mt-0.5">{getStatusBadge(sale.status)}</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-end gap-1 mt-2 pt-2 border-t border-border/60">
+                    <Button variant="ghost" size="icon" onClick={() => handleViewDetails(sale)} className="h-8 w-8 hover:bg-primary/10"><Eye className="w-4 h-4" /></Button>
+                    <Button variant="ghost" size="icon" onClick={() => handlePrint(sale)} className="h-8 w-8 hover:bg-primary/10"><Printer className="w-4 h-4" /></Button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* ── Tabla (escritorio) ── */}
+          <div className="hidden md:block rounded-lg border border-border overflow-hidden">
             <Table>
               <TableHeader>
                 <TableRow className="bg-secondary/50 hover:bg-secondary/50">

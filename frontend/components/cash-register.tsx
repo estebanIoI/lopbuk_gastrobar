@@ -344,7 +344,31 @@ export function CashRegister() {
                 Historial de Cierres
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-0 overflow-x-auto">
+            <CardContent className="p-0">
+              {/* ── Tarjetas (móvil) ── */}
+              <div className="md:hidden divide-y divide-border">
+                {sessionHistory.map((session) => (
+                  <div key={session.id} className="p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium">
+                          {new Date(session.openedAt).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground truncate">{session.openedByName}</p>
+                      </div>
+                      <ClosingStatusBadge status={session.closingStatus} difference={session.difference} />
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 mt-2 text-center">
+                      <div><p className="text-[10px] text-muted-foreground">Apertura</p><p className="text-xs font-medium">{formatCOP(session.openingAmount)}</p></div>
+                      <div><p className="text-[10px] text-muted-foreground">Esperado</p><p className="text-xs font-medium">{session.expectedCash != null ? formatCOP(session.expectedCash) : '-'}</p></div>
+                      <div><p className="text-[10px] text-muted-foreground">Real</p><p className="text-xs font-medium">{session.actualCash != null ? formatCOP(session.actualCash) : '-'}</p></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* ── Tabla (escritorio) ── */}
+              <div className="hidden md:block overflow-x-auto">
               <Table className="min-w-[700px]">
                 <TableHeader>
                   <TableRow className="border-border">
@@ -373,6 +397,7 @@ export function CashRegister() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </CardContent>
           </Card>
         )}
@@ -479,7 +504,39 @@ export function CashRegister() {
           <CardTitle className="text-base lg:text-lg">Movimientos de Caja</CardTitle>
           <CardDescription>Entradas y salidas de efectivo durante esta sesion</CardDescription>
         </CardHeader>
-        <CardContent className="p-0 overflow-x-auto">
+        <CardContent className="p-0">
+          {/* ── Tarjetas (móvil) ── */}
+          <div className="md:hidden">
+            {movements.length === 0 ? (
+              <p className="h-20 flex items-center justify-center text-center text-muted-foreground text-sm">No hay movimientos registrados</p>
+            ) : (
+              <div className="divide-y divide-border">
+                {movements.map((mov) => (
+                  <div key={mov.id} className="flex items-start justify-between gap-2 p-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <Badge variant={mov.type === 'entrada' ? 'default' : 'destructive'} className="text-[10px]">
+                          {mov.type === 'entrada' ? 'Entrada' : 'Salida'}
+                        </Badge>
+                        <span className="text-[11px] text-muted-foreground">
+                          {new Date(mov.createdAt).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      <p className="text-sm mt-1">{mov.reason}</p>
+                      {mov.notes && <p className="text-xs text-muted-foreground">{mov.notes}</p>}
+                      <p className="text-[11px] text-muted-foreground">{mov.createdByName}</p>
+                    </div>
+                    <span className={`text-sm font-semibold shrink-0 ${mov.type === 'entrada' ? 'text-green-500' : 'text-red-500'}`}>
+                      {mov.type === 'entrada' ? '+' : '-'}{formatCOP(mov.amount)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* ── Tabla (escritorio) ── */}
+          <div className="hidden md:block overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow className="border-border">
@@ -521,6 +578,7 @@ export function CashRegister() {
               )}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
 

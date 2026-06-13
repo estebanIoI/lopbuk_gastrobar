@@ -6,7 +6,7 @@ const formatCOP = (value: number) =>
   new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value)
 import { Button } from '@/components/ui/button'
 import { VariantSelector, type RawVariant, type SelectedVariant } from '@/components/variant-selector'
-import { HomeHeroCarousel, HomeCategoryRail, type HeroSlide } from '@/components/home-theme2'
+import { HomeHeroCarousel, HomeCategoryRail, MarketplaceHomeGovCo, type HeroSlide } from '@/components/home-theme2'
 import {
   ArrowRight,
   ChevronDown,
@@ -2446,6 +2446,38 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
           deliveryFee={activeDeliveryFee}
         />
       </div>
+    )
+  }
+
+  // ── TEMA 2 (institucional): reemplaza toda la home del marketplace ──
+  if (isHomeTheme2) {
+    const goToStore = (store: { slug: string; theme?: string }) => {
+      if (store.theme === 'theme2') { window.location.href = `/t/${store.slug}`; return }
+      setSelectedStore(store.slug); setShowStoresView(false); setActiveSede(null); setStoreSedes([])
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }
+    return (
+      <MarketplaceHomeGovCo
+        stores={stores as any}
+        products={allProducts as any}
+        featured={platformFeatured as any}
+        offers={offerProducts as any}
+        heroSlides={homeHeroSlides}
+        businessTypeFilter={businessTypeFilter}
+        onSelectBusinessType={setBusinessTypeFilter}
+        onOpenStore={(store) => goToStore(store as any)}
+        onOpenProduct={(p: any) => {
+          const slug = p.storeSlug || p.tenantSlug
+          const st = stores.find(s => s.slug === slug || s.name === p.storeName)
+          if (st) goToStore(st as any)
+        }}
+        loadingStores={loadingStores}
+        storesWithServices={storesWithServices}
+        ensureAbsoluteUrl={ensureAbsoluteUrl}
+        onGoToLogin={onGoToLogin}
+        heroTitle={platformHeroTitle}
+        heroSubtitle={platformHeroSubtitle}
+      />
     )
   }
 

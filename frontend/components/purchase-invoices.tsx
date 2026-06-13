@@ -867,42 +867,73 @@ export function PurchaseInvoices() {
               <p className="text-sm text-muted-foreground">Registra tu primera compra con el botón de arriba</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Factura #</TableHead>
-                    <TableHead>Tipo</TableHead>
-                    <TableHead>Proveedor</TableHead>
-                    <TableHead>Fecha</TableHead>
-                    <TableHead>Productos</TableHead>
-                    <TableHead className="text-right">Total</TableHead>
-                    <TableHead>Pago</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead />
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {invoices.map((inv) => (
-                    <TableRow key={inv.id}>
-                      <TableCell className="font-mono font-semibold">{inv.invoiceNumber}</TableCell>
-                      <TableCell className="text-xs">{DOCUMENT_TYPE_LABELS[inv.documentType] || inv.documentType}</TableCell>
-                      <TableCell>{inv.supplierName}</TableCell>
-                      <TableCell>{new Date(inv.purchaseDate).toLocaleDateString('es-CO')}</TableCell>
-                      <TableCell>{inv.items.length} ítem(s)</TableCell>
-                      <TableCell className="text-right font-semibold">{formatCOP(inv.total)}</TableCell>
-                      <TableCell className="text-xs">{PAYMENT_METHOD_LABELS[inv.paymentMethod] || inv.paymentMethod}</TableCell>
-                      <TableCell>{paymentStatusBadge(inv.paymentStatus)}</TableCell>
-                      <TableCell>
-                        <Button variant="ghost" size="icon" onClick={() => setShowDetail(inv)}>
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
+            <>
+              {/* ── Tabla (escritorio) ── */}
+              <div className="hidden md:block overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Factura #</TableHead>
+                      <TableHead>Tipo</TableHead>
+                      <TableHead>Proveedor</TableHead>
+                      <TableHead>Fecha</TableHead>
+                      <TableHead>Productos</TableHead>
+                      <TableHead className="text-right">Total</TableHead>
+                      <TableHead>Pago</TableHead>
+                      <TableHead>Estado</TableHead>
+                      <TableHead />
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                  </TableHeader>
+                  <TableBody>
+                    {invoices.map((inv) => (
+                      <TableRow key={inv.id}>
+                        <TableCell className="font-mono font-semibold">{inv.invoiceNumber}</TableCell>
+                        <TableCell className="text-xs">{DOCUMENT_TYPE_LABELS[inv.documentType] || inv.documentType}</TableCell>
+                        <TableCell>{inv.supplierName}</TableCell>
+                        <TableCell>{new Date(inv.purchaseDate).toLocaleDateString('es-CO')}</TableCell>
+                        <TableCell>{inv.items.length} ítem(s)</TableCell>
+                        <TableCell className="text-right font-semibold">{formatCOP(inv.total)}</TableCell>
+                        <TableCell className="text-xs">{PAYMENT_METHOD_LABELS[inv.paymentMethod] || inv.paymentMethod}</TableCell>
+                        <TableCell>{paymentStatusBadge(inv.paymentStatus)}</TableCell>
+                        <TableCell>
+                          <Button variant="ghost" size="icon" onClick={() => setShowDetail(inv)}>
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* ── Tarjetas (móvil) ── */}
+              <div className="md:hidden space-y-2.5">
+                {invoices.map((inv) => (
+                  <button
+                    key={inv.id}
+                    onClick={() => setShowDetail(inv)}
+                    className="w-full text-left rounded-lg border border-border bg-background p-3 active:bg-muted/40 transition-colors"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-mono font-semibold text-sm truncate">{inv.invoiceNumber}</p>
+                        <p className="text-sm font-medium truncate">{inv.supplierName}</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="font-bold text-sm">{formatCOP(inv.total)}</p>
+                        <div className="mt-0.5">{paymentStatusBadge(inv.paymentStatus)}</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center flex-wrap gap-x-3 gap-y-0.5 mt-2 text-[11px] text-muted-foreground">
+                      <span>{new Date(inv.purchaseDate).toLocaleDateString('es-CO')}</span>
+                      <span>· {inv.items.length} ítem(s)</span>
+                      <span>· {DOCUMENT_TYPE_LABELS[inv.documentType] || inv.documentType}</span>
+                      <span>· {PAYMENT_METHOD_LABELS[inv.paymentMethod] || inv.paymentMethod}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </>
           )}
 
           {pagination.totalPages > 1 && (

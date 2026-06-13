@@ -670,7 +670,7 @@ export function ServicesManagement() {
               Define los días y rangos horarios en que ofreces este servicio. Cada fila es un turno.
             </p>
             {availDraft.map((slot, i) => (
-              <div key={i} className="grid grid-cols-6 gap-2 items-end rounded-md border p-3">
+              <div key={i} className="grid grid-cols-2 sm:grid-cols-6 gap-2 items-end rounded-md border p-3">
                 <div className="col-span-2 space-y-1">
                   <Label className="text-xs">Día</Label>
                   <Select value={String(slot.dayOfWeek)}

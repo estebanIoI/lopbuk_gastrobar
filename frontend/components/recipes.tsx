@@ -731,7 +731,38 @@ export function Recipes() {
               </div>
             </div>
           ) : (
-            <div className="rounded-md border overflow-hidden">
+            <>
+            {/* ── Tarjetas (móvil) ── */}
+            <div className="md:hidden space-y-2.5">
+              {filteredRecipes.map((recipe) => (
+                <div key={recipe.productId} className="rounded-lg border border-border bg-background p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-medium text-sm leading-snug">{recipe.productName}</p>
+                      <Badge variant="outline" className="font-mono text-[10px] mt-0.5">{recipe.productSku}</Badge>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="font-semibold text-primary text-sm tabular-nums">{formatCOP(recipe.totalCost)}</p>
+                      <div className="flex justify-end gap-1 mt-1">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(recipe)}><Edit className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive/70 hover:text-destructive" onClick={() => openDelete(recipe)}><Trash2 className="h-4 w-4" /></Button>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {recipe.ingredients.map((ing) => (
+                      <Badge key={ing.id} variant={ing.includeInCost ? 'secondary' : 'outline'} className="text-[10px] gap-1">
+                        <span className="max-w-[120px] truncate">{ing.ingredientName}</span>
+                        <span className="opacity-70">×{ing.quantity}</span>
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* ── Tabla (escritorio) ── */}
+            <div className="hidden md:block rounded-md border overflow-hidden">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/40">
@@ -792,6 +823,7 @@ export function Recipes() {
                 </TableBody>
               </Table>
             </div>
+            </>
           )}
         </CardContent>
       </Card>
