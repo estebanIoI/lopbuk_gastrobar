@@ -15,7 +15,7 @@
  * ============================================================================
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   ChevronLeft, ChevronRight, Store, UtensilsCrossed, Zap, Tag, Package,
   Sparkles, ShoppingBag, Pill, Apple, Wrench, Scissors, Dog, Wine,
@@ -43,6 +43,35 @@ export interface RubroCategory {
   type: string
   count: number
 }
+
+// ── Tarjetas configurables del carrusel "Para ti" ──────────────────────────────
+export interface PromoCardConfig {
+  key: string   // identifica el tipo de tarjeta (ver PROMO_CARD_CATALOG)
+  label: string // título visible
+}
+
+// Catálogo de tarjetas disponibles para el superadmin
+export const PROMO_CARD_CATALOG: { key: string; label: string; kind: 'product' | 'accion'; desc: string }[] = [
+  { key: 'novedades',   label: 'Novedades',   kind: 'product', desc: 'Producto reciente del marketplace' },
+  { key: 'ofertas',     label: 'En oferta',   kind: 'product', desc: 'Producto con descuento activo' },
+  { key: 'recomendado', label: 'Recomendado', kind: 'product', desc: 'Producto destacado por la plataforma' },
+  { key: 'tendencia',   label: 'Tendencia',   kind: 'product', desc: 'Producto popular' },
+  { key: 'accion_comercios',  label: 'Comercios',  kind: 'accion', desc: 'Acceso: ver todos los comercios' },
+  { key: 'accion_ofertas',    label: 'Ofertas',    kind: 'accion', desc: 'Acceso: ver ofertas' },
+  { key: 'accion_novedades',  label: 'Novedades',  kind: 'accion', desc: 'Acceso: ver novedades' },
+]
+
+export const DEFAULT_PROMO_CARDS: PromoCardConfig[] = [
+  { key: 'novedades', label: 'Novedades' },
+  { key: 'ofertas', label: 'En oferta' },
+  { key: 'recomendado', label: 'Recomendado' },
+  { key: 'tendencia', label: 'Tendencia' },
+  { key: 'accion_comercios', label: 'Comercios' },
+  { key: 'accion_ofertas', label: 'Ofertas' },
+  { key: 'accion_novedades', label: 'Novedades' },
+]
+
+const PRODUCT_CARD_KEYS = new Set(['novedades', 'ofertas', 'recomendado', 'tendencia'])
 
 export interface MarketStore {
   id: string
@@ -76,7 +105,7 @@ export interface MarketProduct {
 }
 
 // ── Iconos por rubro ────────────────────────────────────────────────────────────
-const RUBRO_ICONS: Record<string, React.ReactNode> = {
+const RUBRO_ICONS: Record<string, ReactNode> = {
   restaurante: <UtensilsCrossed className="w-full h-full" />,
   comida: <UtensilsCrossed className="w-full h-full" />,
   gastrobar: <UtensilsCrossed className="w-full h-full" />,
@@ -109,7 +138,7 @@ const RUBRO_ICONS: Record<string, React.ReactNode> = {
   'perfumería': <Sparkles className="w-full h-full" />,
 }
 
-const rubroIcon = (type: string): React.ReactNode =>
+const rubroIcon = (type: string): ReactNode =>
   RUBRO_ICONS[type.toLowerCase()] ?? <Store className="w-full h-full" />
 
 const fmtCOP = (v: number) =>
@@ -384,6 +413,9 @@ export function MarketplaceHomeGovCo({
   onGoToLogin,
   heroTitle,
   heroSubtitle,
+  heroSplit = '60-40',
+  heroRight = 'producto',
+  promoConfig,
 }: {
   stores: MarketStore[]
   products: MarketProduct[]
@@ -400,6 +432,12 @@ export function MarketplaceHomeGovCo({
   onGoToLogin: () => void
   heroTitle?: string
   heroSubtitle?: string
+  /** Proporción del hero: '70-30' | '60-40' | '50-50' */
+  heroSplit?: string
+  /** Contenido del panel derecho: 'producto' | 'comercio' | 'cta' */
+  heroRight?: string
+  /** Tarjetas del carrusel "Para ti" (orden + tipo + etiqueta). Si no se pasa, usa el set por defecto. */
+  promoConfig?: PromoCardConfig[]
 }) {
   const [query, setQuery] = useState('')
   const [tab, setTab] = useState<MainTab>('comercios')
@@ -407,6 +445,42 @@ export function MarketplaceHomeGovCo({
   const [mobileNav, setMobileNav] = useState(false)
   const [alertOpen, setAlertOpen] = useState(true)
   const gridRef = useRef<HTMLDivElement>(null)
+  const accesosRef = useRef<HTMLDivElement>(null)
+
+  // Producto destacado para el panel derecho del hero (60/40)
+  const topFeatured: MarketProduct | undefined = featured[0] || offers[0] || products[0]
+
+  // Tarjetas del carrusel "Para ti" resueltas desde la configuración
+  const renderedCards = useMemo(() => {
+    const cfg = (promoConfig && promoConfig.length ? promoConfig : DEFAULT_PROMO_CARDS)
+    const poolFor = (key: string): MarketProduct[] =>
+      key === 'ofertas' ? offers
+      : key === 'tendencia' ? (offers.length ? offers : products)
+      : (featured.length ? featured : products)
+    const seen = new Set<string>()
+    const out: ({ kind: 'product'; label: string; product: MarketProduct } | { kind: 'accion'; key: string; label: string })[] = []
+    for (const c of cfg) {
+      if (PRODUCT_CARD_KEYS.has(c.key)) {
+        const p = poolFor(c.key).find(x => x && !seen.has(x.id))
+        if (p) { seen.add(p.id); out.push({ kind: 'product', label: c.label, product: p }) }
+      } else {
+        out.push({ kind: 'accion', key: c.key, label: c.label })
+      }
+    }
+    return out
+  }, [promoConfig, featured, offers, products])
+
+  // Comercio destacado (para panel derecho del hero, opción 'comercio')
+  const topStore: MarketStore | undefined =
+    stores.find(s => Boolean(s.isVerified) && s.productCount > 0) ||
+    stores.find(s => s.productCount > 0) || stores[0]
+
+  // Clase del split del hero según configuración del superadmin
+  const splitClass = heroSplit === '70-30'
+    ? 'lg:grid-cols-[1fr_300px]'
+    : heroSplit === '50-50'
+      ? 'lg:grid-cols-[1fr_1fr]'
+      : 'lg:grid-cols-[1fr_340px]'
 
   // Rubros con conteo
   const rubros = useMemo(() => {
@@ -551,40 +625,138 @@ export function MarketplaceHomeGovCo({
       <main className="flex-1">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-7 space-y-7">
 
-          {/* Hero */}
-          {heroSlides.filter(s => s.url).length > 0 ? (
-            <HomeHeroCarousel slides={heroSlides} intervalMs={4000} />
-          ) : (
-            <section className="relative rounded-xl overflow-hidden p-8 sm:p-12 text-white" style={{ background: `linear-gradient(120deg, ${GREEN_DARK}, ${GREEN})` }}>
-              <h1 className="text-2xl sm:text-4xl font-extrabold max-w-2xl">{heroTitle || 'Tu marketplace de comercios locales'}</h1>
-              <p className="mt-2 text-white/85 max-w-xl">{heroSubtitle || 'Explora tiendas, ofertas y novedades en un solo lugar.'}</p>
-            </section>
-          )}
+          {/* Hero — split configurable: editorial/carrusel (izq) + panel (der) */}
+          <section className={`grid grid-cols-1 ${splitClass} gap-4`}>
+            {/* Columna izquierda */}
+            <div className="min-w-0">
+              {heroSlides.filter(s => s.url).length > 0 ? (
+                <HomeHeroCarousel slides={heroSlides} intervalMs={4000} />
+              ) : (
+                <section className="relative rounded-xl overflow-hidden p-8 sm:p-12 text-white h-full min-h-[240px] flex flex-col justify-center" style={{ background: `linear-gradient(120deg, ${GREEN_DARK}, ${GREEN})` }}>
+                  <h1 className="text-2xl sm:text-4xl font-extrabold max-w-2xl">{heroTitle || 'Tu marketplace de comercios locales'}</h1>
+                  <p className="mt-2 text-white/85 max-w-xl">{heroSubtitle || 'Explora tiendas, ofertas y novedades en un solo lugar.'}</p>
+                </section>
+              )}
+            </div>
 
-          {/* Accesos rápidos (rubros) */}
-          {rubros.length > 0 && (
-            <section>
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-sm font-bold uppercase tracking-wider" style={{ color: GREEN_DARK }}>Accesos rápidos</h2>
-              </div>
-              <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2.5 sm:gap-3">
-                <button onClick={() => pickRubro('all')} className={`flex flex-col items-center justify-center gap-2 rounded-xl border px-2 py-4 text-center transition-all ${businessTypeFilter === 'all' ? 'border-transparent shadow-md text-white' : 'bg-white border-gray-200 hover:shadow-md hover:-translate-y-0.5 text-gray-700'}`} style={businessTypeFilter === 'all' ? { background: GREEN } : undefined}>
-                  <span className={`w-10 h-10 rounded-lg flex items-center justify-center ${businessTypeFilter === 'all' ? 'bg-white/20 text-white' : 'text-white'}`} style={businessTypeFilter === 'all' ? undefined : { background: GREEN }}><Store className="w-5 h-5" /></span>
-                  <span className="text-[11px] font-medium">Todos</span>
+            {/* Columna derecha — según configuración (producto / comercio / cta) */}
+            <aside className="flex flex-col gap-4">
+              {heroRight === 'comercio' && topStore ? (
+                <button onClick={() => onOpenStore(topStore)} className="group relative rounded-xl overflow-hidden text-left flex-1 min-h-[160px] bg-gray-900">
+                  {(topStore.coverUrl || topStore.logoUrl) ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={ensureAbsoluteUrl((topStore.coverUrl || topStore.logoUrl) as string)} alt={topStore.name} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                  ) : (
+                    <div className="absolute inset-0" style={{ background: `linear-gradient(120deg, ${GREEN_DARK}, ${GREEN})` }} />
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                  <span className="absolute top-3 left-3 text-[10px] font-bold px-2 py-1 rounded-full text-gray-900" style={{ background: GOLD }}>COMERCIO DESTACADO</span>
+                  <div className="absolute bottom-0 left-0 right-0 p-4">
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-white font-semibold text-base line-clamp-1">{topStore.name}</p>
+                      {Boolean(topStore.isVerified) && (
+                        <svg viewBox="0 0 24 24" className="w-4 h-4 shrink-0" role="img" aria-label="Verificado"><path fill="#3b82f6" d="M12 1l2.4 1.8 3 .2.9 2.9 2.4 1.8-.9 2.9.9 2.9-2.4 1.8-.9 2.9-3 .2L12 23l-2.4-1.8-3-.2-.9-2.9L3.3 16l.9-2.9-.9-2.9 2.4-1.8.9-2.9 3-.2z"/><path fill="#fff" d="M10.6 14.6l-2.2-2.2-1.1 1.1 3.3 3.3 6-6-1.1-1.1z"/></svg>
+                      )}
+                    </div>
+                    {(topStore.cardDescription || topStore.businessType) && <p className="text-white/70 text-[11px] line-clamp-1">{topStore.cardDescription || topStore.businessType}</p>}
+                    <span className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-gray-900 px-3 py-1 rounded-full" style={{ background: GOLD }}>Ver comercio <ArrowRight className="w-3.5 h-3.5" /></span>
+                  </div>
                 </button>
-                {rubros.slice(0, 11).map(({ type, count }) => {
-                  const selected = businessTypeFilter === type
+              ) : heroRight === 'cta' || !topFeatured ? (
+                <div className="rounded-xl p-5 text-white flex-1 flex flex-col justify-center" style={{ background: `linear-gradient(120deg, ${GREEN_DARK}, ${GREEN})` }}>
+                  <h3 className="font-bold text-lg">{heroTitle || '¿Tienes un comercio?'}</h3>
+                  <p className="text-white/80 text-sm mt-1">{heroSubtitle || 'Publica tus productos y llega a más clientes.'}</p>
+                  <button onClick={onGoToLogin} className="mt-4 self-start inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-lg text-gray-900" style={{ background: GOLD }}>Empezar <ArrowRight className="w-4 h-4" /></button>
+                </div>
+              ) : (
+                <button onClick={() => topFeatured && onOpenProduct(topFeatured)} className="group relative rounded-xl overflow-hidden text-left flex-1 min-h-[160px] bg-gray-900">
+                  {topFeatured!.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={topFeatured!.imageUrl} alt={topFeatured!.name} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                  ) : (
+                    <div className="absolute inset-0" style={{ background: `linear-gradient(120deg, ${GREEN_DARK}, ${GREEN})` }} />
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                  <span className="absolute top-3 left-3 text-[10px] font-bold px-2 py-1 rounded-full text-gray-900" style={{ background: GOLD }}>DESTACADO</span>
+                  <div className="absolute bottom-0 left-0 right-0 p-4">
+                    <p className="text-white font-semibold text-sm line-clamp-2">{topFeatured!.name}</p>
+                    {topFeatured!.storeName && <p className="text-white/70 text-[11px] uppercase tracking-wide">{topFeatured!.storeName}</p>}
+                    <p className="text-white font-bold mt-1">{fmtCOP(topFeatured!.offerPrice || topFeatured!.salePrice)}</p>
+                  </div>
+                </button>
+              )}
+              {/* CTA secundario */}
+              <button onClick={onGoToLogin} className="rounded-xl border border-gray-200 bg-white p-4 text-left hover:shadow-md transition-shadow flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-bold" style={{ color: GREEN_DARK }}>Únete a Lopbuk</p>
+                  <p className="text-[11px] text-gray-500">{stats.comercios} comercios · {stats.ofertas} ofertas</p>
+                </div>
+                <span className="inline-flex items-center justify-center w-9 h-9 rounded-lg text-white shrink-0" style={{ background: GOLD }}><ArrowRight className="w-4 h-4" /></span>
+              </button>
+            </aside>
+          </section>
+
+          {/* Carrusel de tarjetas (productos + accesos institucionales) */}
+          <section>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-bold uppercase tracking-wider" style={{ color: GREEN_DARK }}>Para ti</h2>
+              <div className="hidden sm:flex items-center gap-1.5">
+                <button onClick={() => accesosRef.current?.scrollBy({ left: -360, behavior: 'smooth' })} className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center text-gray-600 hover:bg-gray-100" aria-label="Anterior"><ChevronLeft className="w-4 h-4" /></button>
+                <button onClick={() => accesosRef.current?.scrollBy({ left: 360, behavior: 'smooth' })} className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center text-gray-600 hover:bg-gray-100" aria-label="Siguiente"><ChevronRight className="w-4 h-4" /></button>
+              </div>
+            </div>
+            <div ref={accesosRef} className="flex gap-3 overflow-x-auto scrollbar-hide scroll-smooth snap-x pb-1 -mx-1 px-1">
+              {renderedCards.map((c, i) => {
+                if (c.kind === 'product') {
+                  const product = c.product
+                  const isOffer = !!(product.isOnOffer && product.offerPrice)
+                  const disc = isOffer ? Math.round(((product.salePrice - (product.offerPrice as number)) / product.salePrice) * 100) : 0
                   return (
-                    <button key={type} onClick={() => pickRubro(type)} className={`flex flex-col items-center justify-center gap-2 rounded-xl border px-2 py-4 text-center transition-all ${selected ? 'border-transparent shadow-md text-white' : 'bg-white border-gray-200 hover:shadow-md hover:-translate-y-0.5 text-gray-700'}`} style={selected ? { background: GREEN } : undefined}>
-                      <span className="w-10 h-10 rounded-lg flex items-center justify-center text-white" style={{ background: selected ? 'rgba(255,255,255,.2)' : GREEN }}><span className="w-5 h-5 inline-flex">{rubroIcon(type)}</span></span>
-                      <span className="text-[11px] font-medium capitalize line-clamp-1">{type}</span>
-                      <span className={`text-[10px] ${selected ? 'text-white/80' : 'text-gray-400'}`}>{count}</span>
+                    <button key={`p-${i}-${product.id}`} onClick={() => onOpenProduct(product)} className="snap-start shrink-0 w-44 bg-white rounded-xl border border-gray-200 hover:shadow-lg transition-shadow p-3 text-left flex flex-col">
+                      <p className="text-[13px] font-bold text-gray-800 mb-2">{c.label}</p>
+                      <div className="aspect-square bg-gray-50 rounded-lg overflow-hidden flex items-center justify-center mb-2">
+                        {product.imageUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={product.imageUrl} alt={product.name} className="w-full h-full object-contain p-1" />
+                        ) : <Package className="w-8 h-8 text-gray-300" />}
+                      </div>
+                      <p className="text-xs text-gray-700 line-clamp-2 leading-snug">{product.name}</p>
+                      <div className="mt-auto pt-1.5">
+                        {isOffer ? (
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-[11px] text-gray-400 line-through">{fmtCOP(product.salePrice)}</span>
+                            <span className="text-sm font-bold text-gray-900">{fmtCOP(product.offerPrice as number)}</span>
+                            <span className="text-[11px] font-bold" style={{ color: GREEN }}>{disc}% OFF</span>
+                          </div>
+                        ) : (
+                          <span className="text-sm font-bold text-gray-900">{fmtCOP(product.salePrice)}</span>
+                        )}
+                        <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold" style={{ color: GREEN }}>
+                          <span className="w-1.5 h-1.5 rounded-full" style={{ background: GREEN }} /> Disponible
+                        </span>
+                      </div>
                     </button>
                   )
-                })}
-              </div>
-            </section>
-          )}
+                }
+                const meta: Record<string, { desc: string; cta: string; icon: ReactNode; onClick: () => void }> = {
+                  accion_comercios: { desc: 'Explora todas las tiendas locales.', cta: 'Ver comercios', icon: <Store className="w-7 h-7" />, onClick: () => { onSelectBusinessType('all'); setTab('comercios'); setTimeout(scrollToGrid, 50) } },
+                  accion_ofertas: { desc: 'Productos con descuento hoy.', cta: 'Ver ofertas', icon: <Tag className="w-7 h-7" />, onClick: () => { setTab('ofertas'); setTimeout(scrollToGrid, 50) } },
+                  accion_novedades: { desc: 'Lo más reciente del marketplace.', cta: 'Explorar', icon: <Sparkles className="w-7 h-7" />, onClick: () => { setTab('novedades'); setTimeout(scrollToGrid, 50) } },
+                }
+                const m = meta[c.key] || { desc: '', cta: 'Ver', icon: <Store className="w-7 h-7" />, onClick: () => setTimeout(scrollToGrid, 50) }
+                return (
+                  <div key={`a-${i}-${c.key}`} className="snap-start shrink-0 w-44 bg-white rounded-xl border border-gray-200 hover:shadow-lg transition-shadow p-3 flex flex-col items-center text-center">
+                    <p className="text-[13px] font-bold text-gray-800 mb-2 self-start">{c.label}</p>
+                    <span className="w-16 h-16 rounded-full flex items-center justify-center my-2" style={{ background: '#EAF3DE', color: GREEN }}>{m.icon}</span>
+                    <p className="text-[11.5px] text-gray-500 leading-snug mb-3">{m.desc}</p>
+                    <button onClick={m.onClick} className="mt-auto w-full py-1.5 rounded-lg text-xs font-semibold border transition-colors" style={{ borderColor: GREEN, color: GREEN }}>
+                      {m.cta}
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          </section>
 
           {/* Tabs + layout 2 columnas */}
           <div ref={gridRef} className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6">
@@ -602,6 +774,20 @@ export function MarketplaceHomeGovCo({
               {/* COMERCIOS */}
               {tab === 'comercios' && (
                 <div>
+                  {/* Chips de rubro */}
+                  {rubros.length > 0 && (
+                    <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-2 mb-3 -mx-1 px-1">
+                      <button onClick={() => onSelectBusinessType('all')} className="shrink-0 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors" style={businessTypeFilter === 'all' ? { background: GREEN, color: '#fff', borderColor: GREEN } : { color: '#4b5563', borderColor: '#d1d5db' }}>Todos</button>
+                      {rubros.map(({ type, count }) => {
+                        const selected = businessTypeFilter === type
+                        return (
+                          <button key={type} onClick={() => onSelectBusinessType(type)} className="shrink-0 px-3 py-1.5 rounded-full text-xs font-medium border whitespace-nowrap capitalize transition-colors" style={selected ? { background: GREEN, color: '#fff', borderColor: GREEN } : { color: '#4b5563', borderColor: '#d1d5db' }}>
+                            {type} <span className={selected ? 'text-white/70' : 'text-gray-400'}>({count})</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
                   {loadingStores ? (
                     <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                       {[0, 1, 2, 3, 4, 5].map(i => (

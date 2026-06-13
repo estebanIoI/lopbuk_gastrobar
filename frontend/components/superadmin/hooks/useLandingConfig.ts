@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect } from 'react'
 import { api } from '@/lib/api'
 import { toast } from 'sonner'
 import { clearCloudinaryCache } from '@/components/ui/cloudinary-upload'
-import type { HeroSlide } from '@/components/home-theme2'
+import { type HeroSlide, type PromoCardConfig, PROMO_CARD_CATALOG, DEFAULT_PROMO_CARDS } from '@/components/home-theme2'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'
 
@@ -52,6 +52,16 @@ export function useLandingConfig() {
   const [heroSlides, setHeroSlides] = useState<HeroSlide[]>([])
   const [isSavingSlides, setIsSavingSlides] = useState(false)
 
+  // Layout del hero del Tema 2 (proporción del split + contenido panel derecho)
+  const [heroSplit, setHeroSplit] = useState<'70-30' | '60-40' | '50-50'>('60-40')
+  const [heroRight, setHeroRight] = useState<'producto' | 'comercio' | 'cta'>('producto')
+  const [isSavingHeroLayout, setIsSavingHeroLayout] = useState(false)
+
+  // Tarjetas del carrusel "Para ti"
+  const [promoCards, setPromoCards] = useState<PromoCardConfig[]>(DEFAULT_PROMO_CARDS)
+  const [isSavingPromos, setIsSavingPromos] = useState(false)
+  const promoCatalog = PROMO_CARD_CATALOG
+
   // Offers
   const [offers, setOffers] = useState<any[]>([])
   const [isLoadingOffers, setIsLoadingOffers] = useState(false)
@@ -82,6 +92,18 @@ export function useLandingConfig() {
         try {
           const parsed = JSON.parse(result.data.home_hero_slides)
           if (Array.isArray(parsed)) setHeroSlides(parsed as HeroSlide[])
+        } catch { /* JSON inválido */ }
+      }
+      if (['70-30', '60-40', '50-50'].includes(result.data.home_hero_split)) {
+        setHeroSplit(result.data.home_hero_split as '70-30' | '60-40' | '50-50')
+      }
+      if (['producto', 'comercio', 'cta'].includes(result.data.home_hero_right)) {
+        setHeroRight(result.data.home_hero_right as 'producto' | 'comercio' | 'cta')
+      }
+      if (result.data.home_promo_cards) {
+        try {
+          const parsed = JSON.parse(result.data.home_promo_cards)
+          if (Array.isArray(parsed) && parsed.length) setPromoCards(parsed as PromoCardConfig[])
         } catch { /* JSON inválido */ }
       }
     }
@@ -167,6 +189,52 @@ export function useLandingConfig() {
       toast.error(result.error || 'Error al guardar el tema de la home')
     }
     setIsSavingHomeTheme(false)
+  }
+
+  const handleSaveHeroSplit = async (value: '70-30' | '60-40' | '50-50') => {
+    const prev = heroSplit
+    setHeroSplit(value)
+    setIsSavingHeroLayout(true)
+    const result = await api.updatePlatformSetting('home_hero_split', value)
+    if (result.success) toast.success('Proporción del hero actualizada')
+    else { setHeroSplit(prev); toast.error(result.error || 'Error al guardar') }
+    setIsSavingHeroLayout(false)
+  }
+
+  const handleSaveHeroRight = async (value: 'producto' | 'comercio' | 'cta') => {
+    const prev = heroRight
+    setHeroRight(value)
+    setIsSavingHeroLayout(true)
+    const result = await api.updatePlatformSetting('home_hero_right', value)
+    if (result.success) toast.success('Panel derecho del hero actualizado')
+    else { setHeroRight(prev); toast.error(result.error || 'Error al guardar') }
+    setIsSavingHeroLayout(false)
+  }
+
+  // ── Tarjetas del carrusel "Para ti" ──
+  const addPromoCard = (key: string) => {
+    const cat = PROMO_CARD_CATALOG.find(c => c.key === key)
+    if (!cat) return
+    setPromoCards(p => [...p, { key: cat.key, label: cat.label }])
+  }
+  const removePromoCard = (index: number) =>
+    setPromoCards(p => p.filter((_, i) => i !== index))
+  const updatePromoLabel = (index: number, label: string) =>
+    setPromoCards(p => p.map((c, i) => (i === index ? { ...c, label } : c)))
+  const movePromoCard = (index: number, dir: -1 | 1) =>
+    setPromoCards(p => {
+      const j = index + dir
+      if (j < 0 || j >= p.length) return p
+      const copy = [...p]
+      ;[copy[index], copy[j]] = [copy[j], copy[index]]
+      return copy
+    })
+  const handleSavePromoCards = async () => {
+    setIsSavingPromos(true)
+    const result = await api.updatePlatformSetting('home_promo_cards', JSON.stringify(promoCards))
+    if (result.success) toast.success('Tarjetas del carrusel actualizadas')
+    else toast.error(result.error || 'Error al guardar las tarjetas')
+    setIsSavingPromos(false)
   }
 
   // ── CRUD local de slides del carrusel ──
@@ -256,6 +324,10 @@ export function useLandingConfig() {
     // home theme + carrusel hero
     homeTheme, isSavingHomeTheme, handleSaveHomeTheme,
     heroSlides, isSavingSlides, addSlide, updateSlide, removeSlide, moveSlide, handleSaveHeroSlides,
+    // layout del hero (split + panel derecho)
+    heroSplit, heroRight, isSavingHeroLayout, handleSaveHeroSplit, handleSaveHeroRight,
+    // tarjetas del carrusel "Para ti"
+    promoCards, promoCatalog, isSavingPromos, addPromoCard, removePromoCard, updatePromoLabel, movePromoCard, handleSavePromoCards,
     // offers
     offers, isLoadingOffers, fetchOffers,
     // drops

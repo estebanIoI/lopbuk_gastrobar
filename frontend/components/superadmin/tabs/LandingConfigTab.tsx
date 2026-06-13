@@ -23,6 +23,8 @@ export function LandingConfigTab() {
     panelTheme, isSavingTheme, handleSavePanelTheme,
     homeTheme, isSavingHomeTheme, handleSaveHomeTheme,
     heroSlides, isSavingSlides, addSlide, updateSlide, removeSlide, moveSlide, handleSaveHeroSlides,
+    heroSplit, heroRight, isSavingHeroLayout, handleSaveHeroSplit, handleSaveHeroRight,
+    promoCards, promoCatalog, isSavingPromos, addPromoCard, removePromoCard, updatePromoLabel, movePromoCard, handleSavePromoCards,
     offers, isLoadingOffers, fetchOffers,
     drops, isLoadingDrops, fetchDrops,
     isDropDialogOpen, setIsDropDialogOpen,
@@ -236,6 +238,130 @@ export function LandingConfigTab() {
           <p className="text-xs text-muted-foreground">
             Recuerda pulsar <strong>Guardar carrusel</strong> para aplicar los cambios. Solo se muestran en la home con Tema 2 activo.
           </p>
+        </CardContent>
+      </Card>
+
+      {/* Disposición del Hero (Tema 2) */}
+      <Card className="border-border bg-card">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base lg:text-lg flex items-center gap-2">
+            <LayoutTemplate className="h-5 w-5 text-muted-foreground" />
+            Disposición del Hero (Tema 2)
+          </CardTitle>
+          <CardDescription>
+            Proporción del hero (carrusel a la izquierda) y qué se muestra en el panel derecho. Solo aplica con el Tema 2 activo.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          {/* Proporción */}
+          <div>
+            <Label className="text-xs mb-2 block">Proporción (izquierda / derecha)</Label>
+            <div className="grid grid-cols-3 gap-2">
+              {([
+                { value: '70-30', label: '70 / 30' },
+                { value: '60-40', label: '60 / 40' },
+                { value: '50-50', label: '50 / 50' },
+              ] as const).map(opt => {
+                const selected = heroSplit === opt.value
+                return (
+                  <button key={opt.value} type="button" disabled={isSavingHeroLayout} onClick={() => handleSaveHeroSplit(opt.value)}
+                    className={`rounded-lg border-2 p-3 transition-all disabled:opacity-60 ${selected ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/40 bg-background'}`}>
+                    <div className="flex gap-1 h-8 mb-1.5">
+                      <div className="rounded bg-primary/30" style={{ flex: Number(opt.value.split('-')[0]) }} />
+                      <div className="rounded bg-muted-foreground/30" style={{ flex: Number(opt.value.split('-')[1]) }} />
+                    </div>
+                    <span className="text-xs font-medium">{opt.label}</span>
+                    {selected && <Check className="h-3.5 w-3.5 text-primary inline-block ml-1" />}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+          {/* Panel derecho */}
+          <div>
+            <Label className="text-xs mb-2 block">Contenido del panel derecho</Label>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {([
+                { value: 'producto', title: 'Producto destacado', desc: 'Muestra el producto destacado/oferta principal.' },
+                { value: 'comercio', title: 'Comercio destacado', desc: 'Muestra un comercio verificado.' },
+                { value: 'cta', title: 'Solo CTA', desc: 'Llamado a la acción "Únete a Lopbuk".' },
+              ] as const).map(opt => {
+                const selected = heroRight === opt.value
+                return (
+                  <button key={opt.value} type="button" disabled={isSavingHeroLayout} onClick={() => handleSaveHeroRight(opt.value)}
+                    className={`text-left rounded-lg border-2 p-3 transition-all disabled:opacity-60 ${selected ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/40 bg-background'}`}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm font-semibold">{opt.title}</span>
+                      {selected && <Check className="h-4 w-4 text-primary" />}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground leading-snug">{opt.desc}</p>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Tarjetas del carrusel "Para ti" (Tema 2) */}
+      <Card className="border-border bg-card">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <CardTitle className="text-base lg:text-lg flex items-center gap-2">
+                <GalleryHorizontal className="h-5 w-5 text-muted-foreground" />
+                Tarjetas del carrusel "Para ti"
+              </CardTitle>
+              <CardDescription>
+                Elige y ordena qué tarjetas aparecen en el carrusel de la home (Tema 2). Las de producto usan datos reales; las de acceso son botones a secciones.
+              </CardDescription>
+            </div>
+            <Button size="sm" onClick={handleSavePromoCards} disabled={isSavingPromos} className="shrink-0">
+              {isSavingPromos ? 'Guardando...' : 'Guardar carrusel'}
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Tarjetas activas (ordenables) */}
+          {promoCards.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4 border border-dashed border-border rounded-lg">No hay tarjetas. Agrega abajo.</p>
+          ) : (
+            <div className="space-y-2">
+              {promoCards.map((card, idx) => {
+                const cat = promoCatalog.find(c => c.key === card.key)
+                const isProduct = cat?.kind === 'product'
+                return (
+                  <div key={`${card.key}-${idx}`} className="flex items-center gap-2 rounded-lg border border-border bg-background p-2.5">
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${isProduct ? 'bg-green-500/15 text-green-600' : 'bg-blue-500/15 text-blue-600'}`}>
+                      {isProduct ? 'PRODUCTO' : 'ACCESO'}
+                    </span>
+                    <Input value={card.label} onChange={(e) => updatePromoLabel(idx, e.target.value)} className="h-8 flex-1" placeholder="Etiqueta" />
+                    <span className="text-[11px] text-muted-foreground hidden sm:inline">{cat?.desc}</span>
+                    <div className="flex items-center gap-0.5 shrink-0">
+                      <Button variant="ghost" size="icon" className="h-7 w-7" disabled={idx === 0} onClick={() => movePromoCard(idx, -1)}><ArrowUp className="h-4 w-4" /></Button>
+                      <Button variant="ghost" size="icon" className="h-7 w-7" disabled={idx === promoCards.length - 1} onClick={() => movePromoCard(idx, 1)}><ArrowDown className="h-4 w-4" /></Button>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive/70 hover:text-destructive" onClick={() => removePromoCard(idx)}><Trash2 className="h-4 w-4" /></Button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+          {/* Agregar tarjeta */}
+          <div>
+            <Label className="text-xs mb-2 block">Agregar tarjeta</Label>
+            <div className="flex flex-wrap gap-2">
+              {promoCatalog.map(c => (
+                <button key={c.key} type="button" onClick={() => addPromoCard(c.key)}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border text-xs hover:bg-muted transition-colors">
+                  <Plus className="h-3.5 w-3.5" />
+                  {c.label}
+                  <span className={`text-[9px] font-bold px-1 py-0.5 rounded ${c.kind === 'product' ? 'bg-green-500/15 text-green-600' : 'bg-blue-500/15 text-blue-600'}`}>{c.kind === 'product' ? 'P' : 'A'}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">Recuerda pulsar <strong>Guardar carrusel</strong> para aplicar los cambios.</p>
         </CardContent>
       </Card>
 

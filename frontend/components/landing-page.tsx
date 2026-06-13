@@ -6,7 +6,7 @@ const formatCOP = (value: number) =>
   new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value)
 import { Button } from '@/components/ui/button'
 import { VariantSelector, type RawVariant, type SelectedVariant } from '@/components/variant-selector'
-import { HomeHeroCarousel, HomeCategoryRail, MarketplaceHomeGovCo, type HeroSlide } from '@/components/home-theme2'
+import { HomeHeroCarousel, HomeCategoryRail, MarketplaceHomeGovCo, type HeroSlide, type PromoCardConfig } from '@/components/home-theme2'
 import {
   ArrowRight,
   ChevronDown,
@@ -270,6 +270,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   // ====== HOME THEME (Tema 1 clásico / Tema 2 marketplace) ======
   const [homeTheme, setHomeTheme] = useState<'theme1' | 'theme2'>('theme1')
   const [homeHeroSlides, setHomeHeroSlides] = useState<HeroSlide[]>([])
+  const [homeHeroSplit, setHomeHeroSplit] = useState('60-40')
+  const [homeHeroRight, setHomeHeroRight] = useState('producto')
+  const [homePromoCards, setHomePromoCards] = useState<PromoCardConfig[]>([])
   // Tema 2 solo aplica a la home del marketplace (todas las tiendas), no dentro de una tienda
   const isHomeTheme2 = homeTheme === 'theme2' && showStoresView && selectedStore === 'all'
 
@@ -1112,6 +1115,14 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
             try {
               const parsed = JSON.parse(json.data.home_hero_slides)
               if (Array.isArray(parsed)) setHomeHeroSlides(parsed as HeroSlide[])
+            } catch { /* JSON inválido, se ignora */ }
+          }
+          if (json.data.home_hero_split) setHomeHeroSplit(json.data.home_hero_split)
+          if (json.data.home_hero_right) setHomeHeroRight(json.data.home_hero_right)
+          if (json.data.home_promo_cards) {
+            try {
+              const parsed = JSON.parse(json.data.home_promo_cards)
+              if (Array.isArray(parsed)) setHomePromoCards(parsed as PromoCardConfig[])
             } catch { /* JSON inválido, se ignora */ }
           }
         }
@@ -2477,6 +2488,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         onGoToLogin={onGoToLogin}
         heroTitle={platformHeroTitle}
         heroSubtitle={platformHeroSubtitle}
+        heroSplit={homeHeroSplit}
+        heroRight={homeHeroRight}
+        promoConfig={homePromoCards}
       />
     )
   }
