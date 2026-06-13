@@ -4,7 +4,25 @@
 
 ## Sprint activo: Junio 2026
 
-### ✅ Completado [2026-06-12]: Panel Superadmin Modular
+### ✅ Completado [2026-06-12]: Sprint 5 — Centro de Pedidos v2 + TenantManagement
+
+| Sprint | Estado | Descripción |
+|---|---|---|
+| Sprint 5a — TenantManagement | ✅ Completo | DropdownMenu acciones con labels, eliminar, editar slug, trial configurable con días |
+| Sprint 5b — Kanban + Bulk | ✅ Completo | KanbanView con @dnd-kit, acciones masivas, bulk toolbar flotante |
+| Sprint 5c — Quick wins SLA | ✅ Completo | Banner alerta, priority chips, filtro comercio, border-l-4, antigüedad coloreada |
+| Sprint 5d — Asignación rápida | ✅ Completo | Drawer muestra repartidores del tenant, asigna por driverId directo |
+
+**Archivos clave:**
+- `frontend/components/superadmin/shared/KanbanView.tsx` (nuevo — @dnd-kit)
+- `frontend/components/superadmin/hooks/useOrders.ts` (expandido — bulk, drivers, kanban, priorityStats)
+- `frontend/components/superadmin/tabs/OrdersCenterTab.tsx` (reescrito)
+- `frontend/components/tenant-management.tsx` (mejorado — DropdownMenu, delete, slug, trial days)
+- `backend/src/modules/orders/superadmin-orders.routes.ts` (3 endpoints nuevos, assign con assigneeId)
+- `backend/src/modules/tenants/tenants.service.ts` (update acepta slug; activateTrial acepta days)
+- Dep nueva: `@dnd-kit/core` + `@dnd-kit/utilities` (instalado con pnpm, npm da error en este proyecto)
+
+### ✅ Completado [2026-06-12]: Panel Superadmin Modular (Sprints 0-4)
 
 | Sprint | Estado | Descripción |
 |---|---|---|
@@ -14,8 +32,8 @@
 | Sprint 4 — Analytics + SSE | ✅ Completo | KPIs plataforma, heatmap 7×24, SSE reemplaza polling |
 
 **Archivos clave del resultado:**
-- Backend nuevo: `backend/src/modules/orders/superadmin-orders.routes.ts` (8 endpoints)
-- Frontend nuevo: `frontend/components/superadmin/` (25 archivos)
+- Backend: `superadmin-orders.routes.ts` (ahora 11 endpoints)
+- Frontend: `frontend/components/superadmin/` (26 archivos tras Sprint 5)
 - DB: `storefront_orders.assigned_to` (col) + `order_status_history` (tabla)
 
 ---

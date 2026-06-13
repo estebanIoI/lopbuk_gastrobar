@@ -1,5 +1,18 @@
 # ✅ Features Completados
 
+## Centro de Pedidos v2 + TenantManagement v2 — Sprint 5 (2026-06-12)
+
+**TenantManagement (tenant-management.tsx)**
+- Acciones con labels: DropdownMenu (Ver, Editar, Activar/Suspender, Trial, Módulos, Eliminar)
+- Soft-delete con confirmación; edición de slug con validación de unicidad
+- Trial configurable: body `{ days }` en backend, modal con contador y botones rápidos
+
+**Centro de Pedidos v2**
+- `KanbanView.tsx`: Kanban 6 columnas con `@dnd-kit/core` drag-to-column; valida transiciones antes de llamar API
+- `useOrders.ts`: viewMode, priorityStats (useMemo: sinAsignar/retrasados/enRiesgo), drawerDrivers, tenantsList, bulk selection (Set), handleBulkStatusChange/Assign/Cancel
+- `OrdersCenterTab.tsx`: banner SLA, priority chips, filtro comercio (Select), border-l-4 por estado, antigüedad coloreada por SLA, checkboxes, bulk toolbar flotante, asignación rápida en drawer
+- Backend: endpoints `/orders/tenants`, `/orders/:id/drivers`, assign acepta `assigneeId` + devuelve `assigned_name`
+
 ## Panel Superadmin Modular — Sprints 0-4 (2026-06-12)
 - **Sprint 0**: `superadmin-home.tsx` (monolito 3444 líneas) → `superadmin/` (25 archivos: 1 layout + 9 tabs + 5 hooks + shared)
 - **Sprint 2**: Centro de Pedidos cross-tenant — bandeja filtrable, SLA semáforo, drawer con historial, state machine de estados, asignación de operador

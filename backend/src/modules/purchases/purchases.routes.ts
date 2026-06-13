@@ -25,6 +25,18 @@ router.get(
   purchasesController.getNextInvoiceNumber.bind(purchasesController)
 );
 
+// POST /api/purchases/ocr — Lee una factura desde una foto con IA (OCR)
+router.post(
+  '/ocr',
+  authorize('comerciante', 'superadmin'),
+  [
+    body('imageBase64').notEmpty().withMessage('La imagen es requerida'),
+    body('mimeType').optional().isString(),
+    validateRequest,
+  ],
+  purchasesController.ocrInvoice.bind(purchasesController)
+);
+
 // GET /api/purchases/suppliers
 router.get(
   '/suppliers',

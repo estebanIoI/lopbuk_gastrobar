@@ -59,7 +59,11 @@ import {
   RefreshCw,
   Info,
   AlertCircle,
+  Camera,
+  Sparkles,
+  Wand2,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { RemoteScanner } from '@/components/remote-scanner'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -71,6 +75,14 @@ interface NewInvoiceItem {
   quantity: number
   unitCost: number
   lastPurchasePrice?: number
+}
+
+// Ítem detectado por OCR que aún no coincide con un producto del inventario
+interface PendingItem {
+  tempId: string
+  description: string
+  quantity: number
+  unitCost: number
 }
 
 interface NewInvoiceForm {
@@ -156,6 +168,42 @@ const emptySupplierForm = (): NewSupplierForm => ({
   notes: '',
 })
 
+const genTempId = () =>
+  (typeof crypto !== 'undefined' && 'randomUUID' in crypto)
+    ? crypto.randomUUID()
+    : `pi_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+
+// Reduce la imagen a máx. 1600px y la convierte a JPEG (data URL) para no exceder
+// el límite del backend y acelerar el OCR.
+async function fileToDownscaledDataUrl(file: File, maxSize = 1600, quality = 0.72): Promise<string> {
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as string)
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+  return new Promise<string>((resolve) => {
+    const img = new Image()
+    img.onload = () => {
+      let { width, height } = img
+      if (width > maxSize || height > maxSize) {
+        const ratio = Math.min(maxSize / width, maxSize / height)
+        width = Math.round(width * ratio)
+        height = Math.round(height * ratio)
+      }
+      const canvas = document.createElement('canvas')
+      canvas.width = width
+      canvas.height = height
+      const ctx = canvas.getContext('2d')
+      if (!ctx) { resolve(dataUrl); return }
+      ctx.drawImage(img, 0, 0, width, height)
+      resolve(canvas.toDataURL('image/jpeg', quality))
+    }
+    img.onerror = () => resolve(dataUrl)
+    img.src = dataUrl
+  })
+}
+
 // ─── Supplier Info Card (shown inline in form when supplier selected) ──────────
 
 function SupplierInfoCard({ supplier, stats }: { supplier: Supplier; stats: SupplierStats | null }) {
@@ -239,12 +287,31 @@ export function PurchaseInvoices() {
 
   const searchContainerRef = useRef<HTMLDivElement>(null)
 
+  // ── OCR con IA ──
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([])
+  const [ocrLoading, setOcrLoading] = useState(false)
+  const [ocrError, setOcrError] = useState<string | null>(null)
+  const [ocrProvider, setOcrProvider] = useState<string | null>(null)
+  const [pendingItems, setPendingItems] = useState<PendingItem[]>([])
+  // Asignación de un pending item a un producto existente (búsqueda inline)
+  const [assigningId, setAssigningId] = useState<string | null>(null)
+  const [assignSearch, setAssignSearch] = useState('')
+  const [assignResults, setAssignResults] = useState<Product[]>([])
+  const [assignLoading, setAssignLoading] = useState(false)
+  // Crear producto desde un pending item
+  const [creatingId, setCreatingId] = useState<string | null>(null)
+  const [creatingCategory, setCreatingCategory] = useState('')
+  const [creatingSalePrice, setCreatingSalePrice] = useState('')
+  const [savingProduct, setSavingProduct] = useState(false)
+  const ocrFileInputRef = useRef<HTMLInputElement>(null)
+
   const loadData = useCallback(async (page = 1) => {
     setLoading(true)
     try {
-      const [invRes, suppRes] = await Promise.all([
+      const [invRes, suppRes, catRes] = await Promise.all([
         api.getPurchaseInvoices({ page, limit: 20 }),
         api.getPurchaseSuppliers(),
+        api.getCategories(),
       ])
       if (invRes.success) {
         setInvoices(invRes.data || [])
@@ -252,6 +319,9 @@ export function PurchaseInvoices() {
       }
       if (suppRes.success && suppRes.data) {
         setSuppliers(suppRes.data as Supplier[])
+      }
+      if (catRes.success && Array.isArray(catRes.data)) {
+        setCategories((catRes.data as any[]).map(c => ({ id: c.id, name: c.name })))
       }
     } finally {
       setLoading(false)
@@ -321,6 +391,11 @@ export function PurchaseInvoices() {
     setSelectedSupplier(null)
     setSupplierStats(null)
     setShowQuickSupplier(false)
+    setPendingItems([])
+    setOcrError(null)
+    setOcrProvider(null)
+    setCreatingId(null)
+    setAssigningId(null)
     setShowForm(true)
     // Load auto number in background
     setLoadingInvoiceNumber(true)
@@ -359,6 +434,182 @@ export function PurchaseInvoices() {
     setProductSearch(barcode)
     setShowProductDropdown(true)
     setShowRemoteScanner(false)
+  }
+
+  // ── OCR: capturar/subir foto de la factura ──
+  const triggerOcrPicker = () => {
+    setOcrError(null)
+    ocrFileInputRef.current?.click()
+  }
+
+  const applyOcrResult = (data: NonNullable<Awaited<ReturnType<typeof api.ocrPurchaseInvoice>>['data']>) => {
+    const { header, supplier, items } = data
+    setOcrProvider(data.provider)
+
+    // Cabecera
+    setForm(prev => {
+      const next = { ...prev }
+      if (header.invoiceNumber) next.invoiceNumber = header.invoiceNumber
+      if (header.purchaseDate && /^\d{4}-\d{2}-\d{2}$/.test(header.purchaseDate)) next.purchaseDate = header.purchaseDate
+      if (header.discount && header.discount > 0) next.discount = String(header.discount)
+      if (header.paymentMethod) {
+        next.paymentMethod = header.paymentMethod
+        next.paymentStatus = CREDIT_METHODS.includes(header.paymentMethod) ? 'pendiente' : 'pagado'
+      }
+      // Ítems coincidentes → a la factura (sin duplicar)
+      const matched = items.filter(i => i.matched && i.productId)
+      const existingIds = new Set(prev.items.map(i => i.productId))
+      const newItems: NewInvoiceItem[] = matched
+        .filter(i => !existingIds.has(i.productId!))
+        .map(i => ({
+          productId: i.productId!,
+          productName: i.productName || i.description,
+          productSku: i.productSku || '',
+          quantity: i.quantity || 1,
+          unitCost: i.unitCost || i.lastPurchasePrice || 0,
+          lastPurchasePrice: i.lastPurchasePrice || undefined,
+        }))
+      next.items = [...prev.items, ...newItems]
+      return next
+    })
+
+    // Proveedor
+    if (supplier.matchedId) {
+      handleSupplierSelect(supplier.matchedId)
+    } else if (supplier.name) {
+      setForm(p => ({ ...p, supplierId: '', supplierName: supplier.name || '' }))
+      setSelectedSupplier(null)
+      setSupplierStats(null)
+      setShowQuickSupplier(true)
+      setQuickSupplierForm(p => ({ ...p, name: supplier.name || '', taxId: supplier.taxId || '' }))
+    }
+
+    // Ítems no encontrados → panel de revisión
+    const unmatched = items.filter(i => !i.matched || !i.productId)
+    setPendingItems(unmatched.map(i => ({
+      tempId: genTempId(),
+      description: i.description,
+      quantity: i.quantity || 1,
+      unitCost: i.unitCost || 0,
+    })))
+
+    const matchedCount = items.length - unmatched.length
+    toast.success(
+      `Factura leída: ${items.length} ítem(s) detectado(s), ${matchedCount} reconocido(s)` +
+      (unmatched.length ? `, ${unmatched.length} por asignar.` : '.')
+    )
+  }
+
+  const handleOcrFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = '' // permite re-seleccionar el mismo archivo
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      setOcrError('Selecciona una imagen (foto) de la factura.')
+      return
+    }
+    setOcrError(null)
+    setOcrLoading(true)
+    try {
+      const dataUrl = await fileToDownscaledDataUrl(file)
+      const res = await api.ocrPurchaseInvoice({ imageBase64: dataUrl, mimeType: 'image/jpeg' })
+      if (res.success && res.data) {
+        applyOcrResult(res.data)
+      } else {
+        setOcrError(res.error || 'No se pudo leer la factura.')
+      }
+    } catch (err: any) {
+      setOcrError(err?.message || 'Error al procesar la imagen.')
+    } finally {
+      setOcrLoading(false)
+    }
+  }
+
+  // ── Pending items (revisión de no encontrados) ──
+  const updatePending = (tempId: string, field: 'description' | 'quantity' | 'unitCost', value: string | number) =>
+    setPendingItems(prev => prev.map(p => p.tempId === tempId ? { ...p, [field]: value } : p))
+
+  const removePending = (tempId: string) => {
+    setPendingItems(prev => prev.filter(p => p.tempId !== tempId))
+    if (assigningId === tempId) { setAssigningId(null); setAssignSearch('') }
+    if (creatingId === tempId) setCreatingId(null)
+  }
+
+  const promotePendingToItem = (item: PendingItem, product: { id: string; name: string; sku: string; purchasePrice?: number }) => {
+    setForm(prev => {
+      if (prev.items.some(i => i.productId === product.id)) return prev
+      return {
+        ...prev,
+        items: [...prev.items, {
+          productId: product.id,
+          productName: product.name,
+          productSku: product.sku,
+          quantity: item.quantity || 1,
+          unitCost: item.unitCost || product.purchasePrice || 0,
+          lastPurchasePrice: product.purchasePrice || undefined,
+        }],
+      }
+    })
+    removePending(item.tempId)
+  }
+
+  // Búsqueda inline para asignar un pending item a un producto existente
+  useEffect(() => {
+    if (!assigningId || !assignSearch.trim()) { setAssignResults([]); return }
+    setAssignLoading(true)
+    const controller = new AbortController()
+    const t = setTimeout(async () => {
+      try {
+        const res = await api.getProducts({ search: assignSearch.trim(), limit: 8 })
+        if (!controller.signal.aborted) {
+          const products = Array.isArray((res as any).data) ? (res as any).data : ((res as any).products ?? (res as any).data?.products ?? [])
+          setAssignResults(res.success ? products.slice(0, 8) : [])
+          setAssignLoading(false)
+        }
+      } catch {
+        if (!controller.signal.aborted) { setAssignResults([]); setAssignLoading(false) }
+      }
+    }, 300)
+    return () => { clearTimeout(t); controller.abort() }
+  }, [assigningId, assignSearch])
+
+  const openCreateProduct = (item: PendingItem) => {
+    setCreatingId(item.tempId)
+    setCreatingCategory(categories[0]?.name || '')
+    setCreatingSalePrice(String(item.unitCost || ''))
+    setAssigningId(null)
+  }
+
+  const handleCreateProductForPending = async (item: PendingItem) => {
+    if (!creatingCategory) { toast.error('Selecciona una categoría'); return }
+    const salePrice = parseFloat(creatingSalePrice) || item.unitCost || 0
+    setSavingProduct(true)
+    try {
+      const sku = `OCR-${Date.now().toString().slice(-6)}`
+      const res = await api.createProduct({
+        name: item.description.slice(0, 120),
+        category: creatingCategory,
+        productType: 'general',
+        sku,
+        purchasePrice: item.unitCost || 0,
+        salePrice,
+        stock: 0,
+        reorderPoint: 0,
+        entryDate: new Date().toISOString().split('T')[0],
+      })
+      if (res.success && res.data) {
+        const p = res.data as any
+        promotePendingToItem(item, { id: p.id, name: p.name, sku: p.sku, purchasePrice: p.purchasePrice ?? item.unitCost })
+        setCreatingId(null)
+        toast.success('Producto creado y agregado a la factura')
+      } else {
+        toast.error(res.error || 'No se pudo crear el producto')
+      }
+    } catch (err: any) {
+      toast.error(err?.message || 'Error al crear el producto')
+    } finally {
+      setSavingProduct(false)
+    }
   }
 
   const addProductToInvoice = (product: Product) => {
@@ -675,6 +926,50 @@ export function PurchaseInvoices() {
 
           <div className="space-y-5 py-2">
 
+            {/* ===== Escanear factura con IA ===== */}
+            <div className="rounded-xl border border-primary/30 bg-gradient-to-br from-primary/5 to-transparent p-4">
+              <input
+                ref={ocrFileInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={handleOcrFile}
+              />
+              <div className="flex items-start gap-3">
+                <div className="rounded-lg bg-primary/10 p-2 shrink-0">
+                  <Sparkles className="h-5 w-5 text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold flex items-center gap-2">
+                    Escanear factura con IA
+                    <span className="text-[10px] font-normal text-muted-foreground bg-muted px-1.5 py-0.5 rounded">OCR</span>
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Toma una foto o sube la factura del proveedor y la IA completará los datos y productos automáticamente.
+                  </p>
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    <Button type="button" size="sm" onClick={triggerOcrPicker} disabled={ocrLoading}>
+                      {ocrLoading
+                        ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" />Leyendo factura...</>
+                        : <><Camera className="mr-1.5 h-4 w-4" />Tomar / subir foto</>
+                      }
+                    </Button>
+                    {ocrProvider && !ocrLoading && (
+                      <span className="text-[11px] text-muted-foreground self-center flex items-center gap-1">
+                        <CheckCircle className="h-3.5 w-3.5 text-green-500" /> Procesado con {ocrProvider === 'gemini' ? 'Gemini' : 'OpenAI'}
+                      </span>
+                    )}
+                  </div>
+                  {ocrError && (
+                    <p className="text-xs text-destructive bg-destructive/10 rounded-md px-2.5 py-1.5 mt-2 flex items-center gap-1.5">
+                      <AlertCircle className="h-3.5 w-3.5 shrink-0" /> {ocrError}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
             {/* Row 1: Invoice #, Date, Document type */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="space-y-1.5">
@@ -972,6 +1267,109 @@ export function PurchaseInvoices() {
                 </div>
               )}
             </div>
+
+            {/* ===== Productos por asignar (OCR) ===== */}
+            {pendingItems.length > 0 && (
+              <div className="rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50/60 dark:bg-amber-950/20 p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Wand2 className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                  <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+                    Productos por asignar ({pendingItems.length})
+                  </p>
+                </div>
+                <p className="text-xs text-amber-800/80 dark:text-amber-300/80">
+                  La IA detectó estos productos pero no los encontró en tu inventario. Asígnalos a un producto existente o créalos.
+                </p>
+
+                {pendingItems.map((item) => (
+                  <div key={item.tempId} className="rounded-md border border-amber-200 dark:border-amber-800 bg-background p-3 space-y-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto_auto] gap-2 items-end">
+                      <div className="space-y-1">
+                        <Label className="text-[11px] text-muted-foreground">Descripción</Label>
+                        <Input value={item.description} onChange={(e) => updatePending(item.tempId, 'description', e.target.value)} className="h-8" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[11px] text-muted-foreground">Cant.</Label>
+                        <Input type="number" min="0.001" step="0.001" value={item.quantity} onChange={(e) => updatePending(item.tempId, 'quantity', parseFloat(e.target.value) || 0)} className="h-8 w-20" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[11px] text-muted-foreground">Costo unit.</Label>
+                        <Input type="number" min="0" step="0.01" value={item.unitCost} onChange={(e) => updatePending(item.tempId, 'unitCost', parseFloat(e.target.value) || 0)} className="h-8 w-28" />
+                      </div>
+                      <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-destructive/70 hover:text-destructive" onClick={() => removePending(item.tempId)}>
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      <Button type="button" size="sm" variant="outline" className="h-7 text-xs"
+                        onClick={() => { setAssigningId(assigningId === item.tempId ? null : item.tempId); setAssignSearch(''); setAssignResults([]); setCreatingId(null) }}>
+                        <Search className="h-3.5 w-3.5 mr-1" /> Asignar a existente
+                      </Button>
+                      <Button type="button" size="sm" variant="outline" className="h-7 text-xs"
+                        onClick={() => openCreateProduct(item)}>
+                        <Plus className="h-3.5 w-3.5 mr-1" /> Crear producto
+                      </Button>
+                    </div>
+
+                    {/* Inline search to assign */}
+                    {assigningId === item.tempId && (
+                      <div className="space-y-1.5">
+                        <div className="relative">
+                          {assignLoading
+                            ? <Loader2 className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                            : <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />}
+                          <Input className="h-8 pl-8" placeholder="Buscar producto por nombre o SKU..." value={assignSearch} onChange={(e) => setAssignSearch(e.target.value)} autoFocus />
+                        </div>
+                        {assignSearch.trim() && (
+                          <div className="rounded-md border bg-popover max-h-44 overflow-y-auto">
+                            {assignLoading ? (
+                              <div className="px-3 py-2 text-xs text-muted-foreground">Buscando...</div>
+                            ) : assignResults.length === 0 ? (
+                              <div className="px-3 py-2 text-xs text-muted-foreground">Sin resultados</div>
+                            ) : assignResults.map((p) => (
+                              <button key={p.id} type="button" className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-accent"
+                                onClick={() => promotePendingToItem(item, { id: p.id, name: p.name, sku: p.sku, purchasePrice: p.purchasePrice })}>
+                                <Package className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                <span className="flex-1 min-w-0 truncate">{p.name}</span>
+                                <span className="text-[10px] text-muted-foreground">{p.sku}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Inline create product */}
+                    {creatingId === item.tempId && (
+                      <div className="rounded-md border border-dashed p-3 space-y-2 bg-muted/30">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <div className="space-y-1">
+                            <Label className="text-[11px]">Categoría <span className="text-destructive">*</span></Label>
+                            <Select value={creatingCategory} onValueChange={setCreatingCategory}>
+                              <SelectTrigger className="h-8"><SelectValue placeholder="Selecciona categoría" /></SelectTrigger>
+                              <SelectContent>
+                                {categories.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-[11px]">Precio de venta</Label>
+                            <Input type="number" min="0" step="0.01" value={creatingSalePrice} onChange={(e) => setCreatingSalePrice(e.target.value)} className="h-8" placeholder="0" />
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button type="button" size="sm" className="h-7 text-xs" disabled={savingProduct} onClick={() => handleCreateProductForPending(item)}>
+                            {savingProduct ? <><Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />Creando...</> : <><CheckCircle className="h-3.5 w-3.5 mr-1" />Crear y agregar</>}
+                          </Button>
+                          <Button type="button" size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setCreatingId(null)}>Cancelar</Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* File attachment */}
             <div className="space-y-1.5">

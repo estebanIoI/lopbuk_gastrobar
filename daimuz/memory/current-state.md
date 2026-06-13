@@ -23,6 +23,28 @@
 - ✅ **Multi-tenant** — Sistema completo de tenants y módulos activables
 - ✅ **Multi-sede** — Sedes con inventario y caja independientes
 
+## ✅ Implementado: Sprint 5 — Centro de Pedidos v2 (2026-06-12)
+
+**TenantManagement mejorado (tenant-management.tsx — legacy panel)**
+- Acciones con nombres: 5 icon-buttons → `DropdownMenu` con 6 ítems etiquetados
+- Eliminar comercio: soft-delete con confirmación (status → 'cancelado')
+- Editar todo el comercio: diálogo expandido con slug editable, ownerName/ownerEmail (solo lectura)
+- Trial configurable: confirmación con contador de días (−/+ y botones 7/14/30); backend acepta `{ days }` en body
+- Backend: `tenants.service.ts` — `update()` acepta `slug` con unicidad; `activateTrial()` acepta `days: number`
+
+**Centro de Pedidos v2 (OrdersCenterTab.tsx)**
+- Banner alerta SLA — aparece cuando hay retrasados o sin asignar en la página actual
+- Priority chips — "X sin asignar", "X retrasados >30min", "X en riesgo 10–30min" (calculados via `useMemo`)
+- Filtro por comercio — Select con tenants activos (nuevo endpoint `GET /superadmin/orders/tenants`)
+- Bordes de fila — `border-l-4` por color de estado (amarillo/azul/morado/índigo/verde/rojo)
+- Antigüedad coloreada — verde/amarillo/rojo+pulso según SLA en columna Pedido
+- Checkboxes + bulk action toolbar flotante — cambiar estado / asignarme / cancelar en selección múltiple
+- Toggle Tabla/Kanban — botones en el header
+- Asignación rápida en drawer — lista de repartidores del comercio del pedido; click asigna directo
+- `KanbanView.tsx` — Kanban 6 columnas con @dnd-kit; drag cards entre columnas valida state machine
+- 3 endpoints nuevos en backend (`/orders/tenants`, `/orders/:id/drivers`, assign con `assigneeId`)
+- Instalado: `@dnd-kit/core` + `@dnd-kit/utilities` vía pnpm
+
 ## ✅ Implementado: Panel Superadmin Modular — Sprints 0-4 (2026-06-12)
 
 **Sprint 0 — Refactor monolito superadmin-home.tsx (3444 líneas → arquitectura modular)**

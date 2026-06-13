@@ -5,6 +5,13 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  images: {
+    // Los tenants configuran logos/imágenes con URLs externas arbitrarias
+    // (Cloudinary, Pinterest, etc.), por eso se permite cualquier host https.
+    remotePatterns: [
+      { protocol: 'https', hostname: '**' },
+    ],
+  },
   async rewrites() {
     return [
       {

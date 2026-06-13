@@ -1,8 +1,33 @@
 import { Response, NextFunction } from 'express';
 import { purchasesService, CreatePurchaseData } from './purchases.service';
-import { AuthRequest } from '../../common/middleware';
+import { invoiceOcrService } from './invoice-ocr.service';
+import { AppError, AuthRequest } from '../../common/middleware';
 
 export class PurchasesController {
+  async ocrInvoice(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      let { imageBase64, mimeType } = req.body as { imageBase64?: string; mimeType?: string };
+      if (!imageBase64) throw new AppError('Falta la imagen de la factura', 400);
+
+      // Acepta data URLs (data:image/jpeg;base64,....)
+      const match = /^data:(.+?);base64,(.*)$/.exec(imageBase64);
+      if (match) {
+        mimeType = mimeType || match[1];
+        imageBase64 = match[2];
+      }
+      mimeType = mimeType || 'image/jpeg';
+
+      const result = await invoiceOcrService.extractAndMatch(
+        req.user!.tenantId!,
+        imageBase64,
+        mimeType
+      );
+      res.json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async findAll(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const page = parseInt(req.query.page as string) || 1;

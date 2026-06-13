@@ -2,6 +2,18 @@
 
 > Lo que el proyecto nos enseñó. Actualizar cuando algo sale mal o muy bien.
 
+## Tooling
+
+### ⚠️ Usar pnpm — npm falla en este proyecto
+- `npm install` da error "Cannot read properties of null (reading 'matches')" al intentar instalar nuevos paquetes
+- **Siempre usar `pnpm add <paquete>`** para instalar dependencias en `/frontend`
+- El proyecto tiene `pnpm-lock.yaml` y config `shamefully-hoist` que indica pnpm como gestor principal
+
+### ✅ @dnd-kit para Kanban sin dependencias pesadas
+- `@dnd-kit/core` + `@dnd-kit/utilities` — drag & drop con ~15KB, sin conflictos con React 19
+- Patrón "drag to column": `useDraggable` en tarjeta + `useDroppable` en columna (no `SortableContext`)
+- `PointerSensor` con `activationConstraint: { distance: 8 }` evita drags accidentales en clicks
+
 ## Arquitectura
 
 ### ✅ Lo que funcionó bien

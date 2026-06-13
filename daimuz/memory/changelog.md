@@ -4,6 +4,22 @@
 
 ---
 
+## [2026-06-12] — Sprint 5: Centro de Pedidos v2 + TenantManagement mejorado
+
+**TenantManagement (tenant-management.tsx)**
+- Acciones con nombres: DropdownMenu con Ver / Editar / Activar / Trial Empresarial / Módulos / Eliminar
+- Soft-delete de comercio con confirmación (status → 'cancelado')
+- Edición de slug (con validación de unicidad en backend) + ver ownerName/ownerEmail en dialog
+- Trial configurable: modal con contador días (1–365), botones rápidos 7/14/30; backend pasa `days` al query
+
+**Centro de Pedidos v2 (superadmin/)**
+- `KanbanView.tsx` — Kanban 6 columnas @dnd-kit/core con drag & drop; valida state machine antes de API
+- `useOrders.ts` — viewMode, priorityStats (useMemo), drawerDrivers, bulk selection (Set), tenantsList
+- `OrdersCenterTab.tsx` — banner SLA, priority chips, filtro comercio, border-l-4 por estado, antigüedad coloreada, checkboxes, bulk toolbar flotante, asignación rápida de repartidores en drawer, toggle Tabla/Kanban
+- Backend: 3 endpoints nuevos (`/orders/tenants`, `/orders/:id/drivers`, assign con `assigneeId`); assign devuelve `assigned_name`
+- Instalado: `@dnd-kit/core` + `@dnd-kit/utilities` con pnpm (npm da error en este proyecto)
+- TS 0 errores en backend y frontend
+
 ## [2026-06-12] — Panel Superadmin Modular — Sprints 0-4 completos
 
 Refactorización completa del panel superadmin + 4 sprints de nuevas funcionalidades:

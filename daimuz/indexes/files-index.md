@@ -286,7 +286,7 @@ components/
 ├── superadmin/                         ← Panel superadmin modular (Sprint 0-4)
 │   ├── SuperadminLayout.tsx            ← Shell: 9 tabs lazy-loaded, default 'pedidos'
 │   ├── tabs/
-│   │   ├── OrdersCenterTab.tsx         ← Centro pedidos cross-tenant (KPIs + bandeja + drawer)
+│   │   ├── OrdersCenterTab.tsx         ← Centro pedidos: kanban/tabla, bulk, alertas SLA, filtro comercio, asignación rápida
 │   │   ├── CommercesTab.tsx            ← Gestión comercios: wizard creación + papelera/restaurar
 │   │   ├── AnalyticsTab.tsx            ← Dashboard analítica: KPIs + gráficas + heatmap
 │   │   ├── LandingConfigTab.tsx        ← Config landing page pública
@@ -296,13 +296,14 @@ components/
 │   │   ├── PortfolioTab.tsx            ← Config portafolio DAIMUZ
 │   │   └── DevRequestsTab.tsx          ← Solicitudes de features de tenants
 │   ├── hooks/
-│   │   ├── useOrders.ts                ← Estado bandeja + SSE + drawer + state machine
+│   │   ├── useOrders.ts                ← Estado bandeja + SSE + drawer + kanban + bulk selection + drivers
 │   │   ├── useAnalytics.ts             ← KPIs plataforma + timeline + heatmap
 │   │   ├── useTenantLifecycle.ts       ← Wizard 4-pasos + papelera + restore
 │   │   ├── useCommerces.ts             ← Marketplace cards + toggle estado tenant
 │   │   └── useIntegrations.ts          ← Config chatbot/asistente/WhatsApp/Stripe
 │   └── shared/
-│       └── CommerceWizard.tsx          ← Wizard 4 pasos: Comercio → Plan → Propietario → Confirmar
+│       ├── CommerceWizard.tsx          ← Wizard 4 pasos: Comercio → Plan → Propietario → Confirmar
+│       └── KanbanView.tsx              ← Kanban 6 columnas con @dnd-kit drag & drop
 ├── tenant-management.tsx               ← (legacy) Superadmin: gestión de tenants
 ├── printers.tsx                        ← Config impresoras POS por tenant
 

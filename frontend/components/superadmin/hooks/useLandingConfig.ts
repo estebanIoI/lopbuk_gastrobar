@@ -4,8 +4,14 @@ import { useState, useCallback, useEffect } from 'react'
 import { api } from '@/lib/api'
 import { toast } from 'sonner'
 import { clearCloudinaryCache } from '@/components/ui/cloudinary-upload'
+import type { HeroSlide } from '@/components/home-theme2'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'
+
+const genId = () =>
+  (typeof crypto !== 'undefined' && 'randomUUID' in crypto)
+    ? crypto.randomUUID()
+    : `slide_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
 
 export interface Drop {
   id: number
@@ -38,6 +44,14 @@ export function useLandingConfig() {
   const [panelTheme, setPanelTheme] = useState<'classic' | 'comerciante'>('classic')
   const [isSavingTheme, setIsSavingTheme] = useState(false)
 
+  // Home theme (Tema 1 clásico / Tema 2 marketplace estilo Mercado Libre)
+  const [homeTheme, setHomeTheme] = useState<'theme1' | 'theme2'>('theme1')
+  const [isSavingHomeTheme, setIsSavingHomeTheme] = useState(false)
+
+  // Slides del carrusel del Hero (Página de Inicio, Tema 2)
+  const [heroSlides, setHeroSlides] = useState<HeroSlide[]>([])
+  const [isSavingSlides, setIsSavingSlides] = useState(false)
+
   // Offers
   const [offers, setOffers] = useState<any[]>([])
   const [isLoadingOffers, setIsLoadingOffers] = useState(false)
@@ -60,6 +74,15 @@ export function useLandingConfig() {
       if (result.data.login_image_url) setLoginImageUrl(result.data.login_image_url)
       if (result.data.panel_theme === 'comerciante' || result.data.panel_theme === 'classic') {
         setPanelTheme(result.data.panel_theme)
+      }
+      if (result.data.home_theme === 'theme2' || result.data.home_theme === 'theme1') {
+        setHomeTheme(result.data.home_theme)
+      }
+      if (result.data.home_hero_slides) {
+        try {
+          const parsed = JSON.parse(result.data.home_hero_slides)
+          if (Array.isArray(parsed)) setHeroSlides(parsed as HeroSlide[])
+        } catch { /* JSON inválido */ }
       }
     }
   }, [])
@@ -132,6 +155,59 @@ export function useLandingConfig() {
     setIsSavingTheme(false)
   }
 
+  const handleSaveHomeTheme = async (value: 'theme1' | 'theme2') => {
+    setIsSavingHomeTheme(true)
+    const prev = homeTheme
+    setHomeTheme(value)
+    const result = await api.updatePlatformSetting('home_theme', value)
+    if (result.success) {
+      toast.success(value === 'theme2' ? 'Tema 2 (Marketplace) activado en la página de inicio' : 'Tema clásico activado en la página de inicio')
+    } else {
+      setHomeTheme(prev)
+      toast.error(result.error || 'Error al guardar el tema de la home')
+    }
+    setIsSavingHomeTheme(false)
+  }
+
+  // ── CRUD local de slides del carrusel ──
+  const addSlide = () =>
+    setHeroSlides(s => [...s, { id: genId(), type: 'image', url: '', link: '', title: '', subtitle: '' }])
+
+  const updateSlide = (id: string, patch: Partial<HeroSlide>) =>
+    setHeroSlides(s => s.map(sl => (sl.id === id ? { ...sl, ...patch } : sl)))
+
+  const removeSlide = (id: string) =>
+    setHeroSlides(s => s.filter(sl => sl.id !== id))
+
+  const moveSlide = (id: string, dir: -1 | 1) =>
+    setHeroSlides(s => {
+      const i = s.findIndex(sl => sl.id === id)
+      const j = i + dir
+      if (i < 0 || j < 0 || j >= s.length) return s
+      const copy = [...s]
+      ;[copy[i], copy[j]] = [copy[j], copy[i]]
+      return copy
+    })
+
+  const handleSaveHeroSlides = async () => {
+    // Descarta slides sin URL
+    const clean = heroSlides
+      .filter(s => s.url && s.url.trim())
+      .map(s => ({
+        id: s.id,
+        type: s.type === 'video' ? 'video' : 'image',
+        url: s.url.trim(),
+        link: s.link?.trim() || undefined,
+        title: s.title?.trim() || undefined,
+        subtitle: s.subtitle?.trim() || undefined,
+      }))
+    setIsSavingSlides(true)
+    const result = await api.updatePlatformSetting('home_hero_slides', JSON.stringify(clean))
+    if (result.success) toast.success('Carrusel del hero actualizado')
+    else toast.error(result.error || 'Error al guardar el carrusel')
+    setIsSavingSlides(false)
+  }
+
   const openCreateDrop = () => { setEditingDrop(null); setDropForm(emptyDrop()); setIsDropDialogOpen(true) }
 
   const openEditDrop = (drop: Drop) => {
@@ -177,6 +253,9 @@ export function useLandingConfig() {
     loginImageUrl, setLoginImageUrl, isSavingLogin, handleSaveLoginImage,
     // theme
     panelTheme, isSavingTheme, handleSavePanelTheme,
+    // home theme + carrusel hero
+    homeTheme, isSavingHomeTheme, handleSaveHomeTheme,
+    heroSlides, isSavingSlides, addSlide, updateSlide, removeSlide, moveSlide, handleSaveHeroSlides,
     // offers
     offers, isLoadingOffers, fetchOffers,
     // drops

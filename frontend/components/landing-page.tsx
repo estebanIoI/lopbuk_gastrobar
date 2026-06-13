@@ -6,6 +6,7 @@ const formatCOP = (value: number) =>
   new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value)
 import { Button } from '@/components/ui/button'
 import { VariantSelector, type RawVariant, type SelectedVariant } from '@/components/variant-selector'
+import { HomeHeroCarousel, HomeCategoryRail, type HeroSlide } from '@/components/home-theme2'
 import {
   ArrowRight,
   ChevronDown,
@@ -265,6 +266,12 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   const [platformHeroUrl, setPlatformHeroUrl] = useState('')
   const [platformHeroTitle, setPlatformHeroTitle] = useState('')
   const [platformHeroSubtitle, setPlatformHeroSubtitle] = useState('')
+
+  // ====== HOME THEME (Tema 1 clásico / Tema 2 marketplace) ======
+  const [homeTheme, setHomeTheme] = useState<'theme1' | 'theme2'>('theme1')
+  const [homeHeroSlides, setHomeHeroSlides] = useState<HeroSlide[]>([])
+  // Tema 2 solo aplica a la home del marketplace (todas las tiendas), no dentro de una tienda
+  const isHomeTheme2 = homeTheme === 'theme2' && showStoresView && selectedStore === 'all'
 
   // ====== STORE CONFIG STATE (Hero Sections) ======
   const [storeConfig, setStoreConfig] = useState<{
@@ -1098,6 +1105,15 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
           if (json.data.hero_image_url) setPlatformHeroUrl(json.data.hero_image_url)
           if (json.data.hero_title) setPlatformHeroTitle(json.data.hero_title)
           if (json.data.hero_subtitle) setPlatformHeroSubtitle(json.data.hero_subtitle)
+          if (json.data.home_theme === 'theme2' || json.data.home_theme === 'theme1') {
+            setHomeTheme(json.data.home_theme)
+          }
+          if (json.data.home_hero_slides) {
+            try {
+              const parsed = JSON.parse(json.data.home_hero_slides)
+              if (Array.isArray(parsed)) setHomeHeroSlides(parsed as HeroSlide[])
+            } catch { /* JSON inválido, se ignora */ }
+          }
         }
       } catch {}
     }
@@ -5426,7 +5442,13 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       {/* ========== HERO VIEW (Inicio) ========== */}
       {!showCatalog && !showDrop && !showServices && !showOffers && !showProductModal && (
       <>
-      {/* ========== HERO 1 — Banner Principal (Editable) ========== */}
+      {/* ========== HERO 1 — TEMA 2 (Carrusel marketplace) ========== */}
+      {isHomeTheme2 && homeHeroSlides.length > 0 ? (
+        <div style={{ marginTop: storeConfig?.announcementBar?.isActive ? '104px' : '64px' }}>
+          <HomeHeroCarousel slides={homeHeroSlides} isMobile={isMobile} />
+        </div>
+      ) : (
+      /* ========== HERO 1 — Banner Principal (Editable, Tema 1) ========== */
       <section
         data-dark
         className={`relative w-full${isMobile ? '' : ' px-4 py-3'}`}
@@ -5536,6 +5558,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
           </button>
         </div>
       </section>
+      )}
 
 
       {/* ========== SEDES BANNER (only when 2+ sedes) ========== */}
@@ -5589,8 +5612,28 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         </div>
       )}
 
-      {/* ========== HERO 2 — Quick store-type selector (platform) / Categorías (store) ========== */}
-      {(showStoresView && selectedStore === 'all' && stores.length > 0) ? (
+      {/* ========== HERO 2 — TEMA 2 (Barra + grid de rubros, estilo Mercado Libre) ========== */}
+      {isHomeTheme2 && stores.length > 0 ? (
+        (() => {
+          const counts = new Map<string, number>()
+          for (const s of stores) {
+            const key = (s.businessType || 'General') as string
+            counts.set(key, (counts.get(key) || 0) + 1)
+          }
+          const categories = Array.from(counts.entries())
+            .map(([type, count]) => ({ type, count }))
+            .sort((a, b) => b.count - a.count)
+          return (
+            <HomeCategoryRail
+              categories={categories}
+              active={businessTypeFilter}
+              total={stores.length}
+              onSelect={(t) => { setBusinessTypeFilter(t); scrollToPerfumes() }}
+            />
+          )
+        })()
+      ) : (showStoresView && selectedStore === 'all' && stores.length > 0) ? (
+        /* ========== HERO 2 — Tema 1 (pills centradas) ========== */
         <RevealSection className="py-5 sm:py-8 landing-section-bg relative">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             {/* Label */}

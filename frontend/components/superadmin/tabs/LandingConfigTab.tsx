@@ -2,7 +2,7 @@
 
 import {
   CalendarDays, Check, ImageIcon, LayoutTemplate, Plus, Pencil, RefreshCw,
-  Sparkles, Tag, Trash2,
+  Sparkles, Tag, Trash2, ArrowUp, ArrowDown, Video, GalleryHorizontal, Store,
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -21,6 +21,8 @@ export function LandingConfigTab() {
     isSavingHero, handleSaveHero,
     loginImageUrl, setLoginImageUrl, isSavingLogin, handleSaveLoginImage,
     panelTheme, isSavingTheme, handleSavePanelTheme,
+    homeTheme, isSavingHomeTheme, handleSaveHomeTheme,
+    heroSlides, isSavingSlides, addSlide, updateSlide, removeSlide, moveSlide, handleSaveHeroSlides,
     offers, isLoadingOffers, fetchOffers,
     drops, isLoadingDrops, fetchDrops,
     isDropDialogOpen, setIsDropDialogOpen,
@@ -71,6 +73,169 @@ export function LandingConfigTab() {
           <Button size="sm" onClick={handleSaveHero} disabled={isSavingHero}>
             {isSavingHero ? 'Guardando...' : 'Guardar Hero'}
           </Button>
+        </CardContent>
+      </Card>
+
+      {/* Tema de la Página de Inicio (Marketplace) */}
+      <Card className="border-border bg-card">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base lg:text-lg flex items-center gap-2">
+            <Store className="h-5 w-5 text-muted-foreground" />
+            Tema de la Página de Inicio
+          </CardTitle>
+          <CardDescription>
+            Diseño de la página pública donde se listan todos los comercios. El Tema 2 usa un estilo tipo
+            Mercado Libre con carrusel de banners y categorías por rubro. Las tarjetas de los comercios no cambian.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {([
+              { value: 'theme1', title: 'Tema 1 · Clásico', desc: 'Banner único + pills de rubro centradas. El diseño original de la home.', accent: '#6366f1' },
+              { value: 'theme2', title: 'Tema 2 · Marketplace', desc: 'Carrusel de banners/GIF/video + barra y grid de categorías estilo Mercado Libre.', accent: '#FFE600' },
+            ] as const).map(opt => {
+              const selected = homeTheme === opt.value
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  disabled={isSavingHomeTheme}
+                  onClick={() => handleSaveHomeTheme(opt.value)}
+                  className={`relative text-left rounded-lg border-2 p-4 transition-all disabled:opacity-60 ${
+                    selected ? 'border-primary bg-primary/5 shadow-sm' : 'border-border hover:border-primary/40 bg-background'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="inline-block h-3 w-3 rounded-full" style={{ background: opt.accent }} />
+                      <span className="text-sm font-semibold text-foreground">{opt.title}</span>
+                    </div>
+                    {selected && <Check className="h-4 w-4 text-primary" />}
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">{opt.desc}</p>
+                  {selected && <span className="mt-2 inline-block text-[11px] font-medium text-primary">Activo</span>}
+                </button>
+              )
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Carrusel del Hero (Página de Inicio · Tema 2) */}
+      <Card className="border-border bg-card">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <CardTitle className="text-base lg:text-lg flex items-center gap-2">
+                <GalleryHorizontal className="h-5 w-5 text-muted-foreground" />
+                Carrusel del Hero (Página de Inicio)
+              </CardTitle>
+              <CardDescription>
+                Banners, GIF o videos que rotan en la parte superior de la home (Tema 2). Se reproducen en orden.
+              </CardDescription>
+            </div>
+            <Button size="sm" onClick={handleSaveHeroSlides} disabled={isSavingSlides} className="shrink-0">
+              {isSavingSlides ? 'Guardando...' : 'Guardar carrusel'}
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {heroSlides.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-8 text-muted-foreground border border-dashed border-border rounded-lg">
+              <GalleryHorizontal className="h-9 w-9 mb-2 opacity-40" />
+              <p className="text-sm">Aún no hay slides. Agrega el primero.</p>
+            </div>
+          )}
+
+          {heroSlides.map((slide, idx) => (
+            <div key={slide.id} className="rounded-lg border border-border bg-background p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-muted-foreground">Slide {idx + 1}</span>
+                  <div className="flex items-center rounded-md border border-border overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => updateSlide(slide.id, { type: 'image' })}
+                      className={`flex items-center gap-1 px-2 py-1 text-[11px] transition-colors ${slide.type === 'image' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
+                    >
+                      <ImageIcon className="h-3 w-3" /> Imagen/GIF
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => updateSlide(slide.id, { type: 'video' })}
+                      className={`flex items-center gap-1 px-2 py-1 text-[11px] transition-colors ${slide.type === 'video' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
+                    >
+                      <Video className="h-3 w-3" /> Video
+                    </button>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button variant="ghost" size="icon" className="h-7 w-7" disabled={idx === 0} onClick={() => moveSlide(slide.id, -1)}>
+                    <ArrowUp className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" disabled={idx === heroSlides.length - 1} onClick={() => moveSlide(slide.id, 1)}>
+                    <ArrowDown className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive/70 hover:text-destructive" onClick={() => removeSlide(slide.id)}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+
+              {slide.type === 'image' ? (
+                <div className="space-y-2">
+                  <Label className="text-xs">Imagen o GIF</Label>
+                  <CloudinaryUpload
+                    value={slide.url}
+                    onChange={(url) => updateSlide(slide.id, { url })}
+                    accept="image/*,.gif"
+                    previewClassName="w-full max-w-md h-32 object-cover rounded-lg border border-border"
+                  />
+                  <Input
+                    value={slide.url}
+                    onChange={(e) => updateSlide(slide.id, { url: e.target.value })}
+                    placeholder="...o pega una URL de imagen/GIF"
+                    className="font-mono text-xs"
+                  />
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Label className="text-xs">URL del video (.mp4)</Label>
+                  <Input
+                    value={slide.url}
+                    onChange={(e) => updateSlide(slide.id, { url: e.target.value })}
+                    placeholder="https://.../banner.mp4"
+                    className="font-mono text-xs"
+                  />
+                  {slide.url && (
+                    <video src={slide.url} muted loop autoPlay playsInline className="w-full max-w-md h-32 object-cover rounded-lg border border-border" />
+                  )}
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Título (opcional)</Label>
+                  <Input value={slide.title || ''} onChange={(e) => updateSlide(slide.id, { title: e.target.value })} placeholder="Ej: Grandes ofertas" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Subtítulo (opcional)</Label>
+                  <Input value={slide.subtitle || ''} onChange={(e) => updateSlide(slide.id, { subtitle: e.target.value })} placeholder="Ej: Hasta 50% de descuento" />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Enlace al hacer clic (opcional)</Label>
+                <Input value={slide.link || ''} onChange={(e) => updateSlide(slide.id, { link: e.target.value })} placeholder="https://... o /t/mi-tienda" className="font-mono text-xs" />
+              </div>
+            </div>
+          ))}
+
+          <Button variant="outline" size="sm" onClick={addSlide} className="gap-1">
+            <Plus className="h-4 w-4" /> Agregar slide
+          </Button>
+          <p className="text-xs text-muted-foreground">
+            Recuerda pulsar <strong>Guardar carrusel</strong> para aplicar los cambios. Solo se muestran en la home con Tema 2 activo.
+          </p>
         </CardContent>
       </Card>
 

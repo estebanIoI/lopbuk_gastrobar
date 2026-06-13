@@ -1479,6 +1479,33 @@ class ApiService {
     return this.request<any>(`/purchases/suppliers/${supplierId}/stats`)
   }
 
+  // OCR: lee una factura desde una foto usando la IA configurada
+  async ocrPurchaseInvoice(payload: { imageBase64: string; mimeType?: string }) {
+    return this.request<{
+      header: {
+        invoiceNumber: string | null
+        purchaseDate: string | null
+        paymentMethod: string | null
+        subtotal: number | null
+        discount: number | null
+        total: number | null
+      }
+      supplier: { matchedId: string | null; name: string | null; taxId: string | null }
+      items: Array<{
+        description: string
+        quantity: number
+        unitCost: number
+        total: number | null
+        productId: string | null
+        productName: string | null
+        productSku: string | null
+        lastPurchasePrice: number | null
+        matched: boolean
+      }>
+      provider: 'gemini' | 'openai'
+    }>('/purchases/ocr', { method: 'POST', body: JSON.stringify(payload) })
+  }
+
   // =============================================
   // Services endpoints
   // =============================================
