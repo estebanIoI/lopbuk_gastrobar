@@ -22,7 +22,7 @@
 - ✅ **Stripe** — Pagos y suscripciones SaaS
 - ✅ **Multi-tenant** — Sistema completo de tenants y módulos activables
 - ✅ **Multi-sede** — Sedes con inventario y caja independientes
-- ✅ **Colorimetría por IA** — Paleta desde el logo: tienda del comercio (full), panel (solo acento), plataforma (home/login/default)
+- ✅ **Colorimetría por IA** — Paleta desde el logo: tienda del comercio (full), panel (solo acento), plataforma (home/login/default). Ambos temas de home la consumen (Tema 1 vía remap Tailwind→`--color-primary`; Tema 2 vía variables `--brand-*`). Regla: todo tema nuevo debe consumirla → [[brain/colorimetria]]
 
 ## ✅ Implementado: Colorimetría de marca por IA + fixes (2026-06-14)
 

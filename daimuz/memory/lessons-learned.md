@@ -42,6 +42,9 @@
 - **Los componentes grandes (POS, Dashboard)** deben dividirse en subcomponentes cuando superan ~300 líneas
 - El sidebar dinámico por rol+módulos es poderoso pero necesita buena documentación
 - Cloudinary upload directo desde frontend (sin pasar por backend) = mejor performance
+- ⚠️ **Los estilos inline (`style={{ ... }}`) NO se pueden sobreescribir con reglas CSS de clases.** Si un tema hardcodea colores inline, la colorimetría no lo tiñe. Solución: color de marca como `var(--brand-green, #fallback)` y setear la variable en la raíz desde la paleta. Ver [[brain/colorimetria]].
+- ⚠️ **`app/favicon.ico` (Next App Router) tiene prioridad sobre `metadata.icons`.** Para cambiar el favicon hay que regenerar ese archivo, no basta con el metadata. Y el navegador lo cachea fuerte (hard-refresh).
+- Para teñir clases Tailwind hardcodeadas (`bg-green-500`) sin reescribir el markup: remap en un `<style>` a `var(--color-primary)`, con `color-mix` para conservar el alpha (`/10`, `/20`, …) y `--tw-gradient-*` para gradientes.
 
 ## Base de Datos
 

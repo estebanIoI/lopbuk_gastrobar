@@ -100,6 +100,19 @@ const { products, fetchProducts } = useStore()
 fetch('/api/products') // prohibido
 ```
 
+## Temas y colores de marca
+
+```tsx
+// ✅ Color de marca como variable CSS con fallback (lo tiñe la colorimetría)
+const GREEN = 'var(--brand-green, #00833E)'
+<div style={brandVars}>…</div>   // raíz setea --brand-green desde la paleta
+
+// ❌ Hex de marca hardcodeado inline → la colorimetría no puede sobreescribirlo
+<div style={{ background: '#00833E' }} />
+```
+
+Todo tema (home/tienda) consume la colorimetría. Ver [[colorimetria]].
+
 ## Commits
 
 ```

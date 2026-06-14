@@ -1019,15 +1019,18 @@ export function CheckoutView({
                   )
                 })()}
 
-                {/* Acceso visual de pago (decorativo) — no reemplaza el botón funcional de abajo */}
-                <div className="mt-6 flex justify-center">
-                  <NewTransactionButton
-                    label={isDeliveryOrder ? 'Pedir domicilio' : 'Pagar en línea'}
-                    onClick={() => { if (!isProcessing) (isDeliveryOrder ? handleConfirmar : handleFinalizar)() }}
-                    className="nt-compact"
-                    aria-label="Continuar con el pago"
-                  />
-                </div>
+                {/* Acceso visual de pago — solo cuando hay una pasarela en línea configurada
+                    (MercadoPago / Addi / Sistecrédito). No reemplaza el botón funcional. */}
+                {(onPagarEnLinea || onPagarConAddi || onPagarConSistecredito) && (
+                  <div className="mt-6 flex justify-center">
+                    <NewTransactionButton
+                      label={isDeliveryOrder ? 'Pedir domicilio' : 'Pagar en línea'}
+                      onClick={() => { if (!isProcessing) (isDeliveryOrder ? handleConfirmar : handleFinalizar)() }}
+                      className="nt-compact"
+                      aria-label="Continuar con el pago"
+                    />
+                  </div>
+                )}
 
                 {/* Botón único */}
                 <button

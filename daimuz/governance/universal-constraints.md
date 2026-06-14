@@ -180,6 +180,25 @@ Mensajes de error en español (usuarios hispanohablantes)
 
 ---
 
+## 🎨 Temas y colorimetría (frontend)
+
+```tsx
+// ✅ SIEMPRE — color de marca como variable CSS con fallback
+const GREEN = 'var(--brand-green, #00833E)'
+// …y la raíz del tema setea --brand-green desde la paleta (prop themeColors)
+
+// ❌ NUNCA — hex de marca hardcodeado en estilos inline
+<div style={{ background: '#00833E' }} />   // la colorimetría no puede sobreescribirlo
+```
+
+**Todo tema nuevo (home o tienda) DEBE consumir la colorimetría.** Patrón A
+(variables `--brand-*` con estilos inline) o patrón B (variables `--color-*` +
+remap de clases Tailwind). Siempre con fallback al verde DAIMUZ. Los paneles
+operativos solo reciben acento (`applyAdminAccent`), nunca colorización total.
+Detalle completo: [[brain/colorimetria]].
+
+---
+
 ## ⚡ Lo que Claude NO puede hacer sin preguntar explícitamente
 
 1. Cambiar el schema de la base de datos

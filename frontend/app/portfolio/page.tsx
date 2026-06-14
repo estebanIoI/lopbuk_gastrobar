@@ -3,6 +3,12 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { AnimatedThemeToggler } from '@/components/ui/animated-theme-toggler'
+import { ProfileCard } from '@/components/portfolio/profile-card'
+import { LanyardShowpiece } from '@/components/portfolio/lanyard-showpiece'
+
+// Deriva un handle (@usuario) a partir del nombre (sin acentos ni espacios).
+const deriveHandle = (name: string) =>
+  (name || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '').slice(0, 20) || 'dev'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'
 
@@ -210,213 +216,6 @@ const CURRENCIES = {
 } as const
 type CurrencyKey = keyof typeof CURRENCIES
 
-// ─── Carnet 3D interactivo ─────────────────────────────────────────────────────
-function EngineerCard({ card, brandTitle, isActive }: {
-  card: TeamCard
-  brandTitle: string
-  isActive: boolean
-}) {
-  const cardRef = useRef<HTMLDivElement>(null)
-  const [rot, setRot] = useState({ x: 0, y: 0 })
-  const [isHovered, setIsHovered] = useState(false)
-  const accent = card.accent_color || '#06b6d4'
-
-  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    const el = cardRef.current
-    if (!el) return
-    const rect = el.getBoundingClientRect()
-    const cx = rect.left + rect.width / 2
-    const cy = rect.top + rect.height / 2
-    const dx = (e.clientX - cx) / (rect.width / 2)
-    const dy = (e.clientY - cy) / (rect.height / 2)
-    setRot({ x: -dy * 16, y: dx * 16 })
-  }, [])
-
-  const handleMouseLeave = useCallback(() => {
-    setIsHovered(false)
-    setRot({ x: 0, y: 0 })
-  }, [])
-
-  const passiveRot = isActive && !isHovered
-    ? `rotateY(${Math.sin(Date.now() / 1800) * 10}deg) rotateX(${Math.cos(Date.now() / 2200) * 4}deg)`
-    : undefined
-
-  return (
-    <div className="flex flex-col items-center select-none" style={{ perspective: '900px' }}>
-      {/* Clip / cuerda */}
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        {/* Gancho metálico */}
-        <div style={{
-          width: 18, height: 14,
-          borderRadius: '50% 50% 0 0 / 100% 100% 0 0',
-          border: '3px solid #888',
-          borderBottom: 'none',
-          marginBottom: -1,
-        }} />
-        {/* Cuerda */}
-        <div style={{
-          width: 2,
-          height: 64,
-          background: `linear-gradient(to bottom, #666, ${accent}cc)`,
-        }} />
-      </div>
-
-      {/* Tarjeta */}
-      <div
-        ref={cardRef}
-        onMouseMove={(e) => { setIsHovered(true); handleMouseMove(e) }}
-        onMouseLeave={handleMouseLeave}
-        style={{
-          width: 180,
-          height: 260,
-          transformStyle: 'preserve-3d',
-          transform: isHovered
-            ? `rotateX(${rot.x}deg) rotateY(${rot.y}deg) scale(1.04)`
-            : passiveRot || 'rotateX(0deg) rotateY(0deg)',
-          transition: isHovered ? 'none' : 'transform 0.8s cubic-bezier(.23,1,.32,1)',
-          animation: isActive && !isHovered ? 'carnet-float 4s ease-in-out infinite' : 'none',
-          cursor: 'pointer',
-          borderRadius: 20,
-          boxShadow: `0 24px 60px rgba(0,0,0,0.7), 0 0 40px ${accent}44`,
-        }}
-      >
-        {/* Frente */}
-        <div style={{
-          position: 'absolute', inset: 0,
-          borderRadius: 20,
-          overflow: 'hidden',
-          background: `linear-gradient(160deg, #0d0d1f 0%, #111827 50%, ${accent}22 100%)`,
-          border: `1.5px solid ${accent}55`,
-          backfaceVisibility: 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
-        }}>
-          {/* Header de marca */}
-          <div style={{
-            padding: '10px 12px 8px',
-            background: `linear-gradient(90deg, ${accent}22 0%, transparent 100%)`,
-            borderBottom: `1px solid ${accent}33`,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-          }}>
-            <div style={{
-              width: 24, height: 24, borderRadius: '50%',
-              background: accent,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 10, fontWeight: 900, color: '#fff',
-            }}>
-              {brandTitle.charAt(0)}
-            </div>
-            <div>
-              <p style={{ color: '#fff', fontSize: 9, fontWeight: 700, letterSpacing: 2, lineHeight: 1.2 }}>
-                {brandTitle.toUpperCase()}
-              </p>
-              <p style={{ color: accent, fontSize: 7, letterSpacing: 1 }}>DESARROLLADOR</p>
-            </div>
-          </div>
-
-          {/* Foto */}
-          <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-            {card.photo_url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={card.photo_url}
-                alt={card.name}
-                style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top' }}
-              />
-            ) : (
-              <div style={{
-                width: '100%', height: '100%',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: `linear-gradient(135deg, ${accent}22, #0d0d1f)`,
-                fontSize: 48, fontWeight: 900,
-                color: `${accent}88`,
-              }}>
-                {card.name.charAt(0).toUpperCase()}
-              </div>
-            )}
-            {/* Overlay degradado inferior */}
-            <div style={{
-              position: 'absolute', bottom: 0, left: 0, right: 0, height: '45%',
-              background: 'linear-gradient(to top, #0d0d1f 0%, transparent 100%)',
-            }} />
-            {/* Nombre sobre la foto */}
-            <div style={{ position: 'absolute', bottom: 8, left: 12, right: 12 }}>
-              <p style={{
-                color: '#fff', fontSize: 15, fontWeight: 900,
-                textTransform: 'uppercase', letterSpacing: 1,
-                lineHeight: 1.1,
-                textShadow: `0 0 20px ${accent}`,
-              }}>
-                {card.name}
-              </p>
-              <p style={{ color: accent, fontSize: 9, fontWeight: 600, letterSpacing: 1 }}>
-                {card.role}
-              </p>
-            </div>
-          </div>
-
-          {/* Footer con links */}
-          <div style={{
-            padding: '8px 12px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            borderTop: `1px solid ${accent}22`,
-          }}>
-            <div style={{
-              width: 28, height: 18, borderRadius: 3,
-              background: `linear-gradient(135deg, ${accent}66, ${accent}22)`,
-            }} />
-            <div style={{ display: 'flex', gap: 8 }}>
-              {card.github_url && (
-                <a href={card.github_url} target="_blank" rel="noopener noreferrer"
-                  onClick={e => e.stopPropagation()}
-                  style={{ color: '#666', transition: 'color 0.2s' }}
-                  onMouseEnter={e => (e.currentTarget.style.color = '#fff')}
-                  onMouseLeave={e => (e.currentTarget.style.color = '#666')}
-                >
-                  <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: 14, height: 14 }}>
-                    <path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" />
-                  </svg>
-                </a>
-              )}
-              {card.linkedin_url && (
-                <a href={card.linkedin_url} target="_blank" rel="noopener noreferrer"
-                  onClick={e => e.stopPropagation()}
-                  style={{ color: '#666', transition: 'color 0.2s' }}
-                  onMouseEnter={e => (e.currentTarget.style.color = accent)}
-                  onMouseLeave={e => (e.currentTarget.style.color = '#666')}
-                >
-                  <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: 14, height: 14 }}>
-                    <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
-                  </svg>
-                </a>
-              )}
-            </div>
-          </div>
-
-          {/* Shine effect */}
-          <div style={{
-            position: 'absolute', inset: 0, borderRadius: 20,
-            background: `linear-gradient(135deg, rgba(255,255,255,0.06) 0%, transparent 50%, rgba(255,255,255,0.02) 100%)`,
-            pointerEvents: 'none',
-          }} />
-        </div>
-      </div>
-
-      {/* Nombre debajo */}
-      <div style={{ marginTop: 16, textAlign: 'center' }}>
-        <p style={{ color: accent, fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase' }}>
-          {card.name}
-        </p>
-        <p style={{ color: '#666', fontSize: 10, marginTop: 2 }}>{card.role}</p>
-      </div>
-    </div>
-  )
-}
-
 // ─── Carrusel de carnets ──────────────────────────────────────────────────────
 function TeamCarousel({ cards, brandTitle, accentColor }: {
   cards: TeamCard[]
@@ -498,8 +297,21 @@ function TeamCarousel({ cards, brandTitle, accentColor }: {
         </button>
       </div>
 
-      {/* Carnet activo */}
-      <EngineerCard key={card.id} card={card} brandTitle={brandTitle} isActive={true} />
+      {/* Tarjeta del desarrollador (réplica ProfileCard) */}
+      <ProfileCard
+        key={card.id}
+        className="pf-team"
+        avatarUrl={card.photo_url || undefined}
+        name={card.name}
+        title={card.role}
+        handle={deriveHandle(card.name)}
+        status="Disponible"
+        contactText="Contacto"
+        onContactClick={() => {
+          const url = card.linkedin_url || card.github_url
+          if (url) window.open(url, '_blank', 'noopener,noreferrer')
+        }}
+      />
 
       {/* Flechas de navegación (si hay más de 1) */}
       {cards.length > 1 && (
@@ -1550,6 +1362,11 @@ export default function PortfolioPage() {
               </div>
             )}
           </div>
+
+          {/* Credencial 3D colgante (showpiece, arrastrable) */}
+          <div className="w-full max-w-md mt-2">
+            <LanyardShowpiece height={460} />
+          </div>
         </div>
 
         {/* Scroll indicator */}
@@ -1891,21 +1708,4 @@ export default function PortfolioPage() {
             </div>
           )}
 
-          {/* Fallback si no hay datos de contacto configurados */}
-          {!data?.contactWhatsapp && !data?.contactEmail && !data?.contactInstagram && (
-            <p className="text-center text-sm" style={{ color: 'var(--pf-subtle)' }}>
-              Configura tus canales de contacto desde el panel de administración.
-            </p>
-          )}
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="py-8 text-center border-t border-white/5" style={{ borderColor: 'var(--pf-border)' }}>
-        <p className="text-xs uppercase tracking-widest" style={{ color: 'var(--pf-subtle)' }}>
-          {title} · {new Date().getFullYear()} · Powered by Lopbuk
-        </p>
-      </footer>
-    </div>
-  )
-}
+          {/* Fallback si no hay dat

@@ -17,6 +17,20 @@
 
 ## Historial
 
+### [2026-06-14] — Colorimetría no teñía el home (Tema 2)
+**Síntoma:** El superadmin generaba y guardaba la paleta, pero el home seguía verde.
+**Causa:** El Tema 2 (`MarketplaceHomeGovCo`) pintaba la marca con estilos **inline** (`style={{ background: GREEN }}`, constante JS fija) y nunca recibía la paleta. Los estilos inline NO se pueden sobreescribir con reglas CSS de clases.
+**Fix:** Constantes de marca como variables CSS con fallback (`var(--brand-green, #00833E)`); la raíz del tema inyecta `--brand-green`/`--brand-green-dark` desde la prop `themeColors`; `landing-page.tsx` se la pasa.
+**Archivos:** `frontend/components/home-theme2.tsx`, `frontend/components/landing-page.tsx`
+**Regla:** Todo tema consume la colorimetría vía variables CSS. Nunca hex de marca inline. Ver [[brain/colorimetria]].
+
+### [2026-06-14] — Favicon de pestaña no cambiaba
+**Síntoma:** La pestaña seguía mostrando un icono viejo pese a configurar `metadata.icons`.
+**Causa:** En el App Router de Next, `app/favicon.ico` se sirve automáticamente en `/favicon.ico` y **tiene prioridad** sobre `metadata.icons`. Existía un `.ico` antiguo.
+**Fix:** Se regeneró `app/favicon.ico` desde `public/daimuz-icon.png` (ICO multi-tamaño 16→256).
+**Archivos:** `frontend/app/favicon.ico`, `frontend/app/layout.tsx`, `frontend/components/dynamic-favicon.tsx`
+**Regla:** Si hay `app/favicon.ico`, ese manda sobre el metadata. Cambiar el icono = regenerar ese archivo. Requiere hard-refresh (cache de navegador).
+
 ### [2026-05] — Token en memoria vs localStorage
 **Síntoma:** Al refrescar la página se perdía la sesión  
 **Causa:** El token estaba solo en memoria (auth-store), no persistía  

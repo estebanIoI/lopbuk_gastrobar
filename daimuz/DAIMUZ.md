@@ -40,6 +40,7 @@
 | [[brain/identity]] | Qué es Lopbuk y para quién |
 | [[brain/philosophy]] | Por qué está construido así |
 | [[brain/coding-standards]] | Cómo se escribe el código |
+| [[brain/colorimetria]] | 🎨 Sistema de colorimetría + regla: todo tema la consume |
 | [[brain/ai-behavior]] | Cómo hablarle a Claude |
 | [[brain/naming-conventions]] | Nombres de todo en el sistema |
 | [[brain/variants-and-suppliers]] | ⭐ Variantes + price tiers + proveedores — arquitectura definitiva (4 sprints) |

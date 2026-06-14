@@ -4,6 +4,31 @@
 
 ---
 
+## [2026-06-14] — Colorimetría en Tema 2 + favicon.ico + regla de temas
+
+**Bug:** la paleta del superadmin se generaba y guardaba pero el home (Tema 2,
+`MarketplaceHomeGovCo`) seguía verde. **Causa:** pintaba la marca con estilos
+**inline** (`style={{ background: GREEN }}`) usando constantes JS fijas — los
+estilos inline no se pueden sobreescribir con reglas CSS de clases — y además el
+componente nunca recibía la paleta.
+
+**Fix (patrón A, ahora estándar):**
+- `home-theme2.tsx` — `GREEN`/`GREEN_DARK`/`GOLD` pasan a ser `var(--brand-green, #00833E)` etc.; nueva prop `themeColors`; la raíz inyecta `--brand-green`/`--brand-green-dark` desde la paleta. Todo el home se tiñe sin tocar cada estilo. Fallback al verde DAIMUZ.
+- `landing-page.tsx` — pasa `themeColors={platformThemeColors}` al Tema 2. (El Tema 1 ya se teñía vía remap de clases Tailwind a `--color-primary`.)
+
+**Favicon:** `app/favicon.ico` (App Router) tiene prioridad sobre `metadata.icons`;
+había uno viejo. Se **regeneró desde `daimuz-icon.png`** (ICO 16→256). `layout.tsx`
+y `dynamic-favicon.tsx` ya apuntan a `daimuz-icon.png`.
+
+**Documentación / gobernanza:**
+- `daimuz/brain/colorimetria.md` (nuevo) — doc canónico del sistema + checklist.
+- `governance/universal-constraints.md` y `brain/coding-standards.md` — **regla: todo tema nuevo DEBE consumir la colorimetría; nunca hex de marca inline.**
+
+**Estética home (mismo día):** contenedor `max-w-[1600px]`, tarjetas "Para ti"
+con formato unificado (precio/Disponible, chip de etiqueta, pill de descuento).
+
+---
+
 ## [2026-06-14] — Colorimetría de marca por IA (2 niveles) + fixes favicon/tarjeta
 
 **Arquitectura (decisión):** dos niveles de paleta. Plataforma (superadmin, desde el logo DAIMUZ) → home/marketplace + login + acento por defecto en paneles. Individual del comercio (desde su logo) → su tienda (full color) + solo acento en su panel. Jerarquía de acento: comercio > plataforma > base. Los paneles operativos NO se colorizan por completo (solo acento) para preservar contraste/legibilidad.
