@@ -958,8 +958,16 @@ export function Tienda() {
     )
   }
 
+  // Guardado fijo por pestaña de configuración (barra sticky siempre visible)
+  const tiendaStickyByTab: Partial<Record<ActiveTab, { fn: () => void; busy: boolean; label: string }>> = {
+    contact: { fn: handleSaveContact, busy: savingContact, label: 'Guardar página de contacto' },
+    'age-gate': { fn: handleSaveAgeGate, busy: savingAgeGate, label: 'Guardar verificación de edad' },
+    'order-bump': { fn: handleSaveBumpConfig, busy: savingBump, label: 'Guardar order bump' },
+  }
+  const tiendaActiveSticky = tiendaStickyByTab[activeTab]
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-20">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -2869,6 +2877,17 @@ export function Tienda() {
       )}
 
       {showBuilder && <StoreBuilder onClose={() => setShowBuilder(false)} />}
+
+      {/* ===== Barra de guardado fija (pestañas de configuración) ===== */}
+      {tiendaActiveSticky && (
+        <div className="sticky bottom-3 z-30 mt-6 flex items-center justify-end gap-3 rounded-xl border border-border bg-background/95 backdrop-blur px-4 py-3 shadow-lg">
+          <span className="text-xs text-muted-foreground mr-auto hidden sm:block">Cambios sin guardar</span>
+          <Button onClick={tiendaActiveSticky.fn} disabled={tiendaActiveSticky.busy} className="gap-2">
+            <Save className="h-4 w-4" />
+            {tiendaActiveSticky.busy ? 'Guardando...' : tiendaActiveSticky.label}
+          </Button>
+        </div>
+      )}
     </div>
   )
 }

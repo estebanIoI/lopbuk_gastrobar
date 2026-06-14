@@ -215,7 +215,7 @@ export function Sidebar() {
         <div className="flex h-14 shrink-0 items-center border-b border-black/[0.06] px-3">
           <div data-tour="sidebar-logo" className={cn("flex items-center gap-2.5 min-w-0", !isExpanded && "justify-center w-full")}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={BRAND.isotipo} alt={BRAND.name} width={30} height={30} className="rounded-md shrink-0 object-contain" />
+            <img src={BRAND.icon} alt={BRAND.name} width={30} height={30} className="rounded-md shrink-0 object-contain" />
             {isExpanded && (
               <div className="flex flex-col leading-none min-w-0">
                 <span className="text-sm font-bold text-gray-900 tracking-tight">{BRAND.name}</span>

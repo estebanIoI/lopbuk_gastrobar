@@ -424,6 +424,7 @@ export function MarketplaceHomeGovCo({
   heroSplit = '60-40',
   heroRight = 'producto',
   promoConfig,
+  brandLogo = BRAND.icon,
 }: {
   stores: MarketStore[]
   products: MarketProduct[]
@@ -446,6 +447,8 @@ export function MarketplaceHomeGovCo({
   heroRight?: string
   /** Tarjetas del carrusel "Para ti" (orden + tipo + etiqueta). Si no se pasa, usa el set por defecto. */
   promoConfig?: PromoCardConfig[]
+  /** Logo de la plataforma (configurable desde superadmin). */
+  brandLogo?: string
 }) {
   const [query, setQuery] = useState('')
   const [tab, setTab] = useState<MainTab>('comercios')
@@ -547,7 +550,7 @@ export function MarketplaceHomeGovCo({
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center gap-3 sm:gap-5">
           <button onClick={scrollToGrid} className="flex items-center gap-2 shrink-0">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={BRAND.isotipo} alt={BRAND.name} className="w-9 h-9 object-contain shrink-0" />
+            <img src={brandLogo} alt={BRAND.name} className="w-9 h-9 object-contain rounded-lg shrink-0" />
             <span className="text-lg sm:text-xl font-extrabold tracking-tight" style={{ color: GREEN_DARK }}>{BRAND.name}</span>
           </button>
 
@@ -921,7 +924,7 @@ export function MarketplaceHomeGovCo({
           <div className="col-span-2 md:col-span-1">
             <div className="flex items-center gap-2 mb-3">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={BRAND.isotipo} alt={BRAND.name} className="w-8 h-8 object-contain bg-white rounded-lg p-0.5" />
+              <img src={brandLogo} alt={BRAND.name} className="w-8 h-8 object-contain rounded-lg" />
               <span className="text-lg font-extrabold">{BRAND.name}</span>
             </div>
             <p className="text-sm text-white/70">Marketplace de comercios locales. Encuentra tiendas, productos y ofertas cerca de ti.</p>

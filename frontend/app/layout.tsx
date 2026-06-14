@@ -23,8 +23,8 @@ export const metadata: Metadata = {
   manifest: '/manifest.json',
   applicationName: 'DAIMUZ',
   icons: {
-    icon: BRAND_ISOTIPO,
-    shortcut: BRAND_ISOTIPO,
+    icon: BRAND_ICON,
+    shortcut: BRAND_ICON,
     apple: BRAND_ICON,
   },
   openGraph: {

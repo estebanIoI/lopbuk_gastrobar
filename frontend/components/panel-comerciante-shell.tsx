@@ -259,7 +259,7 @@ export function PanelComercianteShell() {
         <div className="pc-brand" onClick={() => go('dashboard')}>
           <div className="pc-logo-mark">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/daimuz-isotipo.png" alt="Logo" onError={(e) => { (e.currentTarget.style.display = 'none') }} />
+            <img src="/daimuz-icon.png" alt="Logo" onError={(e) => { (e.currentTarget.style.display = 'none') }} />
             <span className="pc-logo-fallback">{(storeInfo?.name || 'L').charAt(0).toUpperCase()}</span>
           </div>
           <div className="pc-brand-text">

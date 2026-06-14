@@ -666,8 +666,18 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
     )
   }
 
+  // Guardado fijo por pestaña (barra sticky siempre visible)
+  const stickySaveByTab: Partial<Record<Tab, { fn: () => void; busy: boolean; label: string }>> = {
+    banners: { fn: handleSaveBanner, busy: saving, label: editingBannerId ? 'Actualizar banner' : 'Guardar banner' },
+    announcement: { fn: handleSaveAnnouncement, busy: saving, label: 'Guardar barra de anuncio' },
+    info: { fn: handleSaveStoreInfo, busy: saving, label: 'Guardar información' },
+    chatbot: { fn: handleSaveChatbot, busy: isSavingChatbot, label: 'Guardar chatbot' },
+    carrito: { fn: handleSaveCartSettings, busy: isSavingCartSettings, label: 'Guardar carrito' },
+  }
+  const activeSticky = stickySaveByTab[activeTab]
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-20">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -2328,6 +2338,19 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
             </CardContent>
           </Card>
 
+        </div>
+      )}
+
+      {/* ===== Barra de guardado fija (siempre visible) ===== */}
+      {activeSticky && (
+        <div className="sticky bottom-3 z-30 mt-6 flex items-center justify-end gap-3 rounded-xl border border-border bg-background/95 backdrop-blur px-4 py-3 shadow-lg">
+          <span className="text-xs text-muted-foreground mr-auto hidden sm:block">
+            Sección: {tabs.find(t => t.key === activeTab)?.label}
+          </span>
+          <Button onClick={activeSticky.fn} disabled={activeSticky.busy} className="gap-2">
+            <Save className="h-4 w-4" />
+            {activeSticky.busy ? 'Guardando...' : activeSticky.label}
+          </Button>
         </div>
       )}
     </div>

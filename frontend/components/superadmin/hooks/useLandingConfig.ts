@@ -40,6 +40,11 @@ export function useLandingConfig() {
   const [loginImageUrl, setLoginImageUrl] = useState('')
   const [isSavingLogin, setIsSavingLogin] = useState(false)
 
+  // Logo / favicon de la plataforma (DAIMUZ). Por defecto el icono navy.
+  const DEFAULT_PLATFORM_LOGO = '/daimuz-icon.png'
+  const [platformLogo, setPlatformLogo] = useState(DEFAULT_PLATFORM_LOGO)
+  const [isSavingPlatformLogo, setIsSavingPlatformLogo] = useState(false)
+
   // Theme
   const [panelTheme, setPanelTheme] = useState<'classic' | 'comerciante'>('classic')
   const [isSavingTheme, setIsSavingTheme] = useState(false)
@@ -82,6 +87,7 @@ export function useLandingConfig() {
       if (result.data.hero_title) setHeroTitle(result.data.hero_title)
       if (result.data.hero_subtitle) setHeroSubtitle(result.data.hero_subtitle)
       if (result.data.login_image_url) setLoginImageUrl(result.data.login_image_url)
+      if (result.data.platform_logo) setPlatformLogo(result.data.platform_logo)
       if (result.data.panel_theme === 'comerciante' || result.data.panel_theme === 'classic') {
         setPanelTheme(result.data.panel_theme)
       }
@@ -152,6 +158,16 @@ export function useLandingConfig() {
       else toast.error('Error al guardar algunos campos')
     } catch { toast.error('Error de conexión') }
     setIsSavingHero(false)
+  }
+
+  const handleSavePlatformLogo = async (value?: string) => {
+    const next = (value ?? platformLogo) || DEFAULT_PLATFORM_LOGO
+    setPlatformLogo(next)
+    setIsSavingPlatformLogo(true)
+    const result = await api.updatePlatformSetting('platform_logo', next)
+    if (result.success) toast.success('Logo de la plataforma actualizado')
+    else toast.error(result.error || 'Error al guardar el logo')
+    setIsSavingPlatformLogo(false)
   }
 
   const handleSaveLoginImage = async () => {
@@ -319,6 +335,8 @@ export function useLandingConfig() {
     isSavingHero, handleSaveHero,
     // login
     loginImageUrl, setLoginImageUrl, isSavingLogin, handleSaveLoginImage,
+    // logo/favicon de plataforma
+    platformLogo, setPlatformLogo, isSavingPlatformLogo, handleSavePlatformLogo,
     // theme
     panelTheme, isSavingTheme, handleSavePanelTheme,
     // home theme + carrusel hero

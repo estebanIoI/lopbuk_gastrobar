@@ -20,6 +20,7 @@ export function LandingConfigTab() {
     heroUrl, setHeroUrl, heroTitle, setHeroTitle, heroSubtitle, setHeroSubtitle,
     isSavingHero, handleSaveHero,
     loginImageUrl, setLoginImageUrl, isSavingLogin, handleSaveLoginImage,
+    platformLogo, setPlatformLogo, isSavingPlatformLogo, handleSavePlatformLogo,
     panelTheme, isSavingTheme, handleSavePanelTheme,
     homeTheme, isSavingHomeTheme, handleSaveHomeTheme,
     heroSlides, isSavingSlides, addSlide, updateSlide, removeSlide, moveSlide, handleSaveHeroSlides,
@@ -35,6 +36,61 @@ export function LandingConfigTab() {
 
   return (
     <div className="space-y-6">
+
+      {/* Logo / Favicon de la plataforma (DAIMUZ) */}
+      <Card className="border-border bg-card">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base lg:text-lg flex items-center gap-2">
+            <ImageIcon className="h-5 w-5 text-muted-foreground" />
+            Logo / Favicon de la plataforma
+          </CardTitle>
+          <CardDescription>
+            Logo que se muestra en la página de inicio (navbar) y en la pestaña del navegador (favicon). Por defecto el icono DAIMUZ.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 rounded-lg border border-border bg-muted/30 flex items-center justify-center overflow-hidden shrink-0">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={platformLogo} alt="Logo plataforma" className="w-full h-full object-contain" onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0.3' }} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <Label className="text-xs">Presets DAIMUZ</Label>
+              <div className="flex flex-wrap gap-2 mt-1.5">
+                {([
+                  { url: '/daimuz-icon.png', label: 'Icono (recomendado)' },
+                  { url: '/daimuz-isotipo.png', label: 'Insignia' },
+                  { url: '/daimuz-icon-transparent.png', label: 'Transparente' },
+                ] as const).map(p => (
+                  <button key={p.url} type="button" disabled={isSavingPlatformLogo} onClick={() => handleSavePlatformLogo(p.url)}
+                    className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-xs transition-colors ${platformLogo === p.url ? 'border-primary bg-primary/5 text-primary' : 'border-border hover:bg-muted'}`}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={p.url} alt="" className="w-5 h-5 object-contain rounded" />
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-xs">O sube tu propio logo</Label>
+            <CloudinaryUpload
+              value={platformLogo.startsWith('/') ? '' : platformLogo}
+              onChange={(url) => setPlatformLogo(url || '/daimuz-icon.png')}
+              accept="image/*,.png,.svg"
+              previewClassName="w-16 h-16 object-contain rounded-lg border border-border"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <Button size="sm" onClick={() => handleSavePlatformLogo()} disabled={isSavingPlatformLogo}>
+              {isSavingPlatformLogo ? 'Guardando...' : 'Guardar logo'}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => handleSavePlatformLogo('/daimuz-icon.png')} disabled={isSavingPlatformLogo}>
+              Restablecer al icono DAIMUZ
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Hero Principal */}
       <Card className="border-border bg-card">
