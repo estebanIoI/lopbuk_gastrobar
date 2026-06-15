@@ -47,6 +47,7 @@ export function PortfolioTab() {
     pfFeaturedIds, setPfFeaturedIds, pfContactEmail, setPfContactEmail,
     pfContactWhatsapp, setPfContactWhatsapp, pfContactInstagram, setPfContactInstagram,
     pfAccentColor, setPfAccentColor, pfIsPublished, setPfIsPublished,
+    pfRobotSpline, setPfRobotSpline,
     pfTenants, pfLoading, pfSaving, pfSaved, handleSavePortfolio,
     teamCards, teamLoading, teamDialog, setTeamDialog,
     editingCard, teamForm, setTeamForm, teamSaving, teamDeletingId,
@@ -155,6 +156,11 @@ export function PortfolioTab() {
           <div className="space-y-1.5">
             <Label className="text-xs">Imagen / logo del hero</Label>
             <CloudinaryUpload value={pfHeroImage} onChange={(url: string) => setPfHeroImage(url)} label="Subir imagen del hero" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Robot 3D — URL de Spline (escena)</Label>
+            <Input value={pfRobotSpline} onChange={e => setPfRobotSpline(e.target.value)} placeholder="https://prod.spline.design/XXXX/scene.splinecode" />
+            <p className="text-[11px] text-muted-foreground">URL .splinecode de tu escena de Spline. Vacío = robot DAIMUZ por defecto. El asistente debe estar habilitado en Integraciones.</p>
           </div>
           <div className="flex items-center gap-3">
             <Label className="text-xs">Color de acento</Label>

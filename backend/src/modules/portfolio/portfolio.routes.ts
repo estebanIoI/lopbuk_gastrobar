@@ -73,6 +73,7 @@ router.get('/public', async (_req: Request, res: Response) => {
         contactInstagram: config.contact_instagram || null,
         accentColor: config.accent_color || '#6366f1',
         isPublished: config.is_published !== undefined ? Boolean(config.is_published) : true,
+        robotSplineUrl: config.robot_spline_url || '',
         featuredStores,
       },
     });
@@ -123,6 +124,7 @@ router.get('/config', authenticate, async (req: Request, res: Response) => {
         contactInstagram: config.contact_instagram || '',
         accentColor: config.accent_color || '#6366f1',
         isPublished: config.is_published !== undefined ? Boolean(config.is_published) : true,
+        robotSplineUrl: config.robot_spline_url || '',
         tenants: tenants || [],
       },
     });
@@ -147,8 +149,16 @@ router.put('/config', authenticate, async (req: Request, res: Response) => {
       heroTitle, heroSubtitle, heroImageUrl, brandDescription,
       showPricing, showFeaturedStores, featuredTenantIds,
       contactEmail, contactWhatsapp, contactInstagram,
-      accentColor, isPublished,
+      accentColor, isPublished, robotSplineUrl,
     } = req.body;
+
+    // Migración idempotente: columna del robot 3D (URL de Spline).
+    try {
+      const [rcols] = await pool.query(
+        `SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'portfolio_config' AND COLUMN_NAME = 'robot_spline_url'`
+      ) as any;
+      if (!rcols.length) await pool.query('ALTER TABLE portfolio_config ADD COLUMN robot_spline_url TEXT NULL');
+    } catch { /* tabla aun no existe; se crea en el upsert */ }
 
     const doUpsert = async () => {
       await pool.query(
@@ -156,8 +166,8 @@ router.put('/config', authenticate, async (req: Request, res: Response) => {
            (id, hero_title, hero_subtitle, hero_image_url, brand_description,
             show_pricing, show_featured_stores, featured_tenant_ids,
             contact_email, contact_whatsapp, contact_instagram,
-            accent_color, is_published)
-         VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            accent_color, is_published, robot_spline_url)
+         VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE
            hero_title = VALUES(hero_title),
            hero_subtitle = VALUES(hero_subtitle),
@@ -170,7 +180,8 @@ router.put('/config', authenticate, async (req: Request, res: Response) => {
            contact_whatsapp = VALUES(contact_whatsapp),
            contact_instagram = VALUES(contact_instagram),
            accent_color = VALUES(accent_color),
-           is_published = VALUES(is_published)`,
+           is_published = VALUES(is_published),
+           robot_spline_url = VALUES(robot_spline_url)`,
         [
           heroTitle || 'DAIMUZ',
           heroSubtitle || '',
@@ -184,6 +195,7 @@ router.put('/config', authenticate, async (req: Request, res: Response) => {
           contactInstagram || '',
           accentColor || '#6366f1',
           isPublished ? 1 : 0,
+          robotSplineUrl || '',
         ]
       );
     };
@@ -208,6 +220,7 @@ router.put('/config', authenticate, async (req: Request, res: Response) => {
             contact_instagram VARCHAR(255),
             accent_color  VARCHAR(30) NOT NULL DEFAULT '#6366f1',
             is_published  TINYINT(1) NOT NULL DEFAULT 1,
+            robot_spline_url TEXT,
             created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
           ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci

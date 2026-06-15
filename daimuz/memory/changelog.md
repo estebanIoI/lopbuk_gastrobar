@@ -4,6 +4,31 @@
 
 ---
 
+## [2026-06-15] — Cerebro v4 + visión Empresa/Ramas/DAIMUZ Chat
+
+Se actualizó el cerebro a la estructura **DAIMUZ v4** (`brain/daimuzv4.md`) y se
+centralizó la visión de producto:
+
+- **Empresa y ramas** (`brain/empresa-y-ramas.md`): DAIMUZ = empresa con ramas; la **rama Comercio** es el núcleo (`branches/comercio.md`).
+- **DAIMUZ Chat** (`brain/daimuz-chat.md`): los dos modos de operar un comercio — **Operativo** (gestionas módulos) y **ControlChat** (la IA opera todo: publicaciones, catálogo, módulos), gateado por **membresía con chat**, con **panel independiente** del chat. Roadmap técnico: dar al `agent/` herramientas que ACTÚAN + permisos + aprobación + auditoría.
+- **Capas v4 nuevas**: `graph/` (entities, relations, impact-map), `agents/` (incl. `daimuz-chat-agent`), `tasks/` (template + index), `governance/security-policy.md` y `approval-policy.md`.
+- `DAIMUZ.md` actualizado con la sección "Empresa y Ramas (v4)".
+
+---
+
+## [2026-06-14] — Portafolio: tarjetas Lanyard 3D + robot IA público
+
+**Tarjetas del equipo = Lanyard 3D** (`@react-three/*`, ver package.json). Foto del dev → textura del carnet; banda/cordón configurable por tarjeta (columna `portfolio_team_cards.band_image_url`, migración idempotente). Componentes en `frontend/components/portfolio/` (`lanyard.tsx`, `lanyard-showpiece.tsx`). Assets: `public/models/card.glb`, `public/assets/lanyard.png`.
+
+**Robot flotante con IA (portafolio)**
+- Robot Spline vía web component `<spline-viewer>` por CDN (sin deps npm). Chat debajo + "nubecitas" arriba con la respuesta. `frontend/components/portfolio/robot-assistant.tsx`.
+- **Asistente público nuevo**: `runPublicAssistant()` en `assistant.service.ts` (sin tools ni datos internos, prompt de portafolio) expuesto en `POST /chatbot/platform-assistant/message` (público). Requiere el asistente de plataforma **habilitado** + clave IA (Gemini/Groq).
+- URL de la escena del robot configurable desde superadmin → `portfolio_config.robot_spline_url` (migración idempotente); campo en PortfolioTab.
+
+**⚠️ Incidente de fiabilidad:** en este entorno las ediciones del editor truncan archivos en disco; se hizo todo con bash/python y verificación en disco. Ver [[memory/important-fixes]] y [[memory/lessons-learned]].
+
+---
+
 ## [2026-06-14] — Colorimetría en Tema 2 + favicon.ico + regla de temas
 
 **Bug:** la paleta del superadmin se generaba y guardaba pero el home (Tema 2,
@@ -390,55 +415,4 @@ Tabs finales: Hoy . Rutina . Cocina . Plan . Compras . Gym (si miembro).
 
 ### Completado
 - **Fase 1 -- RAG + Function Calling**: agente responde con contexto del negocio
-- **Fase 2 -- WhatsApp (Evolution API v2)**: webhook configurado, mensajes entrantes/salientes
-- Fix `agent.service.ts`: productos solo se sugieren cuando el mensaje lo pide explicitamente
-- Fix `whatsapp.service.ts`: `setWebhook` corregido al formato plano de Evolution API v2
-
----
-
-## [Mayo 2026] — Estado del ecosistema completo
-
-### Sistema Core
-- Multi-tenancy por columna (`tenant_id`)
-- Auth JWT + httpOnly cookie + Google OAuth
-- Modulos activables por tenant
-- Multi-sede (sucursales)
-- 10 roles con permisos diferenciados
-
-### Operaciones de Negocio
-- POS completo (carrito, descuentos, multiples pagos, impresion)
-- Cierres de caja con arqueo
-- Kardex completo (entrada, salida, ajuste, merma, transferencia)
-- Recetas BOM con food cost automatico
-- Control de merma con justificaciones
-- Niveles PAR y alertas de reorden
-- Compras a proveedores
-
-### Gastrobar
-- Mesas con estados, comandas, reservas
-- Panel de cocina, bartender, mesero, cajero
-- Cajero: cobro por comensal o mesa completa + division igualitaria
-
-### Clientes y Finanzas
-- CRM basico con historial de compras
-- Fiados y creditos con control de cupo
-- Flujo de caja (ingresos, egresos, P&L)
-
-### Delivery y Digital
-- Pedidos con estados completos + asignacion de conductores
-- Storefront publico por slug unico
-- Checkout de tienda online
-- Landing page personalizable por tenant
-- Portafolio de proyectos/servicios
-- Menu digital publico
-
-### Integraciones
-- Stripe (pagos + suscripciones SaaS)
-- WhatsApp Business API (Evolution API v2)
-- Google OAuth
-- Cloudinary (imagenes)
-- Impresoras termicas (POS)
-
----
-
-[[current-state]] | [[DAIMUZ]] | -> [[completed-features]]
+- **Fase 2 -- WhatsApp (Evolution API v2)**: webhook configurado, mensajes entra

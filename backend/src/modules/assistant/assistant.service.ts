@@ -293,3 +293,61 @@ export async function isPlatformAssistantEnabled(): Promise<boolean> {
   const rows = await q("SELECT setting_value v FROM platform_settings WHERE setting_key='platform_assistant_enabled' LIMIT 1");
   return rows?.[0]?.v === '1' || rows?.[0]?.v === 'true';
 }
+
+// ─────────────────────────────────────────────────────────────
+// Asistente PÚBLICO (robot del portafolio). Sin herramientas ni
+// acceso a datos internos: solo responde sobre DAIMUZ y sus servicios.
+// ─────────────────────────────────────────────────────────────
+const PUBLIC_PROMPT = `Eres el asistente virtual de DAIMUZ, una plataforma SaaS colombiana de gestión para negocios (POS, inventario, facturación, tienda en línea, restaurante, delivery, finanzas y más). Hablas en español, con tono cercano, claro y breve (2-4 frases). Ayudas a visitantes del portafolio: explicas qué es DAIMUZ, sus módulos, planes y beneficios, y los invitas a solicitar una demo por WhatsApp. No tienes acceso a datos privados ni a cuentas; si te piden algo interno o de una tienda específica, sugiéreles contactar al equipo. No inventes precios exactos: si preguntan, di que dependen del plan y que pueden verlos en la sección de planes.`;
+
+export async function runPublicAssistant(
+  message: string,
+  history: { role: string; content: string }[] = [],
+): Promise<{ reply: string }> {
+  const apiKey = await getAssistantKey();
+  if (!apiKey) return { reply: 'El asistente aún no está configurado. Vuelve pronto. 🙂' };
+
+  // Groq (OpenAI-compatible)
+  if (apiKey.startsWith('gsk_')) {
+    const messages = [
+      { role: 'system', content: PUBLIC_PROMPT },
+      ...history.slice(-8).map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content })),
+      { role: 'user', content: message },
+    ];
+    const r = await fetch(GROQ_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ model: GROQ_MODEL, messages, max_tokens: 500, temperature: 0.6 }),
+    });
+    if (!r.ok) {
+      if (r.status === 429) return { reply: 'Muchas consultas a la vez, intenta en unos segundos. 🙏' };
+      return { reply: 'No pude responder en este momento, intenta de nuevo.' };
+    }
+    const d = await r.json() as any;
+    return { reply: d.choices?.[0]?.message?.content || 'No pude procesar tu mensaje.' };
+  }
+
+  // Gemini
+  if (apiKey.startsWith('AIza')) {
+    const contents = [...history.slice(-8), { role: 'user', content: message }]
+      .filter(m => m.role !== 'system')
+      .map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }));
+    const r = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        system_instruction: { parts: [{ text: PUBLIC_PROMPT }] },
+        contents,
+        generationConfig: { maxOutputTokens: 500, temperature: 0.6 },
+      }),
+    });
+    if (!r.ok) {
+      if (r.status === 429) return { reply: 'Muchas consultas a la vez, intenta en unos segundos. 🙏' };
+      return { reply: 'No pude responder en este momento, intenta de nuevo.' };
+    }
+    const d = await r.json() as any;
+    return { reply: d.candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text || 'No pude procesar tu mensaje.' };
+  }
+
+  return { reply: 'La clave de IA configurada no es compatible.' };
+}

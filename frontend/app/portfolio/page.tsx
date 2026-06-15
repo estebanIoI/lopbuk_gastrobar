@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { AnimatedThemeToggler } from '@/components/ui/animated-theme-toggler'
 import { LanyardShowpiece } from '@/components/portfolio/lanyard-showpiece'
+import { RobotAssistant } from '@/components/portfolio/robot-assistant'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'
 
@@ -43,6 +44,7 @@ interface PortfolioData {
   accentColor: string
   isPublished: boolean
   featuredStores: FeaturedStore[]
+  robotSplineUrl?: string
 }
 
 // ─── Planes DAIMUZ ────────────────────────────────────────────────────────────
@@ -295,10 +297,9 @@ function TeamCarousel({ cards, brandTitle, accentColor }: {
 
       {/* Tarjeta del desarrollador = carnet 3D colgante (Lanyard).
           La foto se mapea sobre el carnet; la banda/cordon es configurable por tarjeta. */}
-      <div style={{ width: 340, maxWidth: '90vw' }}>
+      <div style={{ width: 380, maxWidth: '92vw' }}>
         <LanyardShowpiece
-          key={card.id}
-          height={460}
+          height={540}
           cardImageUrl={card.photo_url || ''}
           bandImageUrl={card.band_image_url || ''}
         />
@@ -1456,6 +1457,16 @@ export default function PortfolioPage() {
           </div>
         </section>
       )}
+
+      {/* ── ASISTENTE ROBOT (IA) ──────────────────────────────────────────── */}
+      <section id="asistente" className="py-16 sm:py-24 px-6">
+        <div className="max-w-3xl mx-auto text-center">
+          <p className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: accent }}>Asistente IA</p>
+          <h2 className="text-3xl sm:text-4xl font-bold mb-3">Habla con nuestro robot</h2>
+          <p className="text-sm mb-8" style={{ color: 'var(--pf-muted)' }}>Pregúntale sobre DAIMUZ, los planes o pídele una demo. Responde en tiempo real.</p>
+          <RobotAssistant accent={accent} sceneUrl={data?.robotSplineUrl || undefined} />
+        </div>
+      </section>
 
       {/* ── CARACTERÍSTICAS ───────────────────────────────────────────────── */}
       <section id="caracteristicas" className="py-16 sm:py-24 px-6 max-w-6xl mx-auto">

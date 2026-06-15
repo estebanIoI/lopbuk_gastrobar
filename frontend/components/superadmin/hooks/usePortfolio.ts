@@ -63,6 +63,7 @@ export function usePortfolio() {
   const [pfContactInstagram, setPfContactInstagram] = useState('')
   const [pfAccentColor, setPfAccentColor] = useState('#6366f1')
   const [pfIsPublished, setPfIsPublished] = useState(true)
+  const [pfRobotSpline, setPfRobotSpline] = useState('')
   const [pfTenants, setPfTenants] = useState<PortfolioTenant[]>([])
   const [pfLoading, setPfLoading] = useState(false)
   const [pfSaving, setPfSaving] = useState(false)
@@ -120,6 +121,7 @@ export function usePortfolio() {
       setPfContactInstagram(d.contactInstagram || '')
       setPfAccentColor(d.accentColor || '#6366f1')
       setPfIsPublished(d.isPublished ?? true)
+      setPfRobotSpline(d.robotSplineUrl || '')
       setPfTenants(d.tenants || [])
     }
     setPfLoading(false)
@@ -163,6 +165,7 @@ export function usePortfolio() {
       showFeaturedStores: pfShowStores, featuredTenantIds: pfFeaturedIds,
       contactEmail: pfContactEmail, contactWhatsapp: pfContactWhatsapp,
       contactInstagram: pfContactInstagram, accentColor: pfAccentColor, isPublished: pfIsPublished,
+      robotSplineUrl: pfRobotSpline,
     })
     if (res.success) {
       setPfSaved(true); toast.success('Portafolio guardado')
@@ -306,6 +309,7 @@ export function usePortfolio() {
     pfFeaturedIds, setPfFeaturedIds, pfContactEmail, setPfContactEmail,
     pfContactWhatsapp, setPfContactWhatsapp, pfContactInstagram, setPfContactInstagram,
     pfAccentColor, setPfAccentColor, pfIsPublished, setPfIsPublished,
+    pfRobotSpline, setPfRobotSpline,
     pfTenants, pfLoading, pfSaving, pfSaved, handleSavePortfolio,
     // team
     teamCards, teamLoading, teamDialog, setTeamDialog,

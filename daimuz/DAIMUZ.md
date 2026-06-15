@@ -5,6 +5,22 @@
 
 ---
 
+## 🏢 Empresa y Ramas (v4)
+
+> DAIMUZ es una **empresa con ramas**. La rama Comercio es el núcleo; el DAIMUZ Chat es la IA transversal que puede **operar** el negocio.
+
+| Nodo | Para qué |
+|---|---|
+| [[brain/empresa-y-ramas]] | 🏢 Visión central: empresa → ramas → modos Operativo/ControlChat |
+| [[brain/daimuz-chat]] | 🤖 DAIMUZ Chat: IA que opera el negocio (panel propio, gating por plan) |
+| [[branches/comercio]] | 🛒 Base de la rama Comercio (SaaS multi-tenant) |
+| [[graph/entities]] · [[graph/impact-map]] | 🕸️ Knowledge graph (entidades + impacto) |
+| [[agents/README]] · [[agents/daimuz-chat-agent]] | 🧑‍💻 Arnés de agentes (incl. ControlChat) |
+| [[governance/approval-policy]] · [[governance/security-policy]] | ✅🔒 Qué exige aprobación / reglas de seguridad |
+| [[tasks/task-template]] · [[indexes/tasks-index]] | 🗂️ Capa de tareas v4 |
+
+---
+
 ## ⚡ Acceso Rápido (Indexes)
 
 > Empieza aquí si no sabes en qué módulo está lo que buscas.
@@ -40,6 +56,8 @@
 | [[brain/identity]] | Qué es Lopbuk y para quién |
 | [[brain/philosophy]] | Por qué está construido así |
 | [[brain/coding-standards]] | Cómo se escribe el código |
+| [[brain/empresa-y-ramas]] | 🏢 Empresa, ramas y modos Operativo/ControlChat |
+| [[brain/daimuz-chat]] | 🤖 DAIMUZ Chat: IA que opera el negocio |
 | [[brain/colorimetria]] | 🎨 Sistema de colorimetría + regla: todo tema la consume |
 | [[brain/ai-behavior]] | Cómo hablarle a Claude |
 | [[brain/naming-conventions]] | Nombres de todo en el sistema |
@@ -57,6 +75,8 @@
 | [[governance/universal-constraints]] | Multi-tenant, soft-delete, stock, auth pattern, código |
 | [[governance/why-decisions]] | Por qué existen esas reglas (razonamiento) |
 | [[governance/update-protocol]] | Cuándo y dónde actualizar cada parte de DAIMUZ |
+| [[governance/security-policy]] | 🔒 Tenant isolation, auth, chat que actúa |
+| [[governance/approval-policy]] | ✅ Qué exige aprobación humana (incl. ControlChat) |
 
 ---
 
@@ -317,4 +337,4 @@ memory/lessons-learned.md (si aplica), memory/completed-features.md (si aplica).
 
 ---
 
-*⬡ DAIMUZ v3.9 — 37 módulos backend · 88 componentes frontend · 11 rutas app/ · 4 indexes completos · 43 compressed.md · 5 sinapsis · ontología · governance · memoria episódica · brain/variants-and-suppliers*
+*⬡ DAIMUZ v3.9 — 37 módulos backend · 88 componentes frontend · 11 rutas app/ · 4 indexes completos · 43 compressed.md · 5 sin

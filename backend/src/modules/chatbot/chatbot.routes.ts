@@ -8,6 +8,7 @@ import {
   saveMessage,
   processAgentMessage,
 } from '../agent/agent.service';
+import { runPublicAssistant, isPlatformAssistantEnabled } from '../assistant/assistant.service';
 
 const router: ReturnType<typeof Router> = Router();
 
@@ -123,6 +124,26 @@ router.post('/message', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Chatbot message error:', error);
     res.status(500).json({ success: false, error: 'Error al procesar el mensaje' });
+  }
+});
+
+// =============================================
+// PUBLIC: POST asistente de plataforma (robot del portafolio)
+// POST /api/chatbot/platform-assistant/message
+// =============================================
+router.post('/platform-assistant/message', async (req: Request, res: Response) => {
+  try {
+    if (!(await isPlatformAssistantEnabled())) {
+      res.status(403).json({ success: false, error: 'El asistente no esta habilitado' });
+      return;
+    }
+    const { message, history } = req.body || {};
+    if (!message?.trim()) { res.status(400).json({ success: false, error: 'Mensaje requerido' }); return; }
+    const data = await runPublicAssistant(message.trim(), Array.isArray(history) ? history : []);
+    res.json({ success: true, data });
+  } catch (err) {
+    console.error('Public assistant error:', err);
+    res.status(500).json({ success: false, error: 'Error en el asistente' });
   }
 });
 

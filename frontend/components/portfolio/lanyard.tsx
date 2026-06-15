@@ -4,7 +4,7 @@
 // Credencial 3D colgante (Lanyard) — réplica del portafolio de Esteban.
 // Texturas configurables: cardImageUrl (foto sobre el carnet) y bandImageUrl (cordón).
 // Assets en /public: models/card.glb y assets/lanyard.png
-import { useEffect, useRef, useState } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import { Canvas, extend, useFrame } from '@react-three/fiber'
 import { useGLTF, useTexture, Environment, Lightformer } from '@react-three/drei'
 import { BallCollider, CuboidCollider, Physics, RigidBody, useRopeJoint, useSphericalJoint } from '@react-three/rapier'
@@ -19,7 +19,7 @@ const TRANSPARENT_PX =
 extend({ MeshLineGeometry, MeshLineMaterial })
 
 export default function Lanyard({
-  position = [0, 0, 30],
+  position = [0, 0, 20],
   gravity = [0, -40, 0],
   fov = 20,
   transparent = true,
@@ -35,7 +35,9 @@ export default function Lanyard({
       >
         <ambientLight intensity={Math.PI} />
         <Physics gravity={gravity} timeStep={1 / 60}>
-          <Band cardImageUrl={cardImageUrl} bandImageUrl={bandImageUrl} />
+          <Suspense fallback={null}>
+            <Band cardImageUrl={cardImageUrl} bandImageUrl={bandImageUrl} />
+          </Suspense>
         </Physics>
         <Environment blur={0.75}>
           <Lightformer intensity={2} color="white" position={[0, -1, 5]} rotation={[0, 0, Math.PI / 3]} scale={[100, 0.1, 1]} />
@@ -139,7 +141,7 @@ function Band({ maxSpeed = 50, minSpeed = 0, cardImageUrl = '', bandImageUrl = '
             onPointerDown={(e) => (e.target.setPointerCapture(e.pointerId), drag(new THREE.Vector3().copy(e.point).sub(vec.copy(card.current.translation()))))}
           >
             <mesh geometry={nodes.card.geometry}>
-              <meshPhysicalMaterial map={cardImageUrl ? cardTexture : materials.base.map} map-anisotropy={16} clearcoat={1} clearcoatRoughness={0.15} roughness={0.9} metalness={0.8} />
+              <meshPhysicalMaterial map={cardImageUrl ? cardTexture : null} color={cardImageUrl ? '#ffffff' : '#0d1326'} map-anisotropy={16} clearcoat={1} clearcoatRoughness={0.15} roughness={0.9} metalness={0.8} />
             </mesh>
             <mesh geometry={nodes.clip.geometry} material={materials.metal} material-roughness={0.3} />
             <mesh geometry={nodes.clamp.geometry} material={materials.metal} />
