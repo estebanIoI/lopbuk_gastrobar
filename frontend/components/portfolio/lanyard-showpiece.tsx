@@ -41,11 +41,19 @@ function StaticBadge({ subtitle }: { subtitle?: string }) {
   )
 }
 
-export function LanyardShowpiece({ height = 480 }: { height?: number | string }) {
+export function LanyardShowpiece({
+  height = 480,
+  cardImageUrl = '',
+  bandImageUrl = '',
+}: {
+  height?: number | string
+  cardImageUrl?: string
+  bandImageUrl?: string
+}) {
   return (
     <div style={{ width: '100%', height }}>
       <LanyardErrorBoundary>
-        <Lanyard />
+        <Lanyard cardImageUrl={cardImageUrl} bandImageUrl={bandImageUrl} />
       </LanyardErrorBoundary>
     </div>
   )

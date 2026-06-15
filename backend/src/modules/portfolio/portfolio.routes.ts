@@ -245,6 +245,14 @@ async function ensureTeamTable() {
       updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
+  // Migración idempotente: imagen de la banda/cordón del carnet 3D (por tarjeta).
+  const [cols] = await pool.query(
+    `SELECT COLUMN_NAME FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'portfolio_team_cards' AND COLUMN_NAME = 'band_image_url'`
+  ) as any;
+  if (!cols.length) {
+    await pool.query('ALTER TABLE portfolio_team_cards ADD COLUMN band_image_url TEXT NULL AFTER photo_url');
+  }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -289,12 +297,12 @@ router.post('/team', authenticate, async (req: Request, res: Response) => {
     const user = (req as any).user;
     if (user.role !== 'superadmin') { res.status(403).json({ success: false, error: 'Solo superadmin' }); return; }
     await ensureTeamTable();
-    const { name, role, bio, photoUrl, accentColor, sortOrder, isActive, githubUrl, linkedinUrl } = req.body;
+    const { name, role, bio, photoUrl, bandImageUrl, accentColor, sortOrder, isActive, githubUrl, linkedinUrl } = req.body;
     if (!name) { res.status(400).json({ success: false, error: 'Nombre requerido' }); return; }
     const [result] = await pool.query(
-      `INSERT INTO portfolio_team_cards (name, role, bio, photo_url, accent_color, sort_order, is_active, github_url, linkedin_url)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [name, role || '', bio || '', photoUrl || '', accentColor || '#06b6d4', sortOrder ?? 0, isActive !== false ? 1 : 0, githubUrl || '', linkedinUrl || '']
+      `INSERT INTO portfolio_team_cards (name, role, bio, photo_url, band_image_url, accent_color, sort_order, is_active, github_url, linkedin_url)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [name, role || '', bio || '', photoUrl || '', bandImageUrl || '', accentColor || '#06b6d4', sortOrder ?? 0, isActive !== false ? 1 : 0, githubUrl || '', linkedinUrl || '']
     ) as any;
     res.json({ success: true, id: result.insertId });
   } catch (err) {
@@ -312,12 +320,12 @@ router.put('/team/:id', authenticate, async (req: Request, res: Response) => {
     if (user.role !== 'superadmin') { res.status(403).json({ success: false, error: 'Solo superadmin' }); return; }
     await ensureTeamTable();
     const { id } = req.params;
-    const { name, role, bio, photoUrl, accentColor, sortOrder, isActive, githubUrl, linkedinUrl } = req.body;
+    const { name, role, bio, photoUrl, bandImageUrl, accentColor, sortOrder, isActive, githubUrl, linkedinUrl } = req.body;
     await pool.query(
       `UPDATE portfolio_team_cards
-       SET name=?, role=?, bio=?, photo_url=?, accent_color=?, sort_order=?, is_active=?, github_url=?, linkedin_url=?, updated_at=NOW()
+       SET name=?, role=?, bio=?, photo_url=?, band_image_url=?, accent_color=?, sort_order=?, is_active=?, github_url=?, linkedin_url=?, updated_at=NOW()
        WHERE id=?`,
-      [name, role || '', bio || '', photoUrl || '', accentColor || '#06b6d4', sortOrder ?? 0, isActive !== false ? 1 : 0, githubUrl || '', linkedinUrl || '', id]
+      [name, role || '', bio || '', photoUrl || '', bandImageUrl || '', accentColor || '#06b6d4', sortOrder ?? 0, isActive !== false ? 1 : 0, githubUrl || '', linkedinUrl || '', id]
     );
     res.json({ success: true });
   } catch (err) {

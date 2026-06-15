@@ -3,12 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { AnimatedThemeToggler } from '@/components/ui/animated-theme-toggler'
-import { ProfileCard } from '@/components/portfolio/profile-card'
 import { LanyardShowpiece } from '@/components/portfolio/lanyard-showpiece'
-
-// Deriva un handle (@usuario) a partir del nombre (sin acentos ni espacios).
-const deriveHandle = (name: string) =>
-  (name || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '').slice(0, 20) || 'dev'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'
 
@@ -28,6 +23,7 @@ interface TeamCard {
   role: string
   bio: string
   photo_url: string
+  band_image_url: string
   accent_color: string
   sort_order: number
   github_url: string
@@ -297,21 +293,16 @@ function TeamCarousel({ cards, brandTitle, accentColor }: {
         </button>
       </div>
 
-      {/* Tarjeta del desarrollador (réplica ProfileCard) */}
-      <ProfileCard
-        key={card.id}
-        className="pf-team"
-        avatarUrl={card.photo_url || undefined}
-        name={card.name}
-        title={card.role}
-        handle={deriveHandle(card.name)}
-        status="Disponible"
-        contactText="Contacto"
-        onContactClick={() => {
-          const url = card.linkedin_url || card.github_url
-          if (url) window.open(url, '_blank', 'noopener,noreferrer')
-        }}
-      />
+      {/* Tarjeta del desarrollador = carnet 3D colgante (Lanyard).
+          La foto se mapea sobre el carnet; la banda/cordón es configurable por tarjeta. */}
+      <div style={{ width: 340, maxWidth: '90vw' }}>
+        <LanyardShowpiece
+          key={card.id}
+          height={460}
+          cardImageUrl={card.photo_url || ''}
+          bandImageUrl={card.band_image_url || ''}
+        />
+      </div>
 
       {/* Flechas de navegación (si hay más de 1) */}
       {cards.length > 1 && (
@@ -1361,11 +1352,6 @@ export default function PortfolioPage() {
                 <QRCodeSVG ref={qrRef} value={pageUrl} size={120} />
               </div>
             )}
-          </div>
-
-          {/* Credencial 3D colgante (showpiece, arrastrable) */}
-          <div className="w-full max-w-md mt-2">
-            <LanyardShowpiece height={460} />
           </div>
         </div>
 

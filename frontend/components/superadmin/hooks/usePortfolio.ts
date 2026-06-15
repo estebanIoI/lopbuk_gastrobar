@@ -12,6 +12,7 @@ export interface PortfolioTenant {
 
 export interface TeamCard {
   id: number; name: string; role: string; bio: string; photo_url: string
+  band_image_url: string
   accent_color: string; sort_order: number; is_active: boolean
   github_url: string; linkedin_url: string
 }
@@ -32,7 +33,7 @@ export interface PfServiceCategory {
 }
 
 const emptyTeamCard = (): Omit<TeamCard, 'id'> => ({
-  name: '', role: '', bio: '', photo_url: '', accent_color: '#06b6d4',
+  name: '', role: '', bio: '', photo_url: '', band_image_url: '', accent_color: '#06b6d4',
   sort_order: 0, is_active: true, github_url: '', linkedin_url: '',
 })
 const emptyFeatureCard = (): Omit<FeatureCard, 'id'> => ({
@@ -180,6 +181,7 @@ export function usePortfolio() {
     setEditingCard(card)
     setTeamForm({
       name: card.name, role: card.role, bio: card.bio, photo_url: card.photo_url,
+      band_image_url: card.band_image_url || '',
       accent_color: card.accent_color, sort_order: card.sort_order,
       is_active: Boolean(card.is_active), github_url: card.github_url, linkedin_url: card.linkedin_url,
     })
@@ -191,7 +193,8 @@ export function usePortfolio() {
     setTeamSaving(true)
     const payload = {
       name: teamForm.name, role: teamForm.role, bio: teamForm.bio,
-      photoUrl: teamForm.photo_url, accentColor: teamForm.accent_color,
+      photoUrl: teamForm.photo_url, bandImageUrl: teamForm.band_image_url,
+      accentColor: teamForm.accent_color,
       sortOrder: teamForm.sort_order, isActive: teamForm.is_active,
       githubUrl: teamForm.github_url, linkedinUrl: teamForm.linkedin_url,
     }

@@ -13,11 +13,21 @@ import { MeshLineGeometry, MeshLineMaterial } from 'meshline'
 import * as THREE from 'three'
 
 const cardGLB = '/models/card.glb'
-const lanyardTexture = '/assets/lanyard.png'
+const DEFAULT_BAND = '/assets/lanyard.png'
+// PNG 1x1 transparente — placeholder cuando no hay imagen de tarjeta personalizada.
+const TRANSPARENT_PX =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
 
 extend({ MeshLineGeometry, MeshLineMaterial })
 
-export default function Lanyard({ position = [0, 0, 30], gravity = [0, -40, 0], fov = 20, transparent = true }) {
+export default function Lanyard({
+  position = [0, 0, 30],
+  gravity = [0, -40, 0],
+  fov = 20,
+  transparent = true,
+  cardImageUrl = '',
+  bandImageUrl = '',
+}) {
   return (
     <div className="relative z-0 w-full h-full flex justify-center items-center">
       <Canvas
@@ -27,7 +37,7 @@ export default function Lanyard({ position = [0, 0, 30], gravity = [0, -40, 0], 
       >
         <ambientLight intensity={Math.PI} />
         <Physics gravity={gravity} timeStep={1 / 60}>
-          <Band />
+          <Band cardImageUrl={cardImageUrl} bandImageUrl={bandImageUrl} />
         </Physics>
         <Environment blur={0.75}>
           <Lightformer intensity={2} color="white" position={[0, -1, 5]} rotation={[0, 0, Math.PI / 3]} scale={[100, 0.1, 1]} />
@@ -40,13 +50,24 @@ export default function Lanyard({ position = [0, 0, 30], gravity = [0, -40, 0], 
   )
 }
 
-function Band({ maxSpeed = 50, minSpeed = 0 }) {
+function Band({ maxSpeed = 50, minSpeed = 0, cardImageUrl = '', bandImageUrl = '' }) {
   const band = useRef(), fixed = useRef(), j1 = useRef(), j2 = useRef(), j3 = useRef(), card = useRef()
   const vec = new THREE.Vector3(), ang = new THREE.Vector3(), rot = new THREE.Vector3(), dir = new THREE.Vector3()
   const segmentProps = { type: 'dynamic', canSleep: true, colliders: false, angularDamping: 4, linearDamping: 4 }
 
   const { nodes, materials } = useGLTF(cardGLB)
-  const texture = useTexture(lanyardTexture)
+  // Textura de la banda/cordón (configurable por tarjeta; default DAIMUZ).
+  const texture = useTexture(bandImageUrl || DEFAULT_BAND)
+  // Textura de la cara del carnet = foto del desarrollador (si se configuró).
+  const cardTexture = useTexture(cardImageUrl || TRANSPARENT_PX)
+  useEffect(() => {
+    if (cardTexture) {
+      cardTexture.colorSpace = THREE.SRGBColorSpace
+      // Las UV del modelo GLTF usan flipY=false; ajustamos para que la foto no salga invertida.
+      cardTexture.flipY = false
+      cardTexture.needsUpdate = true
+    }
+  }, [cardTexture])
   const [curve] = useState(() => new THREE.CatmullRomCurve3([new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()]))
   const [dragged, drag] = useState(false)
   const [hovered, hover] = useState(false)
@@ -122,7 +143,7 @@ function Band({ maxSpeed = 50, minSpeed = 0 }) {
             onPointerDown={(e) => (e.target.setPointerCapture(e.pointerId), drag(new THREE.Vector3().copy(e.point).sub(vec.copy(card.current.translation()))))}
           >
             <mesh geometry={nodes.card.geometry}>
-              <meshPhysicalMaterial map={materials.base.map} map-anisotropy={16} clearcoat={1} clearcoatRoughness={0.15} roughness={0.9} metalness={0.8} />
+              <meshPhysicalMaterial map={cardImageUrl ? cardTexture : materials.base.map} map-anisotropy={16} clearcoat={1} clearcoatRoughness={0.15} roughness={0.9} metalness={0.8} />
             </mesh>
             <mesh geometry={nodes.clip.geometry} material={materials.metal} material-roughness={0.3} />
             <mesh geometry={nodes.clamp.geometry} material={materials.metal} />

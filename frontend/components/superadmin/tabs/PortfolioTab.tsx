@@ -500,12 +500,18 @@ export function PortfolioTab() {
               <UserRound className="h-4 w-4 text-cyan-400" />
               {editingCard ? 'Editar tarjeta' : 'Nueva tarjeta de equipo'}
             </DialogTitle>
-            <DialogDescription>Este carnet aparece como una tarjeta 3D flotante en el portafolio público.</DialogDescription>
+            <DialogDescription>Carnet 3D colgante (Lanyard) del portafolio público: la foto se imprime sobre el carnet y el cordón usa la imagen de la banda.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2 max-h-[70vh] overflow-y-auto pr-1">
             <div className="space-y-1.5">
-              <Label className="text-xs">Foto del ingeniero</Label>
+              <Label className="text-xs">Imagen de la tarjeta (foto del dev)</Label>
               <CloudinaryUpload value={teamForm.photo_url} onChange={(url: string) => setTeamForm(f => ({ ...f, photo_url: url }))} label="Subir foto" />
+              <p className="text-[11px] text-muted-foreground">Se mapea sobre la cara del carnet 3D. Ideal: vertical y con buena luz.</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Imagen de la banda / cordón</Label>
+              <CloudinaryUpload value={teamForm.band_image_url} onChange={(url: string) => setTeamForm(f => ({ ...f, band_image_url: url }))} label="Subir banda" />
+              <p className="text-[11px] text-muted-foreground">Textura del cordón que sostiene el carnet. Se repite a lo largo; si se deja vacío, usa la banda DAIMUZ por defecto.</p>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
