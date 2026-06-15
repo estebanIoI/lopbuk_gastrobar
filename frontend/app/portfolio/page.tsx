@@ -301,7 +301,7 @@ function TeamCarousel({ cards, brandTitle, accentColor }: {
           La foto se mapea sobre el carnet; la banda/cordon es configurable por tarjeta. */}
       {/* Altura adaptativa: más baja en celular, alta en escritorio.
           El canvas llena el alto del contenedor (height="100%"). */}
-      <div className="h-[440px] sm:h-[540px] lg:h-[620px]" style={{ width: 460, maxWidth: '94vw' }}>
+      <div className="h-[420px] sm:h-[500px] lg:h-[560px]" style={{ width: 420, maxWidth: '90vw' }}>
         <LanyardShowpiece
           height="100%"
           cardImageUrl={card.photo_url || ''}
@@ -1369,9 +1369,13 @@ export default function PortfolioPage() {
           </div>
           </div>
 
-          {/* Columna derecha — Robot DAIMUZ */}
-          <div className="relative z-10 w-full">
-            <RobotAssistant accent={accent} sceneUrl={data?.robotSplineUrl || undefined} robotHeight={300} />
+          {/* Columna derecha — Tarjetas del equipo (devs). Si no hay, robot. */}
+          <div className="relative z-10 w-full flex flex-col items-center justify-center">
+            {teamCards.length > 0 ? (
+              <TeamCarousel cards={teamCards} brandTitle={title} accentColor={accent} />
+            ) : (
+              <RobotAssistant accent={accent} sceneUrl={data?.robotSplineUrl || undefined} robotHeight={300} />
+            )}
           </div>
         </div>
 
@@ -1384,11 +1388,11 @@ export default function PortfolioPage() {
         </div>
       </section>
 
-      {/* ── EQUIPO + COMERCIOS DESTACADOS ────────────────────────────────── */}
-      {(teamCards.length > 0 || (data?.showFeaturedStores && (data?.featuredStores?.length ?? 0) > 0)) && (
+      {/* ── COMERCIOS DESTACADOS + ASISTENTE (chatbot) ───────────────────── */}
+      {((data?.showFeaturedStores && (data?.featuredStores?.length ?? 0) > 0) || teamCards.length > 0) && (
         <section id="equipo" className="py-16 sm:py-24 px-6">
           <div className="max-w-6xl mx-auto">
-            <div className={`grid gap-8 sm:gap-16 items-start ${teamCards.length > 0 && data?.showFeaturedStores && (data?.featuredStores?.length ?? 0) > 0 ? 'grid-cols-1 lg:grid-cols-2' : ''}`}>
+            <div className={`grid gap-8 sm:gap-16 items-center ${(data?.showFeaturedStores && (data?.featuredStores?.length ?? 0) > 0) && teamCards.length > 0 ? 'grid-cols-1 lg:grid-cols-2' : ''}`}>
 
               {/* ── Izquierda: Comercios destacados ── */}
               {data?.showFeaturedStores && (data?.featuredStores?.length ?? 0) > 0 && (
@@ -1461,16 +1465,16 @@ export default function PortfolioPage() {
                 </div>
               )}
 
-              {/* ── Derecha: Carrusel del equipo ──
-                  Centrado en móvil; en escritorio se alinea a la izquierda de su
-                  columna cuando convive con la lista de comercios. */}
+              {/* ── Derecha: Asistente / Robot DAIMUZ (chatbot) ── */}
               {teamCards.length > 0 && (
-                <div className={`w-full flex flex-col items-center text-center ${(data?.showFeaturedStores && (data?.featuredStores?.length ?? 0) > 0) ? 'lg:items-start lg:text-left' : ''}`}>
+                <div className="w-full flex flex-col items-center text-center lg:items-start lg:text-left">
                   <p className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: accent }}>
-                    Nuestro equipo
+                    Asistente DAIMUZ
                   </p>
-                  <h2 className="text-3xl sm:text-4xl font-bold mb-8">Los desarrolladores</h2>
-                  <TeamCarousel cards={teamCards} brandTitle={title} accentColor={accent} />
+                  <h2 className="text-3xl sm:text-4xl font-bold mb-6">Conoce el ecosistema</h2>
+                  <div className="w-full max-w-md mx-auto lg:mx-0">
+                    <RobotAssistant accent={accent} sceneUrl={data?.robotSplineUrl || undefined} robotHeight={300} />
+                  </div>
                 </div>
               )}
 
