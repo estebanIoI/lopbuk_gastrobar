@@ -16,6 +16,11 @@ const GEMINI_URL   = `https://generativelanguage.googleapis.com/v1beta/models/${
 const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
 const GROQ_URL   = 'https://api.groq.com/openai/v1/chat/completions';
 
+// OpenAI y compatibles (p. ej. opencode/openrouter) vía OPENAI_BASE_URL.
+const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+const OPENAI_BASE  = (process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, '');
+const OPENAI_URL   = `${OPENAI_BASE}/chat/completions`;
+
 const fmt = (n: number) => `$${Number(n || 0).toLocaleString('es-CO')}`;
 
 // ─────────────────────────────────────────────────────────────
@@ -28,7 +33,7 @@ const SUPERADMIN_TOOLS = [
   { name: 'stock_critico_global',       description: 'Productos con stock crítico en toda la red.', parameters: { type: 'OBJECT', properties: {} } },
   { name: 'comercios_inactivos',        description: 'Comercios suspendidos o sin ventas recientes.', parameters: { type: 'OBJECT', properties: {} } },
 ];
-const MERCHANT_TOOLS = [
+export const MERCHANT_TOOLS = [
   { name: 'mis_ventas',           description: 'Ventas de mi negocio (hoy y mes).', parameters: { type: 'OBJECT', properties: {} } },
   { name: 'mis_pedidos_pendientes',description: 'Pedidos pendientes de mi tienda online.', parameters: { type: 'OBJECT', properties: {} } },
   { name: 'mi_stock_critico',     description: 'Mis productos con stock bajo o agotado.', parameters: { type: 'OBJECT', properties: {} } },
@@ -46,7 +51,7 @@ async function q<T = any>(sql: string, params: any[] = []): Promise<T[]> {
   return rows as any[];
 }
 
-function toOpenAITools(tools: typeof SUPERADMIN_TOOLS) {
+export function toOpenAITools(tools: typeof SUPERADMIN_TOOLS) {
   return tools.map(t => ({
     type: 'function' as const,
     function: {
@@ -109,7 +114,7 @@ async function execSuper(name: string): Promise<string> {
   }
 }
 
-async function execMerchant(name: string, tenantId: string): Promise<string> {
+export async function execMerchant(name: string, tenantId: string): Promise<string> {
   switch (name) {
     case 'mis_ventas': {
       const [h] = await q("SELECT COALESCE(SUM(total),0) s, COUNT(*) n FROM sales WHERE tenant_id=? AND status='completada' AND DATE(created_at)=CURDATE()", [tenantId]);
@@ -195,13 +200,17 @@ async function runWithGemini(
 // ─────────────────────────────────────────────────────────────
 // Runner: Groq (OpenAI-compatible)
 // ─────────────────────────────────────────────────────────────
-async function runWithGroq(
+// Loop de tool-calling OpenAI-compatible. Sirve para Groq y OpenAI (y compatibles)
+// según la url/model que se pasen.
+async function runWithOpenAICompat(
   apiKey: string,
   systemPrompt: string,
   tools: typeof SUPERADMIN_TOOLS,
   history: { role: string; content: string }[],
   message: string,
   exec: (name: string) => Promise<string>,
+  url: string = GROQ_URL,
+  model: string = GROQ_MODEL,
 ): Promise<{ reply: string }> {
   const messages = [
     { role: 'system', content: systemPrompt },
@@ -209,11 +218,11 @@ async function runWithGroq(
     { role: 'user', content: message },
   ];
 
-  const r1 = await fetch(GROQ_URL, {
+  const r1 = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({
-      model: GROQ_MODEL,
+      model,
       messages,
       tools: toOpenAITools(tools),
       tool_choice: 'auto',
@@ -223,7 +232,7 @@ async function runWithGroq(
   });
   if (!r1.ok) {
     if (r1.status === 429) return { reply: 'Muchas consultas a la vez, intenta en unos segundos. 🙏' };
-    throw new Error(`Groq error: ${await r1.text()}`);
+    throw new Error(`AI error: ${await r1.text()}`);
   }
   const d1 = await r1.json() as any;
   const choice = d1.choices?.[0];
@@ -236,11 +245,11 @@ async function runWithGroq(
   const toolName = toolCall.function.name;
   const summary = await exec(toolName);
 
-  const r2 = await fetch(GROQ_URL, {
+  const r2 = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({
-      model: GROQ_MODEL,
+      model,
       messages: [
         ...messages,
         { role: 'assistant', content: null, tool_calls: [toolCall] },
@@ -281,12 +290,15 @@ export async function runPlatformAssistant(
   const exec = (name: string) => isSuper ? execSuper(name) : execMerchant(name, user.tenantId || '');
 
   if (apiKey.startsWith('gsk_')) {
-    return runWithGroq(apiKey, systemPrompt, tools, history, message, exec);
+    return runWithOpenAICompat(apiKey, systemPrompt, tools, history, message, exec, GROQ_URL, GROQ_MODEL);
+  }
+  if (apiKey.startsWith('sk-')) {
+    return runWithOpenAICompat(apiKey, systemPrompt, tools, history, message, exec, OPENAI_URL, OPENAI_MODEL);
   }
   if (apiKey.startsWith('AIza')) {
     return runWithGemini(apiKey, systemPrompt, tools, history, message, exec);
   }
-  return { reply: 'La clave de IA configurada no es compatible. Usa una clave de Google AI Studio (AIza…) o Groq (gsk_…).' };
+  return { reply: 'La clave de IA configurada no es compatible. Usa una clave de Google AI Studio (AIza…), Groq (gsk_…) u OpenAI (sk-…).' };
 }
 
 export async function isPlatformAssistantEnabled(): Promise<boolean> {
@@ -307,17 +319,20 @@ export async function runPublicAssistant(
   const apiKey = await getAssistantKey();
   if (!apiKey) return { reply: 'El asistente aún no está configurado. Vuelve pronto. 🙂' };
 
-  // Groq (OpenAI-compatible)
-  if (apiKey.startsWith('gsk_')) {
+  // Groq u OpenAI (ambos OpenAI-compatible)
+  if (apiKey.startsWith('gsk_') || apiKey.startsWith('sk-')) {
+    const isGroq = apiKey.startsWith('gsk_');
+    const url = isGroq ? GROQ_URL : OPENAI_URL;
+    const model = isGroq ? GROQ_MODEL : OPENAI_MODEL;
     const messages = [
       { role: 'system', content: PUBLIC_PROMPT },
       ...history.slice(-8).map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content })),
       { role: 'user', content: message },
     ];
-    const r = await fetch(GROQ_URL, {
+    const r = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ model: GROQ_MODEL, messages, max_tokens: 220, temperature: 0.7 }),
+      body: JSON.stringify({ model, messages, max_tokens: 220, temperature: 0.7 }),
     });
     if (!r.ok) {
       if (r.status === 429) return { reply: 'Muchas consultas a la vez, intenta en unos segundos. 🙏' };
@@ -349,5 +364,5 @@ export async function runPublicAssistant(
     return { reply: d.candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text || 'No pude procesar tu mensaje.' };
   }
 
-  return { reply: 'La clave de IA configurada no es compatible.' };
+  return { reply: 'La clave de IA configurada no es compatible. Usa Gemini (AIza…), Groq (gsk_…) u OpenAI (sk-…).' };
 }

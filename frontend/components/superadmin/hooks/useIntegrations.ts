@@ -12,6 +12,8 @@ export interface IntegrationsState {
   openaiApiKey: string
   groqApiKey: string
   defaultAiProvider: 'gemini' | 'openai' | 'groq'
+  openaiBaseUrl: string
+  openaiModel: string
 }
 
 const INITIAL_INTEGRATIONS: IntegrationsState = {
@@ -21,6 +23,8 @@ const INITIAL_INTEGRATIONS: IntegrationsState = {
   openaiApiKey: '',
   groqApiKey: '',
   defaultAiProvider: 'openai',
+  openaiBaseUrl: '',
+  openaiModel: '',
 }
 
 export function useIntegrations() {
@@ -51,6 +55,8 @@ export function useIntegrations() {
         openaiApiKey: result.data.openaiApiKey || '',
         groqApiKey: result.data.groqApiKey || '',
         defaultAiProvider: result.data.defaultAiProvider || 'openai',
+        openaiBaseUrl: result.data.openaiBaseUrl || '',
+        openaiModel: result.data.openaiModel || '',
       })
     }
     const pa = await api.getPlatformAssistant()

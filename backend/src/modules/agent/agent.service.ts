@@ -52,9 +52,11 @@ export async function getAIKeys(): Promise<{
   openaiKey: string;
   groqKey: string;
   defaultProvider: 'gemini' | 'openai' | 'groq';
+  openaiBaseUrl: string;
+  openaiModel: string;
 }> {
   const [rows] = await pool.query(
-    "SELECT setting_key, setting_value FROM platform_settings WHERE setting_key IN ('ai_gemini_key','ai_openai_key','ai_groq_key','ai_default_provider')"
+    "SELECT setting_key, setting_value FROM platform_settings WHERE setting_key IN ('ai_gemini_key','ai_openai_key','ai_groq_key','ai_default_provider','ai_openai_base_url','ai_openai_model')"
   ) as any;
 
   const settings: Record<string, string> = {};
@@ -71,6 +73,8 @@ export async function getAIKeys(): Promise<{
     openaiKey: settings['ai_openai_key'] || process.env.OPENAI_API_KEY || '',
     groqKey: settings['ai_groq_key'] || process.env.GROQ_API_KEY || '',
     defaultProvider,
+    openaiBaseUrl: (settings['ai_openai_base_url'] || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, ''),
+    openaiModel: settings['ai_openai_model'] || process.env.OPENAI_MODEL || 'gpt-4o-mini',
   };
 }
 

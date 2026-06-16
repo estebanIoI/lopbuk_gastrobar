@@ -6,6 +6,7 @@ import { useAuthStore } from '@/lib/auth-store'
 import { AuthForm } from '@/components/auth-form'
 import { LandingPage } from '@/components/landing-page'
 import { MerchantPanel } from '@/components/merchant-panel'
+import { FullPageLoader } from '@/components/box-loader'
 
 export default function Home() {
   const { activeSection, setActiveSection } = useStore()
@@ -71,9 +72,7 @@ export default function Home() {
   // y bloquea el render hasta verificar el token.
   if (isStorePreview === undefined || isCheckingAuth) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-      </div>
+      <FullPageLoader />
     )
   }
 

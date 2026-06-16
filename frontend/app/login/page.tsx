@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { AuthForm } from '@/components/auth-form'
 import { useAuthStore } from '@/lib/auth-store'
 import { DEFAULT_SLUG } from '@/lib/panel-sections'
+import { FullPageLoader } from '@/components/box-loader'
 
 /** Solo aceptamos destinos internos (evita open-redirects). */
 function safeNext(next: string | null): string {
@@ -35,9 +36,7 @@ function LoginInner() {
 
   if (isCheckingAuth || isAuthenticated) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-      </div>
+      <FullPageLoader />
     )
   }
 
@@ -47,9 +46,7 @@ function LoginInner() {
 export default function LoginPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-      </div>
+      <FullPageLoader />
     }>
       <LoginInner />
     </Suspense>

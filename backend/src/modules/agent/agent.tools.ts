@@ -354,27 +354,69 @@ async function toolRegistrarPedido(
       [nombre, telefono, sessionId],
     );
 
-    const tipoLabel = tipo === 'domicilio' ? 'Domicilio' : 'Para llevar';
-    const detalle = direccion ? ` → ${direccion}` : '';
+    // Parsear el texto de items ("2x Hamburguesa, 1 Papas") y casar con productos reales.
+    const segments = String(items || '').split(/,|\by\b|\n|;/).map((s: string) => s.trim()).filter(Boolean);
+    const lines: Array<{ productId: string; productName: string; quantity: number; unitPrice: number }> = [];
+    const unmatched: string[] = [];
+    let subtotal = 0;
+    for (const seg of segments) {
+      const m = seg.match(/^(\d+)\s*[xX]?\s*(.+)$/);
+      const qty = m ? Math.max(1, parseInt(m[1], 10)) : 1;
+      const namePart = (m ? m[2] : seg).trim();
+      const [prows] = (await pool.query(
+        'SELECT id, name, sale_price FROM products WHERE tenant_id = ? AND name LIKE ? ORDER BY name LIMIT 1',
+        [tenantId, `%${namePart}%`],
+      )) as any;
+      const p = prows[0];
+      if (p) { const price = Number(p.sale_price); lines.push({ productId: p.id, productName: p.name, quantity: qty, unitPrice: price }); subtotal += price * qty; }
+      else unmatched.push(seg);
+    }
 
+    const orderId = uuidv4();
+    const orderNumber = 'CH' + Date.now().toString(36).toUpperCase().slice(-7);
+    const tipoLabel = tipo === 'domicilio' ? 'Domicilio' : 'Para llevar';
+    const noteParts = [`Pedido por chat (${tipoLabel})`];
+    if (notas) noteParts.push(`Nota: ${notas}`);
+    if (unmatched.length) noteParts.push(`Sin match: ${unmatched.join(', ')}`);
+    const finalNotes = noteParts.join(' | ');
+
+    // Crear el pedido REAL en el módulo de pedidos (storefront_orders) + sus líneas.
+    await pool.query(
+      `INSERT INTO storefront_orders
+         (id, tenant_id, order_number, customer_name, customer_phone, address, notes, subtotal, shipping_cost, discount, total, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, 'pendiente')`,
+      [orderId, tenantId, orderNumber, nombre, telefono, tipo === 'domicilio' ? (direccion || null) : null, finalNotes, subtotal, subtotal],
+    );
+    for (const l of lines) {
+      await pool.query(
+        `INSERT INTO storefront_order_items
+           (order_id, product_id, product_name, quantity, unit_price, original_price, discount_percent, total_price)
+         VALUES (?, ?, ?, ?, ?, ?, 0, ?)`,
+        [orderId, l.productId, l.productName, l.quantity, l.unitPrice, l.unitPrice, l.unitPrice * l.quantity],
+      );
+    }
+
+    // Avisar al comerciante.
     await pool.query(
       `INSERT INTO merchant_notifications (tenant_id, type, title, message, data)
        VALUES (?, 'new_order', ?, ?, ?)`,
       [
         tenantId,
         `Nuevo pedido (${tipoLabel}): ${nombre}`,
-        `${items}${detalle}${notas ? ` | Nota: ${notas}` : ''}`,
-        JSON.stringify({ customerName: nombre, customerPhone: telefono, items, tipo, direccion: direccion || null, notas: notas || null, sessionId }),
+        `#${orderNumber} — ${items}${direccion ? ` → ${direccion}` : ''}${notas ? ` | Nota: ${notas}` : ''}`,
+        JSON.stringify({ orderId, orderNumber, customerName: nombre, customerPhone: telefono, items, tipo, direccion: direccion || null, notas: notas || null, sessionId }),
       ],
     );
 
-    const confirmMsg = tipo === 'domicilio'
-      ? `¡Pedido registrado! 🛵 Te contactaremos al ${telefono} para confirmar el domicilio${direccion ? ` a ${direccion}` : ''}.`
-      : `¡Pedido registrado! 🥡 Tu pedido para llevar estará listo. Te avisamos al ${telefono}.`;
+    const confirmMsg =
+      `¡Pedido registrado! 🧾 Número **#${orderNumber}**${subtotal > 0 ? ` por $${subtotal.toLocaleString('es-CO')}` : ''}. ` +
+      (tipo === 'domicilio'
+        ? `Te contactaremos al ${telefono} para confirmar el domicilio${direccion ? ` a ${direccion}` : ''}.`
+        : `Te avisamos al ${telefono} cuando esté listo.`);
 
     return {
       success: true,
-      data: { nombre, telefono, items, tipo, direccion: direccion || null },
+      data: { orderId, orderNumber, total: subtotal, lines: lines.length, unmatched },
       userMessage: confirmMsg,
     };
   } catch (err) {

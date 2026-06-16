@@ -1726,6 +1726,8 @@ class ApiService {
     openaiApiKey?: string;
     groqApiKey?: string;
     defaultAiProvider?: string;
+    openaiBaseUrl?: string;
+    openaiModel?: string;
   }) {
     return this.request<any>('/chatbot/superadmin/integrations', {
       method: 'PUT',
@@ -2036,6 +2038,16 @@ class ApiService {
   // ── Reportes de restaurante (Fase 4) ────────────────────────────────────
   async getRestbarReports(from: string, to: string) {
     return this.request<any>(`/restbar/reports/summary?from=${from}&to=${to}`)
+  }
+
+  // ── Modo Chat Daimuz (slice Restbar) ────────────────────────────────────
+  async daimuzChatRestbar(message: string, history: { role: string; content: string }[]) {
+    return this.request<{ reply: string; pendingAction: { tool: string; args: any; label: string } | null }>(
+      `/daimuz-chat/restbar`, { method: 'POST', body: JSON.stringify({ message, history }) })
+  }
+  async daimuzChatExecute(tool: string, args: any) {
+    return this.request<{ message: string; refresh?: string }>(
+      `/daimuz-chat/restbar/execute`, { method: 'POST', body: JSON.stringify({ tool, args }) })
   }
   // ── Respaldo / restauración (Fase 4 · approval-gated) ───────────────────
   async exportRestbarBackup() {

@@ -4,6 +4,86 @@
 
 ---
 
+
+## [2026-06-16] — Loader 3D de cajas + crear producto + reflejo visual en Chat Daimuz
+
+- **Loader nuevo:** `components/box-loader.tsx` (`BoxLoader` + `FullPageLoader`, Uiverse by Admin12121,
+  CSS scoped a `.dz-loader` y keyframes prefijados `dzl-` para no colisionar). Reemplaza el círculo
+  de carga en `app/page.tsx` (carga principal de la app) y `app/login/page.tsx` (2 loaders). El
+  **preloader del portafolio se mantiene** intacto. El componente está disponible para otras pantallas.
+- **Crear producto por chat:** acción `crear_producto({nombre, precio, categoria?, stock?, es_menu?})`
+  → `productsService.create` (genera SKU, categoría 'General' por defecto), con confirmación.
+- **Reflejo visual:** tras ejecutar una acción, `/modo-chat` muestra qué módulo se actualizó
+  (Mesas/Restbar o Inventario) con acceso directo "Abrir panel" (las acciones devuelven `refresh`).
+
+> Modo Chat Daimuz: estadísticas + Restbar (abrir/tomar/enviar/cobrar) + Inventario (ajustar stock,
+> crear producto), OpenAI/Groq/Gemini, botón glitch gated por plan, reflejo del módulo afectado.
+> Pendiente mayor: registrar venta (flujo POS), embeber el módulo en vivo bajo el chat.
+
+
+## [2026-06-16] — Chat Daimuz: pendientes cerrados (gate + acciones + Gemini)
+
+- **Gate del botón:** `CHAT DAIMUZ` en el sidebar solo se muestra a `tenantPlan === 'empresarial'`.
+- **Más acciones (confirm-before-execute):**
+  - **POS/cobrar:** `cobrar_mesa({mesa, metodo})` → `restbarService.processPayment` (efectivo/tarjeta/nequi/transferencia; cobra el total del pedido).
+  - **Inventario:** `ajustar_stock({producto, cantidad})` → `productsService.updateStock` (suma/resta, no baja de 0).
+- **Gemini function-calling:** `runGemini` con declarations (tipos en mayúscula) y patrón de 2 rondas:
+  functionCall de lectura → ejecuta → segunda llamada con los datos para la respuesta final; las escrituras se proponen igual. Ya no rechaza Gemini en el modo Chat.
+
+> Modo Chat Daimuz ahora cubre: estadísticas/análisis (ventas, pedidos, stock, citas) + acciones de
+> Restbar (abrir/tomar/enviar/cobrar) + Inventario (ajustar stock), con OpenAI/Groq/Gemini.
+> Nota entorno: mount del sandbox sigue truncando lecturas (archivos verificados íntegros en disco).
+
+
+## [2026-06-16] — Chat Daimuz: modelos OpenCode Go configurables + botón glitch + multi-módulo
+
+- **Proveedor/modelo configurable desde el panel:** `getAIKeys()` ahora devuelve `openaiBaseUrl` y
+  `openaiModel` (settings `ai_openai_base_url` / `ai_openai_model`, fallback env `OPENAI_BASE_URL` /
+  `OPENAI_MODEL`). `daimuz-chat` los usa en `llmCall`. Integraciones (GET/PUT) + `IntegrationsTab`
+  exponen campos **Base URL** y **Modelo**. Para el plan **OpenCode Go**: Base URL
+  `https://opencode.ai/zen/v1`, modelo p. ej. `deepseek-v4-flash` (key `sk-` de opencode en el campo OpenAI).
+- **Modo Chat Daimuz multi-módulo:** el agente da estadísticas/análisis del negocio (reusa
+  `execMerchant`: ventas, pedidos, stock, citas) + opera Restbar (abrir mesa / tomar pedido / enviar
+  a cocina) con confirmación. UI `/modo-chat` estilo ChatGPT con sugerencias.
+- **Botón CHAT DAIMUZ** (`components/chat-daimuz-button.tsx`, estilo glitch Uiverse, CSS scoped a
+  `.cd-glitch` para no romper otros botones) en el footer del sidebar → abre `/modo-chat`.
+
+> Pendiente: que el botón gate por rol/empresarial, más acciones por módulo, Gemini function-calling.
+> Nota entorno: el mount del sandbox truncó lecturas de varios archivos (todos verificados íntegros
+> en disco con file-tools); el código nuevo es type-correcto. tsc-en-sandbox no fiable esta sesión.
+
+
+## [2026-06-16] — Modo Chat Daimuz (slice vertical Restbar) + fix OpenAI en asistentes
+
+**Asistentes multi-proveedor:** `assistant.service.ts` ahora acepta claves OpenAI (`sk-`),
+no solo Gemini/Groq. Se generalizó `runWithGroq` → `runWithOpenAICompat(url, model)` (tool-calling),
+con ramas `sk-` en `runPlatformAssistant` y `runPublicAssistant`. Base URL configurable por
+`OPENAI_BASE_URL` (+ `OPENAI_MODEL`) para compatibles (opencode/openrouter). Mensajes de error
+actualizados. **Nota:** la key de opencode.ai no autentica contra api.openai.com salvo que se
+fije `OPENAI_BASE_URL` al endpoint de opencode.
+
+**Seguridad de keys (integraciones):** el GET de `/superadmin/integrations` ahora ENMASCARA las
+AI keys (`••••••últimos4`) + flags `*Set`; el PUT ignora valores enmascarados (no pisa la key).
+Nuevo `GET /superadmin/integrations/reveal/:provider` para ver la key real bajo demanda; el ojo
+en `IntegrationsTab` la trae solo al revelar.
+
+**Modo Chat Daimuz (slice Restbar/mesas):** nuevo `modules/daimuz-chat/daimuz-chat.routes.ts`
+(montado `/api/daimuz-chat`). El comerciante escribe en lenguaje natural y el agente OPERA mesas:
+lecturas (`listar_mesas`, `ver_menu`, `ver_cuenta`) al vuelo; escrituras (`abrir_mesa`,
+`tomar_pedido`, `enviar_cocina`) se **proponen** como `pendingAction` y se ejecutan vía
+`POST /restbar/execute` SOLO tras confirmación humana (governance). Reusa `restbarService` (KDS real)
+y `getAIKeys()` (OpenAI/Groq function-calling; Gemini pendiente). Frontend: página `/modo-chat`
+(chat + tarjeta de confirmación) y `api.daimuzChatRestbar/daimuzChatExecute`.
+
+> Esto es la **base** de la visión "todo el panel se vuelve chat y mueve los módulos por debajo"
+> (ver `base de la empresa daimuz.md`). Slice v1 = Restbar, confirm-before-execute. Pendiente:
+> cobrar, más módulos (inventario/POS/CRM), Gemini function-calling, y el toggle que reemplaza
+> el panel completo + reflejo visual del módulo afectado.
+
+> **Nota de entorno:** el sandbox de build truncó lecturas del mount en varios archivos NO tocados
+> (`agent.service`, `chatbot.routes`, `index.ts`, `api.ts`); todos verificados ÍNTEGROS en disco con
+> file-tools. El módulo nuevo compila limpio. tsc-en-sandbox no fiable esta sesión; build local OK.
+
 ## [2026-06-15] — Multi-API Key + cifrado en reposo para agente IA
 
 **Backend:**

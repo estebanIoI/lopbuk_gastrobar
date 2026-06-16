@@ -181,6 +181,18 @@ export function IntegrationsTab() {
               </div>
             </div>
 
+            {/* OpenAI avanzado: base URL + modelo (OpenCode Go / compatibles) */}
+            <div className="grid sm:grid-cols-2 gap-2">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Base URL (OpenAI / compatibles)</Label>
+                <Input value={integrations.openaiBaseUrl} onChange={e => set('openaiBaseUrl', e.target.value)} placeholder="https://opencode.ai/zen/v1" className="font-mono text-sm" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Modelo</Label>
+                <Input value={integrations.openaiModel} onChange={e => set('openaiModel', e.target.value)} placeholder="deepseek-v4-flash" className="font-mono text-sm" />
+              </div>
+            </div>
+
             {/* Groq */}
             <div className="space-y-1.5">
               <Label className="flex items-center gap-2">

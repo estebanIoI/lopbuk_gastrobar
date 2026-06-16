@@ -7,6 +7,7 @@ import { useAuthStore } from '@/lib/auth-store'
 import { cn } from '@/lib/utils'
 import { BRAND } from '@/lib/brand'
 import { panelHref } from '@/lib/panel-sections'
+import { ChatDaimuzButton } from '@/components/chat-daimuz-button'
 import {
   LayoutDashboard,
   Package,
@@ -379,6 +380,12 @@ export function Sidebar() {
         <div className={cn("shrink-0 border-t border-black/[0.06] p-3 space-y-2", !isExpanded && "px-2")}>
           {isExpanded ? (
             <>
+              {/* Entrada al Modo Chat Daimuz (solo plan empresarial) */}
+              {isEmpresarial && (
+                <div className="flex justify-center pb-1">
+                  <ChatDaimuzButton />
+                </div>
+              )}
               {/* User info */}
               <div className="flex items-center gap-2.5 px-1">
                 <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary text-xs font-bold">

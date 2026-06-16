@@ -347,7 +347,7 @@ router.get('/superadmin/integrations', authenticate, async (req: Request, res: R
     }
 
     const [rows] = await pool.query(
-      "SELECT setting_key, setting_value FROM platform_settings WHERE setting_key IN ('cloudinary_cloud_name','cloudinary_upload_preset','ai_gemini_key','ai_openai_key','ai_groq_key','ai_default_provider')"
+      "SELECT setting_key, setting_value FROM platform_settings WHERE setting_key IN ('cloudinary_cloud_name','cloudinary_upload_preset','ai_gemini_key','ai_openai_key','ai_groq_key','ai_default_provider','ai_openai_base_url','ai_openai_model')"
     ) as any;
 
     const settings: Record<string, string> = {};
@@ -376,6 +376,8 @@ router.get('/superadmin/integrations', authenticate, async (req: Request, res: R
         openaiApiKeySet:        !!settings['ai_openai_key'],
         groqApiKeySet:          !!settings['ai_groq_key'],
         defaultAiProvider:      settings['ai_default_provider']        || 'openai',
+        openaiBaseUrl:          settings['ai_openai_base_url']         || '',
+        openaiModel:            settings['ai_openai_model']            || '',
       },
     });
   } catch (error) {
@@ -422,13 +424,15 @@ router.put('/superadmin/integrations', authenticate, async (req: Request, res: R
       return;
     }
 
-    const { cloudinaryCloudName, cloudinaryUploadPreset, geminiApiKey, openaiApiKey, groqApiKey, defaultAiProvider } = req.body;
+    const { cloudinaryCloudName, cloudinaryUploadPreset, geminiApiKey, openaiApiKey, groqApiKey, defaultAiProvider, openaiBaseUrl, openaiModel } = req.body;
 
     const updates: [string, string][] = [
       ['cloudinary_cloud_name',    cloudinaryCloudName    || ''],
       ['cloudinary_upload_preset', cloudinaryUploadPreset || ''],
       ['ai_default_provider',      defaultAiProvider      || 'openai'],
     ];
+    if (openaiBaseUrl !== undefined) updates.push(['ai_openai_base_url', String(openaiBaseUrl || '')]);
+    if (openaiModel !== undefined)   updates.push(['ai_openai_model',    String(openaiModel || '')]);
 
     // Solo se actualiza una AI key si llega un valor REAL (no el enmascarado con •).
     // Así el GET puede devolver las keys ofuscadas sin que un guardado las pise con la máscara.

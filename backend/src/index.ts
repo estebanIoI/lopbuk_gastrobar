@@ -41,6 +41,7 @@ import { subscriptionsRoutes } from './modules/subscriptions/subscriptions.route
 import { restbarRoutes } from './modules/restbar';
 import restbarQrRoutes from './modules/restbar/restbar-qr.routes';
 import loyaltyRoutes from './modules/loyalty/loyalty.routes';
+import daimuzChatRoutes from './modules/daimuz-chat/daimuz-chat.routes';
 import { financesRoutes } from './modules/finances';
 import { portfolioRoutes } from './modules/portfolio';
 import devRequestsRoutes from './modules/dev-requests/dev-requests.routes';
@@ -169,6 +170,7 @@ app.use(`${apiPrefix}/subscriptions`, subscriptionsRoutes);
 app.use(`${apiPrefix}/restbar`, restbarRoutes);
 app.use(`${apiPrefix}/restbar-qr`, restbarQrRoutes);
 app.use(`${apiPrefix}/loyalty`, loyaltyRoutes);
+app.use(`${apiPrefix}/daimuz-chat`, daimuzChatRoutes);
 app.use(`${apiPrefix}/finances`, financesRoutes);
 app.use(`${apiPrefix}/portfolio`, portfolioRoutes);
 app.use(`${apiPrefix}/dev-requests`, devRequestsRoutes);
