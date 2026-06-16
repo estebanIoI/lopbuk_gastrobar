@@ -123,6 +123,15 @@
 - **Refresh tokens**: rotación segura de JWT (tabla `refresh_tokens`)
 - **Audit log**: trazabilidad con severity levels
 
+## Multi-API Key + cifrado en reposo para Agente IA (2026-06-15)
+
+- **3 campos separados** en Integraciones del superadmin: Gemini / OpenAI / Groq, cada uno con su toggle show/hide y badge "Configurado".
+- **Selector de proveedor default**: 3 botones con iconos (Sparkles/Brain/Cpu) — el agente usa este proveedor para todas las respuestas.
+- **Cifrado AES-256-CBC en reposo**: las API keys se cifran al guardarse en `platform_settings` y se descifran al leerse.
+- **`getAIKeys()`**: nueva función que devuelve las 3 keys + provider default con fallback a env vars.
+- **Routing explícito por provider**: Gemini → `callGeminiWithTools()` (function calling), OpenAI → `callOpenAI()`, Groq → `callGroq()`.
+- **Entorno**: `.env` con OpenAI key; `.env.example` con las 3 nuevas vars; docker-compose actualizados.
+
 ---
 
 ← [[current-state]] | [[DAIMUZ]] | → [[lessons-learned]]

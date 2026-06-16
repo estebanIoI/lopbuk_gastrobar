@@ -24,6 +24,16 @@
 - ✅ **Multi-sede** — Sedes con inventario y caja independientes
 - ✅ **Colorimetría por IA** — Paleta desde el logo: tienda del comercio (full), panel (solo acento), plataforma (home/login/default). Ambos temas de home la consumen (Tema 1 vía remap Tailwind→`--color-primary`; Tema 2 vía variables `--brand-*`). Regla: todo tema nuevo debe consumirla → [[brain/colorimetria]]
 
+## ✅ Implementado: Multi-API Key para Agente IA + cifrado en reposo (2026-06-15)
+
+**Problema:** El superadmin tenía un solo campo `openai_api_key`. El agente soporta Gemini/OpenAI/Groq pero solo se podía tener 1 key a la vez y la selección era implícita por prefijo.
+
+**Solución:**
+- **Frontend** (`IntegrationsTab.tsx`): 3 campos separados (Gemini/OpenAI/Groq) con toggle show/hide, badges "Configurado", y selector de proveedor default con botones.
+- **Backend** (`chatbot.routes.ts`): GET/PUT `integrations` ahora maneja `geminiApiKey`, `openaiApiKey`, `groqApiKey` y `defaultAiProvider`. Las API keys se **cifran en reposo** (AES-256-CBC via `crypto.ts`).
+- **`agent.service.ts`**: `getAIKeys()` devuelve las 3 keys + provider default. `processAgentMessage()` usa routing explícito por provider (Gemini → function calling, OpenAI/Groq → chat directo).
+- **Entorno**: `.env` creado con la OpenAI key provista. `.env.example` actualizado con `OPENAI_API_KEY`, `GROQ_API_KEY`, `AI_DEFAULT_PROVIDER`. Docker-compose dev + production incluyen las nuevas vars.
+
 ## ✅ Implementado: Colorimetría de marca por IA + fixes (2026-06-14)
 
 **Arquitectura de colorimetría (2 niveles):**
@@ -140,21 +150,11 @@ Implementación full-stack completa. Ver `daimuz/brain/variants-implementation-p
 - `[2026-06-05]` — **Módulo CONSUMIDOR (rutina) end-to-end** + capa de identidad cross-comercio. Backend `/api/rutina` (service+routes montados), frontend `consumer-routine.tsx` como overlay con botón nuevo "Rutina" en el nav (sin tocar las 5 secciones existentes). Migraciones: `add_platform_identity.sql` (customer_tenant_profiles), `add_lifestyle_rutina_and_gym_modules.sql` (rutina_* + gym_* + macros + asistencia + log cumplimiento). Falta correr migraciones en prod + push. Módulo GIMNASIO: solo tablas, sin código aún.
 - `[2026-06-04]` — **PRODUCCIÓN viva en Komodo** (`https://daimuz.alexsters.works`): stack `daimuz` con backend + frontend. Komodo buildea desde el repo GitHub `estebanIoI/lopbuk_gastrobar` (main). Pre Build Images + Destroy Before Deploy activos. Fix de Google OAuth en prod (client ID como build arg). Chatbot funcionando: modelo Gemini cambiado a alias `gemini-flash-latest` (env `GEMINI_MODEL`) + soporte Groq en `callAI` (env `GROQ_MODEL`). Deploy aplicado vía push al repo + rebuild en Komodo.
 - `[2026-05-28]` — **Dividir cuenta en partes iguales — RestBar Caja** (`restbar.tsx`): nueva opción en el selector de cobro de la sección Caja. Muestra un panel ámbar con contador +/− de personas, calcula "cada persona paga $XXX", desglose por persona numerado. Solo frontend, sin cambios en backend. El cobro sigue procesándose como pago de mesa completa. Disponible para todas las mesas (con o sin comensales asignados). Selector ahora siempre muestra las opciones al elegir mesa (antes auto-saltaba a modo tabla si no había split de comensales).
+- `[2026-06-16]` — **Fase 4 Restaurante (reportes)**: sub-router `restbar.reports.routes.ts` (`/api/restbar/reports/summary`) → resumen de pagos, top productos, rendimiento mesero/mesa, KPIs. Página `/reportes-restaurante` con rango de fechas y export PDF. Marketing/promos ya cubierto por `store_banners`+home `/r/[slug]`. Incluye **backup/restore** (`/api/restbar/backup` + página `/respaldos`): export de solo lectura y restore con upsert de SOLO catálogo/config (nunca pedidos/pagos), con vista previa + frase `RESTAURAR`. **Roadmap restaurante COMPLETO (Fases 1–4); integración Sirius cerrada.** tsc front 0; backend sin errores en archivos propios.
 - `[2026-06-15]` — **Fase 3 Restaurante COMPLETA (fidelización)**: módulo `loyalty` (`/api/loyalty`) con reglas de puntos configurables (puntos por $1.000), recompensas CRUD, cuentas por teléfono, acúmulo (`/earn`, sin tocar pagos) y canje desde la sesión del cliente (`/mesa/[token]` → código de canje). Panel admin `/fidelizacion`. Roadmap: Fase 1 ✅ · 2 ✅ · 3 ✅; falta Fase 4 (marketing + reportes). tsc front 0.
 - `[2026-06-15]` — **Fase 2 Restaurante COMPLETA**: **prioridad de cocina** (comandas urgentes primero en los paneles cocinero/bar, badge 🔥 + botón ⚡; columna `rb_orders.priority`, `PATCH /restbar/orders/:id/priority`) y **regalo entre mesas** (el cliente envía productos a la comanda de otra mesa ocupada; `GET/POST /restbar-qr/session/:token/tables|gift`). Además: **reservas online avisan al comercio** (notificación) y **jukebox** (el cliente pide canción al superar un umbral de consumo; staff la gestiona en `/jukebox`). **Fase 2 cerrada.** tsc front 0.
 - `[2026-06-15]` — **Fase 1 Restaurante (QR de mesa) COMPLETA**: el cliente escanea el QR de su mesa (`/mesa/[token]`), entra con su nombre, ve el menú con disponibilidad real, pide desde su celular (entra al KDS real) y **sigue el estado de su pedido en vivo**. La sesión se invalida al cobrar/cancelar. Nueva **home del restaurante** `/r/[slug]` (promos/eventos desde `store_banners`, destacados, CTAs menú/reservar). Backend: `restbar-qr.routes.ts` (`/api/restbar-qr`) + tablas `rb_table_sessions`/`rb_table_guests`. tsc 0. Plan completo en `context/plan-integracion-sirius.md` (secciones 5–7).
 - `[2026-05-28]` — **SQL principal sincronizado** (`inventarioEsteban_v3_multitenant.sql`): migración v3.8 agrega `categories.is_active/color/sort_order` + tablas `rb_gastos`, `rb_ingresos_diarios`, `rb_gastos_fijos`. SQL ahora está full para levantar desde 0.
 - `[2026-05-27]` — **Tracker Financiero Gastrobar** (`restbar-finanzas.tsx` + `restbar.finanzas.routes.ts`): tab "Finanzas" (admin-only) en RestBar con timeline, gastos variables, ingresos diarios, gastos fijos y resumen quincenal. Auto-timestamp en servidor. 3 tablas nuevas: `rb_gastos`, `rb_ingresos_diarios`, `rb_gastos_fijos`.
 - `[2026-05-27]` — **Categorías CRUD completo** en módulo Inventario: backend (PUT /:id, PATCH /:id/visibility), frontend dialog con lista de categorías + edición inline + color picker + hide/show + delete con validación. `CategoryItem` actualizado con `isActive`, `color`, `sortOrder`. Store con `updateCategory`, `toggleCategoryVisibility`.
-- `[2026-05-27]` — **daimuz v3** (100/100): gobernanza completa, todos los compressed.md, synapses completas, bugs-history poblado, deployment.md corregido (Dokploy + Evolution API v2).
-- `[2026-05-27]` — **daimuz v2**: arquitectura cognitiva avanzada. Añadidos `indexes/` (4 archivos), `synapses/` (4 cadenas de impacto), `ontology/entities.md`, `governance/universal-constraints.md`, `compressed.md` en 7 módulos clave. DAIMUZ.md y CLAUDE.md actualizados.
-- `[2026-05-27]` — **División de cuenta igualitaria** en `cajero-panel.tsx`: el cajero puede dividir el total entre N personas, con contador +/−, grid de acceso rápido (2–10 personas), y botón para auto-llenar el monto por persona.
-- `[2026-05-27]` — **Limpieza de READMEs**: eliminado `README copy.md` (obsoleto, era del proyecto viejo "inventariodaniel"), reescritos `backend/README.md` y `frontend/README.md` con info actual de Lopbuk.
-- `[2026-05-27]` — **CLAUDE.md** creado en root: Claude usa `daimuz/` como sistema de memoria del proyecto.
-- `[2026-05-26]` — Creado núcleo cognitivo DAIMUZ en Obsidian
-- `[anterior]` — Ajustes en POS y storefront
-- `[anterior]` — Mejoras en landing page y portafolio
-
----
-
-← [[DAIMUZ]] | → [[completed-features]]
+- `[2026-05-27]` — **daimuz v3** (100/100): gobernanza completa, todos los compressed.md, synapses completas, bugs-history poblado, deployment.md corregido (Dokploy + E

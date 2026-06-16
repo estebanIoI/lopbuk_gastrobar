@@ -7,6 +7,8 @@ import pool from '../../config/database';
 import { UserRole } from '../../common/types';
 import reservationsRouter from './reservations.routes';
 import finanzasRouter from './restbar.finanzas.routes';
+import reportsRouter from './restbar.reports.routes';
+import backupRouter from './restbar.backup.routes';
 
 const router: ReturnType<typeof Router> = Router();
 
@@ -15,6 +17,12 @@ router.use('/reservations', reservationsRouter);
 
 // ── Sub-router de finanzas (control de gastos/ingresos del gastrobar) ─────────
 router.use('/finanzas', finanzasRouter);
+
+// ── Sub-router de reportes (resumen de pagos, top productos, mesero/mesa) ─────
+router.use('/reports', reportsRouter);
+
+// ── Sub-router de respaldo/restauración (catálogo/config) ─────────────────────
+router.use('/backup', backupRouter);
 
 // ── PUBLIC: menú sin autenticación ───────────────────────────────────────────
 router.get('/public-menu/:slug', async (req: Request, res: Response) => {
@@ -618,6 +626,7 @@ router.get('/likes-stats', authorize(...ADMIN_ROLES), async (req: Request, res: 
     } catch {
       // menu_likes table not created yet
       res.json({ success: true, data: [] });
+   
     }
   } catch (error) {
     console.error('Likes stats error:', error);

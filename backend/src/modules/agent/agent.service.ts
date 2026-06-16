@@ -12,6 +12,7 @@ import {
   LEAD_TOOL_DECLARATION,
   ORDER_TOOL_DECLARATION,
 } from './agent.tools';
+import { decrypt } from '../../utils/crypto';
 
 // ─────────────────────────────────────────────────────────────
 // Types
@@ -43,17 +44,44 @@ const EMPTY_CONTEXT: DynamicContext = {
 };
 
 // ─────────────────────────────────────────────────────────────
-// AI key
+// AI keys — multi-provider
 // ─────────────────────────────────────────────────────────────
 
-export async function getAIKey(): Promise<string> {
+export async function getAIKeys(): Promise<{
+  geminiKey: string;
+  openaiKey: string;
+  groqKey: string;
+  defaultProvider: 'gemini' | 'openai' | 'groq';
+}> {
   const [rows] = await pool.query(
-    "SELECT setting_value FROM platform_settings WHERE setting_key = 'openai_api_key' LIMIT 1"
+    "SELECT setting_key, setting_value FROM platform_settings WHERE setting_key IN ('ai_gemini_key','ai_openai_key','ai_groq_key','ai_default_provider')"
   ) as any;
-  return rows?.[0]?.setting_value?.trim()
-    || process.env.GEMINI_API_KEY
-    || process.env.OPENAI_API_KEY
-    || '';
+
+  const settings: Record<string, string> = {};
+  for (const row of (rows as any[])) {
+    try { settings[row.setting_key] = decrypt(row.setting_value || ''); }
+    catch { settings[row.setting_key] = row.setting_value || ''; }
+  }
+
+  const rawProvider = (settings['ai_default_provider'] || process.env.AI_DEFAULT_PROVIDER || 'openai').trim().toLowerCase();
+  const defaultProvider = ['gemini', 'openai', 'groq'].includes(rawProvider) ? rawProvider as any : 'openai';
+
+  return {
+    geminiKey: settings['ai_gemini_key'] || process.env.GEMINI_API_KEY || '',
+    openaiKey: settings['ai_openai_key'] || process.env.OPENAI_API_KEY || '',
+    groqKey: settings['ai_groq_key'] || process.env.GROQ_API_KEY || '',
+    defaultProvider,
+  };
+}
+
+/** Returns the API key for the default provider (backward-compatible). */
+export async function getAIKey(): Promise<string> {
+  const keys = await getAIKeys();
+  switch (keys.defaultProvider) {
+    case 'gemini': return keys.geminiKey;
+    case 'groq':   return keys.groqKey;
+    default:       return keys.openaiKey;
+  }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -540,19 +568,22 @@ export async function processAgentMessage(
   const systemPrompt        = buildEnrichedSystemPrompt(config, dynamicCtx, matchedProducts);
   const conversationMessages = [...historyMessages, { role: 'user', content: message }];
 
-  const apiKey = await getAIKey();
+  const { geminiKey, openaiKey, groqKey, defaultProvider } = await getAIKeys();
+  const apiKey = defaultProvider === 'gemini' ? geminiKey : defaultProvider === 'groq' ? groqKey : openaiKey;
   if (!apiKey) throw new Error('Servicio de IA no configurado');
 
   let rawReply: string;
-  if (apiKey.startsWith('AIza')) {
+  if (defaultProvider === 'gemini') {
     const tools = [
       ...(dynamicCtx.reservationsEnabled ? RESERVATION_TOOL_DECLARATIONS : []),
       LEAD_TOOL_DECLARATION,
       ORDER_TOOL_DECLARATION,
     ];
-    rawReply = await callGeminiWithTools(apiKey, systemPrompt, conversationMessages, tools, tenantId, sessionId);
+    rawReply = await callGeminiWithTools(geminiKey, systemPrompt, conversationMessages, tools, tenantId, sessionId);
+  } else if (defaultProvider === 'groq') {
+    rawReply = await callGroq(groqKey, systemPrompt, conversationMessages);
   } else {
-    rawReply = await callAI(apiKey, systemPrompt, conversationMessages);
+    rawReply = await callOpenAI(openaiKey, systemPrompt, conversationMessages);
   }
 
   const reply = rawReply.replace(/\[COMPRAR:[^\]]+\]/gi, '').replace(/\n{3,}/g, '\n\n').trim();

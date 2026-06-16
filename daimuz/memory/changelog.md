@@ -4,6 +4,44 @@
 
 ---
 
+## [2026-06-15] — Multi-API Key + cifrado en reposo para agente IA
+
+**Backend:**
+- `agent.service.ts`: nueva `getAIKeys()` → devuelve `{ geminiKey, openaiKey, groqKey, defaultProvider }`. `getAIKey()` mantenida (backward compat). `processAgentMessage()` ahora usa routing explícito por provider.
+- `chatbot.routes.ts`: GET/PUT `/superadmin/integrations` ahora maneja 3 API keys + provider selector. Las keys se cifran con AES-256-CBC al guardar y se descifran al leer.
+
+**Frontend:**
+- `IntegrationsTab.tsx`: rediseñado con 3 campos separados (Gemini/OpenAI/Groq), toggle show/hide individual, badges "Configurado" por provider, y selector de proveedor default con botones con iconos.
+- `useIntegrations.ts`: nuevo estado `geminiApiKey`, `groqApiKey`, `defaultAiProvider`.
+- `lib/api.ts`: tipos actualizados para `updateSuperadminIntegrations`.
+
+**Entorno:**
+- `backend/.env` creado con la OpenAI key del usuario.
+- `backend/.env.example` actualizado: `OPENAI_API_KEY`, `GROQ_API_KEY`, `AI_DEFAULT_PROVIDER`.
+- `docker-compose.dev.yml` y `docker-compose.dokploy.yml`: incluídas las 4 nuevas env vars.
+
+## [2026-06-16] — Fase 4 Restaurante: reportes (delta A) + cierre del roadmap
+
+- **Reportes de restaurante**: nuevo sub-router `restbar.reports.routes.ts`
+  (`GET /api/restbar/reports/summary?from=&to=`, montado en `/api/restbar/reports`): resumen de
+  pagos por método, top de productos, rendimiento por mesero y por mesa, KPIs (ventas, comandas,
+  ticket promedio, total cobrado). Reutiliza `rb_orders/rb_payments/rb_order_items`. Frontend:
+  página `/reportes-restaurante` (rango de fechas, tablas, **export a PDF vía imprimir**) +
+  `api.getRestbarReports()`.
+- **Marketing/promos**: ya cubierto por `store_banners` → home `/r/[slug]` (Fase 1); sin módulo nuevo.
+- **Backup/restore**: NO implementado (acción crítica, approval-gated por `governance`).
+- **Build**: frontend tsc 0. En backend, los 2 errores de `tsc` eran truncamientos transitorios del
+  mount del sandbox en `agent.service.ts` y `chatbot.routes.ts` (archivos NO tocados; verificados
+  íntegros en disco con file-tools). También se reparó una truncación del mount en `lib/api.ts` y
+  `restbar.routes.ts` provocada por ediciones con file-tools (restauradas y reverificadas).
+
+- **Backup/restore (delta D)**: sub-router `restbar.backup.routes.ts` (`/api/restbar/backup`):
+  `GET /export` (solo lectura), `POST /restore/preview` (dry-run) y `POST /restore` (upsert SOLO
+  catálogo/config; nunca pedidos/pagos; exige rol alto + frase `RESTAURAR` + fuerza tenant_id del JWT).
+  Frontend: página `/respaldos`. `api.exportRestbarBackup/previewRestbarRestore/restoreRestbarBackup`.
+
+> Roadmap restaurante: Fase 1 ✅ · Fase 2 ✅ · Fase 3 ✅ · Fase 4 ✅. **Integración Sirius COMPLETA.**
+
 ## [2026-06-15] — Fase 3 Restaurante: módulo de fidelización / puntos
 
 Nuevo módulo **loyalty** (tsc front 0; backend sin errores nuevos):
@@ -457,28 +495,4 @@ Tabs finales: Hoy . Rutina . Cocina . Plan . Compras . Gym (si miembro).
 
 ---
 
-## [2026-05-27] — Memoria unificada en DAIMUZ + mejoras cajero
-
-### Nuevas funcionalidades
-- **Division de cuenta igualitaria** en `cajero-panel.tsx`: el cajero activa un modo que divide el total entre N personas (contador +/-, grid rapido 2-10 personas, auto-rellena el campo de monto)
-
-### Mejoras
-- **CLAUDE.md** creado en root: Claude Code ahora usa `daimuz/` como sistema de memoria del proyecto
-- **Limpieza de docs**: eliminada carpeta `docs/`, contenido migrado a `daimuz/vault/` (api-routes, business-rules, changelog)
-- **READMEs actualizados**: eliminado `README copy.md` obsoleto, reescritos `backend/README.md` y `frontend/README.md` con informacion actual de Lopbuk
-
----
-
-## [2026-05-26] — Nucleo cognitivo DAIMUZ
-
-### Nuevas funcionalidades
-- Creado sistema de documentacion DAIMUZ en Obsidian
-- 60+ neuronas organizadas en brain, memory, architecture, modules, flows, decisions, prompts, context, vault
-
----
-
-## [2026-05] — Agente IA (Fases 1 y 2)
-
-### Completado
-- **Fase 1 -- RAG + Function Calling**: agente responde con contexto del negocio
-- **Fase 2 -- WhatsApp (Evolution API v2)**: webhook configurado, mensajes entra
+## [2026-05-27] — Memoria unificada 

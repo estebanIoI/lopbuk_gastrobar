@@ -9,6 +9,7 @@ import {
   processAgentMessage,
 } from '../agent/agent.service';
 import { runPublicAssistant, isPlatformAssistantEnabled } from '../assistant/assistant.service';
+import { encrypt, decrypt } from '../../utils/crypto';
 
 const router: ReturnType<typeof Router> = Router();
 
@@ -346,25 +347,68 @@ router.get('/superadmin/integrations', authenticate, async (req: Request, res: R
     }
 
     const [rows] = await pool.query(
-      "SELECT setting_key, setting_value FROM platform_settings WHERE setting_key IN ('cloudinary_cloud_name','cloudinary_upload_preset','openai_api_key')"
+      "SELECT setting_key, setting_value FROM platform_settings WHERE setting_key IN ('cloudinary_cloud_name','cloudinary_upload_preset','ai_gemini_key','ai_openai_key','ai_groq_key','ai_default_provider')"
     ) as any;
 
     const settings: Record<string, string> = {};
     for (const row of (rows as any[])) {
-      settings[row.setting_key] = row.setting_value || '';
+      const val = row.setting_value || '';
+      // Decrypt AI keys (Cloudinary values are plaintext)
+      if (['ai_gemini_key', 'ai_openai_key', 'ai_groq_key'].includes(row.setting_key)) {
+        try { settings[row.setting_key] = decrypt(val); }
+        catch { settings[row.setting_key] = val; }
+      } else {
+        settings[row.setting_key] = val;
+      }
     }
 
     res.json({
       success: true,
       data: {
-        cloudinaryCloudName:    settings['cloudinary_cloud_name']    || '',
-        cloudinaryUploadPreset: settings['cloudinary_upload_preset'] || '',
-        openaiApiKey:           settings['openai_api_key']           || '',
+        cloudinaryCloudName:    settings['cloudinary_cloud_name']      || '',
+        cloudinaryUploadPreset: settings['cloudinary_upload_preset']   || '',
+        // Las AI keys se devuelven ENMASCARADAS (nunca el secreto completo al navegador).
+        // El front muestra la máscara para el toggle show/hide; los flags *Set indican si hay key.
+        geminiApiKey:           settings['ai_gemini_key'] ? '••••••' + settings['ai_gemini_key'].slice(-4) : '',
+        openaiApiKey:           settings['ai_openai_key'] ? '••••••' + settings['ai_openai_key'].slice(-4) : '',
+        groqApiKey:             settings['ai_groq_key']   ? '••••••' + settings['ai_groq_key'].slice(-4)   : '',
+        geminiApiKeySet:        !!settings['ai_gemini_key'],
+        openaiApiKeySet:        !!settings['ai_openai_key'],
+        groqApiKeySet:          !!settings['ai_groq_key'],
+        defaultAiProvider:      settings['ai_default_provider']        || 'openai',
       },
     });
   } catch (error) {
     console.error('Integrations GET error:', error);
     res.status(500).json({ success: false, error: 'Error al obtener integraciones' });
+  }
+});
+
+// =============================================
+// SUPERADMIN: revelar una AI key en claro (bajo demanda)
+// =============================================
+router.get('/superadmin/integrations/reveal/:provider', authenticate, async (req: Request, res: Response) => {
+  try {
+    if ((req as any).user.role !== 'superadmin') {
+      res.status(403).json({ success: false, error: 'Solo superadmin' });
+      return;
+    }
+    const map: Record<string, string> = { gemini: 'ai_gemini_key', openai: 'ai_openai_key', groq: 'ai_groq_key' };
+    const settingKey = map[req.params.provider];
+    if (!settingKey) {
+      res.status(400).json({ success: false, error: 'Proveedor inválido' });
+      return;
+    }
+    const [rows] = await pool.query(
+      'SELECT setting_value FROM platform_settings WHERE setting_key = ? LIMIT 1', [settingKey]
+    ) as any;
+    const raw = rows?.[0]?.setting_value || '';
+    let key = '';
+    if (raw) { try { key = decrypt(raw); } catch { key = raw; } }
+    res.json({ success: true, data: { key } });
+  } catch (error) {
+    console.error('Integrations reveal error:', error);
+    res.status(500).json({ success: false, error: 'Error al revelar la clave' });
   }
 });
 
@@ -378,13 +422,25 @@ router.put('/superadmin/integrations', authenticate, async (req: Request, res: R
       return;
     }
 
-    const { cloudinaryCloudName, cloudinaryUploadPreset, openaiApiKey } = req.body;
+    const { cloudinaryCloudName, cloudinaryUploadPreset, geminiApiKey, openaiApiKey, groqApiKey, defaultAiProvider } = req.body;
 
-    const updates = [
+    const updates: [string, string][] = [
       ['cloudinary_cloud_name',    cloudinaryCloudName    || ''],
       ['cloudinary_upload_preset', cloudinaryUploadPreset || ''],
-      ['openai_api_key',           openaiApiKey           || ''],
+      ['ai_default_provider',      defaultAiProvider      || 'openai'],
     ];
+
+    // Solo se actualiza una AI key si llega un valor REAL (no el enmascarado con •).
+    // Así el GET puede devolver las keys ofuscadas sin que un guardado las pise con la máscara.
+    // Para borrar una key se envía la cadena exacta "__CLEAR__".
+    const realKey = (v: any) => typeof v === 'string' && v.length > 0 && !v.includes('•');
+    const pushKey = (k: string, v: any) => {
+      if (v === '__CLEAR__') updates.push([k, '']);
+      else if (realKey(v)) updates.push([k, encrypt(v)]);
+    };
+    pushKey('ai_gemini_key', geminiApiKey);
+    pushKey('ai_openai_key', openaiApiKey);
+    pushKey('ai_groq_key',   groqApiKey);
 
     for (const [key, value] of updates) {
       await pool.query(

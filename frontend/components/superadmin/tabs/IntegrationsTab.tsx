@@ -1,22 +1,33 @@
 'use client'
 
-import { Bot, Check, Eye, EyeOff, ImageIcon, RefreshCw, Save } from 'lucide-react'
+import { Bot, Check, Eye, EyeOff, ImageIcon, RefreshCw, Save, Sparkles, Brain, Cpu } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useIntegrations } from '../hooks/useIntegrations'
 
+const PROVIDERS = [
+  { value: 'gemini', label: 'Gemini', icon: Sparkles },
+  { value: 'openai', label: 'OpenAI', icon: Brain },
+  { value: 'groq', label: 'Groq', icon: Cpu },
+] as const
+
 export function IntegrationsTab() {
   const {
-    integrations, setIntegrations,
+    integrations, setIntegrations, revealKey,
+    showGeminiKey, setShowGeminiKey,
     showOpenAIKey, setShowOpenAIKey,
+    showGroqKey, setShowGroqKey,
     showUploadPreset, setShowUploadPreset,
     isSavingIntegrations, integrationsMsg, handleSaveIntegrations,
     platformAssistant, togglingAssistant, toggleAssistant,
     chatbotTenants, isLoadingChatbotTenants, togglingTenantId,
     fetchChatbotTenants, handleToggleChatbot,
   } = useIntegrations()
+
+  const set = (field: string, value: string) =>
+    setIntegrations(p => ({ ...p, [field]: value }))
 
   return (
     <div className="space-y-6">
@@ -53,7 +64,7 @@ export function IntegrationsTab() {
               <Input
                 placeholder="ej: dxy123abc"
                 value={integrations.cloudinaryCloudName}
-                onChange={e => setIntegrations(p => ({ ...p, cloudinaryCloudName: e.target.value }))}
+                onChange={e => set('cloudinaryCloudName', e.target.value)}
                 className="font-mono text-sm"
               />
             </div>
@@ -64,7 +75,7 @@ export function IntegrationsTab() {
                   type={showUploadPreset ? 'text' : 'password'}
                   placeholder="ej: perfumeria_uploads"
                   value={integrations.cloudinaryUploadPreset}
-                  onChange={e => setIntegrations(p => ({ ...p, cloudinaryUploadPreset: e.target.value }))}
+                  onChange={e => set('cloudinaryUploadPreset', e.target.value)}
                   className="font-mono text-sm pr-10"
                 />
                 <button type="button" onClick={() => setShowUploadPreset(v => !v)}
@@ -86,42 +97,124 @@ export function IntegrationsTab() {
         </CardContent>
       </Card>
 
-      {/* OpenAI / Gemini */}
+      {/* AI Providers */}
       <Card className="border-border bg-card">
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <Bot className="h-5 w-5 text-muted-foreground" />
-            OpenAI / Gemini — Chatbot IA
+            Proveedores de IA — Chatbot y Agentes
           </CardTitle>
           <CardDescription>
-            API Key de IA. Requerida para activar el chatbot en cualquier comercio.
+            Configura las API Keys de cada proveedor. El agente usará el proveedor que selecciones como default.
+            Las claves se almacenan cifradas (AES-256-CBC).
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-1.5">
-            <Label>API Key de IA (Google Gemini u OpenAI)</Label>
-            <div className="relative">
-              <Input
-                type={showOpenAIKey ? 'text' : 'password'}
-                placeholder="AIzaSy... (Gemini) o sk-proj-... (OpenAI)"
-                value={integrations.openaiApiKey}
-                onChange={e => setIntegrations(p => ({ ...p, openaiApiKey: e.target.value }))}
-                className="font-mono text-sm pr-10"
-              />
-              <button type="button" onClick={() => setShowOpenAIKey(v => !v)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-                {showOpenAIKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
+        <CardContent className="space-y-5">
+          {/* Provider selector */}
+          <div className="space-y-2">
+            <Label>Proveedor default (el que usará el agente)</Label>
+            <div className="flex gap-2">
+              {PROVIDERS.map(({ value, label, icon: Icon }) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => set('defaultAiProvider', value)}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium transition-all ${
+                    integrations.defaultAiProvider === value
+                      ? 'border-primary bg-primary/10 text-primary shadow-sm'
+                      : 'border-border bg-card text-muted-foreground hover:border-primary/40'
+                  }`}
+                >
+                  <Icon className="h-4 w-4" />
+                  {label}
+                </button>
+              ))}
             </div>
-            <p className="text-xs text-muted-foreground">
-              Google Gemini (gratis): <strong>aistudio.google.com/apikey</strong> — OpenAI (pago): <strong>platform.openai.com/api-keys</strong>
-            </p>
+          </div>
+
+          <div className="border-t border-border pt-4 space-y-4">
+            {/* Gemini */}
+            <div className="space-y-1.5">
+              <Label className="flex items-center gap-2">
+                <Sparkles className="h-3.5 w-3.5 text-blue-500" />
+                Google Gemini
+                {integrations.geminiApiKey && (
+                  <span className="text-xs px-1.5 py-0.5 rounded-full bg-green-500/15 text-green-600 font-normal">Configurado</span>
+                )}
+              </Label>
+              <div className="relative">
+                <Input
+                  type={showGeminiKey ? 'text' : 'password'}
+                  placeholder="AIzaSy... (Gemini)"
+                  value={integrations.geminiApiKey}
+                  onChange={e => set('geminiApiKey', e.target.value)}
+                  className="font-mono text-sm pr-10"
+                />
+                <button type="button" onClick={() => { if (!showGeminiKey && integrations.geminiApiKey.includes('•')) revealKey('gemini'); setShowGeminiKey(v => !v) }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                  {showGeminiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+
+            {/* OpenAI */}
+            <div className="space-y-1.5">
+              <Label className="flex items-center gap-2">
+                <Brain className="h-3.5 w-3.5 text-emerald-500" />
+                OpenAI
+                {integrations.openaiApiKey && (
+                  <span className="text-xs px-1.5 py-0.5 rounded-full bg-green-500/15 text-green-600 font-normal">Configurado</span>
+                )}
+              </Label>
+              <div className="relative">
+                <Input
+                  type={showOpenAIKey ? 'text' : 'password'}
+                  placeholder="sk-... (OpenAI)"
+                  value={integrations.openaiApiKey}
+                  onChange={e => set('openaiApiKey', e.target.value)}
+                  className="font-mono text-sm pr-10"
+                />
+                <button type="button" onClick={() => { if (!showOpenAIKey && integrations.openaiApiKey.includes('•')) revealKey('openai'); setShowOpenAIKey(v => !v) }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                  {showOpenAIKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+
+            {/* Groq */}
+            <div className="space-y-1.5">
+              <Label className="flex items-center gap-2">
+                <Cpu className="h-3.5 w-3.5 text-purple-500" />
+                Groq (Llama)
+                {integrations.groqApiKey && (
+                  <span className="text-xs px-1.5 py-0.5 rounded-full bg-green-500/15 text-green-600 font-normal">Configurado</span>
+                )}
+              </Label>
+              <div className="relative">
+                <Input
+                  type={showGroqKey ? 'text' : 'password'}
+                  placeholder="gsk_... (Groq)"
+                  value={integrations.groqApiKey}
+                  onChange={e => set('groqApiKey', e.target.value)}
+                  className="font-mono text-sm pr-10"
+                />
+                <button type="button" onClick={() => { if (!showGroqKey && integrations.groqApiKey.includes('•')) revealKey('groq'); setShowGroqKey(v => !v) }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                  {showGroqKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
           </div>
 
           <div className="flex items-center gap-2 p-2.5 rounded-lg bg-secondary/40 text-sm">
-            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${integrations.openaiApiKey ? 'bg-green-500' : 'bg-amber-400'}`} />
+            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
+              integrations.geminiApiKey || integrations.openaiApiKey || integrations.groqApiKey
+                ? 'bg-green-500' : 'bg-amber-400'
+            }`} />
             <span className="text-muted-foreground text-xs">
-              {integrations.openaiApiKey ? 'API Key configurada — el chatbot puede activarse en comercios' : 'Sin configurar — el chatbot no funcionará'}
+              {integrations.geminiApiKey || integrations.openaiApiKey || integrations.groqApiKey
+                ? `Al menos un proveedor configurado — default: ${integrations.defaultAiProvider}`
+                : 'Sin configurar — el chatbot no funcionará'}
             </span>
           </div>
         </CardContent>

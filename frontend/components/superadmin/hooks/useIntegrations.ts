@@ -5,13 +5,29 @@ import { api } from '@/lib/api'
 import { toast } from 'sonner'
 import { clearCloudinaryCache } from '@/components/ui/cloudinary-upload'
 
+export interface IntegrationsState {
+  cloudinaryCloudName: string
+  cloudinaryUploadPreset: string
+  geminiApiKey: string
+  openaiApiKey: string
+  groqApiKey: string
+  defaultAiProvider: 'gemini' | 'openai' | 'groq'
+}
+
+const INITIAL_INTEGRATIONS: IntegrationsState = {
+  cloudinaryCloudName: '',
+  cloudinaryUploadPreset: '',
+  geminiApiKey: '',
+  openaiApiKey: '',
+  groqApiKey: '',
+  defaultAiProvider: 'openai',
+}
+
 export function useIntegrations() {
-  const [integrations, setIntegrations] = useState({
-    cloudinaryCloudName: '',
-    cloudinaryUploadPreset: '',
-    openaiApiKey: '',
-  })
+  const [integrations, setIntegrations] = useState<IntegrationsState>(INITIAL_INTEGRATIONS)
+  const [showGeminiKey, setShowGeminiKey] = useState(false)
   const [showOpenAIKey, setShowOpenAIKey] = useState(false)
+  const [showGroqKey, setShowGroqKey] = useState(false)
   const [showUploadPreset, setShowUploadPreset] = useState(false)
   const [isSavingIntegrations, setIsSavingIntegrations] = useState(false)
   const [integrationsMsg, setIntegrationsMsg] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
@@ -31,7 +47,10 @@ export function useIntegrations() {
       setIntegrations({
         cloudinaryCloudName: result.data.cloudinaryCloudName || '',
         cloudinaryUploadPreset: result.data.cloudinaryUploadPreset || '',
+        geminiApiKey: result.data.geminiApiKey || '',
         openaiApiKey: result.data.openaiApiKey || '',
+        groqApiKey: result.data.groqApiKey || '',
+        defaultAiProvider: result.data.defaultAiProvider || 'openai',
       })
     }
     const pa = await api.getPlatformAssistant()
@@ -83,9 +102,18 @@ export function useIntegrations() {
     setTogglingTenantId(null)
   }
 
+  // Trae la AI key en claro bajo demanda (solo al pulsar "ver") y la pone en el campo.
+  const revealKey = async (provider: 'gemini' | 'openai' | 'groq') => {
+    const field = provider === 'gemini' ? 'geminiApiKey' : provider === 'openai' ? 'openaiApiKey' : 'groqApiKey'
+    const r = await api.revealIntegrationKey(provider)
+    if (r.success && r.data) setIntegrations(prev => ({ ...prev, [field]: (r.data as any).key }))
+  }
+
   return {
-    integrations, setIntegrations,
+    integrations, setIntegrations, revealKey,
+    showGeminiKey, setShowGeminiKey,
     showOpenAIKey, setShowOpenAIKey,
+    showGroqKey, setShowGroqKey,
     showUploadPreset, setShowUploadPreset,
     isSavingIntegrations, integrationsMsg, handleSaveIntegrations,
     platformAssistant, togglingAssistant, toggleAssistant,

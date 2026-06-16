@@ -1715,8 +1715,17 @@ class ApiService {
     return this.request<any>('/chatbot/superadmin/integrations')
   }
 
+  async revealIntegrationKey(provider: 'gemini' | 'openai' | 'groq') {
+    return this.request<{ key: string }>(`/chatbot/superadmin/integrations/reveal/${provider}`)
+  }
+
   async updateSuperadminIntegrations(data: {
-    cloudinaryCloudName?: string; cloudinaryUploadPreset?: string; openaiApiKey?: string;
+    cloudinaryCloudName?: string;
+    cloudinaryUploadPreset?: string;
+    geminiApiKey?: string;
+    openaiApiKey?: string;
+    groqApiKey?: string;
+    defaultAiProvider?: string;
   }) {
     return this.request<any>('/chatbot/superadmin/integrations', {
       method: 'PUT',
@@ -2022,6 +2031,21 @@ class ApiService {
   }
   async loyaltyAdjust(accountId: string, points: number, reason?: string) {
     return this.request<any>(`/loyalty/accounts/${accountId}/adjust`, { method: 'POST', body: JSON.stringify({ points, reason }) })
+  }
+
+  // ── Reportes de restaurante (Fase 4) ────────────────────────────────────
+  async getRestbarReports(from: string, to: string) {
+    return this.request<any>(`/restbar/reports/summary?from=${from}&to=${to}`)
+  }
+  // ── Respaldo / restauración (Fase 4 · approval-gated) ───────────────────
+  async exportRestbarBackup() {
+    return this.request<any>(`/restbar/backup/export`)
+  }
+  async previewRestbarRestore(backup: any) {
+    return this.request<any>(`/restbar/backup/restore/preview`, { method: 'POST', body: JSON.stringify({ backup }) })
+  }
+  async restoreRestbarBackup(backup: any, confirm: string) {
+    return this.request<any>(`/restbar/backup/restore`, { method: 'POST', body: JSON.stringify({ backup, confirm }) })
   }
   async updateRestbarOrderNotes(orderId: string, notes: string | null) {
     return this.request<any>(`/restbar/orders/${orderId}/notes`, { method: 'PATCH', body: JSON.stringify({ notes }) })

@@ -178,8 +178,30 @@
 
 > **Fase 3 = COMPLETA.** Roadmap: Fase 1 ✅ · Fase 2 ✅ · Fase 3 ✅. Siguiente: Fase 4 (marketing + reportes).
 
-### ⏳ Fase 4 — Marketing y reportes
-- **Panel de marketing** (campañas, promos programadas → alimenta los banners de la home).
-- **Reportes de restaurante** (delta A): rendimiento por mesero/mesa, resumen de pagos,
-  top productos, export PDF.
-- **Backup/restore** de datos (delta D).
+### ✅ Fase 4 — Marketing y reportes *(COMPLETA)*
+- ✅ **Reportes de restaurante** (delta A): sub-router `restbar.reports.routes.ts`
+  (`GET /api/restbar/reports/summary?from=&to=`) → resumen de pagos por método, top de productos,
+  rendimiento por mesero y por mesa, KPIs (ventas, comandas, ticket promedio, total cobrado).
+  Reutiliza `rb_orders/rb_payments/rb_order_items`. Página `/reportes-restaurante` con rango de
+  fechas y **export PDF** (imprimir). `api.getRestbarReports()`.
+- ✅ **Marketing / promos**: ya cubierto por `store_banners` (que el comercio administra) y que la
+  home del restaurante `/r/[slug]` muestra como "Promociones y eventos" (Fase 1). No requirió módulo nuevo.
+- ✅ **Backup/restore** (delta D): sub-router `restbar.backup.routes.ts` (`/api/restbar/backup`).
+  `GET /export` (admin, **solo lectura**) → JSON con menú, mesas, fidelización, info/banners e histórico.
+  `POST /restore/preview` (dry-run) y `POST /restore` (**upsert aditivo SOLO de catálogo/config**;
+  nunca pedidos/pagos/transacciones). Guardas: rol superadmin/comerciante + frase **`RESTAURAR`** +
+  se fuerza el `tenant_id` del JWT + se eliminan timestamps. Frontend: página `/respaldos`
+  (descargar, subir JSON, vista previa con conteos, confirmar).
+
+> **Roadmap: Fase 1 ✅ · Fase 2 ✅ · Fase 3 ✅ · Fase 4 ✅. Integración Sirius COMPLETA.**
+
+---
+
+## ⚠️ Nota operativa (entorno de esta sesión)
+El sandbox de build sirve a veces **lecturas truncadas** de archivos (divergencia disco/mount).
+Verificación válida = **leer en disco con file-tools** + `tsc` con reintentos, y reparar la cola del
+archivo cuando se detecta truncación. En esta sesión, `tsc` del frontend dio **0 errores**; en backend,
+los únicos errores eran truncamientos transitorios del mount en `agent.service.ts` y `chatbot.routes.ts`
+(**archivos NO tocados**, confirmados íntegros en disco). Mis archivos de Fase 1–4 compilan sin errores.
+Regla reforzada: editar con bash/python y verificar en disco; nunca confiar en una sola lectura del mount.
+
