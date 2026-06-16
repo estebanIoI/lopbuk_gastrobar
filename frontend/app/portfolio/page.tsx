@@ -301,7 +301,7 @@ function TeamCarousel({ cards, brandTitle, accentColor }: {
           La foto se mapea sobre el carnet; la banda/cordon es configurable por tarjeta. */}
       {/* Altura adaptativa: más baja en celular, alta en escritorio.
           El canvas llena el alto del contenedor (height="100%"). */}
-      <div className="h-[420px] sm:h-[500px] lg:h-[560px]" style={{ width: 420, maxWidth: '90vw' }}>
+      <div className="h-[360px] sm:h-[440px] lg:h-[500px] -mt-16 sm:-mt-24 lg:-mt-28 w-[300px] sm:w-[380px] lg:w-[420px]" style={{ maxWidth: '90vw' }}>
         <LanyardShowpiece
           height="100%"
           cardImageUrl={card.photo_url || ''}
@@ -1404,61 +1404,54 @@ export default function PortfolioPage() {
                   <p className="text-sm mb-8" style={{ color: 'var(--pf-muted)' }}>
                     Empresas reales que ya operan con nuestra plataforma.
                   </p>
-                  <div className="space-y-3">
+                  {/* Tarjetas de comercio (estilo home), responsivas: 1 col en celular, 2 en sm+. */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {data.featuredStores.map(store => (
                       <a
                         key={store.id}
                         href={`/links/${store.slug}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center gap-4 p-4 rounded-2xl border transition-all duration-200 hover:scale-[1.01] group"
+                        className="group rounded-2xl border overflow-hidden transition-all duration-200 hover:-translate-y-1 hover:shadow-xl flex flex-col"
                         style={{ borderColor: 'var(--pf-border)', background: 'var(--pf-card)' }}
                       >
-                        {/* Logo / inicial */}
-                        {store.logoUrl ? (
-                          /* eslint-disable-next-line @next/next/no-img-element */
-                          <img
-                            src={store.logoUrl}
-                            alt={store.storeName || store.slug}
-                            className="w-12 h-12 rounded-xl object-cover shrink-0"
-                          />
-                        ) : (
-                          <div
-                            className="w-12 h-12 rounded-xl flex items-center justify-center font-black text-lg shrink-0"
-                            style={{ background: `${accent}22`, color: accent }}
+                        {/* Portada: logo grande sobre acento */}
+                        <div
+                          className="relative h-28 sm:h-32 flex items-center justify-center overflow-hidden"
+                          style={{ background: `linear-gradient(135deg, ${accent}26, transparent)` }}
+                        >
+                          {store.logoUrl ? (
+                            /* eslint-disable-next-line @next/next/no-img-element */
+                            <img src={store.logoUrl} alt={store.storeName || store.slug} className="w-16 h-16 rounded-2xl object-cover shadow-lg" />
+                          ) : (
+                            <div className="w-16 h-16 rounded-2xl flex items-center justify-center font-black text-2xl shadow-lg" style={{ background: `${accent}33`, color: accent }}>
+                              {(store.storeName || store.slug)[0].toUpperCase()}
+                            </div>
+                          )}
+                          <span
+                            className="absolute top-2 right-2 text-[10px] px-2.5 py-1 rounded-full font-bold uppercase tracking-wide"
+                            style={{ background: `${accent}22`, color: accent, backdropFilter: 'blur(4px)' }}
                           >
-                            {(store.storeName || store.slug)[0].toUpperCase()}
-                          </div>
-                        )}
-
+                            {store.plan}
+                          </span>
+                        </div>
                         {/* Info */}
-                        <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-sm leading-tight" style={{ color: 'var(--pf-text)' }}>
+                        <div className="p-4 flex flex-col flex-1">
+                          <p className="font-bold text-sm leading-tight" style={{ color: 'var(--pf-text)' }}>
                             {store.storeName || store.slug}
                           </p>
                           {store.description && (
-                            <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--pf-muted)' }}>
+                            <p className="text-xs mt-1 line-clamp-2 flex-1" style={{ color: 'var(--pf-muted)' }}>
                               {store.description}
                             </p>
                           )}
+                          <span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold" style={{ color: accent }}>
+                            Ver tienda
+                            <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1">
+                              <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                            </svg>
+                          </span>
                         </div>
-
-                        {/* Plan badge */}
-                        <span
-                          className="text-[10px] px-2.5 py-1 rounded-full font-bold uppercase tracking-wide shrink-0"
-                          style={{ background: `${accent}20`, color: accent }}
-                        >
-                          {store.plan}
-                        </span>
-
-                        {/* Arrow */}
-                        <svg
-                          viewBox="0 0 20 20" fill="currentColor"
-                          className="w-4 h-4 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity -translate-x-1 group-hover:translate-x-0 duration-200"
-                          style={{ color: accent }}
-                        >
-                          <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                        </svg>
                       </a>
                     ))}
                   </div>
