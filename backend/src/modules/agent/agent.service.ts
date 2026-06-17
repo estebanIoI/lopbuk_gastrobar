@@ -73,8 +73,10 @@ export async function getAIKeys(): Promise<{
     openaiKey: settings['ai_openai_key'] || process.env.OPENAI_API_KEY || '',
     groqKey: settings['ai_groq_key'] || process.env.GROQ_API_KEY || '',
     defaultProvider,
-    openaiBaseUrl: (settings['ai_openai_base_url'] || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, ''),
-    openaiModel: settings['ai_openai_model'] || process.env.OPENAI_MODEL || 'gpt-4o-mini',
+    // Por defecto usamos OpenCode Zen (plan del cliente): así basta con pegar la key sk- de OpenCode.
+    // Si alguien quiere OpenAI oficial u otro compatible, pone su Base URL/modelo en el panel.
+    openaiBaseUrl: (settings['ai_openai_base_url'] || process.env.OPENAI_BASE_URL || 'https://opencode.ai/zen/v1').replace(/\/+$/, ''),
+    openaiModel: settings['ai_openai_model'] || process.env.OPENAI_MODEL || 'deepseek-v4-flash',
   };
 }
 
@@ -220,8 +222,8 @@ export async function callOpenAI(
   model?: string,
 ): Promise<string> {
   // Base URL/modelo configurables (OpenAI oficial o compatibles como OpenCode/OpenRouter).
-  const url = (baseUrl || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, '') + '/chat/completions';
-  const mdl = model || process.env.OPENAI_MODEL || 'gpt-4o-mini';
+  const url = (baseUrl || process.env.OPENAI_BASE_URL || 'https://opencode.ai/zen/v1').replace(/\/+$/, '') + '/chat/completions';
+  const mdl = model || process.env.OPENAI_MODEL || 'deepseek-v4-flash';
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },

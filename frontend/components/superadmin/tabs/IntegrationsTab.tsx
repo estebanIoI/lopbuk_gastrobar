@@ -184,7 +184,7 @@ export function IntegrationsTab() {
             {/* OpenAI avanzado: base URL + modelo (OpenCode Go / compatibles) */}
             <div className="grid sm:grid-cols-2 gap-2">
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Base URL (OpenAI / compatibles)</Label>
+                <Label className="text-xs text-muted-foreground">Base URL (opcional · por defecto OpenCode)</Label>
                 <Input list="dz-base-urls" value={integrations.openaiBaseUrl} onChange={e => set('openaiBaseUrl', e.target.value)} placeholder="https://opencode.ai/zen/v1" className="font-mono text-sm" />
                 <datalist id="dz-base-urls">
                   <option value="https://opencode.ai/zen/v1" />
@@ -194,7 +194,7 @@ export function IntegrationsTab() {
                 </datalist>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Modelo (elige uno o escríbelo)</Label>
+                <Label className="text-xs text-muted-foreground">Modelo (opcional · por defecto deepseek-v4-flash)</Label>
                 <Input list="dz-models" value={integrations.openaiModel} onChange={e => set('openaiModel', e.target.value)} placeholder="deepseek-v4-flash" className="font-mono text-sm" />
                 <datalist id="dz-models">
                   <option value="deepseek-v4-flash" />
@@ -205,7 +205,7 @@ export function IntegrationsTab() {
                   <option value="gpt-4o" />
                   <option value="claude-3-5-haiku" />
                 </datalist>
-                <p className="text-[11px] text-muted-foreground">Id EXACTO del modelo (minúsculas y guiones), p. ej. <code>deepseek-v4-flash</code>. Si no carga, prueba otro.</p>
+                <p className="text-[11px] text-muted-foreground">Con tu clave de OpenCode <b>basta</b>: deja Base URL y Modelo vacíos y usamos OpenCode (<code>deepseek-v4-flash</code>) por defecto. Para otro proveedor/modelo, escríbelos.</p>
               </div>
             </div>
 

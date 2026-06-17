@@ -17,8 +17,8 @@ const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
 const GROQ_URL   = 'https://api.groq.com/openai/v1/chat/completions';
 
 // OpenAI y compatibles (p. ej. opencode/openrouter) vía OPENAI_BASE_URL.
-const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
-const OPENAI_BASE  = (process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, '');
+const OPENAI_MODEL = process.env.OPENAI_MODEL || 'deepseek-v4-flash';
+const OPENAI_BASE  = (process.env.OPENAI_BASE_URL || 'https://opencode.ai/zen/v1').replace(/\/+$/, '');
 const OPENAI_URL   = `${OPENAI_BASE}/chat/completions`;
 
 const fmt = (n: number) => `$${Number(n || 0).toLocaleString('es-CO')}`;
