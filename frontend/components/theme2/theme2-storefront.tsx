@@ -86,6 +86,14 @@ export function Theme2Storefront({ slug }: { slug: string }) {
   const [reserveOpen, setReserveOpen] = useState(false)
   const [customSections, setCustomSections] = useState<{ id: number; name: string; htmlContent?: string }[]>([])
 
+  // Atribución de afiliado: guarda el ?ref=TOKEN del enlace para usarlo en el checkout.
+  useEffect(() => {
+    try {
+      const ref = new URLSearchParams(window.location.search).get('ref')
+      if (ref) localStorage.setItem('dz_ref', JSON.stringify({ token: ref, exp: Date.now() + 30 * 24 * 60 * 60 * 1000 }))
+    } catch { /* sin acceso a localStorage */ }
+  }, [])
+
   useEffect(() => {
     let alive = true
     ;(async () => {

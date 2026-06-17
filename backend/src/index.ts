@@ -53,6 +53,7 @@ import { mermaRoutes } from './modules/merma';
 import { gastrobarRoutes } from './modules/gastrobar-ops';
 import { rutinaRoutes } from './modules/rutina';
 import variantsRoutes from './modules/variants/variants.routes';
+import affiliatesRoutes from './modules/affiliates/affiliates.routes';
 import suppliersRoutes from './modules/suppliers/suppliers.routes';
 import { gymRoutes } from './modules/gym';
 import assistantRoutes from './modules/assistant/assistant.routes';
@@ -170,6 +171,7 @@ app.use(`${apiPrefix}/subscriptions`, subscriptionsRoutes);
 app.use(`${apiPrefix}/restbar`, restbarRoutes);
 app.use(`${apiPrefix}/restbar-qr`, restbarQrRoutes);
 app.use(`${apiPrefix}/loyalty`, loyaltyRoutes);
+app.use(`${apiPrefix}/affiliates`, affiliatesRoutes);
 app.use(`${apiPrefix}/daimuz-chat`, daimuzChatRoutes);
 app.use(`${apiPrefix}/finances`, financesRoutes);
 app.use(`${apiPrefix}/portfolio`, portfolioRoutes);
@@ -581,6 +583,186 @@ const startServer = async () => {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
       `);
     } catch { /* table may already exist */ }
+
+    // ── Affiliates / Programa de Promotores (Sprint 1) ───────────────────────
+    // Nota: affiliates es de nivel plataforma (sin tenant_id, excepción consciente).
+    // El resto del módulo sí lleva tenant_id. Todo idempotente (CREATE TABLE IF NOT EXISTS).
+    try {
+      const poolAff = (await import('./config/database')).default;
+      await poolAff.query(`CREATE TABLE IF NOT EXISTS affiliates (
+        id VARCHAR(36) PRIMARY KEY,
+        user_id VARCHAR(36) NULL,
+        name VARCHAR(255) NOT NULL,
+        email VARCHAR(255) NOT NULL,
+        phone VARCHAR(50) NULL,
+        handle VARCHAR(100) NULL,
+        tier ENUM('bronze','silver','gold') NOT NULL DEFAULT 'bronze',
+        balance_cop DECIMAL(14,2) NOT NULL DEFAULT 0,
+        pending_cop DECIMAL(14,2) NOT NULL DEFAULT 0,
+        monthly_sales INT NOT NULL DEFAULT 0,
+        status ENUM('active','suspended') NOT NULL DEFAULT 'active',
+        password_hash VARCHAR(255) NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE INDEX idx_aff_email (email),
+        UNIQUE INDEX idx_aff_handle (handle),
+        INDEX idx_aff_status (status)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+
+      await poolAff.query(`CREATE TABLE IF NOT EXISTS merchant_events (
+        id VARCHAR(36) PRIMARY KEY,
+        tenant_id VARCHAR(36) NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        description TEXT NULL,
+        event_date DATETIME NOT NULL,
+        location VARCHAR(255) NULL,
+        cover_image VARCHAR(800) NULL,
+        ticket_price DECIMAL(14,2) NULL,
+        capacity INT NULL,
+        is_active TINYINT(1) NOT NULL DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+        INDEX idx_mevent_tenant (tenant_id, is_active, event_date)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+
+      await poolAff.query(`CREATE TABLE IF NOT EXISTS affiliate_packages (
+        id VARCHAR(36) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        description TEXT NULL,
+        deliverables JSON NULL,
+        price_cop DECIMAL(14,2) NOT NULL,
+        affiliate_pct DECIMAL(5,2) NOT NULL,
+        platform_pct DECIMAL(5,2) NOT NULL,
+        is_active TINYINT(1) NOT NULL DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_affpkg_active (is_active)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+
+      await poolAff.query(`CREATE TABLE IF NOT EXISTS affiliate_campaigns (
+        id VARCHAR(36) PRIMARY KEY,
+        affiliate_id VARCHAR(36) NOT NULL,
+        tenant_id VARCHAR(36) NOT NULL,
+        entity_type ENUM('store','product','event','service') NOT NULL DEFAULT 'store',
+        entity_id VARCHAR(36) NULL,
+        ref_token VARCHAR(100) NOT NULL,
+        discount_code VARCHAR(50) NULL,
+        discount_pct DECIMAL(5,2) NOT NULL DEFAULT 0,
+        commission_pct DECIMAL(5,2) NOT NULL,
+        cookie_days TINYINT NOT NULL DEFAULT 7,
+        is_active TINYINT(1) NOT NULL DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE INDEX idx_campaign_ref (ref_token),
+        UNIQUE INDEX idx_campaign_code (discount_code),
+        FOREIGN KEY (affiliate_id) REFERENCES affiliates(id) ON DELETE CASCADE,
+        FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+        INDEX idx_campaign_affiliate (affiliate_id),
+        INDEX idx_campaign_tenant (tenant_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+
+      await poolAff.query(`CREATE TABLE IF NOT EXISTS affiliate_conversions (
+        id VARCHAR(36) PRIMARY KEY,
+        campaign_id VARCHAR(36) NOT NULL,
+        tenant_id VARCHAR(36) NOT NULL,
+        order_id VARCHAR(36) NULL,
+        sale_id VARCHAR(36) NULL,
+        method ENUM('link','code') NOT NULL,
+        order_total_cop DECIMAL(14,2) NOT NULL,
+        commission_cop DECIMAL(14,2) NOT NULL,
+        status ENUM('pending','approved','paid','rejected') NOT NULL DEFAULT 'pending',
+        approved_at TIMESTAMP NULL,
+        paid_at TIMESTAMP NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (campaign_id) REFERENCES affiliate_campaigns(id) ON DELETE CASCADE,
+        INDEX idx_conv_campaign (campaign_id),
+        INDEX idx_conv_tenant (tenant_id),
+        INDEX idx_conv_status (status),
+        INDEX idx_conv_order (order_id),
+        INDEX idx_conv_sale (sale_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+
+      await poolAff.query(`CREATE TABLE IF NOT EXISTS affiliate_commissions (
+        id VARCHAR(36) PRIMARY KEY,
+        affiliate_id VARCHAR(36) NOT NULL,
+        conversion_id VARCHAR(36) NULL,
+        type ENUM('conversion','mission_bonus','tier_bonus','package') NOT NULL,
+        amount_cop DECIMAL(14,2) NOT NULL,
+        status ENUM('pending','approved','paid') NOT NULL DEFAULT 'pending',
+        note TEXT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (affiliate_id) REFERENCES affiliates(id) ON DELETE CASCADE,
+        INDEX idx_comm_affiliate (affiliate_id, status),
+        INDEX idx_comm_conversion (conversion_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+
+      await poolAff.query(`CREATE TABLE IF NOT EXISTS affiliate_package_orders (
+        id VARCHAR(36) PRIMARY KEY,
+        package_id VARCHAR(36) NOT NULL,
+        affiliate_id VARCHAR(36) NOT NULL,
+        tenant_id VARCHAR(36) NOT NULL,
+        entity_type ENUM('store','event','service') NOT NULL DEFAULT 'store',
+        entity_id VARCHAR(36) NULL,
+        status ENUM('pending_payment','paid','in_progress','completed','cancelled') NOT NULL DEFAULT 'pending_payment',
+        total_cop DECIMAL(14,2) NOT NULL,
+        affiliate_cop DECIMAL(14,2) NOT NULL,
+        platform_cop DECIMAL(14,2) NOT NULL,
+        paid_at TIMESTAMP NULL,
+        content_deadline TIMESTAMP NULL,
+        content_delivered JSON NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (package_id) REFERENCES affiliate_packages(id) ON DELETE RESTRICT,
+        FOREIGN KEY (affiliate_id) REFERENCES affiliates(id) ON DELETE CASCADE,
+        FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+        INDEX idx_pkgorder_affiliate (affiliate_id, status),
+        INDEX idx_pkgorder_tenant (tenant_id, status)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+
+      await poolAff.query(`CREATE TABLE IF NOT EXISTS affiliate_withdrawals (
+        id VARCHAR(36) PRIMARY KEY,
+        affiliate_id VARCHAR(36) NOT NULL,
+        amount_cop DECIMAL(14,2) NOT NULL,
+        payment_method VARCHAR(100) NOT NULL,
+        status ENUM('requested','processing','paid','rejected') NOT NULL DEFAULT 'requested',
+        processed_by VARCHAR(36) NULL,
+        note TEXT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (affiliate_id) REFERENCES affiliates(id) ON DELETE CASCADE,
+        INDEX idx_withdraw_affiliate (affiliate_id, status)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+
+      await poolAff.query(`CREATE TABLE IF NOT EXISTS affiliate_missions (
+        id VARCHAR(36) PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        description TEXT NULL,
+        reward_cop DECIMAL(14,2) NOT NULL,
+        required_views INT NULL,
+        min_tier ENUM('bronze','silver','gold') NOT NULL DEFAULT 'bronze',
+        expires_at TIMESTAMP NULL,
+        is_active TINYINT(1) NOT NULL DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_mission_active (is_active)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+
+      await poolAff.query(`CREATE TABLE IF NOT EXISTS affiliate_mission_submissions (
+        id VARCHAR(36) PRIMARY KEY,
+        mission_id VARCHAR(36) NOT NULL,
+        affiliate_id VARCHAR(36) NOT NULL,
+        content_url VARCHAR(800) NOT NULL,
+        status ENUM('submitted','approved','rejected') NOT NULL DEFAULT 'submitted',
+        reviewed_by VARCHAR(36) NULL,
+        review_note TEXT NULL,
+        reviewed_at TIMESTAMP NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (mission_id) REFERENCES affiliate_missions(id) ON DELETE CASCADE,
+        FOREIGN KEY (affiliate_id) REFERENCES affiliates(id) ON DELETE CASCADE,
+        INDEX idx_submission_mission (mission_id, status),
+        INDEX idx_submission_affiliate (affiliate_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+    } catch (e: any) { console.warn('[migration affiliates]', e?.message); }
 
     // ── Tenant module control ────────────────────────────────────────────────
     try {

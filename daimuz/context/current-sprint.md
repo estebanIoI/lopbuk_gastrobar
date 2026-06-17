@@ -4,6 +4,25 @@
 
 ## Sprint activo: Junio 2026
 
+### ✅ Completado [2026-06-17]: Afiliados (backend S1–4) + tarjetas externas + imagen por variante + barra config + cierre Tema 2
+
+| Tarea | Estado | Descripción |
+|---|---|---|
+| Afiliados Sprint 1 (schema) | ✅ | 10 tablas, migración inline idempotente + tipos + 005_affiliates.sql |
+| Afiliados Sprint 2 (core) | ✅ | service+routes, auth propia promotor, campañas/conversiones/retiros/misiones, superadmin/comercio |
+| Afiliados Sprint 3 (paquetes) | ✅ | CRUD + contratación + pago inmediato al wallet |
+| Afiliados Sprint 4 (atribución) | ✅ | hook `?ref=` en /orders/public + auto-aprobación; código POS listo (sin enganchar) |
+| Tarjetas externas | ✅ | tabla + CRUD superadmin + merge en /storefront/stores + redirect en home |
+| Imagen por variante | ✅ | campo en variant-manager + swap de imagen al elegir color (tienda) |
+| Barra de bienvenida configurable | ✅ | platform_settings + LandingConfigTab + props home-theme2 |
+| Cierre Tema 2 | ✅ | éxito holo+ticket, fix duplicados, carrito minimalista, premium, confirmación desde pedidos |
+| Home móvil | ✅ | carrusel sin franjas + bienvenida sin recorte + "Únete a DAIMUZ" (3 públicos) |
+
+**Pendiente afiliados (ver `context/roadmap-afiliados.md`):** Sprint 4b (hook POS por código), 4c (cron auto-aprobación),
+Sprint 5 (tier engine + reset mensual), Sprints 6–8 (frontend: portal `/promotor`, panel comercio, tab superadmin).
+
+**Acción requerida:** commit + push + **Deploy en Komodo** (las tablas de afiliados se crean al arrancar el backend).
+
 ### ✅ Completado [2026-06-16]: Tema 2 (reservas/pedidos) + QR de mesa administrable
 
 | Tarea | Estado | Descripción |

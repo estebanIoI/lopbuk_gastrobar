@@ -270,6 +270,12 @@ export function Theme2OrderFlow({
       unitPrice: i.unit,
       productImage: i.product.imageUrl || undefined,
     }))
+    // Atribución de afiliado por enlace (?ref= guardado en localStorage).
+    let refToken: string | undefined
+    try {
+      const raw = localStorage.getItem('dz_ref')
+      if (raw) { const r = JSON.parse(raw); if (r?.token && (!r.exp || r.exp > Date.now())) refToken = r.token }
+    } catch { /* noop */ }
     try {
       const r = await fetch(`${API_URL}/orders/public`, {
         method: 'POST',
@@ -282,6 +288,7 @@ export function Theme2OrderFlow({
           items,
           tenantId,
           paymentMethod: payment || 'efectivo',
+          refToken,
         }),
       })
       const j = await r.json().catch(() => null)

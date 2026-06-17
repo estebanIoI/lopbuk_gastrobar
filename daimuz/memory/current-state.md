@@ -34,6 +34,23 @@
 - **`agent.service.ts`**: `getAIKeys()` devuelve las 3 keys + provider default. `processAgentMessage()` usa routing explícito por provider (Gemini → function calling, OpenAI/Groq → chat directo).
 - **Entorno**: `.env` creado con la OpenAI key provista. `.env.example` actualizado con `OPENAI_API_KEY`, `GROQ_API_KEY`, `AI_DEFAULT_PROVIDER`. Docker-compose dev + production incluyen las nuevas vars.
 
+## ✅ Implementado: Afiliados (backend S1–4) + tarjetas externas + imagen por variante + barra config (2026-06-17)
+
+- **Módulo Afiliados/Promotores — backend Sprints 1–4** (`/api/affiliates`): schema (10 tablas, migración
+  inline en `index.ts`), core (auth propia del promotor, campañas con token, conversiones/comisiones,
+  retiros, leaderboard, misiones, superadmin, comercio), paquetes con **pago inmediato al wallet**, y
+  **atribución por enlace** (`?ref=` → `attributeOrder` en `/orders/public`) + auto-aprobación. Pendiente:
+  tier engine, cron, y todo el **frontend** (portal `/promotor`, tab superadmin, panel comercio). Ver
+  `context/roadmap-afiliados.md`.
+- **Tarjetas externas**: comercios fuera del aplicativo creables desde superadmin (logo/portada/descripción/link);
+  aparecen en la home y redirigen al link. Tabla `marketplace_external_cards`.
+- **Imagen por variante**: cada color puede tener su imagen; en la tienda la foto principal cambia al elegir color.
+- **Barra de bienvenida (Tema 2)**: activable + editable desde superadmin (`platform_settings`).
+- **Tema 2 cerrado**: pantalla de éxito (holo + ticket), fix de pedidos duplicados, carrito minimalista,
+  tarjeta premium; confirmación al cliente desde el módulo de pedidos (WhatsApp prellenado).
+- **Home móvil**: carrusel sin franjas, bienvenida sin recorte, sección "Únete a DAIMUZ" (3 públicos).
+- ⚠️ Todo necesita **Deploy en Komodo** para verse en producción.
+
 ## ✅ Implementado: Tema 2 (reservas/pedidos) + QR de mesa administrable (2026-06-16)
 
 - **Reservas Tema 2** ahora **guardan** en `rb_reservations` (visible en el panel) vía `POST

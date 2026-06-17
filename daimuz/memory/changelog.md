@@ -5,6 +5,28 @@
 ---
 
 
+## [2026-06-17] — Módulo Afiliados (Sprints 1–4) + tarjetas externas + imagen por variante + barra de bienvenida configurable + cierre Tema 2
+
+**Programa de Promotores/Afiliados — backend Sprints 1–4 (parcial, falta deploy):**
+- **Sprint 1 (schema):** migración inline idempotente en `index.ts` (10 tablas, `CREATE TABLE IF NOT EXISTS`, sin `ADD COLUMN IF NOT EXISTS`): `affiliates` (nivel plataforma, sin tenant_id), `affiliate_campaigns` (polimórfica store/product/event/service), `affiliate_conversions`, `affiliate_commissions`, `affiliate_withdrawals`, `affiliate_missions`, `affiliate_mission_submissions`, `merchant_events`, `affiliate_packages`, `affiliate_package_orders`. Referencia: `backend/src/migrations/005_affiliates.sql`. Tipos: `modules/affiliates/affiliates.types.ts`.
+- **Sprint 2 (core):** `affiliates.service.ts` + `affiliates.routes.ts` (montado en `/api/affiliates`). Auth propia del promotor (bcrypt + JWT `type:'affiliate'`, 30d) — NO se tocó el enum `role` de users. Endpoints promotor (me, campañas+token, conversiones, comisiones, retiros, leaderboard, misiones), superadmin (`/admin/*`: afiliados, retiros con pago→descuenta saldo, misiones CRUD, revisión de envíos→acredita bono) y comercio (`/tenant/*`: overview, conversiones).
+- **Sprint 3 (paquetes, pago inmediato):** CRUD de paquetes (superadmin), contratación por el comercio (`affiliate_cop`/`platform_cop` congelados), `markPackagePaid` transaccional que **acredita el wallet al instante**, entrega de contenido (promotor) y completar (comercio).
+- **Sprint 4 (atribución por enlace):** `attributeOrder` + `_recordConversion` (pending) + `runAutoApprovals` (vencida la ventana `cookie_days`→approved, pending_cop→balance_cop, +1 monthly_sales). Hook en `POST /orders/public` (`refToken`, no bloqueante). Frontend Tema 2: captura `?ref=` en `localStorage` (30d) y lo envía en el checkout. Endpoint `POST /admin/run-approvals` (cron/tarea). **Hook POS por código:** métodos `lookupAffiliateCode`/`attributeSaleByCode` listos, NO enganchados (sales.service no tiene flujo de código de descuento).
+- **PENDIENTE:** Sprint 5 (tier engine + cron mensual de reset/recalcular tier), Sprints 6–8 (portal `/promotor`, tab superadmin, vista comercio — frontend). Ver `context/roadmap-afiliados.md`.
+
+**Tarjetas externas (comercios fuera del aplicativo):** tabla `marketplace_external_cards` + CRUD superadmin (`/api/tenants/external-cards`) + merge en `/storefront/stores` (con `externalUrl`). UI en `CommercesTab` (crear/editar/eliminar). En la home, `StoreCard` clickeable aunque no tenga productos, badge "VISITAR ↗", y `goToStore` abre el link externo en pestaña nueva.
+
+**Imagen por variante (color → imagen):** el backend ya guardaba `images` por variante; se agregó el campo "Imagen del color (URL)" en `variant-manager` y, en la tienda (`landing-page`), la foto principal usa la imagen de la variante seleccionada (`heroUrl = selectedVariant.image || activeUrl`) en ambos layouts.
+
+**Barra de bienvenida configurable (Tema 2):** claves `home_welcome_enabled/title/subtitle` en `platform_settings` (sin tocar backend) + card en `LandingConfigTab` (toggle + título + subtítulo) + props a `home-theme2` (visibilidad por `welcomeEnabled`, contenido editable; la "X" sigue siendo descarte del usuario).
+
+**Cierre Tema 2:** pantalla de éxito con animación holo "en camino" + ticket (`theme2-order-success.tsx`); **bug crítico** corregido (tras enviar no se vaciaba el carrito → pedidos duplicados; ahora `resetCheckout`); restyle minimalista del carrito; tarjeta premium en Favoritos. La confirmación al cliente sale desde el **módulo de pedidos**: botón "Confirmar por WhatsApp" en `pedidos.tsx` con mensaje prellenado según estado.
+
+**Home móvil:** carrusel ajusta su altura a la imagen (sin franjas, sizer móvil); bienvenida responsive sin recorte; sección "Únete a DAIMUZ" con valor para 3 públicos (cliente/comerciante/promotor).
+
+> Nota deploy: TODO lo anterior necesita commit + push + **Deploy en Komodo**. Las tablas de afiliados se crean solas al arrancar el backend.
+
+
 ## [2026-06-16] — Tema 2: reservas que guardan, pedidos sin falla silenciosa, "Ordenar Ahora" + QR de mesa administrable
 
 - **Reservas Tema 2 (guardar + confirmar + WhatsApp):** `theme2-reserve-flow.tsx` ahora hace `POST

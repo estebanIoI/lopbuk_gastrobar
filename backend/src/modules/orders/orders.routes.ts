@@ -9,6 +9,7 @@ import { MercadoPagoConfig, Preference } from 'mercadopago';
 import crypto from 'crypto';
 import { audit } from '../../utils/audit-logger';
 import { autoAssignVehicle, calcOrderWeight } from '../fleet';
+import { affiliatesService } from '../affiliates/affiliates.service';
 
 const router: ReturnType<typeof Router> = Router();
 
@@ -191,6 +192,9 @@ router.post(
           [tenantId, notifTitle, notifMsg, JSON.stringify({ orderId, orderNumber, customerName, total, paymentMethod })]
         );
       } catch { /* notifications are non-critical */ }
+
+      // Atribución de afiliado por enlace (?ref=TOKEN). No bloquea la respuesta.
+      affiliatesService.attributeOrder({ refToken: req.body?.refToken, tenantId, orderId, orderTotalCop: total }).catch(() => {});
 
       res.status(201).json({
         success: true,

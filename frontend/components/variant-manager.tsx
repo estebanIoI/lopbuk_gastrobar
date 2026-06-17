@@ -30,7 +30,7 @@ interface Props {
   onClose: () => void
 }
 
-const EMPTY_VARIANT = { sku: '', color: '', size: '', material: '', stock: 0, minStock: 0, costPrice: '', priceOverride: '' }
+const EMPTY_VARIANT = { sku: '', color: '', size: '', material: '', stock: 0, minStock: 0, costPrice: '', priceOverride: '', imageUrl: '' }
 const EMPTY_TIER    = { minQty: 1, price: '', tenantMarginPct: 0 }
 
 // ── Ejes del modo guiado (mapeados a las columnas reales del backend) ──
@@ -157,6 +157,7 @@ export function VariantManager({ productId, productName, open, onClose }: Props)
       material: v.material || '', stock: v.stock,
       minStock: v.minStock, costPrice: v.costPrice?.toString() || '',
       priceOverride: v.priceOverride?.toString() || '',
+      imageUrl: v.images?.[0] || '',
     })
     setEditingVariant(v)
     setShowAddVariant(true)
@@ -175,6 +176,7 @@ export function VariantManager({ productId, productName, open, onClose }: Props)
         minStock: Number(variantForm.minStock),
         costPrice: variantForm.costPrice ? Number(variantForm.costPrice) : undefined,
         priceOverride: variantForm.priceOverride ? Number(variantForm.priceOverride) : undefined,
+        images: variantForm.imageUrl.trim() ? [variantForm.imageUrl.trim()] : [],
       }
       if (editingVariant) {
         await api.updateVariant(editingVariant.id, payload)
@@ -545,6 +547,18 @@ export function VariantManager({ productId, productName, open, onClose }: Props)
                 <Label className="text-xs">Precio override</Label>
                 <Input type="number" min={0} placeholder="Usa precio base si vacío" value={variantForm.priceOverride}
                   onChange={e => setVariantForm(p => ({ ...p, priceOverride: e.target.value }))} />
+              </div>
+              <div className="col-span-2">
+                <Label className="text-xs">Imagen del color (URL)</Label>
+                <Input placeholder="https://… (opcional)" value={variantForm.imageUrl}
+                  onChange={e => setVariantForm(p => ({ ...p, imageUrl: e.target.value }))} />
+                {variantForm.imageUrl.trim() && (
+                  <div className="mt-2 w-16 h-16 rounded-lg overflow-hidden border bg-muted">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={variantForm.imageUrl} alt="preview" className="w-full h-full object-cover" />
+                  </div>
+                )}
+                <p className="text-[11px] text-muted-foreground mt-1">Si la defines, al elegir este color en la tienda la foto principal cambia a esta imagen.</p>
               </div>
             </div>
           </div>

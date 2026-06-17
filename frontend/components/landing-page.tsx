@@ -3091,6 +3091,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
           ? parsedImgs
           : selectedProduct.imageUrl ? [selectedProduct.imageUrl] : []
         const activeUrl = gallery[activeImageIdx] || gallery[0] || ''
+        // Si la variante (color) seleccionada tiene imagen propia, la foto principal cambia a ella.
+        const heroUrl = selectedVariant?.image || activeUrl
 
         // Related products: same category, different product
         const relatedProducts = products
@@ -3136,9 +3138,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
               {/* ── Main image ── */}
               <div className="relative w-full" style={{ aspectRatio: '1 / 1', backgroundColor: isLightBg ? '#f0f0f0' : '#111' }}>
-                {activeUrl ? (
+                {heroUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img key={activeUrl} src={ensureAbsoluteUrl(activeUrl)} alt={selectedProduct.name} className="w-full h-full object-contain" />
+                  <img key={heroUrl} src={ensureAbsoluteUrl(heroUrl)} alt={selectedProduct.name} className="w-full h-full object-contain" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center"><Sparkles className="w-16 h-16 text-white/10" /></div>
                 )}
@@ -3691,9 +3693,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         </div>
                       )}
                       <div className="flex-1 relative overflow-hidden lg:max-h-[520px]" style={{ aspectRatio: '4/5', backgroundColor: effectiveBgColor }}>
-                        {activeUrl ? (
+                        {heroUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img key={activeUrl} src={ensureAbsoluteUrl(activeUrl)} alt={selectedProduct.name} className="w-full h-full object-contain transition-opacity duration-300" />
+                          <img key={heroUrl} src={ensureAbsoluteUrl(heroUrl)} alt={selectedProduct.name} className="w-full h-full object-contain transition-opacity duration-300" />
                         ) : <div className="w-full h-full flex items-center justify-center"><Sparkles className="w-20 h-20 text-white/10" /></div>}
                         {!!(selectedProduct.isOnOffer && selectedProduct.offerPrice) && (
                           <div className="absolute top-4 left-4 flex flex-col gap-2">
