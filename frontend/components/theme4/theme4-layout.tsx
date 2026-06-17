@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { theme4Api, type Theme4Data } from './types'
+import { BoxLoader } from '@/components/box-loader'
 import {
   Theme4Hero, StatsBanner, ServicesGrid, ProcessSteps, TeamGrid,
   TestimonialsCarousel, ContactSection, CommunityBar, TechStack,
@@ -29,7 +30,7 @@ export function Theme4Layout({ slug, data }: { slug: string; data?: Theme4Data }
     return () => { alive = false }
   }, [slug, data])
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center bg-slate-900"><Loader2 className="w-8 h-8 animate-spin text-cyan-400" /></div>
+  if (loading) return <div className="min-h-screen flex items-center justify-center bg-slate-900" style={{ ['--dz-bg' as any]: '#0f172a' }}><BoxLoader /></div>
   if (error || !payload) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 gap-2 px-4 text-center">

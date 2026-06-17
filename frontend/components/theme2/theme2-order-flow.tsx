@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   X, ChevronRight, ChevronLeft, Search, MapPin, Clock, Plus, Minus,
   ShoppingBag, MessageCircle, Store, Trash2,
@@ -73,7 +73,7 @@ function PhoneInput({ value, onChange, placeholder }: { value: string; onChange:
 
 export function Theme2OrderFlow({
   slug, info, sedes, openState, nextOpenLabel,
-  categories, newIds, featuredIds, trendingIds, onClose,
+  categories, newIds, featuredIds, trendingIds, initialProductId, onClose,
 }: {
   slug: string
   info: T2Info
@@ -84,6 +84,7 @@ export function Theme2OrderFlow({
   newIds: Set<string>
   featuredIds: Set<string>
   trendingIds: Set<string>
+  initialProductId?: string | null
   onClose: () => void
 }) {
   // Si solo hay una sede (o ninguna), saltamos el selector
@@ -210,6 +211,17 @@ export function Theme2OrderFlow({
       return [...prev, { key: `${p.id}-${Date.now()}`, product: p, qty, notes, mods, unit }]
     })
   }
+  // Favoritos → "Ordenar Ahora": agrega el producto inicial al carrito una sola vez,
+  // en cuanto los productos cargan (ya estamos en la sección de menú).
+  const addedInitialRef = useRef(false)
+  useEffect(() => {
+    if (!initialProductId || addedInitialRef.current || products.length === 0) return
+    const p = products.find(x => String(x.id) === String(initialProductId))
+    if (!p) return
+    addToCart(p, 1, '', [], priceOf(p))
+    addedInitialRef.current = true
+  }, [initialProductId, products])
+
   const confirmDetail = () => {
     if (!detail || detailMissing.length > 0) return
     addToCart(detail, detailQty, detailNotes.trim(), selMods, detailUnit)
@@ -236,9 +248,11 @@ export function Theme2OrderFlow({
 
   const paymentLabel: Record<string, string> = { efectivo: 'Efectivo', transferencia: 'Transferencia', tarjeta: 'Tarjeta' }
   const [submitting, setSubmitting] = useState(false)
+  const [orderError, setOrderError] = useState('')
 
-  // Registra el pedido en la base de datos del comercio (además del WhatsApp)
-  const registerOrder = async () => {
+  // Registra el pedido en la base de datos del comercio (además del WhatsApp).
+  // Devuelve true solo si el pedido quedó guardado; setea orderError si falla.
+  const registerOrder = async (): Promise<boolean> => {
     const tenantId = cart.map(i => i.product.tenantId).find(Boolean) || undefined
     const notesParts = [
       `Entrega: ${mode === 'domicilio' ? 'Domicilio' : 'Recoger en sede'}`,
@@ -255,7 +269,7 @@ export function Theme2OrderFlow({
       productImage: i.product.imageUrl || undefined,
     }))
     try {
-      await fetch(`${API_URL}/orders/public`, {
+      const r = await fetch(`${API_URL}/orders/public`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -268,7 +282,16 @@ export function Theme2OrderFlow({
           paymentMethod: payment || 'efectivo',
         }),
       })
-    } catch { /* si falla el registro, igual seguimos con WhatsApp */ }
+      const j = await r.json().catch(() => null)
+      if (!r.ok || !j?.success) {
+        setOrderError(j?.error || 'No se pudo registrar el pedido. Intenta de nuevo.')
+        return false
+      }
+      return true
+    } catch {
+      setOrderError('No se pudo conectar. Revisa tu internet e intenta de nuevo.')
+      return false
+    }
   }
 
   const sendWhatsApp = () => {
@@ -304,8 +327,9 @@ export function Theme2OrderFlow({
   const submitOrder = async () => {
     if (missing.length > 0 || cart.length === 0 || submitting) return
     setSubmitting(true)
-    await registerOrder()
-    sendWhatsApp()
+    setOrderError('')
+    const ok = await registerOrder()
+    if (ok) sendWhatsApp()
     setSubmitting(false)
   }
 
@@ -682,6 +706,9 @@ export function Theme2OrderFlow({
                   <span className="font-semibold">Total a pagar</span>
                   <span className="font-extrabold text-cyan-400">{COP(cartTotal)}</span>
                 </div>
+                {orderError && (
+                  <p className="text-[13px] text-red-400 text-center bg-red-500/10 border border-red-500/20 rounded-lg py-2 px-3">{orderError}</p>
+                )}
                 <button
                   onClick={submitOrder}
                   disabled={missing.length > 0 || submitting}

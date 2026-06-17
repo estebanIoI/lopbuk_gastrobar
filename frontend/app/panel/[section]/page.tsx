@@ -6,6 +6,7 @@ import { useStore } from '@/lib/store'
 import { useAuthStore } from '@/lib/auth-store'
 import { MerchantPanel } from '@/components/merchant-panel'
 import { sectionForSlug, DEFAULT_SLUG } from '@/lib/panel-sections'
+import { FullPageLoader } from '@/components/box-loader'
 
 /**
  * Ruta canónica y compartible de cada página del comerciante: /panel/<slug>.
@@ -52,11 +53,7 @@ export default function PanelSectionPage() {
   }, [isAuthenticated, isCheckingAuth, slug, router])
 
   if (isCheckingAuth || !ready) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-      </div>
-    )
+    return <FullPageLoader />
   }
 
   return <MerchantPanel />

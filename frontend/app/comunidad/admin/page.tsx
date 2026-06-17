@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/lib/auth-store'
 import { CommunityAdmin } from '@/components/community/community-admin'
+import { BoxLoader } from '@/components/box-loader'
 
 export default function ComunidadAdminPage() {
   const router = useRouter()
@@ -21,7 +22,7 @@ export default function ComunidadAdminPage() {
   }, [isAuthenticated, isCheckingAuth, user, router])
 
   if (!ready) {
-    return <div className="min-h-screen flex items-center justify-center bg-gray-50"><div className="h-8 w-8 animate-spin rounded-full border-4 border-cyan-500 border-t-transparent" /></div>
+    return <div className="min-h-screen flex items-center justify-center bg-gray-50" style={{ ['--dz-bg' as any]: '#f9fafb' }}><BoxLoader /></div>
   }
   return <CommunityAdmin />
 }

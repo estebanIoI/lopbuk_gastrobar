@@ -999,6 +999,16 @@ class ApiService {
     return this.request<{ token: string; tableNumber: string; path: string }>(`/restbar-qr/tables/${tableId}/session`, { method: 'POST' })
   }
 
+  // QR de mesa: consultar la sesión activa (invitados + consumo de cada uno).
+  async getTableQrSession(tableId: string) {
+    return this.request<any>(`/restbar-qr/tables/${tableId}/session`)
+  }
+
+  // QR de mesa: cerrar/eliminar el QR activo (invalida el token).
+  async closeTableQrSession(tableId: string) {
+    return this.request<{ closed: number }>(`/restbar-qr/tables/${tableId}/session/close`, { method: 'POST' })
+  }
+
   async getMyPublishedProducts() {
     return this.request<any[]>('/storefront/my-published')
   }

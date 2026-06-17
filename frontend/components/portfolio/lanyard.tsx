@@ -50,6 +50,37 @@ export default function Lanyard({
   )
 }
 
+// Carga una textura remota (Cloudinary) de forma SEGURA: con CORS, y solo la aplica
+// cuando la imagen está totalmente decodificada. Si la URL falla, mantiene un fallback
+// transparente en vez de crashear el canvas (evita "texSubImage2D: bad image data" y Context Lost).
+function useSafeTexture(url, fallbackUrl) {
+  const [tex, setTex] = useState(() => {
+    const t = new THREE.TextureLoader().load(fallbackUrl)
+    t.colorSpace = THREE.SRGBColorSpace
+    t.flipY = false
+    return t
+  })
+  useEffect(() => {
+    if (!url) return
+    let cancelled = false
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    img.onload = () => {
+      if (cancelled) return
+      const t = new THREE.Texture(img)
+      t.colorSpace = THREE.SRGBColorSpace
+      t.flipY = false
+      t.anisotropy = 16
+      t.needsUpdate = true
+      setTex(t)
+    }
+    img.onerror = () => { /* imagen inválida → se queda el fallback, sin crashear */ }
+    img.src = url
+    return () => { cancelled = true }
+  }, [url])
+  return tex
+}
+
 function Band({ maxSpeed = 50, minSpeed = 0, cardImageUrl = '', bandImageUrl = '' }) {
   const band = useRef(), fixed = useRef(), j1 = useRef(), j2 = useRef(), j3 = useRef(), card = useRef()
   const vec = new THREE.Vector3(), ang = new THREE.Vector3(), rot = new THREE.Vector3(), dir = new THREE.Vector3()
@@ -57,14 +88,7 @@ function Band({ maxSpeed = 50, minSpeed = 0, cardImageUrl = '', bandImageUrl = '
 
   const { nodes, materials } = useGLTF(cardGLB)
   const texture = useTexture(bandImageUrl || DEFAULT_BAND)
-  const cardTexture = useTexture(cardImageUrl || TRANSPARENT_PX)
-  useEffect(() => {
-    if (cardTexture) {
-      cardTexture.colorSpace = THREE.SRGBColorSpace
-      cardTexture.flipY = false
-      cardTexture.needsUpdate = true
-    }
-  }, [cardTexture])
+  const cardTexture = useSafeTexture(cardImageUrl, TRANSPARENT_PX)
 
   const [curve] = useState(() => new THREE.CatmullRomCurve3([new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()]))
   const [dragged, drag] = useState(false)

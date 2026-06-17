@@ -6,6 +6,7 @@ import {
   Instagram, Facebook, MessageCircle, Store,
 } from 'lucide-react'
 import { Theme2OrderFlow } from '@/components/theme2/theme2-order-flow'
+import { BoxLoader } from '@/components/box-loader'
 import { Theme2ReserveFlow } from '@/components/theme2/theme2-reserve-flow'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'
@@ -81,6 +82,7 @@ export function Theme2Storefront({ slug }: { slug: string }) {
   const [featuredIds, setFeaturedIds] = useState<Set<string>>(new Set())
   const [trendingIds, setTrendingIds] = useState<Set<string>>(new Set())
   const [orderOpen, setOrderOpen] = useState(false)
+  const [orderProductId, setOrderProductId] = useState<string | null>(null)
   const [reserveOpen, setReserveOpen] = useState(false)
   const [customSections, setCustomSections] = useState<{ id: number; name: string; htmlContent?: string }[]>([])
 
@@ -124,7 +126,9 @@ export function Theme2Storefront({ slug }: { slug: string }) {
 
   const scrollToSedes = () => document.getElementById('t2-sedes')?.scrollIntoView({ behavior: 'smooth' })
   const goReservar = () => setReserveOpen(true)
-  const goOrder = () => setOrderOpen(true)
+  const goOrder = () => { setOrderProductId(null); setOrderOpen(true) }
+  // Abre el flujo de pedido con un producto ya agregado al carrito (Favoritos → Ordenar Ahora).
+  const goOrderProduct = (id: string) => { setOrderProductId(id); setOrderOpen(true) }
   const waLink = info.socialWhatsapp
     ? `https://wa.me/${String(info.socialWhatsapp).replace(/\D/g, '')}`
     : null
@@ -133,8 +137,8 @@ export function Theme2Storefront({ slug }: { slug: string }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#0a0a0a]">
-        <div className="h-9 w-9 animate-spin rounded-full border-4 border-cyan-500/30 border-t-cyan-400" />
+      <div className="min-h-screen flex items-center justify-center bg-[#0a0a0a]" style={{ ['--dz-bg' as any]: '#0a0a0a' }}>
+        <BoxLoader />
       </div>
     )
   }
@@ -224,7 +228,7 @@ export function Theme2Storefront({ slug }: { slug: string }) {
                 <div className="p-4 flex flex-col gap-2 flex-1">
                   <h3 className="font-bold text-cyan-400">{p.name}</h3>
                   {p.description && <p className="text-xs text-white/45 line-clamp-2 flex-1">{p.description}</p>}
-                  <button onClick={goOrder} className="mt-2 inline-flex items-center justify-center gap-2 w-full rounded-lg border border-white/10 bg-white/[0.03] py-2.5 text-xs font-semibold text-white/80 hover:bg-white/[0.07] hover:text-white transition-colors">
+                  <button onClick={() => goOrderProduct(String(p.id))} className="mt-2 inline-flex items-center justify-center gap-2 w-full rounded-lg border border-white/10 bg-white/[0.03] py-2.5 text-xs font-semibold text-white/80 hover:bg-white/[0.07] hover:text-white transition-colors">
                     Ordenar Ahora <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                 </div>
@@ -378,13 +382,15 @@ export function Theme2Storefront({ slug }: { slug: string }) {
           newIds={newIds}
           featuredIds={featuredIds}
           trendingIds={trendingIds}
-          onClose={() => setOrderOpen(false)}
+          initialProductId={orderProductId}
+          onClose={() => { setOrderOpen(false); setOrderProductId(null) }}
         />
       )}
 
       {/* ═══ RESERVA (Fase 4) ═══ */}
       {reserveOpen && (
         <Theme2ReserveFlow
+          slug={slug}
           info={info}
           sedes={sedes}
           onClose={() => setReserveOpen(false)}

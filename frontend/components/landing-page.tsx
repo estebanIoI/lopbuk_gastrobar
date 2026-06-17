@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { VariantSelector, type RawVariant, type SelectedVariant } from '@/components/variant-selector'
 import { HomeHeroCarousel, HomeCategoryRail, MarketplaceHomeGovCo, type HeroSlide, type PromoCardConfig } from '@/components/home-theme2'
 import { WhatsAppFloatingWidget } from '@/components/whatsapp-floating-widget'
+import { BoxLoader } from '@/components/box-loader'
 import {
   ArrowRight,
   ChevronDown,
@@ -2483,8 +2484,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   //    home (theme1/theme2), mostramos un loader neutro en la vista de marketplace ──
   if (showStoresView && selectedStore === 'all' && !settingsLoaded) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-[#00833E]" />
+      <div className="min-h-screen flex items-center justify-center bg-white" style={{ ['--dz-bg' as any]: '#ffffff' }}>
+        <BoxLoader />
       </div>
     )
   }
@@ -9649,10 +9650,10 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
           className={[
             'group fixed z-[55] inline-flex items-center gap-2 font-semibold uppercase tracking-widest',
             'whitespace-nowrap transition-all duration-300 ease-out',
-            // Móvil: pill inferior centrado
-            'bottom-[max(1.25rem,env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 px-5 py-3 rounded-full text-[11px]',
+            // Móvil: pill flotante a la derecha (no centrado, para no tapar el contenido)
+            'bottom-[max(5.5rem,calc(env(safe-area-inset-bottom)+4.5rem))] right-4 px-4 py-2.5 rounded-full text-[11px]',
             // Escritorio: pestaña al borde derecho, centrada
-            'md:bottom-auto md:left-auto md:translate-x-0 md:top-1/2 md:-translate-y-1/2 md:right-0',
+            'md:bottom-auto md:top-1/2 md:-translate-y-1/2 md:right-0',
             'md:rounded-l-2xl md:rounded-r-none md:pl-5 md:pr-4 md:py-4 md:text-xs md:translate-x-1 md:hover:translate-x-0',
           ].join(' ')}
           style={{

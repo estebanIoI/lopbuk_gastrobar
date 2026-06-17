@@ -5,6 +5,8 @@ import { authenticate, authorize } from '../../common/middleware';
 import { validateRequest } from '../../utils/validators';
 import { UserRole } from '../../common/types';
 import { createNotification } from '../notifications/notifications.routes';
+import pool from '../../config/database';
+import { v4 as uuidv4 } from 'uuid';
 
 const router: ReturnType<typeof Router> = Router();
 
@@ -108,6 +110,69 @@ router.post(
       res.status(201).json({ success: true, data: result });
     } catch (err) {
       console.error('Create reservation error:', err);
+      res.status(500).json({ success: false, error: 'Error al crear la reserva' });
+    }
+  }
+);
+
+// POST /api/restbar/reservations/public-quick — reserva simple (sin elegir mesa).
+// Guarda la reserva (visible en el panel) auto-asignando mesa si hay, o con mesa
+// pendiente (table_id NULL) si no, y notifica al comercio.
+router.post(
+  '/public-quick',
+  [
+    body('slug').notEmpty(),
+    body('customerName').notEmpty(),
+    body('customerPhone').notEmpty(),
+    body('reservationDate').notEmpty().isISO8601(),
+    body('reservationTime').notEmpty().matches(/^\d{2}:\d{2}$/),
+    body('guestsCount').optional().isInt({ min: 1, max: 50 }),
+    validateRequest,
+  ],
+  async (req: Request, res: Response) => {
+    try {
+      const { slug, customerName, customerPhone, reservationDate, reservationTime, guestsCount, notes, occasion } = req.body;
+      const config = await reservationsService.getPublicConfig(slug);
+      if (!config) { res.status(404).json({ success: false, error: 'Reservas no disponibles' }); return; }
+      const tenantId = config.tenantId;
+      const guests = Number(guestsCount) || 1;
+
+      let result: any;
+      const tables = await reservationsService.getAvailableTables(tenantId, reservationDate, reservationTime, guests).catch(() => [] as any[]);
+      if (tables.length > 0) {
+        result = await reservationsService.createReservation(tenantId, {
+          tableId: tables[0].id, customerName, customerPhone, reservationDate, reservationTime,
+          guestsCount: guests, occasion: occasion || undefined, notes: notes || undefined,
+        });
+        if (result && result.error) { res.status(409).json({ success: false, error: result.error }); return; }
+      } else {
+        const conn = await (pool as any).getConnection();
+        try {
+          await conn.beginTransaction();
+          await conn.query(`INSERT INTO rb_reservation_sequence (tenant_id, prefix, current_number) VALUES (?, 'R', 1) ON DUPLICATE KEY UPDATE current_number = current_number + 1`, [tenantId]);
+          const [seqRow]: any = await conn.query(`SELECT current_number FROM rb_reservation_sequence WHERE tenant_id = ? LIMIT 1`, [tenantId]);
+          const reservationNumber = `R-${String(seqRow[0].current_number).padStart(4, '0')}`;
+          const id = uuidv4();
+          const timeFormatted = String(reservationTime).length === 5 ? reservationTime + ':00' : reservationTime;
+          await conn.query(
+            `INSERT INTO rb_reservations (id, tenant_id, table_id, reservation_number, customer_name, customer_phone, reservation_date, reservation_time, guests_count, occasion, notes, status)
+             VALUES (?,?,NULL,?,?,?,?,?,?,?,?,'pendiente')`,
+            [id, tenantId, reservationNumber, customerName, customerPhone, reservationDate, timeFormatted, guests, occasion || null, notes || null]);
+          await conn.commit();
+          result = { id, reservationNumber };
+        } catch (e) { await conn.rollback(); throw e; } finally { conn.release(); }
+      }
+
+      createNotification(tenantId, {
+        type: 'reservation',
+        title: `Nueva reserva: ${customerName}`,
+        body: `${result.reservationNumber || ''} — ${reservationDate} ${reservationTime} — ${guests} pers`,
+        link: '/restbar',
+      }).catch(() => {});
+
+      res.status(201).json({ success: true, data: { reservationNumber: result.reservationNumber, id: result.id } });
+    } catch (err) {
+      console.error('Quick reservation error:', err);
       res.status(500).json({ success: false, error: 'Error al crear la reserva' });
     }
   }

@@ -301,7 +301,7 @@ function TeamCarousel({ cards, brandTitle, accentColor }: {
           La foto se mapea sobre el carnet; la banda/cordon es configurable por tarjeta. */}
       {/* Altura adaptativa: más baja en celular, alta en escritorio.
           El canvas llena el alto del contenedor (height="100%"). */}
-      <div className="h-[360px] sm:h-[440px] lg:h-[500px] -mt-16 sm:-mt-24 lg:-mt-28 w-[300px] sm:w-[380px] lg:w-[420px]" style={{ maxWidth: '90vw' }}>
+      <div className="h-[460px] sm:h-[540px] lg:h-[600px] -mt-6 sm:-mt-8 lg:-mt-10 w-[300px] sm:w-[380px] lg:w-[440px]" style={{ maxWidth: '92vw' }}>
         <LanyardShowpiece
           height="100%"
           cardImageUrl={card.photo_url || ''}
@@ -914,18 +914,31 @@ function EcosistemaConectado({ accentColor, brandTitle }: { accentColor: string;
             })()}
           </svg>
 
-          {/* Nodo central */}
+          {/* Núcleo central = cerebro DAIMUZ (pulsos neuronales) */}
+          <style>{`
+            @keyframes dz-brain-pulse { 0% { transform: scale(0.55); opacity: 0.55; } 100% { transform: scale(2.6); opacity: 0; } }
+            @keyframes dz-brain-core { 0%,100% { box-shadow: 0 0 34px ${accentColor}66, 0 0 78px ${accentColor}2e; } 50% { box-shadow: 0 0 56px ${accentColor}b3, 0 0 130px ${accentColor}55; } }
+          `}</style>
+          {[0, 1, 2].map(i => (
+            <span key={i} aria-hidden style={{
+              position: 'absolute', left: '50%', top: '50%', marginLeft: -38, marginTop: -38,
+              width: 76, height: 76, borderRadius: '50%', border: `1.5px solid ${accentColor}`,
+              zIndex: 9, pointerEvents: 'none',
+              animation: `dz-brain-pulse 3s ease-out ${i}s infinite`,
+            }} />
+          ))}
           <div style={{
             position: 'absolute', left: '50%', top: '50%',
             transform: 'translate(-50%, -50%)',
-            width: 76, height: 76, borderRadius: '50%',
-            background: `radial-gradient(circle, ${accentColor}44, ${accentColor}0a)`,
+            width: 84, height: 84, borderRadius: '50%',
+            background: `radial-gradient(circle, ${accentColor}55, ${accentColor}0a)`,
             border: `2.5px solid ${accentColor}`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
             zIndex: 10,
-            boxShadow: `0 0 36px ${accentColor}55, 0 0 70px ${accentColor}22`,
+            animation: 'dz-brain-core 2.6s ease-in-out infinite',
           }}>
-            <span style={{ color: '#fff', fontWeight: 900, fontSize: 18, letterSpacing: 1 }}>
+            <span style={{ fontSize: 20, lineHeight: 1 }}>🧠</span>
+            <span style={{ color: '#fff', fontWeight: 900, fontSize: 13, letterSpacing: 1, marginTop: 1 }}>
               {brandTitle.slice(0, 2).toUpperCase()}
             </span>
           </div>
@@ -1270,12 +1283,16 @@ export default function PortfolioPage() {
             aria-label="Solicitar demo por WhatsApp"
             className="flex items-center gap-2.5 px-7 py-3.5 rounded-full active:scale-95 hover:brightness-110"
             style={{
-              background: accent,
+              // Fondo más sólido (degradado oscuro del acento) para que el texto blanco
+              // se lea siempre, incluso con acentos claros (lavanda) en móvil.
+              background: `linear-gradient(135deg, ${accent}, ${accent}cc)`,
               color: '#ffffff',
               fontSize: '15px',
-              fontWeight: 700,
+              fontWeight: 800,
               letterSpacing: '0.2px',
-              boxShadow: `0 6px 30px ${accent}65, 0 2px 8px rgba(0,0,0,0.25)`,
+              textShadow: '0 1px 3px rgba(0,0,0,0.55)',
+              boxShadow: `0 6px 30px ${accent}65, 0 2px 8px rgba(0,0,0,0.35)`,
+              border: '1px solid rgba(0,0,0,0.18)',
               transition: 'filter 0.2s, transform 0.15s',
               whiteSpace: 'nowrap',
             }}

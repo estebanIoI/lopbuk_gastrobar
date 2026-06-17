@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { API_URL } from './types'
 import type { ProfilePayload } from './types'
+import { BoxLoader } from '@/components/box-loader'
 import { ProfileHeader } from './profile-header'
 import { ProfileSectionRenderer } from './section-renderer'
 import { ProductsShowcase } from './products-showcase'
@@ -37,7 +38,7 @@ export function ProfileThemeThree({ slug, data }: { slug: string; data?: Profile
   }, [slug, data])
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center bg-gray-50"><Loader2 className="w-8 h-8 animate-spin text-emerald-600" /></div>
+    return <div className="min-h-screen flex items-center justify-center bg-gray-50" style={{ ['--dz-bg' as any]: '#f9fafb' }}><BoxLoader /></div>
   }
   if (error || !payload) {
     return (

@@ -6,6 +6,7 @@ import { LandingPage } from '@/components/landing-page'
 import { Theme2Storefront } from '@/components/theme2/theme2-storefront'
 import { ProfileThemeThree } from '@/components/profile-theme3/profile-theme-three'
 import { Theme4Layout } from '@/components/theme4/theme4-layout'
+import { BoxLoader } from '@/components/box-loader'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'
 
@@ -39,8 +40,8 @@ export default function StoreBySlugPage() {
 
   if (theme === null) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#0a0a0a]">
-        <div className="h-9 w-9 animate-spin rounded-full border-4 border-cyan-500/30 border-t-cyan-400" />
+      <div className="min-h-screen flex items-center justify-center bg-[#0a0a0a]" style={{ ['--dz-bg' as any]: '#0a0a0a' }}>
+        <BoxLoader />
       </div>
     )
   }

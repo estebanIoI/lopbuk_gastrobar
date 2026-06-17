@@ -113,6 +113,84 @@ router.post('/tables/:tableId/session', authenticate, async (req: AuthRequest, r
   } catch (e: any) { bad(res, e?.message || 'No se pudo generar el QR', 500); }
 });
 
+// ─────────── AUTH: el mesero administra el QR activo de la mesa ───────────
+// Devuelve la sesión activa con invitados y el consumo de cada uno (parseado de
+// la etiqueta [nombre] que se guarda en las notas de cada ítem del pedido).
+router.get('/tables/:tableId/session', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    await ensureTables();
+    const tenantId = req.user!.tenantId!;
+    const tableId = req.params.tableId;
+    const [rows] = (await pool.query(
+      `SELECT s.* FROM rb_table_sessions s
+         LEFT JOIN rb_orders o ON o.id = s.order_id
+        WHERE s.table_id = ? AND s.tenant_id = ? AND s.status = 'active'
+          AND (s.expires_at IS NULL OR s.expires_at > NOW())
+          AND (s.order_id IS NULL OR o.status NOT IN ('cerrada','cancelada'))
+        ORDER BY s.created_at DESC LIMIT 1`,
+      [tableId, tenantId]
+    )) as any;
+    const s = rows[0];
+    if (!s) return ok(res, { active: false });
+
+    const [t] = (await pool.query('SELECT number FROM rb_tables WHERE id = ?', [s.table_id])) as any;
+    const [guests] = (await pool.query(
+      'SELECT id, name, created_at AS createdAt FROM rb_table_guests WHERE session_id = ? ORDER BY created_at ASC', [s.id]
+    )) as any;
+
+    // Consumo por persona (match por la etiqueta [nombre] del item_notes).
+    const norm = (x: string) => x.trim().toLowerCase();
+    const guestMap = new Map<string, { id: string | null; name: string; total: number; items: any[] }>();
+    for (const g of guests) guestMap.set(norm(g.name), { id: g.id, name: g.name, total: 0, items: [] });
+    const unassigned = { total: 0, items: [] as any[] };
+    let orderTotal = 0;
+
+    if (s.order_id) {
+      const [its] = (await pool.query(
+        `SELECT menu_item_name AS name, quantity, subtotal, item_notes AS notes
+           FROM rb_order_items WHERE order_id = ? AND status <> 'cancelado' ORDER BY created_at ASC`,
+        [s.order_id]
+      )) as any;
+      for (const it of its) {
+        const sub = Number(it.subtotal || 0);
+        orderTotal += sub;
+        const m = /^\s*\[([^\]]+)\]/.exec(String(it.notes || ''));
+        const entry = m ? guestMap.get(norm(m[1])) : undefined;
+        const rec = { name: it.name, quantity: it.quantity, subtotal: sub };
+        if (entry) { entry.total += sub; entry.items.push(rec); }
+        else { unassigned.total += sub; unassigned.items.push(rec); }
+      }
+    }
+
+    ok(res, {
+      active: true,
+      token: s.token,
+      path: `/mesa/${s.token}`,
+      tableNumber: t[0]?.number ?? '',
+      waiterName: s.waiter_name,
+      expiresAt: s.expires_at,
+      createdAt: s.created_at,
+      guestCount: guests.length,
+      guests: Array.from(guestMap.values()),
+      unassigned,
+      orderTotal,
+    });
+  } catch (e: any) { bad(res, e?.message || 'Error al cargar la sesión', 500); }
+});
+
+// AUTH: cerrar/eliminar el QR activo (invalida el token; el pedido de la mesa NO se cierra).
+router.post('/tables/:tableId/session/close', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    await ensureTables();
+    const tenantId = req.user!.tenantId!;
+    const [r] = (await pool.query(
+      "UPDATE rb_table_sessions SET status = 'closed' WHERE table_id = ? AND tenant_id = ? AND status = 'active'",
+      [req.params.tableId, tenantId]
+    )) as any;
+    ok(res, { closed: r.affectedRows });
+  } catch (e: any) { bad(res, e?.message || 'No se pudo cerrar el QR', 500); }
+});
+
 // ─────────── PÚBLICO: el cliente abre el QR ───────────
 router.get('/session/:token', async (req: Request, res: Response) => {
   try {

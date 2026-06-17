@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Lock, Loader2, ArrowLeft } from 'lucide-react';
 import CartillaIngaDigital from './CartillaIngaDigital';
 import { cartillasAPI, ApiError, type CartillaCatalogoAPI } from './services/api';
+import { BoxLoader } from '@/components/box-loader';
 
 const formatPrecio = (precio: number, moneda: string) => {
   try {
@@ -97,8 +98,8 @@ const CartillaPage: React.FC<{ slug: string }> = ({ slug }) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#F5F5F5]">
-        <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
+      <div className="min-h-screen flex items-center justify-center bg-[#F5F5F5]" style={{ ['--dz-bg' as any]: '#f5f5f5' }}>
+        <BoxLoader />
       </div>
     );
   }

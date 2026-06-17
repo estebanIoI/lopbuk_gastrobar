@@ -17,6 +17,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode, type CSSProperties } from 'react'
 import { BRAND } from '@/lib/brand'
+import { DaimuzWelcomeFrame } from '@/components/daimuz-welcome-frame'
 import { FlameButton } from '@/components/ui/flame-button'
 import {
   ChevronLeft, ChevronRight, Store, UtensilsCrossed, Zap, Tag, Package,
@@ -253,14 +254,16 @@ export function HomeHeroCarousel({
       onMouseLeave={() => setPaused(false)}
       aria-label="Carrusel principal"
     >
-      <div className={`relative w-full overflow-hidden bg-black ${heightClass} rounded-xl`}>
+      <div className={`relative w-full overflow-hidden bg-gray-100 sm:bg-black ${heightClass} rounded-xl`}>
         {valid.map((slide, i) => {
           const active = i === index
+          // En móvil el contenedor ENVUELVE la imagen (object-contain, no la corta), como el tema 1
+          // de las tiendas; en escritorio se mantiene a sangre (object-cover).
           const media = slide.type === 'video' ? (
-            <video src={slide.url} autoPlay muted loop playsInline className="absolute inset-0 w-full h-full object-cover" />
+            <video src={slide.url} autoPlay muted loop playsInline className="absolute inset-0 w-full h-full object-contain sm:object-cover" />
           ) : (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={slide.url} alt={slide.title || `Banner ${i + 1}`} className="absolute inset-0 w-full h-full object-cover" loading={i === 0 ? 'eager' : 'lazy'} />
+            <img src={slide.url} alt={slide.title || `Banner ${i + 1}`} className="absolute inset-0 w-full h-full object-contain sm:object-cover" loading={i === 0 ? 'eager' : 'lazy'} />
           )
           const overlay = (slide.title || slide.subtitle) && (
             <>
@@ -711,14 +714,14 @@ export function MarketplaceHomeGovCo({
         </div>
       </nav>
 
-      {/* ══ Banner de alerta ══ */}
+      {/* ══ Banner de alerta — marco animado (Uiverse) ══ */}
       {alertOpen && (
-        <div style={{ background: GOLD, color: GOLD_TEXT }}>
-          <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-2 flex items-center gap-2 text-sm">
-            <Bell className="w-4 h-4 shrink-0" />
-            <span className="flex-1">{heroTitle || `Bienvenido a ${BRAND.name} — descubre los comercios locales y sus productos.`}</span>
-            <button onClick={() => setAlertOpen(false)} className="p-1 hover:bg-black/10 rounded" aria-label="Cerrar"><X className="w-4 h-4" /></button>
-          </div>
+        <div className="relative w-full flex justify-center py-2.5">
+          <DaimuzWelcomeFrame
+            text1={heroTitle || `Bienvenido a ${BRAND.name}`}
+            text2="descubre los comercios locales y sus productos"
+          />
+          <button onClick={() => setAlertOpen(false)} className="absolute right-3 sm:right-6 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-700 rounded" aria-label="Cerrar"><X className="w-4 h-4" /></button>
         </div>
       )}
 
