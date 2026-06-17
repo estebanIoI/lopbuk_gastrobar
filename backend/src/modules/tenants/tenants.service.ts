@@ -665,6 +665,89 @@ export class TenantsService {
       );
     }
   }
+
+  // ── Tarjetas externas (comercios fuera del aplicativo) ──────────────────────
+  // Tarjetas de la página principal que NO son tenants: redirigen a un link externo.
+  private externalEnsured = false;
+  async ensureExternalCardsTable(): Promise<void> {
+    if (this.externalEnsured) return;
+    await db.execute(
+      `CREATE TABLE IF NOT EXISTS marketplace_external_cards (
+        id           VARCHAR(36) PRIMARY KEY,
+        name         VARCHAR(255) NOT NULL,
+        slug         VARCHAR(255) NULL,
+        logo_url     VARCHAR(800) NULL,
+        cover_url    VARCHAR(800) NULL,
+        description  VARCHAR(500) NULL,
+        external_url VARCHAR(1000) NOT NULL,
+        city         VARCHAR(255) NULL,
+        is_verified  TINYINT(1) NOT NULL DEFAULT 0,
+        is_visible   TINYINT(1) NOT NULL DEFAULT 1,
+        sort_order   INT NOT NULL DEFAULT 0,
+        created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_mec_visible (is_visible, sort_order)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+    );
+    this.externalEnsured = true;
+  }
+
+  private mapExternalCard = (r: any) => ({
+    id: r.id, name: r.name, slug: r.slug, logoUrl: r.logo_url, coverUrl: r.cover_url,
+    cardDescription: r.description, externalUrl: r.external_url, city: r.city,
+    isVerified: Boolean(r.is_verified), marketplaceVisible: Boolean(r.is_visible),
+    marketplaceOrder: Number(r.sort_order) || 0,
+  });
+
+  async listExternalCards(): Promise<any[]> {
+    await this.ensureExternalCardsTable();
+    const [rows] = await db.execute<RowDataPacket[]>(
+      'SELECT * FROM marketplace_external_cards ORDER BY sort_order ASC, name ASC'
+    );
+    return rows.map(this.mapExternalCard);
+  }
+
+  async createExternalCard(data: any): Promise<any> {
+    await this.ensureExternalCardsTable();
+    if (!String(data?.name || '').trim()) throw new AppError('El nombre es requerido', 400);
+    if (!String(data?.externalUrl || '').trim()) throw new AppError('El link externo es requerido', 400);
+    const id = uuidv4();
+    await db.execute(
+      `INSERT INTO marketplace_external_cards
+         (id, name, slug, logo_url, cover_url, description, external_url, city, is_verified, is_visible, sort_order)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, String(data.name).trim(), data.slug || null, data.logoUrl || null, data.coverUrl || null,
+       data.cardDescription || null, String(data.externalUrl).trim(), data.city || null,
+       data.isVerified ? 1 : 0, data.marketplaceVisible === false ? 0 : 1, Number(data.marketplaceOrder) || 0]
+    );
+    return { id };
+  }
+
+  async updateExternalCard(id: string, data: any): Promise<void> {
+    await this.ensureExternalCardsTable();
+    const fields: string[] = [];
+    const values: any[] = [];
+    if (data.name !== undefined)              { fields.push('name = ?');         values.push(String(data.name).trim()); }
+    if (data.slug !== undefined)              { fields.push('slug = ?');         values.push(data.slug || null); }
+    if (data.logoUrl !== undefined)           { fields.push('logo_url = ?');     values.push(data.logoUrl || null); }
+    if (data.coverUrl !== undefined)          { fields.push('cover_url = ?');    values.push(data.coverUrl || null); }
+    if (data.cardDescription !== undefined)   { fields.push('description = ?');  values.push(data.cardDescription || null); }
+    if (data.externalUrl !== undefined)       { fields.push('external_url = ?'); values.push(String(data.externalUrl).trim()); }
+    if (data.city !== undefined)              { fields.push('city = ?');         values.push(data.city || null); }
+    if (data.isVerified !== undefined)        { fields.push('is_verified = ?');  values.push(data.isVerified ? 1 : 0); }
+    if (data.marketplaceVisible !== undefined){ fields.push('is_visible = ?');   values.push(data.marketplaceVisible ? 1 : 0); }
+    if (data.marketplaceOrder !== undefined)  { fields.push('sort_order = ?');   values.push(Number(data.marketplaceOrder) || 0); }
+    if (fields.length === 0) return;
+    const [result] = await db.execute<ResultSetHeader>(
+      `UPDATE marketplace_external_cards SET ${fields.join(', ')} WHERE id = ?`, [...values, id]
+    );
+    if (result.affectedRows === 0) throw new AppError('Tarjeta externa no encontrada', 404);
+  }
+
+  async deleteExternalCard(id: string): Promise<void> {
+    await this.ensureExternalCardsTable();
+    await db.execute('DELETE FROM marketplace_external_cards WHERE id = ?', [id]);
+  }
 }
 
 export const tenantsService = new TenantsService();

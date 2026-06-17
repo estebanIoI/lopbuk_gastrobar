@@ -26,6 +26,7 @@ export function LandingConfigTab() {
     homeTheme, isSavingHomeTheme, handleSaveHomeTheme,
     heroSlides, isSavingSlides, addSlide, updateSlide, removeSlide, moveSlide, handleSaveHeroSlides,
     heroSplit, heroRight, isSavingHeroLayout, handleSaveHeroSplit, handleSaveHeroRight,
+    welcomeEnabled, setWelcomeEnabled, welcomeTitle, setWelcomeTitle, welcomeSubtitle, setWelcomeSubtitle, isSavingWelcome, handleSaveWelcome,
     promoCards, promoCatalog, isSavingPromos, addPromoCard, removePromoCard, updatePromoLabel, movePromoCard, handleSavePromoCards,
     offers, isLoadingOffers, fetchOffers,
     drops, isLoadingDrops, fetchDrops,
@@ -298,6 +299,51 @@ export function LandingConfigTab() {
           <p className="text-xs text-muted-foreground">
             Recuerda pulsar <strong>Guardar carrusel</strong> para aplicar los cambios. Solo se muestran en la home con Tema 2 activo.
           </p>
+        </CardContent>
+      </Card>
+
+      {/* Barra de bienvenida (Tema 2) */}
+      <Card className="border-border bg-card">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base lg:text-lg flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-muted-foreground" />
+            Barra de bienvenida (Tema 2)
+          </CardTitle>
+          <CardDescription>
+            La barra que aparece sobre el carrusel en la página de inicio. Actívala, desactívala y edita su contenido. Solo aplica con el Tema 2 activo.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <Label className="text-sm">Mostrar barra de bienvenida</Label>
+              <p className="text-xs text-muted-foreground mt-0.5">{welcomeEnabled ? 'Visible en la home' : 'Oculta en la home'}</p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={welcomeEnabled}
+              onClick={() => setWelcomeEnabled(!welcomeEnabled)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${welcomeEnabled ? 'bg-emerald-500' : 'bg-muted-foreground/30'}`}
+            >
+              <span className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${welcomeEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+            </button>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <Label>Título</Label>
+              <Input value={welcomeTitle} onChange={(e) => setWelcomeTitle(e.target.value)} placeholder="Ej: Bienvenido a DAIMUZ" />
+            </div>
+            <div>
+              <Label>Subtítulo</Label>
+              <Input value={welcomeSubtitle} onChange={(e) => setWelcomeSubtitle(e.target.value)} placeholder="Ej: descubre los comercios locales y sus productos" />
+            </div>
+          </div>
+          <Button onClick={handleSaveWelcome} disabled={isSavingWelcome}>
+            {isSavingWelcome ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : <Check className="h-4 w-4 mr-2" />}
+            Guardar barra
+          </Button>
+          <p className="text-xs text-muted-foreground">Si el título queda vacío, se usa “Bienvenido a {'{marca}'}”.</p>
         </CardContent>
       </Card>
 

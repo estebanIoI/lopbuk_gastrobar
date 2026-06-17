@@ -1,6 +1,7 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { body, param, query } from 'express-validator';
 import { tenantsController } from './tenants.controller';
+import { tenantsService } from './tenants.service';
 import { authenticate, authorize } from '../../common/middleware';
 import { validateRequest } from '../../utils/validators';
 
@@ -74,6 +75,42 @@ router.put(
   ],
   tenantsController.updateMarketplaceCard.bind(tenantsController)
 );
+
+// ── Tarjetas externas (comercios fuera del aplicativo) — BEFORE /:id ──
+const extErr = (res: Response, e: any) =>
+  res.status(e?.statusCode || 500).json({ success: false, error: e?.message || 'Error' });
+
+router.get('/external-cards', async (_req: Request, res: Response) => {
+  try { res.json({ success: true, data: await tenantsService.listExternalCards() }); }
+  catch (e) { extErr(res, e); }
+});
+
+router.post(
+  '/external-cards',
+  [
+    body('name').notEmpty().withMessage('El nombre es requerido'),
+    body('externalUrl').notEmpty().withMessage('El link externo es requerido').isString().isLength({ max: 1000 }),
+    validateRequest,
+  ],
+  async (req: Request, res: Response) => {
+    try { res.status(201).json({ success: true, data: await tenantsService.createExternalCard(req.body) }); }
+    catch (e) { extErr(res, e); }
+  }
+);
+
+router.put(
+  '/external-cards/:id',
+  [param('id').notEmpty().withMessage('ID requerido'), validateRequest],
+  async (req: Request, res: Response) => {
+    try { await tenantsService.updateExternalCard(req.params.id, req.body); res.json({ success: true }); }
+    catch (e) { extErr(res, e); }
+  }
+);
+
+router.delete('/external-cards/:id', async (req: Request, res: Response) => {
+  try { await tenantsService.deleteExternalCard(req.params.id); res.json({ success: true }); }
+  catch (e) { extErr(res, e); }
+});
 
 // GET /api/tenants/:id - Get tenant detail (MUST be after static routes to avoid conflict)
 router.get(

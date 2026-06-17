@@ -62,6 +62,12 @@ export function useLandingConfig() {
   const [heroRight, setHeroRight] = useState<'producto' | 'comercio' | 'cta'>('producto')
   const [isSavingHeroLayout, setIsSavingHeroLayout] = useState(false)
 
+  // Barra de bienvenida (Página de Inicio, Tema 2): activable + contenido editable
+  const [welcomeEnabled, setWelcomeEnabled] = useState(true)
+  const [welcomeTitle, setWelcomeTitle] = useState('')
+  const [welcomeSubtitle, setWelcomeSubtitle] = useState('')
+  const [isSavingWelcome, setIsSavingWelcome] = useState(false)
+
   // Tarjetas del carrusel "Para ti"
   const [promoCards, setPromoCards] = useState<PromoCardConfig[]>(DEFAULT_PROMO_CARDS)
   const [isSavingPromos, setIsSavingPromos] = useState(false)
@@ -106,6 +112,9 @@ export function useLandingConfig() {
       if (['producto', 'comercio', 'cta'].includes(result.data.home_hero_right)) {
         setHeroRight(result.data.home_hero_right as 'producto' | 'comercio' | 'cta')
       }
+      if (result.data.home_welcome_enabled !== undefined) setWelcomeEnabled(result.data.home_welcome_enabled !== 'false')
+      if (result.data.home_welcome_title !== undefined) setWelcomeTitle(result.data.home_welcome_title)
+      if (result.data.home_welcome_subtitle !== undefined) setWelcomeSubtitle(result.data.home_welcome_subtitle)
       if (result.data.home_promo_cards) {
         try {
           const parsed = JSON.parse(result.data.home_promo_cards)
@@ -227,6 +236,18 @@ export function useLandingConfig() {
     setIsSavingHeroLayout(false)
   }
 
+  const handleSaveWelcome = async () => {
+    setIsSavingWelcome(true)
+    const results = await Promise.all([
+      api.updatePlatformSetting('home_welcome_enabled', welcomeEnabled ? 'true' : 'false'),
+      api.updatePlatformSetting('home_welcome_title', welcomeTitle),
+      api.updatePlatformSetting('home_welcome_subtitle', welcomeSubtitle),
+    ])
+    if (results.every(r => r.success)) toast.success('Barra de bienvenida actualizada')
+    else toast.error('Error al guardar la barra de bienvenida')
+    setIsSavingWelcome(false)
+  }
+
   // ── Tarjetas del carrusel "Para ti" ──
   const addPromoCard = (key: string) => {
     const cat = PROMO_CARD_CATALOG.find(c => c.key === key)
@@ -344,6 +365,7 @@ export function useLandingConfig() {
     heroSlides, isSavingSlides, addSlide, updateSlide, removeSlide, moveSlide, handleSaveHeroSlides,
     // layout del hero (split + panel derecho)
     heroSplit, heroRight, isSavingHeroLayout, handleSaveHeroSplit, handleSaveHeroRight,
+    welcomeEnabled, setWelcomeEnabled, welcomeTitle, setWelcomeTitle, welcomeSubtitle, setWelcomeSubtitle, isSavingWelcome, handleSaveWelcome,
     // tarjetas del carrusel "Para ti"
     promoCards, promoCatalog, isSavingPromos, addPromoCard, removePromoCard, updatePromoLabel, movePromoCard, handleSavePromoCards,
     // offers

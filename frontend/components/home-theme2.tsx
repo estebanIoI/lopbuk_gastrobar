@@ -161,6 +161,8 @@ export interface MarketStore {
   sedeCount?: number
   productCount: number
   theme?: string
+  /** Si está presente, la tarjeta es externa: al abrirla redirige a este link. */
+  externalUrl?: string | null
 }
 
 export interface MarketProduct {
@@ -364,10 +366,11 @@ function StoreCard({
   hasServices: boolean
   ensureAbsoluteUrl: (u: string) => string
 }) {
-  const isEmpty = store.productCount === 0
+  const isExternal = !!store.externalUrl
+  const isEmpty = !isExternal && store.productCount === 0
   return (
     <button
-      onClick={() => { if (!isEmpty) onOpenStore(store) }}
+      onClick={() => { if (isExternal || !isEmpty) onOpenStore(store) }}
       className={`group relative bg-[#171717] rounded-2xl overflow-hidden text-left flex flex-col shadow-sm transition-all duration-300 border ${isEmpty ? 'cursor-default border-white/5 opacity-70' : 'hover:shadow-xl border-white/10 hover:border-white/25 cursor-pointer'}`}
     >
       {isEmpty && (
@@ -394,7 +397,11 @@ function StoreCard({
           </div>
         )}
         <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-[#171717] to-transparent pointer-events-none" />
-        {!isEmpty && (
+        {isExternal ? (
+          <span className="absolute top-2.5 right-2.5 flex items-center gap-1 text-[9px] sm:text-[10px] font-bold px-2 py-1 rounded-full backdrop-blur-sm bg-violet-500/20 text-violet-200 border border-violet-400/50">
+            VISITAR ↗
+          </span>
+        ) : !isEmpty && (
           <span className={`absolute top-2.5 right-2.5 flex items-center gap-1 text-[9px] sm:text-[10px] font-bold px-2 py-1 rounded-full backdrop-blur-sm ${store.openState === 'closed' ? 'bg-red-500/20 text-red-300 border border-red-400/40' : 'bg-green-500/20 text-green-300 border border-green-400/50'}`}>
             <span className={`w-1.5 h-1.5 rounded-full ${store.openState === 'closed' ? 'bg-red-400' : 'bg-green-400'}`} />
             {store.openState === 'closed' ? 'CERRADO' : 'ABIERTO'}
@@ -506,6 +513,9 @@ export function MarketplaceHomeGovCo({
   heroSplit = '60-40',
   heroRight = 'producto',
   promoConfig,
+  welcomeEnabled = true,
+  welcomeTitle,
+  welcomeSubtitle,
   brandLogo = BRAND.icon,
   themeColors,
 }: {
@@ -530,6 +540,10 @@ export function MarketplaceHomeGovCo({
   heroRight?: string
   /** Tarjetas del carrusel "Para ti" (orden + tipo + etiqueta). Si no se pasa, usa el set por defecto. */
   promoConfig?: PromoCardConfig[]
+  /** Barra de bienvenida (activable + contenido editable desde superadmin). */
+  welcomeEnabled?: boolean
+  welcomeTitle?: string
+  welcomeSubtitle?: string
   /** Logo de la plataforma (configurable desde superadmin). */
   brandLogo?: string
   /** Paleta de marca generada por IA (superadmin). Tiñe todo el home. */
@@ -723,23 +737,24 @@ export function MarketplaceHomeGovCo({
         </div>
       </nav>
 
-      {/* ══ Banner de bienvenida ══ */}
-      {alertOpen && (
-        <div className="relative w-full flex justify-center py-2.5 px-10">
-          {/* Desktop: marco animado (Uiverse). Móvil: banner limpio sin recorte de texto. */}
-          <div className="hidden sm:block">
-            <DaimuzWelcomeFrame
-              text1={heroTitle || `Bienvenido a ${BRAND.name}`}
-              text2="descubre los comercios locales y sus productos"
-            />
+      {/* ══ Banner de bienvenida (activable + editable desde superadmin) ══ */}
+      {welcomeEnabled && alertOpen && (() => {
+        const wTitle = (welcomeTitle && welcomeTitle.trim()) || heroTitle || `Bienvenido a ${BRAND.name}`
+        const wSub = (welcomeSubtitle && welcomeSubtitle.trim()) || 'Descubre los comercios locales y sus productos'
+        return (
+          <div className="relative w-full flex justify-center py-2.5 px-10">
+            {/* Desktop: marco animado (Uiverse). Móvil: banner limpio sin recorte de texto. */}
+            <div className="hidden sm:block">
+              <DaimuzWelcomeFrame text1={wTitle} text2={wSub} />
+            </div>
+            <div className="sm:hidden w-full max-w-sm text-center rounded-xl border border-gray-200 bg-white/80 backdrop-blur px-4 py-2">
+              <p className="text-sm font-extrabold leading-tight" style={{ color: GREEN_DARK }}>{wTitle}</p>
+              {wSub && <p className="text-[11px] text-gray-500 leading-snug mt-0.5">{wSub}</p>}
+            </div>
+            <button onClick={() => setAlertOpen(false)} className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-700 rounded" aria-label="Cerrar"><X className="w-4 h-4" /></button>
           </div>
-          <div className="sm:hidden w-full max-w-sm text-center rounded-xl border border-gray-200 bg-white/80 backdrop-blur px-4 py-2">
-            <p className="text-sm font-extrabold leading-tight" style={{ color: GREEN_DARK }}>{heroTitle || `Bienvenido a ${BRAND.name}`}</p>
-            <p className="text-[11px] text-gray-500 leading-snug mt-0.5">Descubre los comercios locales y sus productos</p>
-          </div>
-          <button onClick={() => setAlertOpen(false)} className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-700 rounded" aria-label="Cerrar"><X className="w-4 h-4" /></button>
-        </div>
-      )}
+        )
+      })()}
 
       {/* ══ Contenido ══ */}
       <main className="flex-1">

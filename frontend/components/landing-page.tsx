@@ -280,6 +280,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   const [homeHeroSplit, setHomeHeroSplit] = useState('60-40')
   const [homeHeroRight, setHomeHeroRight] = useState('producto')
   const [homePromoCards, setHomePromoCards] = useState<PromoCardConfig[]>([])
+  const [homeWelcomeEnabled, setHomeWelcomeEnabled] = useState(true)
+  const [homeWelcomeTitle, setHomeWelcomeTitle] = useState('')
+  const [homeWelcomeSubtitle, setHomeWelcomeSubtitle] = useState('')
   const [platformLogo, setPlatformLogo] = useState('/daimuz-icon.png')
   // Tema 2 solo aplica a la home del marketplace (todas las tiendas), no dentro de una tienda
   const isHomeTheme2 = homeTheme === 'theme2' && showStoresView && selectedStore === 'all'
@@ -1128,6 +1131,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
           }
           if (json.data.home_hero_split) setHomeHeroSplit(json.data.home_hero_split)
           if (json.data.home_hero_right) setHomeHeroRight(json.data.home_hero_right)
+          if (json.data.home_welcome_enabled !== undefined) setHomeWelcomeEnabled(json.data.home_welcome_enabled !== 'false')
+          if (json.data.home_welcome_title !== undefined) setHomeWelcomeTitle(json.data.home_welcome_title)
+          if (json.data.home_welcome_subtitle !== undefined) setHomeWelcomeSubtitle(json.data.home_welcome_subtitle)
           if (json.data.platform_logo) setPlatformLogo(json.data.platform_logo)
           const platformPalette = parsePlatformPalette(json.data.platform_theme_colors)
           if (platformPalette) setPlatformThemeColors(platformPalette.colors)
@@ -2492,7 +2498,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
   // ── TEMA 2 (institucional): reemplaza toda la home del marketplace ──
   if (isHomeTheme2) {
-    const goToStore = (store: { slug: string; theme?: string }) => {
+    const goToStore = (store: { slug: string; theme?: string; externalUrl?: string | null }) => {
+      // Tarjeta externa (comercio fuera del aplicativo): redirige al link configurado.
+      if (store.externalUrl) { window.open(store.externalUrl, '_blank', 'noopener,noreferrer'); return }
       if (store.theme === 'theme2') { window.location.href = `/t/${store.slug}`; return }
       setSelectedStore(store.slug); setShowStoresView(false); setActiveSede(null); setStoreSedes([])
       window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -2521,6 +2529,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         heroSplit={homeHeroSplit}
         heroRight={homeHeroRight}
         promoConfig={homePromoCards}
+        welcomeEnabled={homeWelcomeEnabled}
+        welcomeTitle={homeWelcomeTitle}
+        welcomeSubtitle={homeWelcomeSubtitle}
         brandLogo={platformLogo}
         themeColors={platformThemeColors}
       />

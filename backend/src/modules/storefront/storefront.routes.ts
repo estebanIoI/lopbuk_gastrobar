@@ -376,7 +376,25 @@ router.get('/stores', async (req: Request, res: Response) => {
       return { ...rest, openState, nextOpenLabel };
     });
 
-    res.json({ success: true, data });
+    // Tarjetas externas (comercios fuera del aplicativo): redirigen a un link externo.
+    // Tolerante si la tabla aún no existe.
+    let externalCards: any[] = [];
+    try {
+      const [ext] = await pool.query(
+        `SELECT id, name, slug, logo_url AS logoUrl, cover_url AS coverUrl, description AS cardDescription,
+                external_url AS externalUrl, city, COALESCE(is_verified, 0) AS isVerified, COALESCE(sort_order, 0) AS marketplaceOrder
+           FROM marketplace_external_cards WHERE is_visible = 1 ORDER BY sort_order ASC, name ASC`
+      ) as any;
+      externalCards = (ext as any[]).map((e) => ({
+        id: e.id, name: e.name, slug: e.slug || '', businessType: null,
+        logoUrl: e.logoUrl, coverUrl: e.coverUrl, cardDescription: e.cardDescription,
+        city: e.city, address: null, isVerified: Boolean(e.isVerified), theme: 'external',
+        externalUrl: e.externalUrl, productCount: 1, openState: 'open', nextOpenLabel: null,
+        marketplaceOrder: Number(e.marketplaceOrder) || 0,
+      }));
+    } catch { /* tabla aún no creada */ }
+
+    res.json({ success: true, data: [...data, ...externalCards] });
   } catch (error) {
     console.error('Storefront stores error:', error);
     res.status(500).json({ success: false, error: 'Error al obtener tiendas' });

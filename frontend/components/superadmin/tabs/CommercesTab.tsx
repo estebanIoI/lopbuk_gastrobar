@@ -173,6 +173,8 @@ export function CommercesTab() {
   const {
     marketplaceCards, isLoadingCards, cardSearch, setCardSearch, savingCardId,
     fetchMarketplaceCards, patchCardLocal, saveMarketplaceCard,
+    externalCards, fetchExternalCards, patchExternalLocal, savingExternalId,
+    newExternal, setNewExternal, creatingExternal, createExternalCard, saveExternalCard, deleteExternalCard,
   } = useCommerces()
 
   // Tenant lifecycle management (new)
@@ -186,6 +188,7 @@ export function CommercesTab() {
   } = useTenantLifecycle()
 
   useEffect(() => { fetchMarketplaceCards() }, [fetchMarketplaceCards])
+  useEffect(() => { fetchExternalCards() }, [fetchExternalCards])
 
   const filteredCards = (Array.isArray(marketplaceCards) ? marketplaceCards : []).filter(c => {
     const q = cardSearch.trim().toLowerCase()
@@ -456,6 +459,140 @@ export function CommercesTab() {
                           ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
                           : <Save className="h-3.5 w-3.5" />}
                         Guardar
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── Tarjetas externas (comercios fuera del aplicativo) ───────────── */}
+      <Card className="border-border bg-card">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Plus className="h-4 w-4 text-muted-foreground" />
+            Tarjetas externas (fuera del aplicativo)
+          </CardTitle>
+          <CardDescription>
+            Crea tarjetas para comercios que NO están en la plataforma. Configura su logo, portada y descripción; al abrirlas, el cliente es redirigido al link que indiques.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          {/* Crear nueva */}
+          <div className="rounded-xl border border-dashed border-border p-4 space-y-3">
+            <p className="text-sm font-semibold">Nueva tarjeta externa</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Nombre *</label>
+                <Input value={newExternal.name} onChange={e => setNewExternal({ ...newExternal, name: e.target.value })} placeholder="Ej: Discoteca La Luna" className="h-9 text-sm" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Link externo (redirección) *</label>
+                <Input value={newExternal.externalUrl} onChange={e => setNewExternal({ ...newExternal, externalUrl: e.target.value })} placeholder="https://instagram.com/… o https://…" className="h-9 text-sm" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">URL del logo</label>
+                <Input value={newExternal.logoUrl} onChange={e => setNewExternal({ ...newExternal, logoUrl: e.target.value })} placeholder="https://…" className="h-9 text-sm" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">URL de portada</label>
+                <Input value={newExternal.coverUrl} onChange={e => setNewExternal({ ...newExternal, coverUrl: e.target.value })} placeholder="https://…" className="h-9 text-sm" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Descripción corta</label>
+                <Input value={newExternal.cardDescription} onChange={e => setNewExternal({ ...newExternal, cardDescription: e.target.value })} placeholder="Ej: Rumba y eventos en Mocoa" maxLength={300} className="h-9 text-sm" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Ciudad</label>
+                <Input value={newExternal.city} onChange={e => setNewExternal({ ...newExternal, city: e.target.value })} placeholder="Ej: Mocoa" className="h-9 text-sm" />
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button type="button" onClick={() => setNewExternal({ ...newExternal, isVerified: !newExternal.isVerified })} className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border transition-colors ${newExternal.isVerified ? 'bg-blue-500/10 border-blue-500/40 text-blue-600' : 'border-border text-muted-foreground hover:bg-muted'}`}>
+                <CheckCircle2 className="h-3.5 w-3.5" /> {newExternal.isVerified ? 'Verificado' : 'Sin verificar'}
+              </button>
+              <button type="button" onClick={() => setNewExternal({ ...newExternal, marketplaceVisible: !newExternal.marketplaceVisible })} className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border transition-colors ${newExternal.marketplaceVisible ? 'border-border text-foreground hover:bg-muted' : 'bg-amber-500/10 border-amber-500/40 text-amber-600'}`}>
+                {newExternal.marketplaceVisible ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />} {newExternal.marketplaceVisible ? 'Visible' : 'Oculto'}
+              </button>
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <span>Orden</span>
+                <Input type="number" min={0} value={newExternal.marketplaceOrder} onChange={e => setNewExternal({ ...newExternal, marketplaceOrder: e.target.value })} className="h-8 w-16 text-sm" />
+              </div>
+              <Button size="sm" className="ml-auto flex items-center gap-1.5" onClick={createExternalCard} disabled={creatingExternal}>
+                {creatingExternal ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />} Crear tarjeta
+              </Button>
+            </div>
+          </div>
+
+          {/* Existentes */}
+          {externalCards.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">Aún no hay tarjetas externas.</p>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {externalCards.map(card => (
+                <div key={card.id} className="rounded-xl border border-border bg-background overflow-hidden">
+                  <div className="flex items-center gap-3 p-3 border-b border-border bg-secondary/20">
+                    <div className="w-12 h-12 rounded-lg overflow-hidden bg-muted flex items-center justify-center shrink-0">
+                      {(card.coverUrl || card.logoUrl) ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={card.coverUrl || card.logoUrl} alt={card.name} className="w-full h-full object-cover" />
+                      ) : <Store className="h-5 w-5 text-muted-foreground/40" />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-sm font-semibold truncate">{card.name}</p>
+                        {Boolean(card.isVerified) && <CheckCircle2 className="h-3.5 w-3.5 text-blue-500 shrink-0" />}
+                      </div>
+                      <p className="text-xs text-muted-foreground truncate">{card.externalUrl}</p>
+                    </div>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 bg-violet-500/15 text-violet-500">EXTERNO</span>
+                  </div>
+                  <div className="p-3 space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground mb-1 block">Nombre</label>
+                        <Input value={card.name ?? ''} onChange={e => patchExternalLocal(card.id, { name: e.target.value })} className="h-9 text-sm" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground mb-1 block">Link externo</label>
+                        <Input value={card.externalUrl ?? ''} onChange={e => patchExternalLocal(card.id, { externalUrl: e.target.value })} className="h-9 text-sm" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground mb-1 block">URL del logo</label>
+                        <Input value={card.logoUrl ?? ''} onChange={e => patchExternalLocal(card.id, { logoUrl: e.target.value })} className="h-9 text-sm" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground mb-1 block">URL de portada</label>
+                        <Input value={card.coverUrl ?? ''} onChange={e => patchExternalLocal(card.id, { coverUrl: e.target.value })} className="h-9 text-sm" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground mb-1 block">Descripción corta</label>
+                        <Input value={card.cardDescription ?? ''} onChange={e => patchExternalLocal(card.id, { cardDescription: e.target.value })} maxLength={300} className="h-9 text-sm" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground mb-1 block">Ciudad</label>
+                        <Input value={card.city ?? ''} onChange={e => patchExternalLocal(card.id, { city: e.target.value })} className="h-9 text-sm" />
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button type="button" onClick={() => patchExternalLocal(card.id, { isVerified: !card.isVerified })} className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border transition-colors ${card.isVerified ? 'bg-blue-500/10 border-blue-500/40 text-blue-600' : 'border-border text-muted-foreground hover:bg-muted'}`}>
+                        <CheckCircle2 className="h-3.5 w-3.5" /> {card.isVerified ? 'Verificado' : 'Sin verificar'}
+                      </button>
+                      <button type="button" onClick={() => patchExternalLocal(card.id, { marketplaceVisible: !card.marketplaceVisible })} className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border transition-colors ${card.marketplaceVisible ? 'border-border text-foreground hover:bg-muted' : 'bg-amber-500/10 border-amber-500/40 text-amber-600'}`}>
+                        {card.marketplaceVisible ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />} {card.marketplaceVisible ? 'Visible' : 'Oculto'}
+                      </button>
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <span>Orden</span>
+                        <Input type="number" min={0} value={card.marketplaceOrder ?? 0} onChange={e => patchExternalLocal(card.id, { marketplaceOrder: e.target.value })} className="h-8 w-16 text-sm" />
+                      </div>
+                      <button type="button" onClick={() => deleteExternalCard(card.id)} className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border border-red-500/30 text-red-500 hover:bg-red-500/10 transition-colors">
+                        <Trash2 className="h-3.5 w-3.5" /> Eliminar
+                      </button>
+                      <Button size="sm" className="ml-auto flex items-center gap-1.5" onClick={() => saveExternalCard(card)} disabled={savingExternalId === card.id}>
+                        {savingExternalId === card.id ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />} Guardar
                       </Button>
                     </div>
                   </div>

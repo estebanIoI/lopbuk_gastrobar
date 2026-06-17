@@ -951,6 +951,30 @@ class ApiService {
     })
   }
 
+  // Tarjetas externas (comercios fuera del aplicativo)
+  async getExternalCards() {
+    return this.request<any[]>('/tenants/external-cards')
+  }
+  async createExternalCard(data: {
+    name: string; externalUrl: string; slug?: string | null; logoUrl?: string | null
+    coverUrl?: string | null; cardDescription?: string | null; city?: string | null
+    isVerified?: boolean; marketplaceVisible?: boolean; marketplaceOrder?: number
+  }) {
+    return this.request<{ id: string }>('/tenants/external-cards', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  }
+  async updateExternalCard(id: string, data: Record<string, any>) {
+    return this.request<any>(`/tenants/external-cards/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  }
+  async deleteExternalCard(id: string) {
+    return this.request<any>(`/tenants/external-cards/${id}`, { method: 'DELETE' })
+  }
+
   // =============================================
   // Storefront management endpoints (authenticated)
   // =============================================
