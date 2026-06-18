@@ -213,7 +213,7 @@ router.get(
         try {
           const placeholders = productIds.map(() => '?').join(',');
           const [variantRows] = await pool.query(
-            `SELECT pv.id, pv.product_id, pv.sku, pv.color, pv.size, pv.material,
+            `SELECT pv.id, pv.product_id, pv.sku, pv.color, pv.color_hex AS colorHex, pv.size, pv.material,
                     pv.stock, pv.reserved_stock, pv.cost_price, pv.price_override,
                     pv.images, pv.sort_order,
                     (SELECT MIN(vpt.price) FROM variant_price_tiers vpt

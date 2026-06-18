@@ -30,7 +30,7 @@ interface Props {
   onClose: () => void
 }
 
-const EMPTY_VARIANT = { sku: '', color: '', size: '', material: '', stock: 0, minStock: 0, costPrice: '', priceOverride: '', imageUrl: '' }
+const EMPTY_VARIANT = { sku: '', color: '', colorHex: '', size: '', material: '', stock: 0, minStock: 0, costPrice: '', priceOverride: '', imageUrl: '' }
 const EMPTY_TIER    = { minQty: 1, price: '', tenantMarginPct: 0 }
 
 // ── Ejes del modo guiado (mapeados a las columnas reales del backend) ──
@@ -153,7 +153,7 @@ export function VariantManager({ productId, productName, open, onClose }: Props)
   const openAdd = () => { setVariantForm(EMPTY_VARIANT); setEditingVariant(null); setShowAddVariant(true) }
   const openEdit = (v: ProductVariant) => {
     setVariantForm({
-      sku: v.sku, color: v.color || '', size: v.size || '',
+      sku: v.sku, color: v.color || '', colorHex: v.colorHex || '', size: v.size || '',
       material: v.material || '', stock: v.stock,
       minStock: v.minStock, costPrice: v.costPrice?.toString() || '',
       priceOverride: v.priceOverride?.toString() || '',
@@ -170,6 +170,7 @@ export function VariantManager({ productId, productName, open, onClose }: Props)
       const payload = {
         sku: variantForm.sku.trim(),
         color: variantForm.color || undefined,
+        colorHex: variantForm.colorHex.trim(),
         size: variantForm.size || undefined,
         material: variantForm.material || undefined,
         stock: Number(variantForm.stock),
@@ -512,9 +513,23 @@ export function VariantManager({ productId, productName, open, onClose }: Props)
                   onChange={e => setVariantForm(p => ({ ...p, sku: e.target.value }))} />
               </div>
               <div>
-                <Label className="text-xs">Color</Label>
-                <Input placeholder="Negro" value={variantForm.color}
-                  onChange={e => setVariantForm(p => ({ ...p, color: e.target.value }))} />
+                <Label className="text-xs">Color (nombre)</Label>
+                <div className="flex items-center gap-2">
+                  <Input placeholder="Ej: Vainilla, Negro…" value={variantForm.color}
+                    onChange={e => setVariantForm(p => ({ ...p, color: e.target.value }))} />
+                  <input
+                    type="color"
+                    aria-label="Color exacto"
+                    title="Color exacto para el círculo en la tienda"
+                    value={/^#[0-9a-fA-F]{6}$/.test(variantForm.colorHex) ? variantForm.colorHex : '#000000'}
+                    onChange={e => setVariantForm(p => ({ ...p, colorHex: e.target.value.toUpperCase() }))}
+                    className="h-9 w-10 shrink-0 cursor-pointer rounded-md border border-input bg-background p-1"
+                  />
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  El cliente ve el nombre; la paleta fija el <strong>color exacto</strong> del círculo en la tienda
+                  {variantForm.colorHex ? ` (${variantForm.colorHex})` : ''}.
+                </p>
               </div>
               <div>
                 <Label className="text-xs">Talla / Tamaño</Label>

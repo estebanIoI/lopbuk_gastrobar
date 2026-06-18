@@ -23,6 +23,8 @@ export interface RawVariant {
   id: string | number
   sku?: string
   color?: string | null
+  colorHex?: string | null
+  color_hex?: string | null
   size?: string | null
   material?: string | null
   stock?: number
@@ -50,6 +52,7 @@ interface NormVariant {
   id: string
   sku?: string
   color?: string
+  colorHex?: string
   size?: string
   material?: string
   available: number
@@ -111,6 +114,7 @@ function normalize(v: RawVariant): NormVariant {
     id: String(v.id),
     sku: v.sku,
     color: v.color?.trim() || undefined,
+    colorHex: (v.colorHex ?? v.color_hex ?? undefined)?.trim() || undefined,
     size: v.size?.trim() || undefined,
     material: v.material?.trim() || undefined,
     available: Math.max(0, stock - reserved),
@@ -147,6 +151,15 @@ export function VariantSelector({
 }) {
   const fmt = formatPrice ?? ((n: number) => `$${Number(n || 0).toLocaleString('es-CO')}`)
   const norm = useMemo(() => (variants || []).map(normalize), [variants])
+
+  // Color exacto (hex) por nombre de color, definido por el comercio en la variante.
+  const colorHexByName = useMemo(() => {
+    const m: Record<string, string> = {}
+    for (const v of norm) {
+      if (v.color && v.colorHex && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(v.colorHex)) m[v.color] = v.colorHex
+    }
+    return m
+  }, [norm])
 
   // Ejes presentes (con al menos un valor no vacío)
   const axes = useMemo(() => {
@@ -227,7 +240,7 @@ export function VariantSelector({
                 const active = sel[axis.key] === val
                 const otherSel = Object.fromEntries(Object.entries(sel).filter(([k]) => k !== axis.key))
                 const available = hasStockFor({ ...otherSel, [axis.key]: val })
-                const css = colorToCss(val) ?? (isLightBg ? '#5b5b5b' : '#cfcfcf')
+                const css = colorHexByName[val] || colorToCss(val) || (isLightBg ? '#5b5b5b' : '#cfcfcf')
                 return (
                   <button
                     key={val}

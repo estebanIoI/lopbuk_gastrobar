@@ -9,7 +9,7 @@ import { AppError } from '../../common/middleware';
 interface VariantRow extends RowDataPacket {
   id: string; tenant_id: string; product_id: string;
   sku: string; barcode: string | null;
-  color: string | null; size: string | null; material: string | null;
+  color: string | null; color_hex: string | null; size: string | null; material: string | null;
   stock: number; reserved_stock: number; min_stock: number;
   cost_price: number | null; price_override: number | null;
   supplier_id: string | null; images: string | null;
@@ -45,6 +45,7 @@ function mapVariant(row: VariantRow): ProductVariant {
     sku: row.sku,
     barcode: row.barcode ?? undefined,
     color,
+    colorHex: row.color_hex ?? undefined,
     size,
     material: row.material ?? undefined,
     stock: Number(row.stock),
@@ -135,7 +136,7 @@ export class VariantsService {
   }
 
   async create(productId: string, tenantId: string, data: {
-    sku: string; barcode?: string; color?: string; size?: string; material?: string;
+    sku: string; barcode?: string; color?: string; colorHex?: string; size?: string; material?: string;
     stock?: number; minStock?: number; costPrice?: number; priceOverride?: number;
     supplierId?: string; images?: string[]; sortOrder?: number;
   }): Promise<ProductVariant> {
@@ -149,13 +150,13 @@ export class VariantsService {
     const id = uuidv4();
     await db.execute(
       `INSERT INTO product_variants
-         (id, tenant_id, product_id, sku, barcode, color, size, material,
+         (id, tenant_id, product_id, sku, barcode, color, color_hex, size, material,
           stock, reserved_stock, min_stock, cost_price, price_override,
           supplier_id, images, sort_order)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)`,
       [
         id, tenantId, productId,
-        data.sku, data.barcode ?? null, data.color ?? null, data.size ?? null, data.material ?? null,
+        data.sku, data.barcode ?? null, data.color ?? null, data.colorHex ?? null, data.size ?? null, data.material ?? null,
         data.stock ?? 0, data.minStock ?? 0,
         data.costPrice ?? null, data.priceOverride ?? null,
         data.supplierId ?? null,
@@ -177,7 +178,7 @@ export class VariantsService {
   }
 
   async update(id: string, tenantId: string, data: Partial<{
-    sku: string; barcode: string; color: string; size: string; material: string;
+    sku: string; barcode: string; color: string; colorHex: string; size: string; material: string;
     minStock: number; costPrice: number; priceOverride: number;
     supplierId: string; images: string[]; sortOrder: number; isActive: boolean;
   }>): Promise<ProductVariant> {
@@ -192,7 +193,7 @@ export class VariantsService {
     }
 
     const fieldMap: Record<string, string> = {
-      sku: 'sku', barcode: 'barcode', color: 'color', size: 'size', material: 'material',
+      sku: 'sku', barcode: 'barcode', color: 'color', colorHex: 'color_hex', size: 'size', material: 'material',
       minStock: 'min_stock', costPrice: 'cost_price', priceOverride: 'price_override',
       supplierId: 'supplier_id', sortOrder: 'sort_order', isActive: 'is_active',
     };

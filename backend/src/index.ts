@@ -764,6 +764,12 @@ const startServer = async () => {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
     } catch (e: any) { console.warn('[migration affiliates]', e?.message); }
 
+    // ── Variantes: color exacto (hex) además del nombre ──────────────────────
+    try {
+      const poolCh = (await import('./config/database')).default;
+      await poolCh.query(`ALTER TABLE product_variants ADD COLUMN color_hex VARCHAR(9) NULL COMMENT 'Color exacto (hex) para el swatch de la tienda'`);
+    } catch (e: any) { if (e?.errno !== 1060) console.warn('color_hex migration:', e?.message); }
+
     // ── Tenant module control ────────────────────────────────────────────────
     try {
       const mPool = (await import('./config/database')).default;

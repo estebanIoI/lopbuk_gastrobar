@@ -17,6 +17,7 @@ export interface ProductVariant {
   sku: string
   barcode?: string
   color?: string
+  colorHex?: string
   size?: string
   material?: string
   stock: number
