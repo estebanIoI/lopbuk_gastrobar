@@ -287,3 +287,233 @@ export const seccionesPublicAPI = {
   getBanner: () => Promise.resolve([] as BannerSlideAPI[]),
   getActivas: () => Promise.resolve([] as SeccionPublicaAPI[]),
 };
+
+// ════════════════════ ADMIN - TIPOS ════════════════════
+export interface AdminStatsAPI {
+  total_usuarios: number;
+  usuarios_activos_hoy: number;
+  modulos_completados: number;
+  total_publicaciones: number;
+  puntos_totales: number;
+  total_modulos: number;
+}
+
+export interface AdminUsuarioAPI {
+  id: number | string;
+  nombre: string;
+  email: string;
+  avatar: string;
+  nivel: string;
+  puntos: number;
+  role: string;
+  modulos_completados: number;
+  ultimo_acceso: string | null;
+}
+
+export interface AdminModuloAPI {
+  id: number | string;
+  clave: string;
+  titulo: string;
+  icono: string;
+  color: string;
+  descripcion: string;
+  video_url: string;
+  frase: string;
+  traduccion: string;
+  tiene_actividad: boolean;
+  completados: number;
+}
+
+export interface AdminActividadAPI {
+  id?: number | string;
+  tipo: 'completar' | 'emparejar' | 'verdadero_falso' | 'ordenar';
+  pregunta: string;
+  respuesta_correcta?: string;
+  opciones?: { id: number | string; texto: string; orden: number }[];
+  pares?: { id: number | string; inga: string; espanol: string }[];
+  enunciados_vf?: { id: number | string; enunciado: string; es_verdadero: boolean; orden: number }[];
+  fragmentos_ordenar?: { id: number | string; fragmento: string; orden_correcto: number }[];
+}
+
+export interface AdminPublicacionAPI {
+  id: number | string;
+  usuario: string;
+  avatar: string;
+  contenido: string;
+  likes: number;
+  comentarios: number;
+  creado_en: string;
+}
+
+export interface BancoVocabAPI {
+  id: number | string;
+  espanol: string;
+  inga: string;
+  categoria: string;
+  modulo_id: number | null;
+  notas: string | null;
+  creado_en?: string;
+}
+
+export interface BancoTextoAPI {
+  id: number | string;
+  titulo: string;
+  tipo: string;
+  contenido: string;
+  modulo_id: number | null;
+  creado_en?: string;
+}
+
+export interface CartillaSeccionAPI {
+  id: number | string;
+  titulo: string;
+  subtitulo: string | null;
+  contenido: string | null;
+  imagen_url: string | null;
+  imagen_alt: string | null;
+  link_url: string | null;
+  orden: number;
+  tipo: string;
+  activo: boolean;
+  creado_en?: string;
+  actualizado_en?: string;
+}
+
+export interface ModuloImagenAPI {
+  id: number | string;
+  url: string;
+  alt: string | null;
+  caption: string | null;
+  orden: number;
+}
+
+export interface ModuloSeccionAPI {
+  id: number | string;
+  titulo: string;
+  contenido: string | null;
+  tipo: string;
+  orden: number;
+}
+
+export interface ModuloAudioAPI {
+  id: number | string;
+  titulo: string;
+  url: string;
+  descripcion: string | null;
+  orden: number;
+}
+
+type AdminAuthHeaders = { headers: HeadersInit };
+
+const adminRequest = {
+  get: <T>(path: string) => request<T>(path, { headers: headers(true) }),
+  post: <T>(path: string, body?: unknown) => request<T>(path, { method: 'POST', headers: headers(true), body: body ? JSON.stringify(body) : undefined }),
+  put: <T>(path: string, body?: unknown) => request<T>(path, { method: 'PUT', headers: headers(true), body: body ? JSON.stringify(body) : undefined }),
+  del: <T>(path: string) => request<T>(path, { method: 'DELETE', headers: headers(true) }),
+};
+
+// ════════════════════ ADMIN - APIS ════════════════════
+export const adminAPI = {
+  getStats: () => adminRequest.get<AdminStatsAPI>(`/admin/cartillas/${cid()}/stats`),
+  listarUsuarios: () => adminRequest.get<AdminUsuarioAPI[]>(`/admin/cartillas/${cid()}/usuarios`),
+  actualizarUsuario: (id: number | string, data: Partial<AdminUsuarioAPI>) => adminRequest.put(`/admin/usuarios/${id}`, data),
+  eliminarUsuario: (id: number | string) => adminRequest.del(`/admin/usuarios/${id}`),
+  listarModulos: () => adminRequest.get<AdminModuloAPI[]>(`/admin/cartillas/${cid()}/modulos`),
+  crearModulo: (data: Omit<AdminModuloAPI, 'id' | 'completados' | 'tiene_actividad'>) =>
+    adminRequest.post<AdminModuloAPI>(`/admin/cartillas/${cid()}/modulos`, data),
+  actualizarModulo: (id: number | string, data: Partial<AdminModuloAPI>) =>
+    adminRequest.put(`/admin/modulos/${id}`, data),
+  eliminarModulo: (id: number | string) => adminRequest.del(`/admin/modulos/${id}`),
+  listarActividades: (moduloId: number | string) =>
+    adminRequest.get<AdminActividadAPI[]>(`/admin/modulos/${moduloId}/actividades`),
+  crearActividad: (moduloId: number | string, data: Partial<AdminActividadAPI>) =>
+    adminRequest.post<AdminActividadAPI>(`/admin/modulos/${moduloId}/actividades`, data),
+  actualizarActividadV2: (moduloId: number | string, actId: number | string, data: Partial<AdminActividadAPI>) =>
+    adminRequest.put<AdminActividadAPI>(`/admin/modulos/${moduloId}/actividades/${actId}`, data),
+  eliminarActividadV2: (moduloId: number | string, actId: number | string) =>
+    adminRequest.del(`/admin/modulos/${moduloId}/actividades/${actId}`),
+  listarImagenes: (moduloId: number | string) =>
+    adminRequest.get<ModuloImagenAPI[]>(`/admin/modulos/${moduloId}/imagenes`),
+  crearImagen: (moduloId: number | string, data: { url: string; orden: number }) =>
+    adminRequest.post<ModuloImagenAPI>(`/admin/modulos/${moduloId}/imagenes`, data),
+  eliminarImagen: (moduloId: number | string, imgId: number | string) =>
+    adminRequest.del(`/admin/modulos/${moduloId}/imagenes/${imgId}`),
+  listarSeccionesContenido: (moduloId: number | string) =>
+    adminRequest.get<ModuloSeccionAPI[]>(`/admin/modulos/${moduloId}/secciones`),
+  crearSeccionContenido: (moduloId: number | string, data: Partial<ModuloSeccionAPI>) =>
+    adminRequest.post<ModuloSeccionAPI>(`/admin/modulos/${moduloId}/secciones`, data),
+  actualizarSeccionContenido: (moduloId: number | string, secId: number | string, data: Partial<ModuloSeccionAPI>) =>
+    adminRequest.put<ModuloSeccionAPI>(`/admin/modulos/${moduloId}/secciones/${secId}`, data),
+  eliminarSeccionContenido: (moduloId: number | string, secId: number | string) =>
+    adminRequest.del(`/admin/modulos/${moduloId}/secciones/${secId}`),
+  listarAudios: (moduloId: number | string) =>
+    adminRequest.get<ModuloAudioAPI[]>(`/admin/modulos/${moduloId}/audios`),
+  crearAudio: (moduloId: number | string, data: Partial<ModuloAudioAPI>) =>
+    adminRequest.post<ModuloAudioAPI>(`/admin/modulos/${moduloId}/audios`, data),
+  actualizarAudio: (moduloId: number | string, audId: number | string, data: Partial<ModuloAudioAPI>) =>
+    adminRequest.put<ModuloAudioAPI>(`/admin/modulos/${moduloId}/audios/${audId}`, data),
+  eliminarAudio: (moduloId: number | string, audId: number | string) =>
+    adminRequest.del(`/admin/modulos/${moduloId}/audios/${audId}`),
+  listarPublicaciones: () =>
+    adminRequest.get<AdminPublicacionAPI[]>(`/admin/cartillas/${cid()}/publicaciones`),
+  eliminarPublicacion: (id: number | string) => adminRequest.del(`/admin/publicaciones/${id}`),
+};
+
+export const bancoAPI = {
+  listarVocabulario: () => adminRequest.get<BancoVocabAPI[]>(`/admin/cartillas/${cid()}/vocabulario`),
+  crearVocabulario: (data: Omit<BancoVocabAPI, 'id' | 'creado_en'>) =>
+    adminRequest.post<BancoVocabAPI>(`/admin/cartillas/${cid()}/vocabulario`, data),
+  actualizarVocabulario: (id: number | string, data: BancoVocabAPI) =>
+    adminRequest.put<BancoVocabAPI>(`/admin/vocabulario/${id}`, data),
+  eliminarVocabulario: (id: number | string) => adminRequest.del(`/admin/vocabulario/${id}`),
+  listarTextos: () => adminRequest.get<BancoTextoAPI[]>(`/admin/cartillas/${cid()}/textos`),
+  crearTexto: (data: Omit<BancoTextoAPI, 'id' | 'creado_en'>) =>
+    adminRequest.post<BancoTextoAPI>(`/admin/cartillas/${cid()}/textos`, data),
+  actualizarTexto: (id: number | string, data: BancoTextoAPI) =>
+    adminRequest.put<BancoTextoAPI>(`/admin/textos/${id}`, data),
+  eliminarTexto: (id: number | string) => adminRequest.del(`/admin/textos/${id}`),
+  importarVocabulario: (pares: { espanol: string; inga: string }[], moduloId: number | null, categoria: string) =>
+    adminRequest.post<{ insertados: number }>(`/admin/cartillas/${cid()}/vocabulario/importar`, { pares, modulo_id: moduloId, categoria }),
+};
+
+export const configAPI = {
+  get: () => adminRequest.get<{ cloudinary_cloud_name: string; cloudinary_api_key: string; cloudinary_api_secret: string }>(
+    `/admin/cartillas/${cid()}/config`
+  ),
+  save: (data: { cloudinary_cloud_name: string; cloudinary_api_key: string; cloudinary_api_secret: string }) =>
+    adminRequest.put(`/admin/cartillas/${cid()}/config`, data),
+};
+
+export const uploadAPI = {
+  imagen: async (file: File): Promise<{ url: string }> => {
+    const form = new FormData();
+    form.append('file', file);
+    const res = await fetch(`${API_URL}/admin/upload/imagen`, {
+      method: 'POST', headers: { Authorization: `Bearer ${getToken()}` }, body: form, credentials: 'include',
+    });
+    const body = await res.json();
+    if (!res.ok) throw new ApiError(res.status, body?.error || 'Error al subir imagen');
+    return { url: body.data?.url || body.url };
+  },
+  audio: async (file: File): Promise<{ url: string }> => {
+    const form = new FormData();
+    form.append('file', file);
+    const res = await fetch(`${API_URL}/admin/upload/audio`, {
+      method: 'POST', headers: { Authorization: `Bearer ${getToken()}` }, body: form, credentials: 'include',
+    });
+    const body = await res.json();
+    if (!res.ok) throw new ApiError(res.status, body?.error || 'Error al subir audio');
+    return { url: body.data?.url || body.url };
+  },
+};
+
+export const seccionesAPI = {
+  listar: () => adminRequest.get<CartillaSeccionAPI[]>(`/admin/cartillas/${cid()}/secciones`),
+  crear: (data: Omit<CartillaSeccionAPI, 'id' | 'creado_en' | 'actualizado_en'>) =>
+    adminRequest.post<CartillaSeccionAPI>(`/admin/cartillas/${cid()}/secciones`, data),
+  actualizar: (id: number | string, data: Partial<CartillaSeccionAPI>) =>
+    adminRequest.put<CartillaSeccionAPI>(`/admin/secciones/${id}`, data),
+  eliminar: (id: number | string) => adminRequest.del(`/admin/secciones/${id}`),
+  reordenar: (items: { id: number | string; orden: number }[]) =>
+    adminRequest.put(`/admin/cartillas/${cid()}/secciones/reordenar`, { items }),
+};

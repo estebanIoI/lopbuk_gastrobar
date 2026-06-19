@@ -38,7 +38,7 @@ function Delta({ pct }: { pct: number | null }) {
 // ── KPI card ──────────────────────────────────────────────────────────────────
 
 function KpiCard({
-  label, value, delta, subtext, icon: Icon, color,
+  label, value, delta, subtext, icon: _icon, color,
 }: {
   label: string
   value: string
@@ -47,6 +47,7 @@ function KpiCard({
   icon: React.ElementType
   color: string
 }) {
+  const Icon = _icon as React.ComponentType<{ className?: string }>
   return (
     <Card className="border-border bg-card">
       <CardContent className="p-4 flex flex-col gap-2">

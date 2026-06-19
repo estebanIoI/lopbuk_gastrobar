@@ -29,7 +29,6 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
         shape="rectangular"
         theme="outline"
         size="large"
-        locale="es"
       />
     </div>
   );

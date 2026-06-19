@@ -394,7 +394,8 @@ interface AnalyticsCardProps {
   color: 'green' | 'blue' | 'purple' | 'amber'
 }
 
-function AnalyticsCard({ title, value, description, icon: Icon, color }: AnalyticsCardProps) {
+function AnalyticsCard({ title, value, description, icon: _icon, color }: AnalyticsCardProps) {
+  const Icon = _icon as React.ComponentType<{ className?: string }>
   const colorClasses = {
     green: { bg: 'bg-green-500/10', text: 'text-green-500' },
     blue: { bg: 'bg-blue-500/10', text: 'text-blue-500' },

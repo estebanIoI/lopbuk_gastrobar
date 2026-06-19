@@ -265,6 +265,7 @@ export function Sidebar() {
                 )}
 
                 {items.map(item => {
+                  const ItemIcon = item.icon as React.ComponentType<{ className?: string }>
                   // Special handling for Tienda (has children)
                   if (item.children) {
                     const visibleChildren = item.children.filter(filterItem)
@@ -288,7 +289,7 @@ export function Sidebar() {
                             {isParentActive && isExpanded && (
                               <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-primary rounded-r-full" />
                             )}
-                            <item.icon className={cn(
+                            <ItemIcon className={cn(
                               "h-4 w-4 shrink-0 transition-colors",
                               isParentActive ? "text-primary" : "text-gray-400 group-hover:text-gray-900"
                             )} />
@@ -307,6 +308,7 @@ export function Sidebar() {
                         {isExpanded && tiendaOpen && (
                           <div className="mt-0.5 ml-3 pl-3 border-l border-black/[0.08] space-y-0.5">
                             {visibleChildren.map(child => {
+                              const ChildIcon = child.icon as React.ComponentType<{ className?: string }>
                               const isChildActive = activeSection === child.id
                               return (
                                 <div key={child.id}>
@@ -322,7 +324,7 @@ export function Sidebar() {
                                     {isChildActive && (
                                       <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-4 bg-primary rounded-r-full" />
                                     )}
-                                    <child.icon className={cn(
+                                    <ChildIcon className={cn(
                                       "h-3.5 w-3.5 shrink-0",
                                       isChildActive ? "text-primary" : "text-gray-400 group-hover:text-gray-900"
                                     )} />
@@ -355,7 +357,7 @@ export function Sidebar() {
                         {isActive && isExpanded && (
                           <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-primary rounded-r-full" />
                         )}
-                        <item.icon className={cn(
+                        <ItemIcon className={cn(
                           "h-4 w-4 shrink-0 transition-colors",
                           isActive ? "text-primary" : "text-gray-400 group-hover:text-gray-900"
                         )} />

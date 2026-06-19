@@ -69,7 +69,7 @@ export function SuperadminLayout() {
       {/* Tabs nav */}
       <div className="flex gap-1 p-1 bg-muted rounded-lg w-fit flex-wrap">
         {TABS.map(tab => {
-          const Icon = tab.icon
+          const Icon = tab.icon as React.ComponentType<{ className?: string }>
           return (
             <button
               key={tab.id}

@@ -151,15 +151,15 @@ function ActividadVF({ act }: { act: ActividadPublicaAPI }) {
   const [respuestas, setRespuestas] = useState<Record<number, boolean | null>>({});
   const [mostrar, setMostrar] = useState(false);
 
-  const todos = enunciados.every(e => respuestas[e.id] !== undefined && respuestas[e.id] !== null);
-  const correctos = enunciados.filter(e => respuestas[e.id] === Boolean(e.es_verdadero)).length;
+  const todos = enunciados.every(e => respuestas[Number(e.id)] !== undefined && respuestas[Number(e.id)] !== null);
+  const correctos = enunciados.filter(e => respuestas[Number(e.id)] === Boolean(e.es_verdadero)).length;
 
   const reiniciar = () => { setRespuestas({}); setMostrar(false); };
 
   return (
     <div className="space-y-3">
       {enunciados.map(en => {
-        const resp = respuestas[en.id];
+        const resp = respuestas[Number(en.id)];
         const esCorrecto = resp === Boolean(en.es_verdadero);
         return (
           <div key={en.id} className={`rounded-xl border-2 p-4 transition ${
@@ -173,7 +173,7 @@ function ActividadVF({ act }: { act: ActividadPublicaAPI }) {
                 const esSeleccionada = resp === val;
                 return (
                   <button key={String(val)}
-                    onClick={() => !mostrar && setRespuestas(r => ({ ...r, [en.id]: val }))}
+                    onClick={() => !mostrar && setRespuestas(r => ({ ...r, [Number(en.id)]: val }))}
                     disabled={mostrar}
                     className={`flex-1 py-2 rounded-lg text-sm font-semibold border-2 transition ${
                       esSeleccionada
@@ -488,7 +488,7 @@ export const VistaModulo: React.FC = () => {
   const irAActividades = () => {
     setModalNav(false);
     // Expandir la primera actividad y hacer scroll
-    if (actividades.length > 0) setActExpandida(actividades[0].id);
+    if (actividades.length > 0) setActExpandida(Number(actividades[0].id));
     setTimeout(() => actividadesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
   };
 
@@ -648,7 +648,7 @@ export const VistaModulo: React.FC = () => {
             <div key={act.id} className="bg-white rounded-2xl border-2 border-amber-100 shadow-sm overflow-hidden">
               <button
                 className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-amber-50/50 transition"
-                onClick={() => setActExpandida(actExpandida === act.id ? null : act.id)}
+                onClick={() => setActExpandida(actExpandida === Number(act.id) ? null : Number(act.id))}
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="bg-amber-100 w-8 h-8 rounded-full flex items-center justify-center shrink-0">

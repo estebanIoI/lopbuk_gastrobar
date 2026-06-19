@@ -114,8 +114,8 @@ export const BannerCarrusel: React.FC<BannerCarruselProps> = ({ noRounded = fals
   };
 
   const slide = slides[current];
-  const isFallback = slide.id < 0;
-  const fallbackIdx = isFallback ? Math.abs(slide.id) - 1 : 0;
+  const isFallback = Number(slide.id) < 0;
+  const fallbackIdx = isFallback ? Math.abs(Number(slide.id)) - 1 : 0;
 
   return (
     <div

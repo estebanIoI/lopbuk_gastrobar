@@ -15,7 +15,7 @@ export function FleetShowcase({ fleet, accent }: { fleet: Fleet[]; accent: strin
         <h2 className="text-3xl font-bold text-center text-slate-900">Nuestra flota</h2>
         <div className="mt-8 grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {fleet.map(v => {
-            const VIcon = VEHICLE_ICON[v.vehicleType] || Car
+            const VIcon = (VEHICLE_ICON[v.vehicleType] || Car) as React.ComponentType<{ className?: string }>
             return (
               <div key={v.id} className="rounded-2xl border border-gray-100 overflow-hidden hover:shadow-lg transition">
                 <div className="h-40 bg-gray-100">

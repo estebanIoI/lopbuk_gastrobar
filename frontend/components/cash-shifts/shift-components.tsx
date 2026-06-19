@@ -30,7 +30,7 @@ export function ShiftSelector({ value, onChange }: { value: ShiftType; onChange:
       <p className="text-sm font-medium mb-1.5">Turno</p>
       <div className="flex gap-2">
         {SHIFTS.map(s => {
-          const I = s.icon
+          const I = s.icon as React.ComponentType<{ className?: string }>
           const on = value === s.v
           return (
             <button key={s.v} type="button" onClick={() => onChange(s.v)}
@@ -182,7 +182,7 @@ export function BonusDiscountPanel({ sessionId, onChange }: { sessionId: string;
 
   const set = (id: string, k: 'bono' | 'bonoC' | 'desc' | 'descC', v: string) => {
     setVals(prev => {
-      const next = { ...prev, [id]: { bono: '', bonoC: '', desc: '', descC: '', ...prev[id], [k]: v } }
+      const next = { ...prev, [id]: { ...prev[id], bono: '', bonoC: '', desc: '', descC: '', [k]: v } }
       // recalcula y emite
       const out: ShiftBonus[] = []
       for (const [empId, val] of Object.entries(next)) {
@@ -227,7 +227,7 @@ export function BonusDiscountPanel({ sessionId, onChange }: { sessionId: string;
 export function ShiftBadge({ shiftType, shiftLabel }: { shiftType?: ShiftType; shiftLabel?: string | null }) {
   if (!shiftType || shiftType === 'unico') return null
   const meta = SHIFTS.find(s => s.v === shiftType)!
-  const I = meta.icon
+  const I = meta.icon as React.ComponentType<{ className?: string }>
   const color = shiftType === 'mañana' ? 'bg-amber-100 text-amber-700' : 'bg-indigo-100 text-indigo-700'
   return (
     <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${color}`}>

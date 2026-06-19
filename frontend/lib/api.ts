@@ -2289,6 +2289,10 @@ class ApiService {
     contactInstagram?: string
     accentColor?: string
     isPublished?: boolean
+    robotSplineUrl?: string
+    lanyardOffsetX?: number
+    lanyardOffsetY?: number
+    lanyardScale?: number
   }) {
     return this.request<any>('/portfolio/config', {
       method: 'PUT',

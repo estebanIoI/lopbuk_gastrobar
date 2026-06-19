@@ -337,6 +337,7 @@ export function PanelComercianteShell() {
       <nav className="pc-navbar" ref={navRef}>
         <div className="pc-navbar-inner">
           {visibleNav.map(g => {
+            const GIcon = g.icon as React.ComponentType<{ className?: string; size?: number }>
             const active = groupActive(g)
             const hasChildren = g.children && g.children.length > 0
             return (
@@ -354,22 +355,24 @@ export function PanelComercianteShell() {
                     else setOpenMenu(prev => (prev === g.key ? null : g.key))
                   }}
                 >
-                  <g.icon size={15} />
+                  <GIcon size={15} />
                   <span>{g.label}</span>
                   {hasChildren && <ChevronDown size={12} className="pc-chev" />}
                 </button>
                 {hasChildren && openMenu === g.key && (
                   <div className="pc-mega">
-                    {g.children!.map(c => (
-                      <button
-                        key={c.id}
-                        className={`pc-mega-item ${activeSection === c.id ? 'active' : ''}`}
-                        onClick={() => go(c.id)}
-                      >
-                        {c.icon && <c.icon size={15} />}
+                    {g.children!.map(c => {
+                      const CIcon = c.icon as React.ComponentType<{ className?: string; size?: number }> | undefined
+                      return (
+                        <button
+                          key={c.id}
+                          className={`pc-mega-item ${activeSection === c.id ? 'active' : ''}`}
+                          onClick={() => go(c.id)}
+                        >
+                          {CIcon && <CIcon size={15} />}
                         <span>{c.label}</span>
                       </button>
-                    ))}
+                    )})}
                   </div>
                 )}
               </div>
@@ -486,12 +489,14 @@ function HomeView({ go, quick, more, stats, attention, alerts, navigateToInvento
       {/* ACCESOS RÁPIDOS */}
       <div className="pc-quick-head">Accesos rápidos</div>
       <div className="pc-quick">
-        {quick.map(q => (
-          <button key={q.id} className="pc-quick-item" onClick={() => go(q.id)}>
-            <span className="pc-quick-icon"><q.icon size={18} /></span>
+        {quick.map(q => {
+          const QIcon = q.icon as React.ComponentType<{ className?: string; size?: number }>
+          return (
+            <button key={q.id} className="pc-quick-item" onClick={() => go(q.id)}>
+              <span className="pc-quick-icon"><QIcon size={18} /></span>
             <span className="pc-quick-label">{q.label}</span>
           </button>
-        ))}
+        )})}
       </div>
 
       {/* MAIN GRID */}
@@ -503,13 +508,15 @@ function HomeView({ go, quick, more, stats, attention, alerts, navigateToInvento
           {/* Alertas de servicios (pedidos, fiados, vencimientos…) */}
           {alerts.length > 0 && (
             <div className="pc-alerts">
-              {alerts.map(a => (
-                <button key={a.key} className={`pc-alert-row ${a.tone}`} onClick={a.onClick}>
-                  <a.icon size={16} className="pc-alert-ic" />
+              {alerts.map(a => {
+                const AIcon = a.icon as React.ComponentType<{ className?: string; size?: number }>
+                return (
+                  <button key={a.key} className={`pc-alert-row ${a.tone}`} onClick={a.onClick}>
+                    <AIcon size={16} className="pc-alert-ic" />
                   <span>{a.label}</span>
                   <ArrowRight size={14} className="pc-alert-go" />
                 </button>
-              ))}
+              )})}
             </div>
           )}
 
@@ -567,11 +574,13 @@ function HomeView({ go, quick, more, stats, attention, alerts, navigateToInvento
               <div className="pc-side-card">
                 <div className="pc-side-head"><ArrowRight size={14} /> Más herramientas</div>
                 <div className="pc-side-body pc-side-links">
-                  {more.map(m => (
-                    <button key={m.id} className="pc-side-link" onClick={() => go(m.id)}>
-                      <m.icon size={14} /> {m.label}
+                  {more.map(m => {
+                    const MIcon = m.icon as React.ComponentType<{ className?: string; size?: number }>
+                    return (
+                      <button key={m.id} className="pc-side-link" onClick={() => go(m.id)}>
+                        <MIcon size={14} /> {m.label}
                     </button>
-                  ))}
+                  )})}
                 </div>
               </div>
             )}

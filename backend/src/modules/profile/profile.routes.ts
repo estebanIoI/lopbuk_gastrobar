@@ -21,7 +21,7 @@ import { v4 as uuidv4 } from 'uuid';
 import pool from '../../config/database';
 import { authenticate, AuthRequest } from '../../common/middleware';
 
-const router = Router();
+const router: ReturnType<typeof Router> = Router();
 
 const SECTION_TYPES = ['image_text', 'video', 'gif', 'description', 'gallery'];
 

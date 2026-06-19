@@ -44,9 +44,10 @@ function SemaforoLight({ color, label }: { color: SemaforoColor; label: string }
   )
 }
 
-function KpiCard({ label, value, sub, icon: Icon, accent }: {
+function KpiCard({ label, value, sub, icon: _icon, accent }: {
   label: string; value: string; sub?: string; icon: React.ElementType; accent: string
 }) {
+  const Icon = _icon as React.ComponentType<{ className?: string }>
   return (
     <Card className="border-0 shadow-sm">
       <CardContent className="p-4">

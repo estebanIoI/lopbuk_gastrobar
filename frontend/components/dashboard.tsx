@@ -824,7 +824,8 @@ interface MetricCardProps {
   variant?: 'default' | 'warning'
 }
 
-function MetricCard({ title, value, description, icon: Icon, trend, variant = 'default' }: MetricCardProps) {
+function MetricCard({ title, value, description, icon: _icon, trend, variant = 'default' }: MetricCardProps) {
+  const Icon = _icon as React.ComponentType<{ className?: string }>
   return (
     <Card className="border-border bg-card">
       <CardContent className="p-4 sm:p-5">

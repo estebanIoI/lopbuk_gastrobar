@@ -336,10 +336,11 @@ function ModalContenidoModulo({ modulo, onClose, toast }: {
       setEditAct(null);
     } catch (e) { toast(e instanceof Error ? e.message : 'Error', 'error'); }
   };
-  const eliminarActividad = async (id: number) => {
+  const eliminarActividad = async (id: number | string) => {
+    const nId = Number(id);
     try {
-      await adminAPI.eliminarActividadV2(modulo.id, id);
-      setActividades(prev => prev.filter(a => a.id !== id));
+      await adminAPI.eliminarActividadV2(modulo.id, nId);
+      setActividades(prev => prev.filter(a => a.id !== nId));
       toast('Actividad eliminada', 'ok');
     } catch { toast('Error al eliminar', 'error'); }
   };
@@ -355,10 +356,11 @@ function ModalContenidoModulo({ modulo, onClose, toast }: {
     } catch (e) { toast(e instanceof Error ? e.message : 'Error', 'error'); }
     finally { setSubiendo(false); }
   };
-  const eliminarImagen = async (id: number) => {
+  const eliminarImagen = async (id: number | string) => {
+    const nId = Number(id);
     try {
-      await adminAPI.eliminarImagen(modulo.id, id);
-      setImagenes(prev => prev.filter(i => i.id !== id));
+      await adminAPI.eliminarImagen(modulo.id, nId);
+      setImagenes(prev => prev.filter(i => i.id !== nId));
       toast('Imagen eliminada', 'ok');
     } catch { toast('Error', 'error'); }
   };
@@ -378,10 +380,11 @@ function ModalContenidoModulo({ modulo, onClose, toast }: {
       setEditSec(null); toast('Sección guardada', 'ok');
     } catch { toast('Error', 'error'); }
   };
-  const eliminarSeccion = async (id: number) => {
+  const eliminarSeccion = async (id: number | string) => {
+    const nId = Number(id);
     try {
-      await adminAPI.eliminarSeccionContenido(modulo.id, id);
-      setSecciones(prev => prev.filter(s => s.id !== id));
+      await adminAPI.eliminarSeccionContenido(modulo.id, nId);
+      setSecciones(prev => prev.filter(s => s.id !== nId));
       toast('Sección eliminada', 'ok');
     } catch { toast('Error', 'error'); }
   };
@@ -401,10 +404,11 @@ function ModalContenidoModulo({ modulo, onClose, toast }: {
       setEditAud(null); toast('Audio guardado', 'ok');
     } catch { toast('Error', 'error'); }
   };
-  const eliminarAudio = async (id: number) => {
+  const eliminarAudio = async (id: number | string) => {
+    const nId = Number(id);
     try {
-      await adminAPI.eliminarAudio(modulo.id, id);
-      setAudios(prev => prev.filter(a => a.id !== id));
+      await adminAPI.eliminarAudio(modulo.id, nId);
+      setAudios(prev => prev.filter(a => a.id !== nId));
       toast('Audio eliminado', 'ok');
     } catch { toast('Error', 'error'); }
   };
@@ -488,7 +492,7 @@ function ModalContenidoModulo({ modulo, onClose, toast }: {
                         className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg">
                         <Pencil className="w-4 h-4" />
                       </button>
-                      <button onClick={() => eliminarActividad(act.id)}
+                      <button onClick={() => eliminarActividad(Number(act.id))}
                         className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg">
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -794,7 +798,7 @@ function SeccionModulos({ toast }: { toast: (m: string, t: 'ok' | 'error') => vo
           <div key={m.id} className="bg-white rounded-xl shadow border border-slate-100">
             <div
               className="flex items-center justify-between px-4 py-3 cursor-pointer"
-              onClick={() => setExpandedId(expandedId === m.id ? null : m.id)}
+              onClick={() => setExpandedId(expandedId === Number(m.id) ? null : Number(m.id))}
             >
               <div className="flex items-center gap-3 min-w-0">
                 <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${colorBadge[m.color] ?? 'bg-slate-100 text-slate-700'}`}>
@@ -835,7 +839,7 @@ function SeccionModulos({ toast }: { toast: (m: string, t: 'ok' | 'error') => vo
                     <LayoutGrid className="w-3.5 h-3.5" /> Contenido
                   </button>
                   <button
-                    onClick={() => setConfirmDelete(m.id)}
+                    onClick={() => setConfirmDelete(Number(m.id))}
                     className="flex items-center gap-1.5 text-sm bg-white border border-red-200 text-red-600 px-3 py-1.5 rounded-lg hover:bg-red-50 ml-auto"
                   >
                     <Trash2 className="w-3.5 h-3.5" /> Eliminar
@@ -1212,7 +1216,7 @@ function SeccionComunidad({ toast }: { toast: (m: string, t: 'ok' | 'error') => 
                 </div>
               </div>
               <button
-                onClick={() => setConfirmDelete(p.id)}
+                onClick={() => setConfirmDelete(Number(p.id))}
                 className="shrink-0 p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg"
                 title="Eliminar publicación"
               >
@@ -1293,8 +1297,9 @@ function SeccionPresentacion({ toast }: { toast: (m: string, t: 'ok' | 'error') 
     } catch (e) { toast(e instanceof Error ? e.message : 'Error al eliminar', 'error'); }
   };
 
-  const mover = async (id: number, dir: 'up' | 'down') => {
-    const idx = secciones.findIndex(s => s.id === id);
+  const mover = async (id: number | string, dir: 'up' | 'down') => {
+    const nId = Number(id);
+    const idx = secciones.findIndex(s => s.id === nId);
     if (dir === 'up' && idx === 0) return;
     if (dir === 'down' && idx === secciones.length - 1) return;
     const other = secciones[dir === 'up' ? idx - 1 : idx + 1];
@@ -1394,7 +1399,7 @@ function SeccionPresentacion({ toast }: { toast: (m: string, t: 'ok' | 'error') 
                   className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition">
                   <Pencil className="w-4 h-4" />
                 </button>
-                <button onClick={() => setConfirmDel(s.id)}
+                <button onClick={() => setConfirmDel(Number(s.id))}
                   className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition">
                   <Trash2 className="w-4 h-4" />
                 </button>
@@ -1718,8 +1723,8 @@ function SeccionBanco({ toast }: { toast: (m: string, t: 'ok' | 'error') => void
     } catch (e) { toast(e instanceof Error ? e.message : 'Error al guardar', 'error'); }
   };
 
-  const eliminarVocab = async (id: number) => {
-    try { await bancoAPI.eliminarVocabulario(id); toast('Entrada eliminada', 'ok'); cargarVocab(); }
+  const eliminarVocab = async (id: number | string) => {
+    try { await bancoAPI.eliminarVocabulario(Number(id)); toast('Entrada eliminada', 'ok'); cargarVocab(); }
     catch (e) { toast(e instanceof Error ? e.message : 'Error al eliminar', 'error'); }
   };
 
@@ -1737,8 +1742,8 @@ function SeccionBanco({ toast }: { toast: (m: string, t: 'ok' | 'error') => void
     } catch (e) { toast(e instanceof Error ? e.message : 'Error al guardar', 'error'); }
   };
 
-  const eliminarTexto = async (id: number) => {
-    try { await bancoAPI.eliminarTexto(id); toast('Texto eliminado', 'ok'); cargarTextos(); }
+  const eliminarTexto = async (id: number | string) => {
+    try { await bancoAPI.eliminarTexto(Number(id)); toast('Texto eliminado', 'ok'); cargarTextos(); }
     catch (e) { toast(e instanceof Error ? e.message : 'Error al eliminar', 'error'); }
   };
 

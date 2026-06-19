@@ -43,114 +43,114 @@ const tid = (req: AuthRequest) => req.user!.tenantId as string;
 
 // ════════════════════════ STAFF / COMERCIANTE (primero) ════════════════════════
 
-router.get('/admin/cartillas', STAFF, async (req: AuthRequest, res) => {
+router.get('/admin/cartillas', STAFF, async (req: AuthRequest, res: Response) => {
   try { ok(res, await svc.listarMisCartillas(tid(req))); }
   catch (e) { fail(res, e, 'Error al listar cartillas'); }
 });
-router.post('/admin/cartillas', STAFF, async (req: AuthRequest, res) => {
+router.post('/admin/cartillas', STAFF, async (req: AuthRequest, res: Response) => {
   try { ok(res, await svc.crearCartilla(tid(req), req.body), 201); }
   catch (e) { fail(res, e, 'Error al crear cartilla'); }
 });
-router.put('/admin/cartillas/:id', STAFF, async (req: AuthRequest, res) => {
+router.put('/admin/cartillas/:id', STAFF, async (req: AuthRequest, res: Response) => {
   try { ok(res, await svc.actualizarCartilla(tid(req), req.params.id, req.body)); }
   catch (e) { fail(res, e, 'Error al actualizar cartilla'); }
 });
-router.delete('/admin/cartillas/:id', STAFF, async (req: AuthRequest, res) => {
+router.delete('/admin/cartillas/:id', STAFF, async (req: AuthRequest, res: Response) => {
   try { ok(res, await svc.eliminarCartilla(tid(req), req.params.id)); }
   catch (e) { fail(res, e, 'Error al eliminar cartilla'); }
 });
 
 // Módulos
-router.post('/admin/cartillas/:id/modulos', STAFF, async (req: AuthRequest, res) => {
+router.post('/admin/cartillas/:id/modulos', STAFF, async (req: AuthRequest, res: Response) => {
   try { ok(res, await svc.crearModulo(tid(req), req.params.id, req.body), 201); }
   catch (e) { fail(res, e, 'Error al crear módulo'); }
 });
-router.put('/admin/modulos/:moduloId', STAFF, async (req: AuthRequest, res) => {
+router.put('/admin/modulos/:moduloId', STAFF, async (req: AuthRequest, res: Response) => {
   try { ok(res, await svc.actualizarModulo(tid(req), req.params.moduloId, req.body)); }
   catch (e) { fail(res, e, 'Error al actualizar módulo'); }
 });
-router.delete('/admin/modulos/:moduloId', STAFF, async (req: AuthRequest, res) => {
+router.delete('/admin/modulos/:moduloId', STAFF, async (req: AuthRequest, res: Response) => {
   try { ok(res, await svc.eliminarModulo(tid(req), req.params.moduloId)); }
   catch (e) { fail(res, e, 'Error al eliminar módulo'); }
 });
 
 // Actividades
-router.get('/admin/modulos/:moduloId/actividades', STAFF, async (req: AuthRequest, res) => {
+router.get('/admin/modulos/:moduloId/actividades', STAFF, async (req: AuthRequest, res: Response) => {
   try { ok(res, await svc.listarActividades(tid(req), req.params.moduloId)); }
   catch (e) { fail(res, e, 'Error al listar actividades'); }
 });
-router.post('/admin/modulos/:moduloId/actividades', STAFF, async (req: AuthRequest, res) => {
+router.post('/admin/modulos/:moduloId/actividades', STAFF, async (req: AuthRequest, res: Response) => {
   try { ok(res, await svc.guardarActividad(tid(req), req.params.moduloId, req.body), 201); }
   catch (e) { fail(res, e, 'Error al crear actividad'); }
 });
-router.put('/admin/modulos/:moduloId/actividades/:actId', STAFF, async (req: AuthRequest, res) => {
+router.put('/admin/modulos/:moduloId/actividades/:actId', STAFF, async (req: AuthRequest, res: Response) => {
   try { ok(res, await svc.guardarActividad(tid(req), req.params.moduloId, req.body, req.params.actId)); }
   catch (e) { fail(res, e, 'Error al actualizar actividad'); }
 });
-router.delete('/admin/actividades/:actId', STAFF, async (req: AuthRequest, res) => {
+router.delete('/admin/actividades/:actId', STAFF, async (req: AuthRequest, res: Response) => {
   try { ok(res, await svc.eliminarActividad(tid(req), req.params.actId)); }
   catch (e) { fail(res, e, 'Error al eliminar actividad'); }
 });
 
 // Contenido rico del módulo
-router.post('/admin/modulos/:moduloId/secciones', STAFF, async (req: AuthRequest, res) => {
+router.post('/admin/modulos/:moduloId/secciones', STAFF, async (req: AuthRequest, res: Response) => {
   try { ok(res, await svc.crearSeccionModulo(req.params.moduloId, req.body), 201); }
   catch (e) { fail(res, e, 'Error al crear sección'); }
 });
-router.post('/admin/modulos/:moduloId/audios', STAFF, async (req: AuthRequest, res) => {
+router.post('/admin/modulos/:moduloId/audios', STAFF, async (req: AuthRequest, res: Response) => {
   try { ok(res, await svc.crearAudioModulo(req.params.moduloId, req.body), 201); }
   catch (e) { fail(res, e, 'Error al crear audio'); }
 });
-router.post('/admin/modulos/:moduloId/imagenes', STAFF, async (req: AuthRequest, res) => {
+router.post('/admin/modulos/:moduloId/imagenes', STAFF, async (req: AuthRequest, res: Response) => {
   try { ok(res, await svc.crearImagenModulo(req.params.moduloId, req.body), 201); }
   catch (e) { fail(res, e, 'Error al crear imagen'); }
 });
 
 // Vocabulario
-router.get('/admin/vocabulario', STAFF, async (req: AuthRequest, res) => {
+router.get('/admin/vocabulario', STAFF, async (req: AuthRequest, res: Response) => {
   try { ok(res, await svc.listarVocabularioAdmin(tid(req), req.query.cartilla_id as string)); }
   catch (e) { fail(res, e, 'Error al listar vocabulario'); }
 });
-router.post('/admin/vocabulario', STAFF, async (req: AuthRequest, res) => {
+router.post('/admin/vocabulario', STAFF, async (req: AuthRequest, res: Response) => {
   try { ok(res, await svc.crearVocabulario(tid(req), req.body), 201); }
   catch (e) { fail(res, e, 'Error al crear vocabulario'); }
 });
-router.post('/admin/vocabulario/importar', STAFF, async (req: AuthRequest, res) => {
+router.post('/admin/vocabulario/importar', STAFF, async (req: AuthRequest, res: Response) => {
   try { ok(res, await svc.importarVocabulario(tid(req), req.body?.cartilla_id || null, req.body?.pares || [], req.body?.categoria)); }
   catch (e) { fail(res, e, 'Error al importar vocabulario'); }
 });
-router.delete('/admin/vocabulario/:id', STAFF, async (req: AuthRequest, res) => {
+router.delete('/admin/vocabulario/:id', STAFF, async (req: AuthRequest, res: Response) => {
   try { ok(res, await svc.eliminarVocabulario(tid(req), req.params.id)); }
   catch (e) { fail(res, e, 'Error al eliminar vocabulario'); }
 });
 
 // Retos
-router.get('/admin/retos', STAFF, async (req: AuthRequest, res) => {
+router.get('/admin/retos', STAFF, async (req: AuthRequest, res: Response) => {
   try { ok(res, await svc.listarRetosAdmin(tid(req), req.query.cartilla_id as string)); }
   catch (e) { fail(res, e, 'Error al listar retos'); }
 });
-router.post('/admin/retos', STAFF, async (req: AuthRequest, res) => {
+router.post('/admin/retos', STAFF, async (req: AuthRequest, res: Response) => {
   try { ok(res, await svc.crearReto(tid(req), req.body), 201); }
   catch (e) { fail(res, e, 'Error al crear reto'); }
 });
-router.delete('/admin/retos/:id', STAFF, async (req: AuthRequest, res) => {
+router.delete('/admin/retos/:id', STAFF, async (req: AuthRequest, res: Response) => {
   try { ok(res, await svc.eliminarReto(tid(req), req.params.id)); }
   catch (e) { fail(res, e, 'Error al eliminar reto'); }
 });
 
 // Ventas + confirmación de pago
-router.get('/admin/ventas', STAFF, async (req: AuthRequest, res) => {
+router.get('/admin/ventas', STAFF, async (req: AuthRequest, res: Response) => {
   try { ok(res, await svc.listarComprasTenant(tid(req))); }
   catch (e) { fail(res, e, 'Error al listar ventas'); }
 });
-router.post('/admin/compras/:compraId/confirmar', STAFF, async (req: AuthRequest, res) => {
+router.post('/admin/compras/:compraId/confirmar', STAFF, async (req: AuthRequest, res: Response) => {
   try { ok(res, await svc.confirmarCompra(req.params.compraId, req.body?.referencia)); }
   catch (e) { fail(res, e, 'Error al confirmar compra'); }
 });
 
 // ════════════════════════ PÚBLICO ════════════════════════
 
-router.get('/catalogo', optionalAuth, async (req: AuthRequest, res) => {
+router.get('/catalogo', optionalAuth, async (req: AuthRequest, res: Response) => {
   try {
     ok(res, await svc.listarCatalogo({
       tipo: req.query.tipo as string,
@@ -162,7 +162,7 @@ router.get('/catalogo', optionalAuth, async (req: AuthRequest, res) => {
   } catch (e) { fail(res, e, 'Error al listar el catálogo'); }
 });
 
-router.get('/catalogo/:slug', optionalAuth, async (req: AuthRequest, res) => {
+router.get('/catalogo/:slug', optionalAuth, async (req: AuthRequest, res: Response) => {
   try { ok(res, await svc.obtenerCartillaPublica(req.params.slug, req.user?.userId)); }
   catch (e) { fail(res, e, 'Error al obtener la cartilla'); }
 });
@@ -179,7 +179,7 @@ router.get('/:cartillaId/modulos', async (req, res) => {
     ok(res, await svc.listarModulos(c.id));
   } catch (e) { fail(res, e, 'Error al listar módulos'); }
 });
-router.get('/:cartillaId/modulos/:clave', optionalAuth, async (req: AuthRequest, res) => {
+router.get('/:cartillaId/modulos/:clave', optionalAuth, async (req: AuthRequest, res: Response) => {
   try {
     const c = await svc.resolverCartilla(req.params.cartillaId);
     ok(res, await svc.obtenerModulo(c.id, req.params.clave, req.user?.userId));
@@ -203,7 +203,7 @@ router.get('/:cartillaId/activos', async (req, res) => {
     ok(res, await svc.miembrosActivos(c.id));
   } catch (e) { fail(res, e, 'Error al obtener miembros'); }
 });
-router.get('/:cartillaId/retos', optionalAuth, async (req: AuthRequest, res) => {
+router.get('/:cartillaId/retos', optionalAuth, async (req: AuthRequest, res: Response) => {
   try {
     const c = await svc.resolverCartilla(req.params.cartillaId);
     ok(res, await svc.listarRetos(c.id, c.tenant_id, req.user?.userId));
@@ -219,53 +219,53 @@ router.get('/:cartillaId/comunidad', async (req, res) => {
 // ════════════════════════ MIEMBRO (autenticado) ════════════════════════
 router.use(authenticate);
 
-router.get('/mis-compras', async (req: AuthRequest, res) => {
+router.get('/mis-compras', async (req: AuthRequest, res: Response) => {
   try { ok(res, await svc.misCompras(uid(req))); }
   catch (e) { fail(res, e, 'Error al obtener compras'); }
 });
 
-router.get('/:cartillaId/stats', async (req: AuthRequest, res) => {
+router.get('/:cartillaId/stats', async (req: AuthRequest, res: Response) => {
   try {
     const c = await svc.resolverCartilla(req.params.cartillaId);
     ok(res, await svc.statsUsuario(uid(req), c.id));
   } catch (e) { fail(res, e, 'Error al obtener estadísticas'); }
 });
-router.get('/:cartillaId/progreso', async (req: AuthRequest, res) => {
+router.get('/:cartillaId/progreso', async (req: AuthRequest, res: Response) => {
   try {
     const c = await svc.resolverCartilla(req.params.cartillaId);
     ok(res, await svc.getProgreso(uid(req), c.id, c.tenant_id));
   } catch (e) { fail(res, e, 'Error al obtener progreso'); }
 });
-router.get('/:cartillaId/modulos/:clave/progreso', async (req: AuthRequest, res) => {
+router.get('/:cartillaId/modulos/:clave/progreso', async (req: AuthRequest, res: Response) => {
   try {
     const c = await svc.resolverCartilla(req.params.cartillaId);
     ok(res, await svc.progresoModulo(uid(req), c.id, req.params.clave));
   } catch (e) { fail(res, e, 'Error al obtener progreso del módulo'); }
 });
 
-router.post('/:cartillaId/modulos/:clave/responder', async (req: AuthRequest, res) => {
+router.post('/:cartillaId/modulos/:clave/responder', async (req: AuthRequest, res: Response) => {
   try {
     const c = await svc.resolverCartilla(req.params.cartillaId);
     ok(res, await svc.responder(uid(req), c.tenant_id, c.id, req.params.clave, req.body?.respuesta));
   } catch (e) { fail(res, e, 'Error al responder'); }
 });
 
-router.post('/:cartillaId/comunidad', async (req: AuthRequest, res) => {
+router.post('/:cartillaId/comunidad', async (req: AuthRequest, res: Response) => {
   try {
     const c = await svc.resolverCartilla(req.params.cartillaId);
     ok(res, await svc.crearPublicacion(uid(req), c.tenant_id, c.id, req.body?.contenido), 201);
   } catch (e) { fail(res, e, 'Error al crear publicación'); }
 });
-router.post('/comunidad/:pubId/like', async (req: AuthRequest, res) => {
+router.post('/comunidad/:pubId/like', async (req: AuthRequest, res: Response) => {
   try { ok(res, await svc.toggleLike(uid(req), req.params.pubId)); }
   catch (e) { fail(res, e, 'Error al dar like'); }
 });
-router.post('/comunidad/:pubId/comentarios', async (req: AuthRequest, res) => {
+router.post('/comunidad/:pubId/comentarios', async (req: AuthRequest, res: Response) => {
   try { ok(res, await svc.crearComentario(uid(req), req.params.pubId, req.body?.contenido), 201); }
   catch (e) { fail(res, e, 'Error al comentar'); }
 });
 
-router.post('/:cartillaId/comprar', async (req: AuthRequest, res) => {
+router.post('/:cartillaId/comprar', async (req: AuthRequest, res: Response) => {
   try { ok(res, await svc.comprarCartilla(uid(req), req.params.cartillaId, req.body?.metodo || 'manual'), 201); }
   catch (e) { fail(res, e, 'Error al adquirir la cartilla'); }
 });

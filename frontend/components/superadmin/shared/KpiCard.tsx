@@ -39,7 +39,8 @@ function Sparkline({ points, positive }: { points: number[]; positive: boolean }
   )
 }
 
-export function KpiCard({ label, value, delta, icon: Icon, sparkline, hint }: KpiCardProps) {
+export function KpiCard({ label, value, delta, icon: _icon, sparkline, hint }: KpiCardProps) {
+  const Icon = _icon as React.ComponentType<{ className?: string }>
   const hasDelta = delta != null && !isNaN(delta)
   const positive = (delta ?? 0) >= 0
   return (

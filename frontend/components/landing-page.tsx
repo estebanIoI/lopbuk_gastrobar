@@ -7125,7 +7125,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               return (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {links.map((link, i) => {
-                    const { Icon, color, bg } = getLinkIcon(link.url, link.label)
+                    const { Icon: _icon, color, bg } = getLinkIcon(link.url, link.label)
+                    const Icon = _icon as React.ComponentType<{ className?: string }>
                     return (
                       <a
                         key={i}

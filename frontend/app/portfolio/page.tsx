@@ -220,10 +220,13 @@ const CURRENCIES = {
 type CurrencyKey = keyof typeof CURRENCIES
 
 // ─── Carrusel de carnets ──────────────────────────────────────────────────────
-function TeamCarousel({ cards, brandTitle, accentColor }: {
+function TeamCarousel({ cards, brandTitle, accentColor, lanyardOffsetX = 0, lanyardOffsetY = 0, lanyardScale = 100 }: {
   cards: TeamCard[]
   brandTitle: string
   accentColor: string
+  lanyardOffsetX?: number
+  lanyardOffsetY?: number
+  lanyardScale?: number
 }) {
   const [active, setActive] = useState(0)
   const [autoplay, setAutoplay] = useState(true)
@@ -308,7 +311,7 @@ function TeamCarousel({ cards, brandTitle, accentColor }: {
         className="h-[460px] sm:h-[540px] lg:h-[600px] -mt-6 sm:-mt-8 lg:-mt-10 w-[300px] sm:w-[380px] lg:w-[440px]"
         style={{
           maxWidth: '92vw',
-          transform: `translate(${data?.lanyardOffsetX || 0}px, ${data?.lanyardOffsetY || 0}px) scale(${(data?.lanyardScale || 100) / 100})`,
+          transform: `translate(${lanyardOffsetX || 0}px, ${lanyardOffsetY || 0}px) scale(${(lanyardScale || 100) / 100})`,
           transformOrigin: 'top center',
         }}
       >
@@ -1399,7 +1402,7 @@ export default function PortfolioPage() {
           {/* Columna derecha — Tarjetas del equipo (devs). Si no hay, robot. */}
           <div className="relative z-10 w-full flex flex-col items-center justify-center">
             {teamCards.length > 0 ? (
-              <TeamCarousel cards={teamCards} brandTitle={title} accentColor={accent} />
+              <TeamCarousel cards={teamCards} brandTitle={title} accentColor={accent} lanyardOffsetX={data?.lanyardOffsetX} lanyardOffsetY={data?.lanyardOffsetY} lanyardScale={data?.lanyardScale} />
             ) : (
               <RobotAssistant accent={accent} sceneUrl={data?.robotSplineUrl || undefined} robotHeight={300} />
             )}

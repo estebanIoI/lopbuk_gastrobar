@@ -3,7 +3,7 @@ import { Calendar, CheckCircle, Flame, Target, MessageCircle, BookOpen, Star, Tr
 import { useApp } from '../../context/AppContext';
 import { CategoriaReto, DificultadReto } from '../../types';
 
-const iconoCategoria: Record<CategoriaReto, React.ElementType> = {
+const iconoCategoria: Record<CategoriaReto, React.ComponentType<{ className?: string }>> = {
   vocabulario: BookOpen,
   conversacion: MessageCircle,
   modulo: Target,

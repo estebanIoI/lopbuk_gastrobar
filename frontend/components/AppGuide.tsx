@@ -282,7 +282,7 @@ export function AppGuide({ open, onClose }: AppGuideProps) {
   if (!open) return null
 
   const current = STEPS[step]
-  const Icon = current.icon
+  const Icon = current.icon as React.ComponentType<{ className?: string }>
   const isFirst = step === 0
   const isLast  = step === total - 1
 
@@ -342,7 +342,7 @@ export function AppGuide({ open, onClose }: AppGuideProps) {
           {/* Left nav — module list */}
           <div className="w-52 shrink-0 border-r border-border/50 overflow-y-auto bg-muted/30 hidden sm:block">
             {STEPS.map((s, i) => {
-              const SIcon = s.icon
+              const SIcon = s.icon as React.ComponentType<{ className?: string }>
               const isActive = step === i
               return (
                 <button
@@ -372,7 +372,7 @@ export function AppGuide({ open, onClose }: AppGuideProps) {
             {/* Features */}
             <div className="space-y-3 mb-5">
               {current.features.map((f, i) => {
-                const FIcon = f.icon
+                const FIcon = f.icon as React.ComponentType<{ className?: string }>
                 return (
                   <div key={i} className="flex items-start gap-3 p-3 rounded-xl bg-muted/40 hover:bg-muted/60 transition-colors">
                     <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${current.color} flex items-center justify-center shrink-0`}>

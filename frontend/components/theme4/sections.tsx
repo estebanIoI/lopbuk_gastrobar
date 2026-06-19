@@ -15,7 +15,7 @@ const ICONS: Record<string, React.ElementType> = {
   users: Users, award: Award, headphones: Headphones, rocket: Rocket, star: Star, check: CheckCircle2,
 }
 function Icon({ name, className }: { name?: string; className?: string }) {
-  const C = (name && ICONS[name.toLowerCase()]) || Zap
+  const C = ((name && ICONS[name.toLowerCase()]) || Zap) as React.ComponentType<{ className?: string }>
   return <C className={className} />
 }
 

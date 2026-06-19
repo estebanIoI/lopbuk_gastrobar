@@ -547,7 +547,7 @@ export function MarketplaceHomeGovCo({
   /** Logo de la plataforma (configurable desde superadmin). */
   brandLogo?: string
   /** Paleta de marca generada por IA (superadmin). Tiñe todo el home. */
-  themeColors?: { primary?: string; primary_hover?: string; secondary?: string } | null
+  themeColors?: { primary?: string; primary_hover?: string; secondary?: string; admin_accent?: string } | null
 }) {
   const [query, setQuery] = useState('')
   const [tab, setTab] = useState<MainTab>('comercios')

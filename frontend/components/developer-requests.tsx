@@ -276,8 +276,8 @@ export function DeveloperRequests() {
             const typeInfo   = TYPE_LABELS[req.type]
             const statusInfo = STATUS_LABELS[req.status]
             const prioInfo   = PRIORITY_LABELS[req.priority]
-            const TypeIcon   = typeInfo.icon
-            const StatusIcon = statusInfo.icon
+            const TypeIcon   = typeInfo.icon as React.ComponentType<{ className?: string }>
+            const StatusIcon = statusInfo.icon as React.ComponentType<{ className?: string }>
             const isExpanded = expandedId === req.id
 
             return (

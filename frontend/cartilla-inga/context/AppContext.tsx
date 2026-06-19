@@ -34,7 +34,7 @@ interface AppProviderProps {
 }
 
 const mapModulo = (m: ModuloAPI): Modulo => ({
-  id: m.id,
+  id: Number(m.id),
   clave: m.clave,
   titulo: m.titulo,
   icono: m.icono,
@@ -104,7 +104,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, cartillaSlug
         setModulos(modulosMapped);
         if (modulosMapped.length > 0) setModuloActivo(modulosMapped[0].clave);
 
-        setTopUsuarios(topRes);
+        setTopUsuarios(topRes.map(u => ({ ...u, id: Number(u.id) })));
         setRetos(retosRes as RetoDiario[]);
         setMiembrosActivos(activosRes.total);
 
