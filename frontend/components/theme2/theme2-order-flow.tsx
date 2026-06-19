@@ -6,6 +6,7 @@ import {
   ShoppingBag, MessageCircle, Store, Trash2,
 } from 'lucide-react'
 import { Theme2OrderSuccess, type OrderSuccessData } from '@/components/theme2/theme2-order-success'
+import { VariantSelector, type RawVariant, type SelectedVariant } from '@/components/variant-selector'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'
 const ASSET_BASE = API_URL.replace(/\/api$/, '')
@@ -23,6 +24,11 @@ export interface T2Product {
   isOnOffer?: boolean | number
   offerPrice?: number | null
   tenantId?: string | null
+  variants?: RawVariant[]
+  hasVariants?: boolean
+  isPreorder?: boolean | number
+  preorderShipStart?: string | null
+  preorderShipEnd?: string | null
 }
 export interface T2Sede { id: string; name: string; address?: string | null }
 interface T2Option { id: string; name: string; imageUrl?: string | null; priceDelta: number }
@@ -40,7 +46,7 @@ export interface T2Info {
   locationMapUrl?: string | null
   address?: string | null
 }
-interface CartItem { key: string; product: T2Product; qty: number; notes: string; mods: SelMod[]; unit: number }
+interface CartItem { key: string; product: T2Product; qty: number; notes: string; mods: SelMod[]; unit: number; variantId?: string; variantLabel?: string; variantImage?: string | null }
 
 const priceOf = (p: T2Product) => (p.isOnOffer && p.offerPrice ? p.offerPrice : p.salePrice)
 
@@ -104,6 +110,8 @@ export function Theme2OrderFlow({
   const [keepAdding, setKeepAdding] = useState(false)
   const [detailGroups, setDetailGroups] = useState<T2Group[]>([])
   const [loadingMods, setLoadingMods] = useState(false)
+  // Variante elegida en el detalle (color/talla/material) — null hasta que el cliente elige
+  const [selVariant, setSelVariant] = useState<SelectedVariant | null>(null)
   // selección: groupId -> set de optionId
   const [selected, setSelected] = useState<Record<string, Set<string>>>({})
 
@@ -161,12 +169,17 @@ export function Theme2OrderFlow({
 
   const openDetail = (p: T2Product) => {
     setDetail(p); setDetailQty(1); setDetailNotes(''); setKeepAdding(false)
-    setDetailGroups([]); setSelected({}); setLoadingMods(true)
+    setDetailGroups([]); setSelected({}); setSelVariant(null); setLoadingMods(true)
     fetch(`${API_URL}/modifiers/public/${p.id}`).then(r => r.json()).catch(() => null)
       .then(res => setDetailGroups(Array.isArray(res?.data) ? res.data : []))
       .finally(() => setLoadingMods(false))
   }
-  const quickAdd = (p: T2Product) => addToCart(p, 1, '', [], priceOf(p))
+  // Si el producto tiene variantes, el "+" abre el detalle (hay que elegir color/talla);
+  // si no, agrega directo.
+  const quickAdd = (p: T2Product) => {
+    if (p.variants && p.variants.length > 0) { openDetail(p); return }
+    addToCart(p, 1, '', [], priceOf(p))
+  }
 
   const toggleOption = (g: T2Group, optId: string) => {
     setSelected(prev => {
@@ -195,21 +208,42 @@ export function Theme2OrderFlow({
     return out
   }, [detailGroups, selected])
   const detailExtra = selMods.reduce((s, m) => s + m.priceDelta, 0)
-  const detailUnit = (detail ? priceOf(detail) : 0) + detailExtra
+  // El precio base lo manda la variante elegida (incluye su tier base / override); si no hay, el del producto
+  const detailBase = selVariant ? selVariant.price : (detail ? priceOf(detail) : 0)
+  const detailUnit = detailBase + detailExtra
   const detailMissing = useMemo(() =>
     detailGroups.filter(g => g.isRequired && (selected[g.id]?.size ?? 0) < Math.max(1, g.minSelect)),
     [detailGroups, selected])
+  // Preventa: backorder, permite pedir variantes agotadas
+  const detailIsPreorder = !!(detail?.isPreorder)
+  // ¿El producto tiene variantes pero el cliente aún no elige una (o la elegida está agotada y NO es preventa)?
+  const variantPending = !!(detail?.variants && detail.variants.length > 0)
+    && (!selVariant || (selVariant.available <= 0 && !detailIsPreorder))
+  // Imagen del detalle: la de la variante elegida tiene prioridad
+  const detailImg = selVariant?.image ? abs(selVariant.image) : abs(detail?.imageUrl)
 
-  const addToCart = (p: T2Product, qty: number, notes: string, mods: SelMod[], unit: number) => {
+  const addToCart = (
+    p: T2Product, qty: number, notes: string, mods: SelMod[], unit: number,
+    variant?: { id: string; label: string; image: string | null },
+  ) => {
     setCart(prev => {
       const sig = mods.map(m => m.optionName).sort().join('|')
-      const idx = prev.findIndex(i => i.product.id === p.id && i.notes === notes && i.mods.map(m => m.optionName).sort().join('|') === sig)
+      // Distingue líneas por producto + variante + notas + combinación de modificadores
+      const idx = prev.findIndex(i =>
+        i.product.id === p.id &&
+        (i.variantId || '') === (variant?.id || '') &&
+        i.notes === notes &&
+        i.mods.map(m => m.optionName).sort().join('|') === sig)
       if (idx >= 0) {
         const next = [...prev]
         next[idx] = { ...next[idx], qty: next[idx].qty + qty }
         return next
       }
-      return [...prev, { key: `${p.id}-${Date.now()}`, product: p, qty, notes, mods, unit }]
+      return [...prev, {
+        key: `${p.id}-${variant?.id ?? ''}-${Date.now()}`,
+        product: p, qty, notes, mods, unit,
+        variantId: variant?.id, variantLabel: variant?.label, variantImage: variant?.image,
+      }]
     })
   }
   // Favoritos → "Ordenar Ahora": agrega el producto inicial al carrito una sola vez,
@@ -219,14 +253,16 @@ export function Theme2OrderFlow({
     if (!initialProductId || addedInitialRef.current || products.length === 0) return
     const p = products.find(x => String(x.id) === String(initialProductId))
     if (!p) return
+    if (p.variants && p.variants.length > 0) { openDetail(p); addedInitialRef.current = true; return }
     addToCart(p, 1, '', [], priceOf(p))
     addedInitialRef.current = true
   }, [initialProductId, products])
 
   const confirmDetail = () => {
-    if (!detail || detailMissing.length > 0) return
-    addToCart(detail, detailQty, detailNotes.trim(), selMods, detailUnit)
-    if (keepAdding) { setDetailQty(1); setDetailNotes(''); setSelected({}) }
+    if (!detail || detailMissing.length > 0 || variantPending) return
+    const variant = selVariant ? { id: selVariant.id, label: selVariant.label, image: selVariant.image } : undefined
+    addToCart(detail, detailQty, detailNotes.trim(), selMods, detailUnit, variant)
+    if (keepAdding) { setDetailQty(1); setDetailNotes(''); setSelected({}); setSelVariant(null) }
     else setDetail(null)
   }
   const changeCartQty = (key: string, delta: number) => {
@@ -265,10 +301,16 @@ export function Theme2OrderFlow({
     ].filter(Boolean)
     const items = cart.map(i => ({
       productId: i.product.id,
-      productName: i.mods.length ? `${i.product.name} (${i.mods.map(m => m.optionName).join(', ')})` : i.product.name,
+      productName:
+        `${i.product.name}${i.variantLabel ? ` — ${i.variantLabel}` : ''}`
+        + (i.mods.length ? ` (${i.mods.map(m => m.optionName).join(', ')})` : ''),
       quantity: i.qty,
       unitPrice: i.unit,
-      productImage: i.product.imageUrl || undefined,
+      productImage: i.variantImage || i.product.imageUrl || undefined,
+      variantId: i.variantId,
+      isPreorder: i.product.isPreorder ? 1 : 0,
+      preorderShipStart: i.product.preorderShipStart || null,
+      preorderShipEnd: i.product.preorderShipEnd || null,
     }))
     // Atribución de afiliado por enlace (?ref= guardado en localStorage).
     let refToken: string | undefined
@@ -312,9 +354,10 @@ export function Theme2OrderFlow({
       '',
       '*Productos:*',
       ...cart.map(i => {
+        const variant = i.variantLabel ? ` · ${i.variantLabel}` : ''
         const mods = i.mods.length ? `\n   ${i.mods.map(m => m.optionName).join(', ')}` : ''
         const note = i.notes ? `\n   _${i.notes}_` : ''
-        return `• ${i.qty}x ${i.product.name} — ${COP(i.unit * i.qty)}${mods}${note}`
+        return `• ${i.qty}x ${i.product.name}${variant} — ${COP(i.unit * i.qty)}${mods}${note}`
       }),
       '',
       `*Total a pagar: ${COP(cartTotal)}*`,
@@ -347,7 +390,7 @@ export function Theme2OrderFlow({
     setSubmitting(true)
     setOrderError('')
     // Snapshot ANTES de vaciar el carrito (para el ticket).
-    const snapshotItems = cart.map(i => ({ name: i.product.name, qty: i.qty, lineTotal: i.unit * i.qty }))
+    const snapshotItems = cart.map(i => ({ name: `${i.product.name}${i.variantLabel ? ` — ${i.variantLabel}` : ''}`, qty: i.qty, lineTotal: i.unit * i.qty }))
     const snapshotMode = mode
     const snapshotName = coName.trim()
     const snapshotSede = sede?.name ?? null
@@ -514,18 +557,32 @@ export function Theme2OrderFlow({
           </div>
           <div className="pb-28">
             <div className="aspect-square max-h-[42vh] w-full bg-[#0e0e0e] overflow-hidden flex items-center justify-center">
-              {detail.imageUrl ? (
+              {detailImg ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={abs(detail.imageUrl)} alt={detail.name} className="w-full h-full object-cover" />
+                <img src={detailImg} alt={detail.name} className="w-full h-full object-cover transition-all" />
               ) : <Store className="w-12 h-12 text-white/10" />}
             </div>
             <div className="px-5 py-5 max-w-2xl mx-auto space-y-5">
               <div>
                 <h2 className="text-xl font-extrabold">{detail.name}</h2>
                 {detail.description && <p className="text-sm text-white/45 mt-1 leading-relaxed">{detail.description}</p>}
-                <p className="text-2xl font-extrabold text-cyan-400 mt-3">{COP(priceOf(detail))}</p>
+                <p className="text-2xl font-extrabold text-cyan-400 mt-3">
+                  {selVariant ? COP(selVariant.price) : COP(priceOf(detail))}
+                </p>
                 {detail.category && <span className="inline-block mt-2 text-[10px] uppercase tracking-wider text-white/40 border border-white/15 rounded-full px-2.5 py-0.5">{detail.category}</span>}
               </div>
+
+              {/* Selector de variantes (color / talla / material) — dinámico */}
+              {detail.variants && detail.variants.length > 0 && (
+                <VariantSelector
+                  variants={detail.variants}
+                  basePrice={priceOf(detail)}
+                  isLightBg={false}
+                  allowOutOfStock={detailIsPreorder}
+                  formatPrice={COP}
+                  onChange={setSelVariant}
+                />
+              )}
 
               {/* Grupos de modificadores */}
               {loadingMods ? (
@@ -601,12 +658,14 @@ export function Theme2OrderFlow({
           <div className="fixed bottom-0 inset-x-0 z-20 p-4 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a] to-transparent">
             <button
               onClick={confirmDetail}
-              disabled={detailMissing.length > 0}
+              disabled={detailMissing.length > 0 || variantPending}
               className="w-full max-w-2xl mx-auto block rounded-xl bg-gradient-to-r from-cyan-500 to-teal-500 text-black font-bold py-3.5 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {detailMissing.length > 0
-                ? `Elige: ${detailMissing.map(g => g.name).join(', ')}`
-                : `Agregar ${COP(detailUnit * detailQty)}`}
+              {variantPending
+                ? (selVariant && selVariant.available <= 0 ? 'Variante agotada' : 'Elige una opción')
+                : detailMissing.length > 0
+                  ? `Elige: ${detailMissing.map(g => g.name).join(', ')}`
+                  : `Agregar ${COP(detailUnit * detailQty)}`}
             </button>
           </div>
         </div>
@@ -633,6 +692,7 @@ export function Theme2OrderFlow({
                     <p className="text-sm font-semibold text-white/90 leading-snug">{i.product.name}</p>
                     <span className="text-sm font-bold text-white shrink-0">{COP(i.unit * i.qty)}</span>
                   </div>
+                  {i.variantLabel && <p className="text-[11px] text-cyan-300/90 mt-1 font-medium">{i.variantLabel}</p>}
                   {i.mods.length > 0 && <p className="text-[11px] text-cyan-300/70 mt-1">{i.mods.map(m => m.optionName).join(', ')}</p>}
                   {i.notes && <p className="text-[11px] text-white/35 mt-0.5 italic">{i.notes}</p>}
                   <div className="mt-2 flex items-center gap-3">

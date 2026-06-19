@@ -10,6 +10,7 @@ import crypto from 'crypto';
 import { audit } from '../../utils/audit-logger';
 import { autoAssignVehicle, calcOrderWeight } from '../fleet';
 import { affiliatesService } from '../affiliates/affiliates.service';
+import { variantsService } from '../variants/variants.service';
 
 const router: ReturnType<typeof Router> = Router();
 
@@ -17,11 +18,14 @@ const router: ReturnType<typeof Router> = Router();
 // INVENTORY HOLDS — reserva de stock durante checkout
 // =============================================
 async function checkStockAvailability(
-  items: { productId: string; productName?: string; quantity: number }[],
+  items: { productId: string; productName?: string; quantity: number; variantId?: string }[],
   tenantId: string
 ): Promise<{ ok: boolean; conflict?: string }> {
   for (const item of items) {
     if (!item.productId) continue;
+    // Los ítems con variante tienen su stock en product_variants (products.stock suele ser 0),
+    // por eso NO se validan aquí — su disponibilidad se resuelve al reservar la variante.
+    if (item.variantId) continue;
     const [rows] = await pool.query(
       `SELECT p.name,
               p.stock - COALESCE(
@@ -94,6 +98,10 @@ router.post(
     validateRequest,
   ],
   async (req: Request, res: Response, _next: NextFunction) => {
+    // Para limpieza en caso de error tras reservar stock de variante
+    let variantReserved = false;
+    let createdOrderId: string | null = null;
+    let cleanupTenantId: string | null = null;
     try {
       const {
         customerName, customerPhone, customerEmail, customerCedula,
@@ -115,9 +123,14 @@ router.post(
         }
         tenantId = tenants[0].id;
       }
+      cleanupTenantId = tenantId;
 
-      // Verificar stock disponible (descontando holds activos de otros checkouts)
-      const stockCheck = await checkStockAvailability(items, tenantId);
+      // Separar ítems con variante (stock en product_variants) de los simples (stock en products)
+      const variantItems = (items as any[]).filter(i => i.variantId);
+      const productItems = (items as any[]).filter(i => !i.variantId);
+
+      // Verificar stock de productos SIN variante (los de variante se validan al reservar)
+      const stockCheck = await checkStockAvailability(productItems, tenantId);
       if (!stockCheck.ok) {
         res.status(409).json({
           success: false,
@@ -129,6 +142,27 @@ router.post(
       // Generate order number
       const orderNumber = `PED-${Date.now().toString(36).toUpperCase()}`;
       const orderId = uuidv4();
+      createdOrderId = orderId;
+
+      // Reservar variantes (atómico, race-safe). Normal → reserved_stock; preventa → cupo (preorder_count).
+      // Si una no alcanza stock o cupo → 409 sin crear el pedido.
+      if (variantItems.length > 0) {
+        const reserve = await variantsService.reserveForPublicOrder({
+          tenantId, orderId, orderNumber,
+          items: variantItems.map(i => ({
+            variantId: i.variantId, productId: i.productId, quantity: i.quantity,
+            productName: i.productName, isPreorder: !!i.isPreorder,
+          })),
+        });
+        if (!reserve.ok) {
+          res.status(409).json({
+            success: false,
+            error: `Sin disponibilidad para "${reserve.conflict}" (stock o cupo de preventa agotado). Intenta con menos unidades.`,
+          });
+          return;
+        }
+        variantReserved = true;
+      }
 
       // Calculate totals
       const subtotal = items.reduce((sum: number, item: any) => sum + (item.unitPrice * item.quantity), 0);
@@ -167,10 +201,10 @@ router.post(
       for (const item of items) {
         await pool.query(
           `INSERT INTO storefront_order_items
-            (order_id, product_id, product_name, product_image, quantity, unit_price, original_price, discount_percent, total_price, size, color,
+            (order_id, product_id, variant_id, product_name, product_image, quantity, unit_price, original_price, discount_percent, total_price, size, color,
              is_preorder, preorder_ship_start, preorder_ship_end)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [orderId, item.productId, item.productName, item.productImage || null,
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [orderId, item.productId, item.variantId || null, item.productName, item.productImage || null,
             item.quantity, item.unitPrice, item.originalPrice || item.unitPrice, item.discountPercent || 0,
             item.unitPrice * item.quantity,
             item.size || null, item.color || null,
@@ -178,9 +212,10 @@ router.post(
         );
       }
 
-      // Crear holds de 24h para contraentrega
+      // Crear holds de 24h para contraentrega (solo productos sin variante;
+      // las variantes ya quedaron reservadas vía reserved_stock)
       const holdExpiry24h = new Date(Date.now() + 24 * 60 * 60 * 1000);
-      await createHolds(orderId, tenantId, items.map((i: any) => ({ productId: i.productId, quantity: i.quantity })), holdExpiry24h).catch(() => {});
+      await createHolds(orderId, tenantId, productItems.map((i: any) => ({ productId: i.productId, quantity: i.quantity })), holdExpiry24h).catch(() => {});
 
       // Fire merchant notification (async, non-blocking)
       try {
@@ -210,6 +245,10 @@ router.post(
       });
     } catch (error) {
       console.error('Create order error:', error);
+      // Si ya se había reservado stock de variante pero algo falló después, libéralo
+      if (variantReserved && createdOrderId && cleanupTenantId) {
+        await variantsService.releaseForOrder(createdOrderId, cleanupTenantId).catch(() => {});
+      }
       res.status(500).json({ success: false, error: 'Error al crear el pedido' });
     }
   }
@@ -353,19 +392,33 @@ router.post(
       for (const item of discountedItems) {
         await pool.query(
           `INSERT INTO storefront_order_items
-            (order_id, product_id, product_name, product_image, quantity, unit_price, original_price, discount_percent, total_price,
+            (order_id, product_id, variant_id, product_name, product_image, quantity, unit_price, original_price, discount_percent, total_price,
              is_preorder, preorder_ship_start, preorder_ship_end)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [orderId, item.productId, item.productName, item.productImage || null,
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [orderId, item.productId, item.variantId || null, item.productName, item.productImage || null,
             item.quantity, item.unitPrice, item.originalUnitPrice || item.unitPrice, itemDiscountPct,
             item.unitPrice * item.quantity,
             item.isPreorder ? 1 : 0, item.preorderShipStart || null, item.preorderShipEnd || null]
         );
       }
 
-      // Crear holds de 3h para pago en línea
+      // Reservar variantes (normal → reserved_stock; preventa → cupo). Si falla, cancela el pedido.
+      const mpVariantItems = (discountedItems as any[]).filter(i => i.variantId);
+      if (mpVariantItems.length > 0) {
+        const rv = await variantsService.reserveForPublicOrder({
+          tenantId, orderId, orderNumber,
+          items: mpVariantItems.map(i => ({ variantId: i.variantId, productId: i.productId, quantity: i.quantity, productName: i.productName, isPreorder: !!i.isPreorder })),
+        });
+        if (!rv.ok) {
+          await pool.query("UPDATE storefront_orders SET status = 'cancelado' WHERE id = ?", [orderId]).catch(() => {});
+          res.status(409).json({ success: false, error: `Sin disponibilidad para "${rv.conflict}" (stock o cupo de preventa agotado).` });
+          return;
+        }
+      }
+
+      // Crear holds de 3h para pago en línea (solo productos sin variante)
       const holdExpiry3h = new Date(Date.now() + 3 * 60 * 60 * 1000);
-      await createHolds(orderId, tenantId, discountedItems.map((i: any) => ({ productId: i.productId, quantity: i.quantity })), holdExpiry3h).catch(() => {});
+      await createHolds(orderId, tenantId, (discountedItems as any[]).filter(i => !i.variantId).map((i: any) => ({ productId: i.productId, quantity: i.quantity })), holdExpiry3h).catch(() => {});
 
       res.status(201).json({
         success: true,
@@ -498,14 +551,28 @@ router.post(
       for (const item of items) {
         await pool.query(
           `INSERT INTO storefront_order_items
-            (order_id, product_id, product_name, product_image, quantity, unit_price, original_price, discount_percent, total_price,
+            (order_id, product_id, variant_id, product_name, product_image, quantity, unit_price, original_price, discount_percent, total_price,
              is_preorder, preorder_ship_start, preorder_ship_end)
-           VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)`,
-          [orderId, item.productId, item.productName, item.productImage || null,
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)`,
+          [orderId, item.productId, item.variantId || null, item.productName, item.productImage || null,
             item.quantity, item.unitPrice, item.originalUnitPrice || item.unitPrice,
             item.unitPrice * item.quantity,
             item.isPreorder ? 1 : 0, item.preorderShipStart || null, item.preorderShipEnd || null]
         );
+      }
+
+      // Reservar variantes (normal → reserved_stock; preventa → cupo). Si falla, cancela el pedido.
+      const addiVariantItems = (items as any[]).filter(i => i.variantId);
+      if (addiVariantItems.length > 0) {
+        const rv = await variantsService.reserveForPublicOrder({
+          tenantId, orderId, orderNumber,
+          items: addiVariantItems.map(i => ({ variantId: i.variantId, productId: i.productId, quantity: i.quantity, productName: i.productName, isPreorder: !!i.isPreorder })),
+        });
+        if (!rv.ok) {
+          await pool.query("UPDATE storefront_orders SET status = 'cancelado' WHERE id = ?", [orderId]).catch(() => {});
+          res.status(409).json({ success: false, error: `Sin disponibilidad para "${rv.conflict}" (stock o cupo de preventa agotado).` });
+          return;
+        }
       }
 
       // Step 2: Create ADDI application
@@ -655,6 +722,7 @@ router.post('/addi-webhook', async (req: Request, res: Response) => {
             } catch { /* notifications non-critical */ }
           } else if (newStatus === 'cancelado') {
             await releaseHolds(orderId).catch(() => {});
+            await variantsService.releaseForOrder(orderId, order.tenant_id).catch(() => {});
           }
         }
       }
@@ -815,14 +883,28 @@ router.post(
       for (const item of items) {
         await pool.query(
           `INSERT INTO storefront_order_items
-            (order_id, product_id, product_name, product_image, quantity, unit_price, original_price, discount_percent, total_price,
+            (order_id, product_id, variant_id, product_name, product_image, quantity, unit_price, original_price, discount_percent, total_price,
              is_preorder, preorder_ship_start, preorder_ship_end)
-           VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)`,
-          [orderId, item.productId, item.productName, item.productImage || null,
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)`,
+          [orderId, item.productId, item.variantId || null, item.productName, item.productImage || null,
             item.quantity, item.unitPrice, item.originalUnitPrice || item.unitPrice,
             item.unitPrice * item.quantity,
             item.isPreorder ? 1 : 0, item.preorderShipStart || null, item.preorderShipEnd || null]
         );
+      }
+
+      // Reservar variantes (normal → reserved_stock; preventa → cupo). Si falla, cancela el pedido.
+      const sisteVariantItems = (items as any[]).filter(i => i.variantId);
+      if (sisteVariantItems.length > 0) {
+        const rv = await variantsService.reserveForPublicOrder({
+          tenantId, orderId, orderNumber,
+          items: sisteVariantItems.map(i => ({ variantId: i.variantId, productId: i.productId, quantity: i.quantity, productName: i.productName, isPreorder: !!i.isPreorder })),
+        });
+        if (!rv.ok) {
+          await pool.query("UPDATE storefront_orders SET status = 'cancelado' WHERE id = ?", [orderId]).catch(() => {});
+          res.status(409).json({ success: false, error: `Sin disponibilidad para "${rv.conflict}" (stock o cupo de preventa agotado).` });
+          return;
+        }
       }
 
       // Build payload following Sistecredito structure
@@ -1030,6 +1112,8 @@ router.post('/mercadopago-webhook', async (req: Request, res: Response) => {
         [orderId]
       );
       await releaseHolds(orderId).catch(() => {});
+      const [mpTr] = await pool.query('SELECT tenant_id FROM storefront_orders WHERE id = ?', [orderId]) as any;
+      if (mpTr?.[0]?.tenant_id) await variantsService.releaseForOrder(orderId, mpTr[0].tenant_id).catch(() => {});
       console.log(`MP webhook: order ${orderId} cancelled (${mpStatus})`);
     }
 
@@ -1125,6 +1209,8 @@ router.post('/sistecredito-webhook', async (req: Request, res: Response) => {
         [order.id]
       );
       await releaseHolds(order.id).catch(() => {});
+      const [stTr] = await pool.query('SELECT tenant_id FROM storefront_orders WHERE id = ?', [order.id]) as any;
+      if (stTr?.[0]?.tenant_id) await variantsService.releaseForOrder(order.id, stTr[0].tenant_id).catch(() => {});
       console.log(`Sistecredito webhook: order ${order.id} cancelled (rejected)`);
     }
 
@@ -1174,10 +1260,17 @@ router.put('/cancel-gateway/:orderId', async (req: Request, res: Response) => {
       return;
     }
     // Only cancel if the order is still pending (not yet paid/confirmed)
-    await pool.query(
+    const [upd] = await pool.query(
       "UPDATE storefront_orders SET status = 'cancelado' WHERE id = ? AND payment_method IN ('mercadopago', 'addi', 'sistecredito') AND status = 'pendiente'",
       [orderId]
-    );
+    ) as any;
+    // Liberar reservas de variante asociadas (no-op si no había)
+    if (upd?.affectedRows > 0) {
+      const [rows] = await pool.query('SELECT tenant_id FROM storefront_orders WHERE id = ?', [orderId]) as any;
+      if (rows?.[0]?.tenant_id) {
+        await variantsService.releaseForOrder(orderId, rows[0].tenant_id).catch(() => {});
+      }
+    }
     res.json({ success: true });
   } catch (error) {
     console.error('Cancel gateway order error:', error);
@@ -1408,9 +1501,10 @@ router.put(
       if (status === 'entregado') {
         // Get order items
         const [orderItems] = await connection.query(
-          `SELECT oi.product_id as productId, oi.product_name as productName,
+          `SELECT oi.product_id as productId, oi.variant_id as variantId, oi.product_name as productName,
                   oi.quantity, oi.unit_price as unitPrice, oi.original_price as originalPrice,
-                  oi.discount_percent as discountPercent, oi.total_price as totalPrice
+                  oi.discount_percent as discountPercent, oi.total_price as totalPrice,
+                  oi.is_preorder as isPreorder
            FROM storefront_order_items oi
            WHERE oi.order_id = ?`,
           [orderId]
@@ -1479,14 +1573,32 @@ router.put(
           ]
         );
 
-        // Insert sale items + deduct stock + register stock movements
+        // Insert sale items + deduct stock + register movements
         for (const item of orderItems) {
           const itemId = uuidv4();
 
-          // Get product SKU and current stock
           let productSku = 'ONLINE';
           let previousStock = 0;
-          if (item.productId) {
+          let frozenCost: number | null = null;
+          let frozenMarginPct: number | null = null;
+          let frozenMarginAmount: number | null = null;
+          const saleUnitPrice = item.originalPrice || item.unitPrice;
+          const saleDiscount = item.discountPercent || 0;
+
+          if (item.variantId) {
+            // ── Variante: descuenta stock de la variante (libera reserva), congela costo/margen ──
+            const settled = await variantsService.settleVariantForSale(connection, {
+              variantId: item.variantId, productId: item.productId, tenantId,
+              quantity: item.quantity, isPreorder: Number(item.isPreorder) === 1,
+              reason: `Venta online ${invoiceNumber}`, referenceId: saleId,
+            });
+            productSku = settled.sku;
+            frozenCost = settled.costPrice;
+            const unit = Number(item.unitPrice) || 0;
+            frozenMarginPct = unit > 0 ? Math.round(((unit - frozenCost) / unit) * 10000) / 100 : 0;
+            frozenMarginAmount = Math.round((unit - frozenCost) * item.quantity * 100) / 100;
+          } else if (item.productId) {
+            // ── Producto simple: descuenta products.stock + stock_movements (flujo legacy) ──
             const [prodRows] = await connection.query(
               'SELECT sku, stock FROM products WHERE id = ? FOR UPDATE',
               [item.productId]
@@ -1494,14 +1606,10 @@ router.put(
             if (prodRows.length > 0) {
               productSku = prodRows[0].sku;
               previousStock = prodRows[0].stock;
-
-              // Deduct stock
               await connection.query(
                 'UPDATE products SET stock = stock - ? WHERE id = ? AND tenant_id = ?',
                 [item.quantity, item.productId, tenantId]
               );
-
-              // Register stock movement
               await connection.query(
                 `INSERT INTO stock_movements (id, tenant_id, product_id, type, quantity, previous_stock, new_stock, reason, reference_id, user_id)
                  VALUES (?, ?, ?, 'venta', ?, ?, ?, ?, ?, ?)`,
@@ -1514,13 +1622,12 @@ router.put(
             }
           }
 
-          // Insert sale item (unit_price = precio original, discount = % descuento, subtotal = precio final * cantidad)
-          const saleUnitPrice = item.originalPrice || item.unitPrice;
-          const saleDiscount = item.discountPercent || 0;
+          // Insert sale item (congela variant_id, costo y margen para reportes inmutables)
           await connection.query(
-            `INSERT INTO sale_items (id, tenant_id, sale_id, product_id, product_name, product_sku, quantity, unit_price, discount, subtotal)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [itemId, tenantId, saleId, item.productId, item.productName, productSku, item.quantity, saleUnitPrice, saleDiscount, Number(item.totalPrice)]
+            `INSERT INTO sale_items (id, tenant_id, sale_id, product_id, variant_id, product_name, product_sku, quantity, unit_price, cost_price, discount, margin_pct, margin_amount, subtotal)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [itemId, tenantId, saleId, item.productId, item.variantId || null, item.productName, productSku,
+             item.quantity, saleUnitPrice, frozenCost, saleDiscount, frozenMarginPct, frozenMarginAmount, Number(item.totalPrice)]
           );
         }
 
@@ -1537,6 +1644,11 @@ router.put(
       }
 
       await connection.commit();
+
+      // Si se canceló, liberar reservas de variante (en 'entregado' ya las consumió el asiento)
+      if (status === 'cancelado') {
+        await variantsService.releaseForOrder(orderId, tenantId).catch(() => {});
+      }
 
       // Alegra: enviar factura electrónica async (no bloquea la respuesta)
       if (status === 'entregado' && invoiceNumber) {

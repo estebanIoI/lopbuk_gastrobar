@@ -11,10 +11,10 @@
             "id": "eaa45144a10060f7",
             "type": "leaf",
             "state": {
-              "type": "empty",
+              "type": "graph",
               "state": {},
-              "icon": "lucide-file",
-              "title": "Nueva pestaña"
+              "icon": "lucide-git-fork",
+              "title": "Vista gráfica"
             }
           }
         ]
@@ -74,7 +74,8 @@
       }
     ],
     "direction": "horizontal",
-    "width": 200
+    "width": 200,
+    "collapsed": true
   },
   "right": {
     "id": "1a49d3cddd9801da",
@@ -181,39 +182,40 @@
   },
   "active": "eaa45144a10060f7",
   "lastOpenFiles": [
-    "Sin título.base",
+    "daimuz/memory/current-state.md.tmp.9732.9ffc5fafb42d",
+    "backend/src/modules/storefront/storefront.routes.ts.tmp.9732.37e22cf61273",
+    "frontend/lib/types.ts.tmp.9732.598898fc6bfe",
+    "backend/src/modules/orders/orders.routes.ts.tmp.9732.d2e8909ce8bc",
+    "backend/src/modules/orders/orders.routes.ts.tmp.9732.bcdb3296f60c",
+    "backend/src/modules/orders/orders.routes.ts.tmp.9732.d44d3c9b2b03",
+    "backend/src/modules/variants/variants.service.ts.tmp.9732.aaf645bef8e6",
+    "backend/src/index.ts.tmp.9732.ff42354240ee",
+    "daimuz/context/pending.md.tmp.26036.c873844153ab",
+    "daimuz/context/current-sprint.md.tmp.26036.b1b3d56dd802",
+    "daimuz/memory/changelog.md.tmp.26036.f6908b8c34d1",
     "daimuz/DAIMUZ.md",
     "daimuz/memory/bugs-history.md",
     "README.md",
-    "backend/migrations/v39_variants.sql",
     "daimuz/brain/variants-implementation-plan.md",
     "daimuz/brain/variants-architecture.md",
     "daimuz/brain/supplier-variant-model.md",
     "daimuz/flows/variant-flow.md",
     "daimuz/decisions/variant-architecture.md",
     "daimuz/synapses/supplier-chain.md",
-    "backend/src/migrations/004_variants_and_suppliers.sql",
-    "backend/src/migrations",
     "daimuz/synapses/variants-chain.md",
     "daimuz/flows/supplier-flow.md",
     "daimuz/modules/suppliers/compressed.md",
     "daimuz/modules/variants/compressed.md",
     "daimuz/modules/suppliers/suppliers.md",
-    "daimuz/modules/suppliers",
     "daimuz/modules/variants/variants.md",
-    "daimuz/modules/variants",
     "daimuz/modules/product-variants/compressed.md",
     "daimuz/modules/product-variants/product-variants.md",
     "daimuz/modules/supplier-catalog/compressed.md",
     "daimuz/modules/supplier-catalog/supplier-catalog.md",
-    "daimuz/modules/supplier-catalog",
-    "daimuz/modules/product-variants",
     "daimuz/modules/products-variants/compressed.md",
     "daimuz/modules/products-variants/products-variants.md",
     "daimuz/modules/products/compressed.md",
     "daimuz/modules/products/products.md",
-    "daimuz/modules/products",
-    "daimuz/modules/products-variants",
     "daimuz/brain/variants-and-suppliers.md",
     "CLAUDE.md"
   ]

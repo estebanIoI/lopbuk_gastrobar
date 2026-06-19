@@ -14,6 +14,7 @@ interface VariantRow extends RowDataPacket {
   cost_price: number | null; price_override: number | null;
   supplier_id: string | null; images: string | null;
   sort_order: number; is_active: number;
+  preorder_limit: number | null; preorder_count: number | null;
   created_at: Date; updated_at: Date;
   // joined
   product_name: string | null; base_price: number | null;
@@ -59,6 +60,8 @@ function mapVariant(row: VariantRow): ProductVariant {
       : undefined,
     sortOrder: row.sort_order,
     isActive: Boolean(row.is_active),
+    preorderLimit: row.preorder_limit != null ? Number(row.preorder_limit) : null,
+    preorderCount: row.preorder_count != null ? Number(row.preorder_count) : 0,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     productName: row.product_name ?? undefined,
@@ -151,7 +154,7 @@ export class VariantsService {
   async create(productId: string, tenantId: string, data: {
     sku: string; barcode?: string; color?: string; colorHex?: string; size?: string; material?: string;
     stock?: number; minStock?: number; costPrice?: number; priceOverride?: number;
-    supplierId?: string; images?: string[]; sortOrder?: number;
+    supplierId?: string; images?: string[]; sortOrder?: number; preorderLimit?: number | null;
   }): Promise<ProductVariant> {
     await this.ensureColorHex();
     // SKU único por tenant
@@ -166,8 +169,8 @@ export class VariantsService {
       `INSERT INTO product_variants
          (id, tenant_id, product_id, sku, barcode, color, color_hex, size, material,
           stock, reserved_stock, min_stock, cost_price, price_override,
-          supplier_id, images, sort_order)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)`,
+          supplier_id, images, sort_order, preorder_limit)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id, tenantId, productId,
         data.sku, data.barcode ?? null, data.color ?? null, data.colorHex ?? null, data.size ?? null, data.material ?? null,
@@ -176,6 +179,7 @@ export class VariantsService {
         data.supplierId ?? null,
         data.images ? JSON.stringify(data.images) : null,
         data.sortOrder ?? 0,
+        data.preorderLimit ?? null,
       ]
     );
 
@@ -194,7 +198,7 @@ export class VariantsService {
   async update(id: string, tenantId: string, data: Partial<{
     sku: string; barcode: string; color: string; colorHex: string; size: string; material: string;
     minStock: number; costPrice: number; priceOverride: number;
-    supplierId: string; images: string[]; sortOrder: number; isActive: boolean;
+    supplierId: string; images: string[]; sortOrder: number; isActive: boolean; preorderLimit: number | null;
   }>): Promise<ProductVariant> {
     await this.ensureColorHex();
     await this.findById(id, tenantId);
@@ -211,6 +215,7 @@ export class VariantsService {
       sku: 'sku', barcode: 'barcode', color: 'color', colorHex: 'color_hex', size: 'size', material: 'material',
       minStock: 'min_stock', costPrice: 'cost_price', priceOverride: 'price_override',
       supplierId: 'supplier_id', sortOrder: 'sort_order', isActive: 'is_active',
+      preorderLimit: 'preorder_limit',
     };
 
     const sets: string[] = [];
@@ -283,6 +288,155 @@ export class VariantsService {
       [quantity, variantId, tenantId, quantity]
     ) as [ResultSetHeader, any];
     if (result.affectedRows === 0) throw new AppError('Stock de variante insuficiente', 400);
+  }
+
+  /**
+   * Reserva (soft-hold) el stock de variantes para un pedido del storefront.
+   * Incrementa `reserved_stock` de forma atómica (race-safe) verificando que haya
+   * disponibilidad real (stock - reserved_stock >= qty). Registra un movimiento
+   * 'reserva' por cada variante. Es transaccional: si una variante no tiene stock,
+   * revierte TODO y devuelve { ok:false, conflict }.
+   *
+   * Mantiene la misma filosofía que los `inventory_holds` de productos sin variante:
+   * no destruye stock (reversible al cancelar), pero la tienda deja de mostrar el
+   * combo agotado de inmediato (la query pública filtra por stock - reserved_stock > 0).
+   */
+  async reserveForPublicOrder(params: {
+    tenantId: string; orderId: string; orderNumber: string;
+    items: { variantId?: string; productId: string; quantity: number; productName?: string; isPreorder?: boolean }[];
+  }): Promise<{ ok: boolean; conflict?: string }> {
+    const variantItems = params.items.filter(i => i.variantId);
+    if (variantItems.length === 0) return { ok: true };
+
+    const conn = await (db as any).getConnection();
+    try {
+      await conn.beginTransaction();
+      for (const it of variantItems) {
+        if (it.isPreorder) {
+          // PREVENTA (backorder): no toca stock; cuenta contra el cupo de preventa (si lo hay).
+          const [r] = await conn.execute(
+            `UPDATE product_variants SET preorder_count = preorder_count + ?
+             WHERE id = ? AND tenant_id = ? AND is_active = 1
+               AND (preorder_limit IS NULL OR preorder_count + ? <= preorder_limit)`,
+            [it.quantity, it.variantId, params.tenantId, it.quantity]
+          ) as [ResultSetHeader, any];
+          if (r.affectedRows === 0) {
+            await conn.rollback(); conn.release();
+            return { ok: false, conflict: it.productName || it.variantId! };
+          }
+          await conn.execute(
+            `INSERT INTO inventory_movements
+               (id, tenant_id, variant_id, product_id, type, quantity, reason, reference_type, reference_id)
+             VALUES (?, ?, ?, ?, 'reserva', ?, ?, 'storefront_order_preorder', ?)`,
+            [uuidv4(), params.tenantId, it.variantId, it.productId, it.quantity,
+             `Preventa por pedido ${params.orderNumber}`, params.orderId]
+          );
+        } else {
+          // Reserva normal: incrementa reserved_stock verificando disponibilidad real.
+          const [r] = await conn.execute(
+            `UPDATE product_variants SET reserved_stock = reserved_stock + ?
+             WHERE id = ? AND tenant_id = ? AND is_active = 1 AND (stock - reserved_stock) >= ?`,
+            [it.quantity, it.variantId, params.tenantId, it.quantity]
+          ) as [ResultSetHeader, any];
+          if (r.affectedRows === 0) {
+            await conn.rollback(); conn.release();
+            return { ok: false, conflict: it.productName || it.variantId! };
+          }
+          await conn.execute(
+            `INSERT INTO inventory_movements
+               (id, tenant_id, variant_id, product_id, type, quantity, reason, reference_type, reference_id)
+             VALUES (?, ?, ?, ?, 'reserva', ?, ?, 'storefront_order', ?)`,
+            [uuidv4(), params.tenantId, it.variantId, it.productId, it.quantity,
+             `Reserva por pedido ${params.orderNumber}`, params.orderId]
+          );
+        }
+      }
+      await conn.commit(); conn.release();
+      return { ok: true };
+    } catch (e) {
+      try { await conn.rollback(); } catch { /* noop */ }
+      try { conn.release(); } catch { /* noop */ }
+      throw e;
+    }
+  }
+
+  /**
+   * Libera las reservas de variante de un pedido (al cancelar o si falla la inserción).
+   * Distingue por `reference_type`: 'storefront_order' → reserved_stock; 'storefront_order_preorder'
+   * → preorder_count. Registra un movimiento 'liberacion'. Idempotente: sin reservas, no hace nada.
+   */
+  async releaseForOrder(orderId: string, tenantId: string): Promise<void> {
+    const [movs] = await db.execute<RowDataPacket[]>(
+      `SELECT variant_id, product_id, reference_type, SUM(quantity) AS qty
+       FROM inventory_movements
+       WHERE reference_id = ? AND tenant_id = ? AND type = 'reserva'
+         AND reference_type IN ('storefront_order', 'storefront_order_preorder')
+       GROUP BY variant_id, product_id, reference_type`,
+      [orderId, tenantId]
+    );
+    for (const m of movs as any[]) {
+      if (!m.variant_id) continue;
+      const qty = Number(m.qty);
+      if (m.reference_type === 'storefront_order_preorder') {
+        await db.execute(
+          `UPDATE product_variants SET preorder_count = GREATEST(0, preorder_count - ?)
+           WHERE id = ? AND tenant_id = ?`,
+          [qty, m.variant_id, tenantId]
+        );
+      } else {
+        await db.execute(
+          `UPDATE product_variants SET reserved_stock = GREATEST(0, reserved_stock - ?)
+           WHERE id = ? AND tenant_id = ?`,
+          [qty, m.variant_id, tenantId]
+        );
+      }
+      await this._recordMovement({
+        tenantId, variantId: m.variant_id, productId: m.product_id,
+        type: 'liberacion', quantity: qty,
+        reason: 'Liberación de reserva (pedido cancelado/anulado)',
+        referenceType: m.reference_type, referenceId: orderId,
+      });
+    }
+  }
+
+  /**
+   * Asienta la venta de una variante al confirmar/entregar un pedido (dentro de una
+   * transacción existente): descuenta el stock real y, si NO era preventa, libera la
+   * reserva (reserved_stock) que tomó al crear el pedido. En preventa el stock puede
+   * quedar negativo (backorder real). Registra movimiento 'salida' y devuelve sku + costo
+   * para congelar en sale_items.
+   */
+  async settleVariantForSale(conn: any, params: {
+    variantId: string; productId: string; tenantId: string; quantity: number;
+    isPreorder?: boolean; reason: string; referenceId: string;
+  }): Promise<{ sku: string; costPrice: number }> {
+    const [rows] = await conn.execute(
+      'SELECT sku, cost_price FROM product_variants WHERE id = ? AND tenant_id = ? FOR UPDATE',
+      [params.variantId, params.tenantId]
+    ) as [RowDataPacket[], any];
+    const v = (rows as any[])[0];
+    const sku = v?.sku ?? 'VAR';
+    const costPrice = v?.cost_price != null ? Number(v.cost_price) : 0;
+
+    if (params.isPreorder) {
+      await conn.execute(
+        'UPDATE product_variants SET stock = stock - ? WHERE id = ? AND tenant_id = ?',
+        [params.quantity, params.variantId, params.tenantId]
+      );
+    } else {
+      await conn.execute(
+        `UPDATE product_variants SET stock = stock - ?, reserved_stock = GREATEST(0, reserved_stock - ?)
+         WHERE id = ? AND tenant_id = ?`,
+        [params.quantity, params.quantity, params.variantId, params.tenantId]
+      );
+    }
+    await conn.execute(
+      `INSERT INTO inventory_movements
+         (id, tenant_id, variant_id, product_id, type, quantity, reason, reference_type, reference_id)
+       VALUES (?, ?, ?, ?, 'salida', ?, ?, 'sale', ?)`,
+      [uuidv4(), params.tenantId, params.variantId, params.productId, params.quantity, params.reason, params.referenceId]
+    );
+    return { sku, costPrice };
   }
 
   // ── Price Tiers ────────────────────────────────────────────────────────────

@@ -5,6 +5,35 @@
 ---
 
 
+## [2026-06-18] (parte 2) — Integración de variantes COMPLETA: asiento al confirmar + pasarelas + columna variant_id + cupo de preventa
+
+Cierre de los 4 pendientes de variantes (tsc back+front: **0 errores**):
+
+- **Migraciones idempotentes** (`index.ts`, helper `addCol`): `variant_id` + `cost_price`/`margin_pct`/`margin_amount` en `storefront_order_items` y `sale_items`; `preorder_limit` + `preorder_count` en `product_variants` (+ índices).
+- **Asiento al confirmar** (`orders.routes.ts`, status `entregado`): `variants.service.settleVariantForSale(conn, …)` descuenta `product_variants.stock`, libera la reserva (`reserved_stock`; en preventa puede quedar negativo = backorder real), registra movimiento `'salida'` (ref `sale`) y congela `variant_id`/costo/margen en `sale_items`. El SELECT de items ahora trae `variant_id` + `is_preorder`. Producto simple sigue por el flujo legacy (`products.stock` + `stock_movements`).
+- **Cupo de preventa** (`variants.service`): `reserveForPublicOrder` ahora maneja normal (incrementa `reserved_stock`) y preventa (incrementa `preorder_count` con guard atómico `preorder_count + qty <= preorder_limit`; NULL = ilimitado), distinguidos por `reference_type` (`storefront_order` vs `storefront_order_preorder`). `releaseForOrder` revierte el contador correcto. `create`/`update` aceptan `preorderLimit`; campo "Cupo de preventa" en `variant-manager.tsx`. `attachVariants` expone `preorderLimit`/`preorderCount`.
+- **Reserva en pasarelas** (`orders.routes.ts`): MP-preference, ADDI y Sistecrédito reservan variantes (cancela el pedido + 409 si no alcanza), persisten `variant_id` en sus items, y liberan en sus webhooks de rechazo. `cancel-gateway` y la cancelación desde el panel también liberan (`releaseForOrder`).
+
+> **Solo queda operativo:** arrancar backend (corre migraciones) + cargar AnMarg + **Deploy en Komodo**.
+
+
+## [2026-06-18] — Variantes en todo el storefront + selección dinámica (Tema 2) + reserva atómica en pedidos + preventa (backorder) + producto AnMarg
+
+**Producto AnMarg (Camiseta Clásica) — datos de carga:** `imports/anmarg-camiseta-clasica/` con CSV de 90 variantes (18 colores × 5 tallas, handle `camiseta-clasica`, material `100% Algodon 160g`, proveedor AnMarg, venta $56.000, costo $28.000, SKU `CC-<COLOR>-<TALLA>`), SQL de tiers por volumen (6+/12+/24+) y README. El importador solo crea el tier base (min_qty=1); los escalones van por el SQL complementario.
+
+**Selección de variantes dinámica en Tema 2 (`theme2-order-flow.tsx`):** se integró el `VariantSelector` existente en el flujo compacto. Al abrir el detalle de un producto con variantes, el cliente elige color/talla y se actualizan precio, imagen y disponibilidad al instante; bloqueo de "Agregar" hasta elegir variante válida; carrito/WhatsApp/ticket/pedido llevan la variante (label + `variantId`); el "+" y "Ordenar Ahora" abren el detalle si hay variantes. Tema 1 (`landing-page`) ya lo tenía; se le agregó `variantId` a los 4 `items.map` (público + 3 pasarelas).
+
+**Bug crítico resuelto — variantes no cargaban hasta recargar:** solo `/storefront/products` adjuntaba variantes; el resto de secciones devolvía el producto sin ellas. Se centralizó el helper `attachVariants()` en `storefront.routes.ts` y se aplicó a TODOS los endpoints públicos de producto: lista, `/offers`, `/new-launches`, `/platform-featured`, `/drop/:id` y `featured`/`trending` de `store-config`.
+
+**Bug crítico de visibilidad:** la lista filtraba `(p.stock > 0 OR p.is_preorder = 1)` y los productos con variantes tienen `products.stock = 0` → no aparecían en la tienda. Se agregó al filtro un `EXISTS` sobre `product_variants` con disponibilidad (`stock - reserved_stock > 0`).
+
+**Reserva atómica de stock de variante en `POST /orders/public`:** antes `checkStockAvailability` validaba contra `products.stock` (0 para variantes) → 409 falso en todo pedido con variante. Ahora: `checkStockAvailability` ignora ítems con `variantId`; nuevos métodos en `variants.service.ts` — `reserveForPublicOrder()` (incrementa `reserved_stock` atómico y race-safe `WHERE (stock - reserved_stock) >= qty`, transaccional, movimiento `'reserva'`) y `releaseForOrder()` (al cancelar o si falla la creación, movimiento `'liberacion'`). `cancel-gateway` libera reservas. Filosofía igual a los `inventory_holds` de productos (reserva suave, reversible).
+
+**Preventa (backorder) para variantes — embudos masivos:** `attachVariants` ya NO oculta variantes agotadas (devuelve todas las activas); el `VariantSelector` recibe `allowOutOfStock` → muestra agotadas en gris pero seleccionables (borde punteado, "Disponible en preventa"). En `/orders/public`, los ítems de variante con `isPreorder` NO se reservan (se venden sin límite de stock). Conectado en ambos themes (`detailIsPreorder` / `Boolean(selectedProduct.isPreorder)`), con flags de preventa en el payload.
+
+> **Pendiente:** asiento al confirmar (pedido→venta) para variantes (hoy descuenta `products.stock`, no asienta `reserved_stock`→`stock`); reserva en flujos de pasarela (solo `/public` reserva); columna `variant_id` en `storefront_order_items` (trazabilidad va por `inventory_movements` + nombre); cupo máximo de preventa por variante. Todo necesita **Deploy en Komodo**.
+
+
 ## [2026-06-17] — Módulo Afiliados (Sprints 1–4) + tarjetas externas + imagen por variante + barra de bienvenida configurable + cierre Tema 2
 
 **Programa de Promotores/Afiliados — backend Sprints 1–4 (parcial, falta deploy):**

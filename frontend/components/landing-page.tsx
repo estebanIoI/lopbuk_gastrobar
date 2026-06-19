@@ -1699,6 +1699,10 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         variantId: selectedVariant?.id,
         variantLabel: selectedVariant?.label,
         tallaSeleccionada: selectedVariant?.label,
+        isPreorder: Boolean(selectedProduct.isPreorder) || undefined,
+        preorderShipStart: selectedProduct.isPreorder ? (selectedProduct.preorderShipStart || null) : undefined,
+        preorderShipEnd: selectedProduct.isPreorder ? (selectedProduct.preorderShipEnd || null) : undefined,
+        preorderBadgeText: selectedProduct.isPreorder ? (selectedProduct.preorderBadgeText || 'Pre-orden') : undefined,
         tenantId: selectedProduct.tenantId,
         storeName: selectedProduct.storeName,
         availableForDelivery: !!selectedProduct.availableForDelivery,
@@ -1874,6 +1878,10 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
             originalPrice: p.precioOriginal || p.precio,
             discountPercent: p.descuentoPorcentaje || 0,
             productImage: p.imagen || undefined,
+            variantId: p.variantId,
+            isPreorder: p.isPreorder ? 1 : 0,
+            preorderShipStart: p.preorderShipStart || null,
+            preorderShipEnd: p.preorderShipEnd || null,
           })),
         }
 
@@ -1981,6 +1989,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         unitPrice: p.precio,
         originalUnitPrice: p.precioOriginal || p.precio,
         productImage: p.imagen || undefined,
+        variantId: p.variantId,
       })),
     }
     if (firstTenantId) payload.tenantId = firstTenantId
@@ -2022,6 +2031,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         unitPrice: p.precio,
         originalUnitPrice: p.precioOriginal || p.precio,
         productImage: p.imagen || undefined,
+        variantId: p.variantId,
       })),
     }
     if (firstTenantId) payload.tenantId = firstTenantId
@@ -2062,6 +2072,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         unitPrice: p.precio,
         originalUnitPrice: p.precioOriginal || p.precio,
         productImage: p.imagen || undefined,
+        variantId: p.variantId,
       })),
     }
     if (firstTenantId) payload.tenantId = firstTenantId
@@ -3202,6 +3213,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     variants={selectedProduct.variants}
                     basePrice={selectedProduct.salePrice}
                     isLightBg={isLightBg}
+                    allowOutOfStock={Boolean(selectedProduct.isPreorder)}
                     formatPrice={formatCOP}
                     onChange={setSelectedVariant}
                   />
@@ -3844,6 +3856,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           variants={selectedProduct.variants}
                           basePrice={selectedProduct.salePrice}
                           isLightBg={isLightBg}
+                          allowOutOfStock={Boolean(selectedProduct.isPreorder)}
                           formatPrice={formatCOP}
                           onChange={setSelectedVariant}
                         />

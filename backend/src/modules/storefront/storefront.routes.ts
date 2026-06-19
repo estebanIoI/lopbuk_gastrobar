@@ -40,6 +40,56 @@ function parseImages(row: any): any {
   return { ...row, images: null };
 }
 
+/**
+ * Adjunta a cada producto su array `variants` (con tiers + min_price) y `hasVariants`.
+ * Centraliza la lógica para que TODOS los endpoints públicos que devuelven productos
+ * (lista, ofertas, novedades, destacados, drops) expongan las variantes de forma
+ * consistente. Sin esto, abrir el detalle de un producto desde una sección que no
+ * adjuntaba variantes lo mostraba sin selector hasta recargar la página.
+ * Trae TODAS las variantes activas (con stock y agotadas) — el frontend muestra las
+ * agotadas en gris y, en preventa, permite pedirlas igual (backorder). Cada variante
+ * incluye stock/reserved_stock para que el cliente calcule disponibilidad.
+ */
+async function attachVariants<T extends { id: any }>(
+  products: T[]
+): Promise<(T & { variants: any[]; hasVariants: boolean })[]> {
+  if (!products || products.length === 0) return products as any;
+  const ids = products.map(p => p.id);
+  const variantsByProduct = new Map<string, any[]>();
+  try {
+    const placeholders = ids.map(() => '?').join(',');
+    const [variantRows] = await pool.query(
+      `SELECT pv.id, pv.product_id, pv.sku, pv.color, pv.color_hex AS colorHex, pv.size, pv.material,
+              pv.stock, pv.reserved_stock, pv.cost_price, pv.price_override,
+              pv.images, pv.sort_order, pv.preorder_limit AS preorderLimit, pv.preorder_count AS preorderCount,
+              (SELECT MIN(vpt.price) FROM variant_price_tiers vpt
+               WHERE vpt.variant_id = pv.id AND vpt.is_active = 1) AS min_price,
+              (SELECT JSON_ARRAYAGG(
+                 JSON_OBJECT('minQty', vpt.min_qty, 'price', vpt.price, 'marginPct', vpt.tenant_margin_pct)
+               ) FROM variant_price_tiers vpt
+               WHERE vpt.variant_id = pv.id AND vpt.is_active = 1) AS price_tiers
+       FROM product_variants pv
+       WHERE pv.product_id IN (${placeholders})
+         AND pv.is_active = 1
+       ORDER BY pv.sort_order ASC`,
+      ids
+    ) as any;
+    for (const vr of variantRows) {
+      const pid = String(vr.product_id);
+      if (!variantsByProduct.has(pid)) variantsByProduct.set(pid, []);
+      variantsByProduct.get(pid)!.push({
+        ...vr,
+        images: vr.images ? (typeof vr.images === 'string' ? JSON.parse(vr.images) : vr.images) : null,
+        priceTiers: vr.price_tiers ? (typeof vr.price_tiers === 'string' ? JSON.parse(vr.price_tiers) : vr.price_tiers) : [],
+      });
+    }
+  } catch { /* la tabla puede no existir aún */ }
+  return products.map(p => {
+    const variants = variantsByProduct.get(String(p.id)) || [];
+    return { ...p, variants, hasVariants: variants.length > 0 };
+  }) as any;
+}
+
 // GET /api/storefront/products — Public endpoint, no auth required
 router.get(
   '/products',
@@ -81,11 +131,19 @@ router.get(
       let whereClause: string;
       const params: any[] = [];
 
+      // Visibilidad de stock: producto con stock propio, en preventa, o con AL MENOS una
+      // variante con stock disponible (los productos con variantes tienen products.stock = 0,
+      // su stock real vive en product_variants — sin esto no aparecerían en la tienda).
+      const STOCK_VISIBLE = `(p.stock > 0 OR p.is_preorder = 1 OR EXISTS (
+        SELECT 1 FROM product_variants pv
+        WHERE pv.product_id = p.id AND pv.is_active = 1 AND (pv.stock - pv.reserved_stock) > 0
+      ))`;
+
       if (showAll || !tenantId) {
         // Show products from all active tenants (preorder products bypass stock check)
-        whereClause = `WHERE (p.stock > 0 OR p.is_preorder = 1) AND p.published_in_store = 1 AND p.tenant_id IN (SELECT id FROM tenants WHERE status = 'activo')`;
+        whereClause = `WHERE ${STOCK_VISIBLE} AND p.published_in_store = 1 AND p.tenant_id IN (SELECT id FROM tenants WHERE status = 'activo')`;
       } else {
-        whereClause = 'WHERE p.tenant_id = ? AND (p.stock > 0 OR p.is_preorder = 1) AND p.published_in_store = 1';
+        whereClause = `WHERE p.tenant_id = ? AND ${STOCK_VISIBLE} AND p.published_in_store = 1`;
         params.push(tenantId);
       }
 
@@ -206,45 +264,8 @@ router.get(
         rows = r;
       }
 
-      // Adjuntar variantes con stock > 0 para productos que las tengan
-      const productIds = (rows as any[]).map((r: any) => r.id);
-      let variantsByProduct: Map<string, any[]> = new Map();
-      if (productIds.length > 0) {
-        try {
-          const placeholders = productIds.map(() => '?').join(',');
-          const [variantRows] = await pool.query(
-            `SELECT pv.id, pv.product_id, pv.sku, pv.color, pv.color_hex AS colorHex, pv.size, pv.material,
-                    pv.stock, pv.reserved_stock, pv.cost_price, pv.price_override,
-                    pv.images, pv.sort_order,
-                    (SELECT MIN(vpt.price) FROM variant_price_tiers vpt
-                     WHERE vpt.variant_id = pv.id AND vpt.is_active = 1) AS min_price,
-                    (SELECT JSON_ARRAYAGG(
-                       JSON_OBJECT('minQty', vpt.min_qty, 'price', vpt.price, 'marginPct', vpt.tenant_margin_pct)
-                     ) FROM variant_price_tiers vpt
-                     WHERE vpt.variant_id = pv.id AND vpt.is_active = 1
-                     ORDER BY vpt.min_qty ASC) AS price_tiers
-             FROM product_variants pv
-             WHERE pv.product_id IN (${placeholders})
-               AND pv.is_active = 1
-               AND (pv.stock - pv.reserved_stock) > 0
-             ORDER BY pv.sort_order ASC`,
-            productIds
-          ) as any;
-          for (const vr of variantRows) {
-            if (!variantsByProduct.has(vr.product_id)) variantsByProduct.set(vr.product_id, []);
-            variantsByProduct.get(vr.product_id)!.push({
-              ...vr,
-              images: vr.images ? (typeof vr.images === 'string' ? JSON.parse(vr.images) : vr.images) : null,
-              priceTiers: vr.price_tiers ? (typeof vr.price_tiers === 'string' ? JSON.parse(vr.price_tiers) : vr.price_tiers) : [],
-            });
-          }
-        } catch { /* tabla puede no existir aún */ }
-      }
-
-      const productsWithVariants = (rows as any[]).map((p: any) => {
-        const variants = variantsByProduct.get(p.id) || [];
-        return { ...parseImages(p), variants, hasVariants: variants.length > 0 };
-      });
+      // Adjuntar variantes (helper compartido) — consistente con el resto de endpoints
+      const productsWithVariants = await attachVariants((rows as any[]).map(parseImages));
 
       res.json({
         success: true,
@@ -717,7 +738,7 @@ router.get('/offers', async (req: Request, res: Response) => {
       params
     ) as any;
 
-    res.json({ success: true, data: (rows as any[]).map(parseImages) });
+    res.json({ success: true, data: await attachVariants((rows as any[]).map(parseImages)) });
   } catch (error) {
     console.error('Get offers error:', error);
     res.status(500).json({ success: false, error: 'Error al obtener ofertas' });
@@ -1031,8 +1052,8 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
         openState,
         nextOpenLabel,
         themeColors,
-        featuredProducts: (featured as any[]).map(parseImages),
-        trendingProducts: (trending as any[]).map(parseImages),
+        featuredProducts: await attachVariants((featured as any[]).map(parseImages)),
+        trendingProducts: await attachVariants((trending as any[]).map(parseImages)),
         newLaunches: (newLaunches as any[]).map(parseImages),
         storeInfo: storeInfoData,
         announcementBar,
@@ -2206,7 +2227,7 @@ router.get('/drop/:dropId', async (req: Request, res: Response) => {
       [drop.globalDiscount, dropId]
     ) as any;
 
-    res.json({ success: true, data: { ...drop, products } });
+    res.json({ success: true, data: { ...drop, products: await attachVariants(products as any[]) } });
   } catch (error) {
     console.error('Get drop error:', error);
     res.status(500).json({ success: false, error: 'Error al obtener drop' });
@@ -2574,7 +2595,7 @@ router.get('/new-launches', async (req: Request, res: Response) => {
       params
     ) as any;
 
-    res.json({ success: true, data: rows });
+    res.json({ success: true, data: await attachVariants(rows as any[]) });
   } catch (error) {
     console.error('Get new launches error:', error);
     res.status(500).json({ success: false, error: 'Error al obtener nuevos lanzamientos' });
@@ -2709,7 +2730,7 @@ router.get('/platform-featured', async (req: Request, res: Response) => {
     // Preserve order from ids array
     const byId = new Map(rows.map((r: any) => [r.id, parseImages(r)]));
     const ordered = ids.map(id => byId.get(id)).filter(Boolean);
-    res.json({ success: true, data: ordered });
+    res.json({ success: true, data: await attachVariants(ordered as any[]) });
   } catch (error) {
     console.error('Platform featured error:', error);
     res.status(500).json({ success: false, error: 'Error al obtener productos destacados' });

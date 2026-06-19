@@ -4,6 +4,41 @@
 
 ## Sprint activo: Junio 2026
 
+### ✅ Completado [2026-06-18 parte 2]: Integración de variantes COMPLETA (asiento + pasarelas + variant_id + cupo)
+
+| Tarea | Estado | Descripción |
+|---|---|---|
+| Migraciones idempotentes | ✅ | `index.ts` addCol: `variant_id`+congeladas en `storefront_order_items`/`sale_items`; `preorder_limit`+`preorder_count` en `product_variants` |
+| Asiento al confirmar | ✅ | `settleVariantForSale(conn)` descuenta stock variante, libera reserva, movimiento `salida`, congela en `sale_items`; SELECT de items con `variant_id`+`is_preorder` |
+| Cupo de preventa | ✅ | `reserveForPublicOrder` enforce atómico `preorder_count + qty <= preorder_limit`; distinción por `reference_type`; `create`/`update`+UI |
+| Reserva en pasarelas | ✅ | MP/ADDI/Sistecrédito reservan + persisten `variant_id` + cancelan/409 si no alcanza; liberan en webhooks de rechazo + `cancel-gateway` |
+| Trazabilidad | ✅ | `variant_id` en `storefront_order_items` y `sale_items` |
+| Auditoría | ✅ | tsc backend + frontend: **0 errores totales** |
+
+**Archivos clave:** `backend/src/index.ts` (migraciones), `modules/variants/variants.service.ts` (`settleVariantForSale` + reserve/release con cupo), `modules/variants/variants.controller.ts` (pasa preorderLimit), `modules/orders/orders.routes.ts` (asiento + reserva en 3 pasarelas + liberación en webhooks), `modules/storefront/storefront.routes.ts` (attachVariants expone cupo), `common/types/index.ts`; frontend `components/variant-manager.tsx` (campo cupo), `lib/types.ts`.
+
+**Solo queda operativo:** arrancar backend (corre migraciones) + cargar AnMarg + **Deploy en Komodo**.
+
+### ✅ Completado [2026-06-18]: Variantes en todo el storefront + selección dinámica (Tema 2) + reserva atómica + preventa
+
+| Tarea | Estado | Descripción |
+|---|---|---|
+| Producto AnMarg (carga) | ✅ | `imports/anmarg-camiseta-clasica/`: CSV 90 variantes + SQL tiers (6+/12+/24+) + README. No cargado en BD aún. |
+| Selector dinámico Tema 2 | ✅ | `VariantSelector` integrado en `theme2-order-flow.tsx`: precio/imagen/stock al instante, bloqueo hasta elegir, variante en carrito/WhatsApp/pedido, `+`/"Ordenar Ahora" abren detalle si hay variantes |
+| Tema 1 payload variantId | ✅ | `variantId` agregado a los 4 `items.map` de `landing-page` (público + 3 pasarelas) |
+| Attach variantes centralizado | ✅ | helper `attachVariants()` en `storefront.routes.ts` aplicado a lista, /offers, /new-launches, /platform-featured, /drop/:id, store-config featured+trending (fix: no cargaban hasta recargar) |
+| Visibilidad por variante | ✅ | lista incluye productos `stock=0` con variante disponible (`EXISTS` sobre `product_variants`) |
+| Reserva atómica en /orders/public | ✅ | `reserveForPublicOrder`/`releaseForOrder` en `variants.service.ts`; `checkStockAvailability` ignora `variantId`; libera en `cancel-gateway` |
+| Preventa backorder | ✅ | `allowOutOfStock` en `VariantSelector` (agotadas seleccionables); ítems `isPreorder` no reservan stock; conectado en ambos themes |
+| Auditoría tsc | ✅ | backend + frontend sin errores nuevos en archivos tocados |
+
+**Archivos clave:**
+- Backend: `storefront.routes.ts` (helper `attachVariants` + visibilidad por variante), `orders.routes.ts` (`/public` reserva + `cancel-gateway` libera + `checkStockAvailability` variant-aware), `variants.service.ts` (`reserveForPublicOrder`/`releaseForOrder`)
+- Frontend: `theme2/theme2-order-flow.tsx`, `variant-selector.tsx` (prop `allowOutOfStock`), `landing-page.tsx`
+- Datos: `imports/anmarg-camiseta-clasica/` (CSV + SQL + README)
+
+**Pendiente variantes:** asiento al confirmar (pedido→venta) para variantes (hoy descuenta `products.stock`, no asienta `reserved_stock`→`stock`); reserva en flujos de pasarela (solo `/public`); columna `variant_id` en `storefront_order_items` (cambio de schema, no hecho por la regla); cupo máximo de preventa por variante. **Falta Deploy en Komodo.**
+
 ### ✅ Completado [2026-06-17]: Afiliados (backend S1–4) + tarjetas externas + imagen por variante + barra config + cierre Tema 2
 
 | Tarea | Estado | Descripción |

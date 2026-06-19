@@ -1,0 +1,91 @@
+handle,name,color,size,material,sku,stock,base_price,cost_price,supplier
+camiseta-clasica,Camiseta Clasica,Negro,S,100% Algodon 160g,CC-NEG-S,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Negro,M,100% Algodon 160g,CC-NEG-M,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Negro,L,100% Algodon 160g,CC-NEG-L,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Negro,XL,100% Algodon 160g,CC-NEG-XL,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Negro,2XL,100% Algodon 160g,CC-NEG-2XL,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Blanco,S,100% Algodon 160g,CC-BLA-S,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Blanco,M,100% Algodon 160g,CC-BLA-M,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Blanco,L,100% Algodon 160g,CC-BLA-L,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Blanco,XL,100% Algodon 160g,CC-BLA-XL,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Blanco,2XL,100% Algodon 160g,CC-BLA-2XL,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Gris Jaspe,S,100% Algodon 160g,CC-GRJ-S,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Gris Jaspe,M,100% Algodon 160g,CC-GRJ-M,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Gris Jaspe,L,100% Algodon 160g,CC-GRJ-L,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Gris Jaspe,XL,100% Algodon 160g,CC-GRJ-XL,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Gris Jaspe,2XL,100% Algodon 160g,CC-GRJ-2XL,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Rosado,S,100% Algodon 160g,CC-ROS-S,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Rosado,M,100% Algodon 160g,CC-ROS-M,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Rosado,L,100% Algodon 160g,CC-ROS-L,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Rosado,XL,100% Algodon 160g,CC-ROS-XL,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Rosado,2XL,100% Algodon 160g,CC-ROS-2XL,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Camel,S,100% Algodon 160g,CC-CAM-S,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Camel,M,100% Algodon 160g,CC-CAM-M,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Camel,L,100% Algodon 160g,CC-CAM-L,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Camel,XL,100% Algodon 160g,CC-CAM-XL,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Camel,2XL,100% Algodon 160g,CC-CAM-2XL,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Nude,S,100% Algodon 160g,CC-NUD-S,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Nude,M,100% Algodon 160g,CC-NUD-M,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Nude,L,100% Algodon 160g,CC-NUD-L,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Nude,XL,100% Algodon 160g,CC-NUD-XL,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Nude,2XL,100% Algodon 160g,CC-NUD-2XL,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Vainilla,S,100% Algodon 160g,CC-VAI-S,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Vainilla,M,100% Algodon 160g,CC-VAI-M,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Vainilla,L,100% Algodon 160g,CC-VAI-L,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Vainilla,XL,100% Algodon 160g,CC-VAI-XL,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Vainilla,2XL,100% Algodon 160g,CC-VAI-2XL,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Lila,S,100% Algodon 160g,CC-LIL-S,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Lila,M,100% Algodon 160g,CC-LIL-M,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Lila,L,100% Algodon 160g,CC-LIL-L,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Lila,XL,100% Algodon 160g,CC-LIL-XL,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Lila,2XL,100% Algodon 160g,CC-LIL-2XL,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Verde Militar,S,100% Algodon 160g,CC-VML-S,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Verde Militar,M,100% Algodon 160g,CC-VML-M,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Verde Militar,L,100% Algodon 160g,CC-VML-L,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Verde Militar,XL,100% Algodon 160g,CC-VML-XL,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Verde Militar,2XL,100% Algodon 160g,CC-VML-2XL,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Verde Botella,S,100% Algodon 160g,CC-VBO-S,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Verde Botella,M,100% Algodon 160g,CC-VBO-M,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Verde Botella,L,100% Algodon 160g,CC-VBO-L,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Verde Botella,XL,100% Algodon 160g,CC-VBO-XL,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Verde Botella,2XL,100% Algodon 160g,CC-VBO-2XL,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Verde Cali,S,100% Algodon 160g,CC-VCA-S,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Verde Cali,M,100% Algodon 160g,CC-VCA-M,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Verde Cali,L,100% Algodon 160g,CC-VCA-L,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Verde Cali,XL,100% Algodon 160g,CC-VCA-XL,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Verde Cali,2XL,100% Algodon 160g,CC-VCA-2XL,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Verde Pistacho,S,100% Algodon 160g,CC-VPI-S,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Verde Pistacho,M,100% Algodon 160g,CC-VPI-M,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Verde Pistacho,L,100% Algodon 160g,CC-VPI-L,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Verde Pistacho,XL,100% Algodon 160g,CC-VPI-XL,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Verde Pistacho,2XL,100% Algodon 160g,CC-VPI-2XL,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Azul Navy,S,100% Algodon 160g,CC-ANV-S,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Azul Navy,M,100% Algodon 160g,CC-ANV-M,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Azul Navy,L,100% Algodon 160g,CC-ANV-L,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Azul Navy,XL,100% Algodon 160g,CC-ANV-XL,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Azul Navy,2XL,100% Algodon 160g,CC-ANV-2XL,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Azul Rey,S,100% Algodon 160g,CC-ARY-S,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Azul Rey,M,100% Algodon 160g,CC-ARY-M,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Azul Rey,L,100% Algodon 160g,CC-ARY-L,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Azul Rey,XL,100% Algodon 160g,CC-ARY-XL,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Azul Rey,2XL,100% Algodon 160g,CC-ARY-2XL,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Azul Agua,S,100% Algodon 160g,CC-AAG-S,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Azul Agua,M,100% Algodon 160g,CC-AAG-M,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Azul Agua,L,100% Algodon 160g,CC-AAG-L,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Azul Agua,XL,100% Algodon 160g,CC-AAG-XL,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Azul Agua,2XL,100% Algodon 160g,CC-AAG-2XL,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Azul Medio,S,100% Algodon 160g,CC-AME-S,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Azul Medio,M,100% Algodon 160g,CC-AME-M,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Azul Medio,L,100% Algodon 160g,CC-AME-L,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Azul Medio,XL,100% Algodon 160g,CC-AME-XL,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Azul Medio,2XL,100% Algodon 160g,CC-AME-2XL,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Rojo,S,100% Algodon 160g,CC-ROJ-S,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Rojo,M,100% Algodon 160g,CC-ROJ-M,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Rojo,L,100% Algodon 160g,CC-ROJ-L,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Rojo,XL,100% Algodon 160g,CC-ROJ-XL,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Rojo,2XL,100% Algodon 160g,CC-ROJ-2XL,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Amarillo,S,100% Algodon 160g,CC-AMA-S,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Amarillo,M,100% Algodon 160g,CC-AMA-M,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Amarillo,L,100% Algodon 160g,CC-AMA-L,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Amarillo,XL,100% Algodon 160g,CC-AMA-XL,0,56000,28000,AnMarg
+camiseta-clasica,Camiseta Clasica,Amarillo,2XL,100% Algodon 160g,CC-AMA-2XL,0,56000,28000,AnMarg

@@ -356,6 +356,21 @@ const startServer = async () => {
       await addCol(`ALTER TABLE storefront_orders ADD COLUMN gateway_payment_id VARCHAR(255) NULL COMMENT 'ID del pago en pasarela para reembolsos'`);
       await addCol(`ALTER TABLE storefront_orders ADD COLUMN refund_status VARCHAR(20) NULL COMMENT 'none, pending, refunded, manual'`);
 
+      // ── Variantes: trazabilidad + congelación en pedidos/ventas + cupo de preventa ──
+      await addCol(`ALTER TABLE storefront_order_items ADD COLUMN variant_id VARCHAR(36) NULL COMMENT 'Variante (color/talla) pedida'`);
+      await addCol(`ALTER TABLE storefront_order_items ADD COLUMN cost_price DECIMAL(12,2) NULL COMMENT 'Costo congelado de la variante'`);
+      await addCol(`ALTER TABLE storefront_order_items ADD COLUMN margin_pct DECIMAL(5,2) NULL`);
+      await addCol(`ALTER TABLE storefront_order_items ADD COLUMN margin_amount DECIMAL(12,2) NULL`);
+      await addCol(`ALTER TABLE storefront_order_items ADD INDEX idx_soi_variant (variant_id)`);
+      await addCol(`ALTER TABLE sale_items ADD COLUMN variant_id VARCHAR(36) NULL`);
+      await addCol(`ALTER TABLE sale_items ADD COLUMN cost_price DECIMAL(12,2) NULL`);
+      await addCol(`ALTER TABLE sale_items ADD COLUMN margin_pct DECIMAL(5,2) NULL`);
+      await addCol(`ALTER TABLE sale_items ADD COLUMN margin_amount DECIMAL(12,2) NULL`);
+      await addCol(`ALTER TABLE sale_items ADD INDEX idx_si_variant (variant_id)`);
+      // Cupo de preventa por variante (NULL = ilimitado) + contador de preventa vendida
+      await addCol(`ALTER TABLE product_variants ADD COLUMN preorder_limit INT NULL COMMENT 'Cupo máximo de preventa (NULL = ilimitado)'`);
+      await addCol(`ALTER TABLE product_variants ADD COLUMN preorder_count INT NOT NULL DEFAULT 0 COMMENT 'Unidades vendidas/reservadas en preventa'`);
+
       // store_info nuevas columnas
       await addCol(`ALTER TABLE store_info ADD COLUMN allow_contraentrega TINYINT(1) NOT NULL DEFAULT 1`);
       await addCol(`ALTER TABLE store_info ADD COLUMN online_discount_enabled TINYINT(1) NOT NULL DEFAULT 0`);

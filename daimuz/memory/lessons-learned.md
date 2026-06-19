@@ -24,6 +24,16 @@
 
 ## Arquitectura
 
+### ⚠️ Productos con variantes tienen `products.stock = 0` — la visibilidad y el stock viven en `product_variants`
+- El stock real de un producto con variantes está en `product_variants`, no en `products.stock` (queda en 0).
+- **Trampa 1 (visibilidad):** cualquier `WHERE p.stock > 0` oculta el producto entero. La lista del storefront lo hacía → los productos con variantes no aparecían. Fix: `OR EXISTS (SELECT 1 FROM product_variants pv WHERE pv.product_id = p.id AND pv.is_active = 1 AND (pv.stock - pv.reserved_stock) > 0)`.
+- **Trampa 2 (pedidos):** `checkStockAvailability` validaba `products.stock` → 409 falso en todo pedido con variante. Regla: los ítems con `variantId` se validan/reservan contra `product_variants`, NO contra `products`.
+- **Reserva suave:** usar `reserved_stock` (incremento atómico `WHERE (stock - reserved_stock) >= qty`) replica los `inventory_holds` de productos: oculta el combo agotado al instante y es reversible al cancelar. Preventa = `isPreorder` salta la reserva (backorder).
+
+### ⚠️ Adjuntar datos derivados (variantes) en UN solo endpoint genera inconsistencia
+- Las variantes se adjuntaban solo en `/storefront/products`. Otras secciones (`/offers`, `/new-launches`, `/platform-featured`, drops, featured/trending) devolvían el producto "pelado" → al abrir el detalle desde esas secciones no había selector hasta recargar (cuando la lista principal ya estaba en memoria).
+- **Lección:** cuando varios endpoints devuelven la misma entidad, el enriquecimiento (variantes, imágenes, etc.) debe ser un **helper compartido** (`attachVariants`) aplicado a todos, no copiado/omitido por endpoint.
+
 ### ✅ Lo que funcionó bien
 - **Separar service de controller** desde el día 1 → facilita testing y refactoring
 - **MySQL directo con mysql2** → más control que ORM, queries optimizables

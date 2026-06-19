@@ -140,12 +140,15 @@ export function VariantSelector({
   variants,
   basePrice,
   isLightBg = false,
+  allowOutOfStock = false,
   onChange,
   formatPrice,
 }: {
   variants: RawVariant[]
   basePrice: number
   isLightBg?: boolean
+  /** Preventa/backorder: permite elegir variantes agotadas (no se deshabilitan). */
+  allowOutOfStock?: boolean
   onChange?: (selected: SelectedVariant | null) => void
   formatPrice?: (n: number) => string
 }) {
@@ -215,6 +218,10 @@ export function VariantSelector({
   const chipDisabled = isLightBg
     ? 'border-black/10 text-black/25 line-through cursor-not-allowed'
     : 'border-white/10 text-white/25 line-through cursor-not-allowed'
+  // Preventa: agotada pero seleccionable (gris, sin tachado, borde punteado)
+  const chipPreorder = isLightBg
+    ? 'border-dashed border-black/25 text-black/45 hover:border-black/50 cursor-pointer'
+    : 'border-dashed border-white/25 text-white/45 hover:border-white/50 cursor-pointer'
 
   const toggle = (key: string, value: string) => {
     setSel(prev => (prev[key] === value ? (() => { const c = { ...prev }; delete c[key]; return c })() : { ...prev, [key]: value }))
@@ -240,15 +247,16 @@ export function VariantSelector({
                 const active = sel[axis.key] === val
                 const otherSel = Object.fromEntries(Object.entries(sel).filter(([k]) => k !== axis.key))
                 const available = hasStockFor({ ...otherSel, [axis.key]: val })
+                const blocked = !available && !allowOutOfStock
                 const css = colorHexByName[val] || colorToCss(val) || (isLightBg ? '#5b5b5b' : '#cfcfcf')
                 return (
                   <button
                     key={val}
                     type="button"
-                    title={val + (available ? '' : ' (agotado)')}
-                    disabled={!available}
+                    title={val + (available ? '' : allowOutOfStock ? ' (preventa)' : ' (agotado)')}
+                    disabled={blocked}
                     onClick={() => toggle(axis.key, val)}
-                    className={`relative w-9 h-9 rounded-full transition-all ${available ? 'cursor-pointer' : 'opacity-30 cursor-not-allowed'}`}
+                    className={`relative w-9 h-9 rounded-full transition-all ${available ? 'cursor-pointer' : blocked ? 'opacity-30 cursor-not-allowed' : 'opacity-60 cursor-pointer'}`}
                     style={{
                       backgroundColor: css,
                       boxShadow: active
@@ -259,7 +267,7 @@ export function VariantSelector({
                     {active && (
                       <Check className="w-4 h-4 absolute inset-0 m-auto" style={{ color: /f|e|d|c/i.test(css[1] || '') ? '#111' : '#fff' }} />
                     )}
-                    {!available && <span className="absolute inset-0 m-auto w-[120%] h-[1px] bg-current rotate-45 origin-center" />}
+                    {blocked && <span className="absolute inset-0 m-auto w-[120%] h-[1px] bg-current rotate-45 origin-center" />}
                   </button>
                 )
               })}
@@ -270,13 +278,14 @@ export function VariantSelector({
                 const active = sel[axis.key] === val
                 const otherSel = Object.fromEntries(Object.entries(sel).filter(([k]) => k !== axis.key))
                 const available = hasStockFor({ ...otherSel, [axis.key]: val })
+                const blocked = !available && !allowOutOfStock
                 return (
                   <button
                     key={val}
                     type="button"
-                    disabled={!available}
+                    disabled={blocked}
                     onClick={() => toggle(axis.key, val)}
-                    className={`px-4 py-2 rounded-full border-2 text-sm font-medium transition-all ${active ? chipActive : available ? chipIdle : chipDisabled}`}
+                    className={`px-4 py-2 rounded-full border-2 text-sm font-medium transition-all ${active ? chipActive : available ? chipIdle : allowOutOfStock ? chipPreorder : chipDisabled}`}
                   >
                     {val}
                   </button>
@@ -296,6 +305,8 @@ export function VariantSelector({
                 <span className={selectedVariant.available <= 5 ? 'text-amber-500 font-medium' : strong}>
                   {selectedVariant.available <= 5 ? `¡Solo quedan ${selectedVariant.available}!` : `${selectedVariant.available} disponibles`}
                 </span>
+              ) : allowOutOfStock ? (
+                <span className="text-amber-500 font-medium">Disponible en preventa</span>
               ) : (
                 <span className="text-red-500 font-medium">Agotado</span>
               )}
