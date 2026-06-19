@@ -74,6 +74,9 @@ router.get('/public', async (_req: Request, res: Response) => {
         accentColor: config.accent_color || '#6366f1',
         isPublished: config.is_published !== undefined ? Boolean(config.is_published) : true,
         robotSplineUrl: config.robot_spline_url || '',
+        lanyardOffsetX: Number(config.lanyard_offset_x) || 0,
+        lanyardOffsetY: Number(config.lanyard_offset_y) || 0,
+        lanyardScale: Number(config.lanyard_scale) || 100,
         featuredStores,
       },
     });
@@ -125,6 +128,9 @@ router.get('/config', authenticate, async (req: Request, res: Response) => {
         accentColor: config.accent_color || '#6366f1',
         isPublished: config.is_published !== undefined ? Boolean(config.is_published) : true,
         robotSplineUrl: config.robot_spline_url || '',
+        lanyardOffsetX: Number(config.lanyard_offset_x) || 0,
+        lanyardOffsetY: Number(config.lanyard_offset_y) || 0,
+        lanyardScale: Number(config.lanyard_scale) || 100,
         tenants: tenants || [],
       },
     });
@@ -150,6 +156,7 @@ router.put('/config', authenticate, async (req: Request, res: Response) => {
       showPricing, showFeaturedStores, featuredTenantIds,
       contactEmail, contactWhatsapp, contactInstagram,
       accentColor, isPublished, robotSplineUrl,
+      lanyardOffsetX, lanyardOffsetY, lanyardScale,
     } = req.body;
 
     // Migración idempotente: columna del robot 3D (URL de Spline).
@@ -159,6 +166,20 @@ router.put('/config', authenticate, async (req: Request, res: Response) => {
       ) as any;
       if (!rcols.length) await pool.query('ALTER TABLE portfolio_config ADD COLUMN robot_spline_url TEXT NULL');
     } catch { /* tabla aun no existe; se crea en el upsert */ }
+
+    // Migración idempotente: posición y tamaño del lanyard (controles del superadmin).
+    for (const [col, def] of [
+      ['lanyard_offset_x', 'INT NOT NULL DEFAULT 0'],
+      ['lanyard_offset_y', 'INT NOT NULL DEFAULT 0'],
+      ['lanyard_scale', 'INT NOT NULL DEFAULT 100'],
+    ] as const) {
+      try {
+        const [c] = await pool.query(
+          `SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'portfolio_config' AND COLUMN_NAME = ?`, [col]
+        ) as any;
+        if (!c.length) await pool.query(`ALTER TABLE portfolio_config ADD COLUMN ${col} ${def}`);
+      } catch { /* noop */ }
+    }
 
     const doUpsert = async () => {
       await pool.query(
@@ -221,6 +242,9 @@ router.put('/config', authenticate, async (req: Request, res: Response) => {
             accent_color  VARCHAR(30) NOT NULL DEFAULT '#6366f1',
             is_published  TINYINT(1) NOT NULL DEFAULT 1,
             robot_spline_url TEXT,
+            lanyard_offset_x INT NOT NULL DEFAULT 0,
+            lanyard_offset_y INT NOT NULL DEFAULT 0,
+            lanyard_scale INT NOT NULL DEFAULT 100,
             created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
           ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
@@ -230,6 +254,18 @@ router.put('/config', authenticate, async (req: Request, res: Response) => {
         throw e;
       }
     }
+
+    // Guarda posición/tamaño del lanyard (columnas idempotentes).
+    try {
+      await pool.query(
+        'UPDATE portfolio_config SET lanyard_offset_x = ?, lanyard_offset_y = ?, lanyard_scale = ? WHERE id = 1',
+        [
+          Math.round(Number(lanyardOffsetX) || 0),
+          Math.round(Number(lanyardOffsetY) || 0),
+          Math.max(40, Math.min(200, Math.round(Number(lanyardScale) || 100))),
+        ]
+      );
+    } catch { /* columnas aún no migradas */ }
 
     res.json({ success: true });
   } catch (err) {

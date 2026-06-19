@@ -785,6 +785,12 @@ const startServer = async () => {
       await poolCh.query(`ALTER TABLE product_variants ADD COLUMN color_hex VARCHAR(9) NULL COMMENT 'Color exacto (hex) para el swatch de la tienda'`);
     } catch (e: any) { if (e?.errno !== 1060) console.warn('color_hex migration:', e?.message); }
 
+    // ── Tienda: tamaño del logo en la barra de navegación ────────────────────
+    try {
+      const poolLs = (await import('./config/database')).default;
+      await poolLs.query(`ALTER TABLE store_info ADD COLUMN logo_size SMALLINT NULL COMMENT 'Alto del logo en la nav de la tienda (px)'`);
+    } catch (e: any) { if (e?.errno !== 1060) console.warn('logo_size migration:', e?.message); }
+
     // ── Tenant module control ────────────────────────────────────────────────
     try {
       const mPool = (await import('./config/database')).default;

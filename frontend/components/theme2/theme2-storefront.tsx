@@ -55,6 +55,7 @@ interface Sede { id: string; name: string; address?: string | null }
 interface StoreInfo {
   name?: string
   logoUrl?: string | null
+  logoSize?: number | null
   cardCoverUrl?: string | null
   cardDescription?: string | null
   socialInstagram?: string | null
@@ -161,7 +162,7 @@ export function Theme2Storefront({ slug }: { slug: string }) {
         <div className="flex items-center gap-3">
           {info.logoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={abs(info.logoUrl)} alt={info.name || ''} className="w-9 h-9 rounded-full object-cover border border-white/20" />
+            <img src={abs(info.logoUrl)} alt={info.name || ''} style={{ height: info.logoSize || 36, width: info.logoSize || 36 }} className="rounded-full object-cover border border-white/20 shrink-0" />
           ) : (
             <div className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center"><Store className="w-4 h-4" /></div>
           )}

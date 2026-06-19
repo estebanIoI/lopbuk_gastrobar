@@ -47,6 +47,9 @@ interface PortfolioData {
   isPublished: boolean
   featuredStores: FeaturedStore[]
   robotSplineUrl?: string
+  lanyardOffsetX?: number
+  lanyardOffsetY?: number
+  lanyardScale?: number
 }
 
 // ─── Planes DAIMUZ ────────────────────────────────────────────────────────────
@@ -301,7 +304,14 @@ function TeamCarousel({ cards, brandTitle, accentColor }: {
           La foto se mapea sobre el carnet; la banda/cordon es configurable por tarjeta. */}
       {/* Altura adaptativa: más baja en celular, alta en escritorio.
           El canvas llena el alto del contenedor (height="100%"). */}
-      <div className="h-[460px] sm:h-[540px] lg:h-[600px] -mt-6 sm:-mt-8 lg:-mt-10 w-[300px] sm:w-[380px] lg:w-[440px]" style={{ maxWidth: '92vw' }}>
+      <div
+        className="h-[460px] sm:h-[540px] lg:h-[600px] -mt-6 sm:-mt-8 lg:-mt-10 w-[300px] sm:w-[380px] lg:w-[440px]"
+        style={{
+          maxWidth: '92vw',
+          transform: `translate(${data?.lanyardOffsetX || 0}px, ${data?.lanyardOffsetY || 0}px) scale(${(data?.lanyardScale || 100) / 100})`,
+          transformOrigin: 'top center',
+        }}
+      >
         <LanyardShowpiece
           height="100%"
           cardImageUrl={card.photo_url || ''}

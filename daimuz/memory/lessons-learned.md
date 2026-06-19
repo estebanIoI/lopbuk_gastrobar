@@ -4,6 +4,15 @@
 
 ## Tooling
 
+### ⚠️ Line endings: el repo es LF; cuidado con CRLF en Windows (2026-06-18)
+- Editar en Windows convirtió el working tree a **CRLF** mientras HEAD está en **LF** → `git status` mostró **444 archivos "modificados"** pero solo ~12 con cambios reales.
+- Para ver los reales: `git diff --ignore-cr-at-eol --numstat | awk '($1+0)||($2+0)'`.
+- **Nunca `git add -A`** en ese estado: commitea solo los archivos reales. La normalización de EOL va en un commit aparte: `git add --renormalize .`.
+- Se agregó **`.gitattributes`** (`* text=auto eol=lf`). En Windows: `git config core.autocrlf input`.
+
+### ⚠️ Migraciones que sí corren: backend arranca con migración inline; el deploy es DEPLOY (no Pull)
+- Las columnas nuevas (color_hex, logo_size, lanyard_*) se crean en el arranque del backend (ALTER idempotente con catch 1060 / information_schema). En dev, el hot-reload NO re-corre el arranque → si falla un INSERT por "Unknown column", reinicia el backend o corre el ALTER a mano. Por eso varios services llevan un `ensureColorHex`-style auto-heal.
+
 ### ⚠️ Usar pnpm — npm falla en este proyecto
 - `npm install` da error "Cannot read properties of null (reading 'matches')" al intentar instalar nuevos paquetes
 - **Siempre usar `pnpm add <paquete>`** para instalar dependencias en `/frontend`

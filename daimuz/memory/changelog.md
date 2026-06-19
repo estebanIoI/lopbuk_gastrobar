@@ -5,6 +5,19 @@
 ---
 
 
+## [2026-06-18] (parte 3) — Color exacto por variante, bulk inventario, auto-fallback IA, tamaño de logo, posición del Lanyard
+
+- **Color EXACTO por variante (hex) separado del nombre:** columna `product_variants.color_hex` (migración idempotente + auto-heal `ensureColorHex` en el service ante `ER_BAD_FIELD_ERROR`). En `variant-manager` el campo "Color (nombre)" quedó separado de una **paleta** que escribe `colorHex` (ya no pisa el nombre). El storefront (`variant-selector`) arma un mapa nombre→hex y pinta el **swatch con el color exacto** del comercio. Arregla la incoherencia "Vainilla sesgo" mostrándose gris.
+- **Aviso de SKU duplicado en variantes + fix:** `saveVariant` NO chequeaba `result.success` → mostraba "Variante creada" en falso y ocultaba el 400 real. Ahora muestra el error del servidor, y además hay **aviso proactivo**: detecta SKU repetido contra las variantes cargadas y **bloquea Guardar** (botón "SKU duplicado").
+- **Multi-selección + borrado masivo en Inventario:** `products.service.bulkDelete` (filtra por tenant; ante FK por ventas borra uno a uno y omite los referenciados → `{deleted, skipped}`), ruta `DELETE /products/bulk` (ANTES de `/:id`), controller, `api.bulkDeleteProducts` + acción en store. UI en `inventory-list`: botón "Seleccionar", checkboxes en tabla, overlay en tarjetas móvil, barra bulk + dialog.
+- **IA "solo pegar la clave" (auto-fallback):** `getAIKeys` ahora, si el proveedor default no tiene clave, usa el primero que sí la tenga (Groq → Gemini → OpenAI/OpenCode). Diagnóstico del 500 del chatbot = **OpenCode sin saldo** (facturación, no bug). Copy de IntegrationsTab actualizado.
+- **Tamaño del logo de la tienda:** columna `store_info.logo_size`; slider + vista previa en Personalizar Tienda → Info Tienda; aplicado al logo del nav en Tema 1 (landing) y Tema 2.
+- **Posición y tamaño del Lanyard (portafolio):** `portfolio_config.lanyard_offset_x/_y/_scale` (migración idempotente). Controles en el tab Portafolio del superadmin: **flechas** ↑↓←→ (±10px) + centrar + slider de tamaño (40–200%). La página aplica `transform: translate(x,y) scale()` al contenedor del carnet 3D.
+
+> ⚠️ **Line endings (lección):** el working tree quedó en **CRLF** y el repo en **LF** → 444 archivos "modificados" pero solo ~12 reales. Se creó `.gitattributes` (`* text=auto eol=lf`). NO usar `git add -A`; commitear solo los archivos reales y, aparte, `git add --renormalize .`. Configurar `core.autocrlf input` en Windows.
+> Todo necesita commit (sin el ruido CRLF) + push + **Deploy en Komodo** (las columnas nuevas se crean al arrancar el backend).
+
+
 ## [2026-06-18] (parte 2) — Integración de variantes COMPLETA: asiento al confirmar + pasarelas + columna variant_id + cupo de preventa
 
 Cierre de los 4 pendientes de variantes (tsc back+front: **0 errores**):

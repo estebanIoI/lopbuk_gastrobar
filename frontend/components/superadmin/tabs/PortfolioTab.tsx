@@ -48,6 +48,7 @@ export function PortfolioTab() {
     pfContactWhatsapp, setPfContactWhatsapp, pfContactInstagram, setPfContactInstagram,
     pfAccentColor, setPfAccentColor, pfIsPublished, setPfIsPublished,
     pfRobotSpline, setPfRobotSpline,
+    pfLanyardOffsetX, setPfLanyardOffsetX, pfLanyardOffsetY, setPfLanyardOffsetY, pfLanyardScale, setPfLanyardScale,
     pfTenants, pfLoading, pfSaving, pfSaved, handleSavePortfolio,
     teamCards, teamLoading, teamDialog, setTeamDialog,
     editingCard, teamForm, setTeamForm, teamSaving, teamDeletingId,
@@ -162,6 +163,35 @@ export function PortfolioTab() {
             <Input value={pfRobotSpline} onChange={e => setPfRobotSpline(e.target.value)} placeholder="https://prod.spline.design/XXXX/scene.splinecode" />
             <p className="text-[11px] text-muted-foreground">URL .splinecode de tu escena de Spline. Vacío = robot DAIMUZ por defecto. El asistente debe estar habilitado en Integraciones.</p>
           </div>
+
+          {/* Posición y tamaño del carnet 3D (Lanyard) */}
+          <div className="space-y-2 rounded-lg border border-border p-3">
+            <Label className="text-xs font-semibold">Posición y tamaño del carnet (Lanyard)</Label>
+            <p className="text-[11px] text-muted-foreground">Mueve el carnet 3D del portafolio con las flechas y ajusta el tamaño de todo el contenedor.</p>
+            <div className="flex items-center gap-6 flex-wrap">
+              <div className="grid grid-cols-3 gap-1 w-max">
+                <span />
+                <button type="button" onClick={() => setPfLanyardOffsetY(v => v - 10)} className="h-8 w-8 rounded-md border border-border hover:bg-muted flex items-center justify-center">↑</button>
+                <span />
+                <button type="button" onClick={() => setPfLanyardOffsetX(v => v - 10)} className="h-8 w-8 rounded-md border border-border hover:bg-muted flex items-center justify-center">←</button>
+                <button type="button" onClick={() => { setPfLanyardOffsetX(0); setPfLanyardOffsetY(0) }} title="Centrar" className="h-8 w-8 rounded-md border border-border hover:bg-muted flex items-center justify-center text-xs">⌖</button>
+                <button type="button" onClick={() => setPfLanyardOffsetX(v => v + 10)} className="h-8 w-8 rounded-md border border-border hover:bg-muted flex items-center justify-center">→</button>
+                <span />
+                <button type="button" onClick={() => setPfLanyardOffsetY(v => v + 10)} className="h-8 w-8 rounded-md border border-border hover:bg-muted flex items-center justify-center">↓</button>
+                <span />
+              </div>
+              <div className="text-[11px] text-muted-foreground space-y-1">
+                <div>X: <code>{pfLanyardOffsetX}px</code></div>
+                <div>Y: <code>{pfLanyardOffsetY}px</code></div>
+                <button type="button" onClick={() => { setPfLanyardOffsetX(0); setPfLanyardOffsetY(0); setPfLanyardScale(100) }} className="underline hover:text-foreground">Restablecer</button>
+              </div>
+              <div className="flex-1 min-w-[180px] space-y-1">
+                <div className="flex items-center justify-between"><Label className="text-xs">Tamaño del contenedor</Label><span className="text-[11px] text-muted-foreground">{pfLanyardScale}%</span></div>
+                <input type="range" min={40} max={200} step={5} value={pfLanyardScale} onChange={e => setPfLanyardScale(Number(e.target.value))} className="w-full accent-primary cursor-pointer" />
+              </div>
+            </div>
+          </div>
+
           <div className="flex items-center gap-3">
             <Label className="text-xs">Color de acento</Label>
             <input type="color" value={pfAccentColor} onChange={e => setPfAccentColor(e.target.value)}

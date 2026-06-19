@@ -862,6 +862,7 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
                 si.store_theme as theme,
                 si.card_cover_url as cardCoverUrl,
                 si.card_description as cardDescription,
+                si.logo_size as logoSize,
                 si.show_info_module as showInfoModule,
                 si.info_module_description as infoModuleDescription
          FROM store_info si
@@ -1412,6 +1413,7 @@ router.get('/customization', authenticate, requirePlan('empresarial'), async (re
                 si.department, si.municipality,
                 si.product_card_style as productCardStyle,
                 si.allow_contraentrega as allowContraentrega,
+                si.logo_size as logoSize,
                 si.show_info_module as showInfoModule,
                 si.info_module_description as infoModuleDescription
          FROM store_info si
@@ -1818,7 +1820,7 @@ router.put('/store-extended-info', authenticate, requirePlan('empresarial'), asy
   try {
     const tenantId = (req as any).user.tenantId;
     const {
-      logoUrl, schedule, locationMapUrl, termsContent, privacyContent, shippingTerms, paymentMethods,
+      logoUrl, logoSize, schedule, locationMapUrl, termsContent, privacyContent, shippingTerms, paymentMethods,
       socialInstagram, socialFacebook, socialTiktok, socialWhatsapp,
       department, municipality, productCardStyle, allowContraentrega,
       showInfoModule, infoModuleDescription, metaPixelId,
@@ -1826,19 +1828,20 @@ router.put('/store-extended-info', authenticate, requirePlan('empresarial'), asy
 
     const allowCod = allowContraentrega === false ? 0 : 1;
     const infoModule = showInfoModule ? 1 : 0;
+    const logoSizeNum = Number(logoSize) > 0 ? Math.max(16, Math.min(200, Math.round(Number(logoSize)))) : null;
 
     let result: any;
     try {
       [result] = await pool.query(
         `UPDATE store_info SET
-          logo_url = ?, schedule = ?, location_map_url = ?, terms_url = ?, privacy_url = ?, shipping_terms = ?,
+          logo_url = ?, logo_size = ?, schedule = ?, location_map_url = ?, terms_url = ?, privacy_url = ?, shipping_terms = ?,
           payment_methods = ?, social_instagram = ?, social_facebook = ?,
           social_tiktok = ?, social_whatsapp = ?,
           department = ?, municipality = ?, product_card_style = ?, allow_contraentrega = ?,
           show_info_module = ?, info_module_description = ?, meta_pixel_id = ?
          WHERE tenant_id = ?`,
         [
-          logoUrl || null, schedule || null, locationMapUrl || null, termsContent || null, privacyContent || null, shippingTerms || null,
+          logoUrl || null, logoSizeNum, schedule || null, locationMapUrl || null, termsContent || null, privacyContent || null, shippingTerms || null,
           paymentMethods || null, socialInstagram || null, socialFacebook || null,
           socialTiktok || null, socialWhatsapp || null,
           department || null, municipality || null, productCardStyle || 'style1', allowCod,
