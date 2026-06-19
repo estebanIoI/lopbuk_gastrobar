@@ -24,6 +24,8 @@ export interface ProductVariant {
   images?: string[];
   sortOrder: number;
   isActive: boolean;
+  preorderLimit?: number | null;  // cupo máximo de preventa (null = ilimitado)
+  preorderCount?: number;         // unidades vendidas/reservadas en preventa
   createdAt: Date;
   updatedAt: Date;
   // Eager-loaded

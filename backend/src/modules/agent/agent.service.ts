@@ -65,13 +65,24 @@ export async function getAIKeys(): Promise<{
     catch { settings[row.setting_key] = row.setting_value || ''; }
   }
 
+  const geminiKey = settings['ai_gemini_key'] || process.env.GEMINI_API_KEY || '';
+  const openaiKey = settings['ai_openai_key'] || process.env.OPENAI_API_KEY || '';
+  const groqKey = settings['ai_groq_key'] || process.env.GROQ_API_KEY || '';
+
   const rawProvider = (settings['ai_default_provider'] || process.env.AI_DEFAULT_PROVIDER || 'openai').trim().toLowerCase();
-  const defaultProvider = ['gemini', 'openai', 'groq'].includes(rawProvider) ? rawProvider as any : 'openai';
+  let defaultProvider: 'gemini' | 'openai' | 'groq' = ['gemini', 'openai', 'groq'].includes(rawProvider) ? rawProvider as any : 'openai';
+
+  // "Solo pegar la clave": si el proveedor elegido NO tiene clave configurada,
+  // usa automáticamente el primero que sí la tenga (Groq → Gemini → OpenAI/OpenCode).
+  const hasKey: Record<'gemini' | 'openai' | 'groq', boolean> = { gemini: !!geminiKey, openai: !!openaiKey, groq: !!groqKey };
+  if (!hasKey[defaultProvider]) {
+    defaultProvider = (['groq', 'gemini', 'openai'] as const).find(p => hasKey[p]) || defaultProvider;
+  }
 
   return {
-    geminiKey: settings['ai_gemini_key'] || process.env.GEMINI_API_KEY || '',
-    openaiKey: settings['ai_openai_key'] || process.env.OPENAI_API_KEY || '',
-    groqKey: settings['ai_groq_key'] || process.env.GROQ_API_KEY || '',
+    geminiKey,
+    openaiKey,
+    groqKey,
     defaultProvider,
     // Por defecto usamos OpenCode Zen (plan del cliente): así basta con pegar la key sk- de OpenCode.
     // Si alguien quiere OpenAI oficial u otro compatible, pone su Base URL/modelo en el panel.

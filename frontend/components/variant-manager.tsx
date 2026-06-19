@@ -30,7 +30,7 @@ interface Props {
   onClose: () => void
 }
 
-const EMPTY_VARIANT = { sku: '', color: '', colorHex: '', size: '', material: '', stock: 0, minStock: 0, costPrice: '', priceOverride: '', imageUrl: '' }
+const EMPTY_VARIANT = { sku: '', color: '', colorHex: '', size: '', material: '', stock: 0, minStock: 0, costPrice: '', priceOverride: '', imageUrl: '', preorderLimit: '' }
 const EMPTY_TIER    = { minQty: 1, price: '', tenantMarginPct: 0 }
 
 // ── Ejes del modo guiado (mapeados a las columnas reales del backend) ──
@@ -162,6 +162,7 @@ export function VariantManager({ productId, productName, open, onClose }: Props)
       minStock: v.minStock, costPrice: v.costPrice?.toString() || '',
       priceOverride: v.priceOverride?.toString() || '',
       imageUrl: v.images?.[0] || '',
+      preorderLimit: v.preorderLimit != null ? String(v.preorderLimit) : '',
     })
     setEditingVariant(v)
     setShowAddVariant(true)
@@ -182,6 +183,7 @@ export function VariantManager({ productId, productName, open, onClose }: Props)
         costPrice: variantForm.costPrice ? Number(variantForm.costPrice) : undefined,
         priceOverride: variantForm.priceOverride ? Number(variantForm.priceOverride) : undefined,
         images: variantForm.imageUrl.trim() ? [variantForm.imageUrl.trim()] : [],
+        preorderLimit: variantForm.preorderLimit !== '' ? Number(variantForm.preorderLimit) : null,
       }
       const result = editingVariant
         ? await api.updateVariant(editingVariant.id, payload)
@@ -569,6 +571,12 @@ export function VariantManager({ productId, productName, open, onClose }: Props)
                 <Label className="text-xs">Precio override</Label>
                 <Input type="number" min={0} placeholder="Usa precio base si vacío" value={variantForm.priceOverride}
                   onChange={e => setVariantForm(p => ({ ...p, priceOverride: e.target.value }))} />
+              </div>
+              <div>
+                <Label className="text-xs">Cupo de preventa</Label>
+                <Input type="number" min={0} placeholder="Vacío = ilimitado" value={variantForm.preorderLimit}
+                  onChange={e => setVariantForm(p => ({ ...p, preorderLimit: e.target.value }))} />
+                <p className="text-[10px] text-muted-foreground mt-1">Máximo de unidades vendibles en preventa (backorder) para esta variante.</p>
               </div>
               <div className="col-span-2">
                 <Label className="text-xs">Imagen del color (URL)</Label>

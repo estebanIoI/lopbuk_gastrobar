@@ -29,6 +29,8 @@ export interface ProductVariant {
   images?: string[]
   sortOrder: number
   isActive: boolean
+  preorderLimit?: number | null   // cupo máximo de preventa (null = ilimitado)
+  preorderCount?: number          // unidades ya vendidas/reservadas en preventa
   priceTiers?: VariantPriceTier[]
   productName?: string
   basePrice?: number

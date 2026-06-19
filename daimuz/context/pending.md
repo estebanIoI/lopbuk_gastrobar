@@ -8,6 +8,17 @@
 
 Arquitectura completa en [[brain/variants-and-suppliers]]. Decisiones formales en [[decisions/variant-architecture]].
 
+> **✅ Estado real (2026-06-18, integración completa):** el sistema de variantes está **implementado, integrado y auditado** (full-stack desde 2026-06-09; storefront + selección dinámica + reserva atómica + preventa + asiento + cupo desde 2026-06-18). Cerrado en esta sesión:
+> - [x] **Asiento al confirmar** (pedido→venta): para variantes descuenta `product_variants.stock`, libera la reserva y congela `variant_id`/costo/margen en `sale_items` (`variants.service.settleVariantForSale`).
+> - [x] **Reserva en flujos de pasarela** (MP/ADDI/Sistecrédito): reservan variante y persisten `variant_id`; liberan en sus webhooks de rechazo + `cancel-gateway`.
+> - [x] **Columna `variant_id` en `storefront_order_items`** + columnas congeladas en `sale_items` (migración idempotente en `index.ts`).
+> - [x] **Cupo máximo de preventa por variante** (`product_variants.preorder_limit` + `preorder_count`): enforce atómico en la reserva; campo en `variant-manager`.
+> - tsc backend + frontend: **0 errores totales**.
+>
+> **Solo queda (operativo):**
+> - [ ] Ejecutar el arranque del backend (corre las migraciones idempotentes) + cargar el producto AnMarg (`imports/anmarg-camiseta-clasica/`).
+> - [ ] **Deploy en Komodo**.
+
 **Sprint 1 — Schema DB:**
 - [ ] Migración: `CREATE TABLE product_variants` (tenant_id, product_id, sku UNIQUE, barcode, color, size, stock, reserved_stock, cost_price, price_override, supplier_id, is_active)
 - [ ] Migración: `CREATE TABLE variant_price_tiers` (tenant_id, variant_id, min_qty, price, tenant_margin_pct, is_active)
