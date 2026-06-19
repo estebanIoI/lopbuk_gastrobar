@@ -105,8 +105,8 @@ export function IntegrationsTab() {
             Proveedores de IA — Chatbot y Agentes
           </CardTitle>
           <CardDescription>
-            Configura las API Keys de cada proveedor. El agente usará el proveedor que selecciones como default.
-            Las claves se almacenan cifradas (AES-256-CBC).
+            Pega la API Key de cualquier proveedor y el agente la usa automáticamente. Si configuras
+            varios, manda el que elijas como default. Las claves se almacenan cifradas (AES-256-CBC).
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">

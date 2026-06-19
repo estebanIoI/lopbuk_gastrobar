@@ -1,0 +1,23 @@
+# Normalización de fin de línea — el repo guarda LF.
+# Evita el ruido CRLF/LF que aparece al editar en Windows.
+* text=auto eol=lf
+
+# Scripts de shell siempre LF
+*.sh text eol=lf
+
+# Binarios: que Git no los trate como texto
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.webp binary
+*.ico  binary
+*.pdf  binary
+*.woff  binary
+*.woff2 binary
+*.ttf  binary
+*.eot  binary
+*.mp3  binary
+*.mp4  binary
+*.glb  binary
+*.gltf binary
