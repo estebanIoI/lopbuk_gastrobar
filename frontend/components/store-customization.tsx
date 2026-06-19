@@ -84,6 +84,7 @@ interface PublishedProduct {
 
 interface StoreExtendedInfo {
   logoUrl: string
+  logoSize: number
   schedule: string
   locationMapUrl: string
   termsContent: string
@@ -140,7 +141,7 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
   // Señal que se incrementa al subir un logo nuevo → dispara la auto-colorimetría
   const [logoAutoSignal, setLogoAutoSignal] = useState(0)
   const [storeInfo, setStoreInfo] = useState<StoreExtendedInfo>({
-    logoUrl: '', schedule: '', locationMapUrl: '', termsContent: '', privacyContent: '', shippingTerms: '',
+    logoUrl: '', logoSize: 40, schedule: '', locationMapUrl: '', termsContent: '', privacyContent: '', shippingTerms: '',
     paymentMethods: '', socialInstagram: '', socialFacebook: '',
     socialTiktok: '', socialWhatsapp: '',
     department: '', municipality: '', productCardStyle: 'style1',
@@ -248,6 +249,7 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
         if (result.data.storeInfo) {
           setStoreInfo({
             logoUrl: result.data.storeInfo.logoUrl || '',
+            logoSize: Number(result.data.storeInfo.logoSize) > 0 ? Number(result.data.storeInfo.logoSize) : 40,
             schedule: result.data.storeInfo.schedule || '',
             locationMapUrl: result.data.storeInfo.locationMapUrl || '',
             termsContent: result.data.storeInfo.termsContent || '',
@@ -1445,6 +1447,30 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
                 previewClassName="max-h-20 w-auto object-contain rounded"
                 accept="image/*"
               />
+
+              {storeInfo.logoUrl && (
+                <div className="space-y-2 border-t pt-4">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm">Tamaño del logo en la tienda</Label>
+                    <span className="text-xs text-muted-foreground tabular-nums">{storeInfo.logoSize}px de alto</span>
+                  </div>
+                  <input
+                    type="range" min={16} max={120} step={2}
+                    value={storeInfo.logoSize}
+                    onChange={e => setStoreInfo(prev => ({ ...prev, logoSize: Number(e.target.value) }))}
+                    className="w-full accent-primary cursor-pointer"
+                  />
+                  <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                    <span>Pequeño</span><span>Grande</span>
+                  </div>
+                  <div className="flex items-center gap-3 rounded-lg border bg-muted/30 px-3 py-2">
+                    <span className="text-[10px] text-muted-foreground shrink-0">Vista previa:</span>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={storeInfo.logoUrl} alt="logo" style={{ height: storeInfo.logoSize }} className="w-auto object-contain" />
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">Controla el alto del logo en la barra de navegación de tu tienda.</p>
+                </div>
+              )}
             </CardContent>
           </Card>
 

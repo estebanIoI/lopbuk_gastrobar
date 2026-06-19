@@ -295,7 +295,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     trendingProducts: StorefrontProduct[]
     newLaunches?: StorefrontProduct[]
     storeInfo: {
-      name: string; address: string | null; phone: string | null; email: string | null; logoUrl: string | null
+      name: string; address: string | null; phone: string | null; email: string | null; logoUrl: string | null; logoSize?: number | null
       schedule: string | null; locationMapUrl: string | null;
       termsContent: string | null; privacyContent: string | null; shippingTerms: string | null
       paymentMethods: string | null; socialInstagram: string | null; socialFacebook: string | null
@@ -2736,6 +2736,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 <img
                   src={storeConfig.storeInfo.logoUrl}
                   alt={storeConfig.storeInfo.name || 'Logo'}
+                  style={storeConfig.storeInfo.logoSize ? { height: storeConfig.storeInfo.logoSize } : undefined}
                   className="hidden md:block h-14 w-auto object-contain"
                 />
               </>
@@ -2750,6 +2751,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               <img
                 src={storeConfig.storeInfo.logoUrl}
                 alt={storeConfig.storeInfo.name || 'Logo'}
+                style={storeConfig.storeInfo.logoSize ? { height: storeConfig.storeInfo.logoSize } : undefined}
                 className="h-12 w-auto object-contain"
               />
             </div>

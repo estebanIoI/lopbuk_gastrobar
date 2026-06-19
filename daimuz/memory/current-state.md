@@ -34,6 +34,16 @@
 - **`agent.service.ts`**: `getAIKeys()` devuelve las 3 keys + provider default. `processAgentMessage()` usa routing explícito por provider (Gemini → function calling, OpenAI/Groq → chat directo).
 - **Entorno**: `.env` creado con la OpenAI key provista. `.env.example` actualizado con `OPENAI_API_KEY`, `GROQ_API_KEY`, `AI_DEFAULT_PROVIDER`. Docker-compose dev + production incluyen las nuevas vars.
 
+## ✅ Implementado: color exacto por variante, bulk inventario, auto-fallback IA, logo size, posición Lanyard (2026-06-18 p3)
+
+- **Color exacto por variante:** `color_hex` separado del nombre (paleta en el admin; swatch exacto en la tienda; auto-heal de columna).
+- **SKU duplicado:** aviso proactivo + bloqueo de Guardar + el form ahora SÍ muestra el error real del backend.
+- **Borrado masivo en Inventario:** `DELETE /products/bulk` + botón "Seleccionar" con checkboxes/overlay.
+- **IA solo con la clave:** `getAIKeys` auto-usa el proveedor que tenga clave (Groq→Gemini→OpenAI). El 500 del chatbot era **OpenCode sin saldo**.
+- **Tamaño del logo de la tienda:** `store_info.logo_size` + slider en Info Tienda → aplicado al nav (Tema 1 y 2).
+- **Posición/tamaño del Lanyard:** `portfolio_config.lanyard_offset_x/_y/_scale` + flechas y slider en el tab Portafolio del superadmin.
+- ⚠️ Pendiente operativo: commitear SIN el ruido CRLF (ver `.gitattributes`) + **Deploy en Komodo**.
+
 ## ✅ Implementado: Variantes en todo el storefront + selección dinámica + reserva atómica + preventa (2026-06-18)
 
 - **Variantes visibles en todo el embudo:** helper `attachVariants()` centralizado en `storefront.routes.ts`, aplicado a lista, `/offers`, `/new-launches`, `/platform-featured`, `/drop/:id` y `featured`/`trending` de `store-config`. Antes solo la lista las adjuntaba → el detalle abría sin variantes hasta recargar. **Resuelto.**

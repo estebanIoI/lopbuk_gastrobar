@@ -64,6 +64,9 @@ export function usePortfolio() {
   const [pfAccentColor, setPfAccentColor] = useState('#6366f1')
   const [pfIsPublished, setPfIsPublished] = useState(true)
   const [pfRobotSpline, setPfRobotSpline] = useState('')
+  const [pfLanyardOffsetX, setPfLanyardOffsetX] = useState(0)
+  const [pfLanyardOffsetY, setPfLanyardOffsetY] = useState(0)
+  const [pfLanyardScale, setPfLanyardScale] = useState(100)
   const [pfTenants, setPfTenants] = useState<PortfolioTenant[]>([])
   const [pfLoading, setPfLoading] = useState(false)
   const [pfSaving, setPfSaving] = useState(false)
@@ -122,6 +125,9 @@ export function usePortfolio() {
       setPfAccentColor(d.accentColor || '#6366f1')
       setPfIsPublished(d.isPublished ?? true)
       setPfRobotSpline(d.robotSplineUrl || '')
+      setPfLanyardOffsetX(Number(d.lanyardOffsetX) || 0)
+      setPfLanyardOffsetY(Number(d.lanyardOffsetY) || 0)
+      setPfLanyardScale(Number(d.lanyardScale) || 100)
       setPfTenants(d.tenants || [])
     }
     setPfLoading(false)
@@ -166,6 +172,7 @@ export function usePortfolio() {
       contactEmail: pfContactEmail, contactWhatsapp: pfContactWhatsapp,
       contactInstagram: pfContactInstagram, accentColor: pfAccentColor, isPublished: pfIsPublished,
       robotSplineUrl: pfRobotSpline,
+      lanyardOffsetX: pfLanyardOffsetX, lanyardOffsetY: pfLanyardOffsetY, lanyardScale: pfLanyardScale,
     })
     if (res.success) {
       setPfSaved(true); toast.success('Portafolio guardado')
@@ -310,6 +317,7 @@ export function usePortfolio() {
     pfContactWhatsapp, setPfContactWhatsapp, pfContactInstagram, setPfContactInstagram,
     pfAccentColor, setPfAccentColor, pfIsPublished, setPfIsPublished,
     pfRobotSpline, setPfRobotSpline,
+    pfLanyardOffsetX, setPfLanyardOffsetX, pfLanyardOffsetY, setPfLanyardOffsetY, pfLanyardScale, setPfLanyardScale,
     pfTenants, pfLoading, pfSaving, pfSaved, handleSavePortfolio,
     // team
     teamCards, teamLoading, teamDialog, setTeamDialog,
