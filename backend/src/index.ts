@@ -368,6 +368,7 @@ const startServer = async () => {
       await addCol(`ALTER TABLE sale_items ADD COLUMN margin_amount DECIMAL(12,2) NULL`);
       await addCol(`ALTER TABLE sale_items ADD INDEX idx_si_variant (variant_id)`);
       // Cupo de preventa por variante (NULL = ilimitado) + contador de preventa vendida
+      await addCol(`ALTER TABLE products ADD COLUMN qty_promo TEXT NULL COMMENT 'Promo de cantidad (JSON): {secondUnitPct, tiers:[{minQty,discountPct}]}'`);
       await addCol(`ALTER TABLE product_variants ADD COLUMN preorder_limit INT NULL COMMENT 'Cupo máximo de preventa (NULL = ilimitado)'`);
       await addCol(`ALTER TABLE product_variants ADD COLUMN preorder_count INT NOT NULL DEFAULT 0 COMMENT 'Unidades vendidas/reservadas en preventa'`);
 
@@ -384,6 +385,7 @@ const startServer = async () => {
       await addCol(`ALTER TABLE store_info ADD COLUMN contact_page_image VARCHAR(500) NULL`);
       await addCol(`ALTER TABLE store_info ADD COLUMN meta_pixel_id VARCHAR(50) NULL DEFAULT NULL COMMENT 'ID del pixel de Meta/Facebook para tracking de conversiones'`);
       await addCol(`ALTER TABLE store_info ADD COLUMN enable_iva TINYINT(1) NOT NULL DEFAULT 0 COMMENT '1 = aplicar IVA 19% al registrar venta'`);
+      await addCol(`ALTER TABLE store_info ADD COLUMN product_detail_style VARCHAR(20) NULL DEFAULT 'default' COMMENT 'Estilo del detalle de producto: default | ml (cargado estilo Mercado Libre)'`);
 
       // ── Tarjeta de presentación en el marketplace (página principal) ──────────
       await addCol(`ALTER TABLE store_info ADD COLUMN card_cover_url VARCHAR(500) NULL COMMENT 'Imagen de portada de la tarjeta del comercio en el marketplace'`);

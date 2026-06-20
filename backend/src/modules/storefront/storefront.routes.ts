@@ -221,7 +221,8 @@ router.get(
             p.preorder_ship_start as preorderShipStart,
             p.preorder_ship_end as preorderShipEnd,
             p.preorder_badge_text as preorderBadgeText,
-            p.preorder_policy_text as preorderPolicyText
+            p.preorder_policy_text as preorderPolicyText,
+            p.qty_promo as qtyPromo
           FROM products p
           LEFT JOIN tenants t ON t.id = p.tenant_id
           ${joinStoreInfo}
@@ -859,6 +860,7 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
                 si.social_instagram as socialInstagram, si.social_facebook as socialFacebook,
                 si.social_tiktok as socialTiktok, si.social_whatsapp as socialWhatsapp,
                 si.product_card_style as productCardStyle,
+                si.product_detail_style as productDetailStyle,
                 si.store_theme as theme,
                 si.card_cover_url as cardCoverUrl,
                 si.card_description as cardDescription,
@@ -1412,6 +1414,7 @@ router.get('/customization', authenticate, requirePlan('empresarial'), async (re
                 si.social_tiktok as socialTiktok, si.social_whatsapp as socialWhatsapp,
                 si.department, si.municipality,
                 si.product_card_style as productCardStyle,
+                si.product_detail_style as productDetailStyle,
                 si.allow_contraentrega as allowContraentrega,
                 si.logo_size as logoSize,
                 si.show_info_module as showInfoModule,
@@ -1822,7 +1825,7 @@ router.put('/store-extended-info', authenticate, requirePlan('empresarial'), asy
     const {
       logoUrl, logoSize, schedule, locationMapUrl, termsContent, privacyContent, shippingTerms, paymentMethods,
       socialInstagram, socialFacebook, socialTiktok, socialWhatsapp,
-      department, municipality, productCardStyle, allowContraentrega,
+      department, municipality, productCardStyle, productDetailStyle, allowContraentrega,
       showInfoModule, infoModuleDescription, metaPixelId,
     } = req.body;
 
@@ -1837,14 +1840,14 @@ router.put('/store-extended-info', authenticate, requirePlan('empresarial'), asy
           logo_url = ?, logo_size = ?, schedule = ?, location_map_url = ?, terms_url = ?, privacy_url = ?, shipping_terms = ?,
           payment_methods = ?, social_instagram = ?, social_facebook = ?,
           social_tiktok = ?, social_whatsapp = ?,
-          department = ?, municipality = ?, product_card_style = ?, allow_contraentrega = ?,
+          department = ?, municipality = ?, product_card_style = ?, product_detail_style = ?, allow_contraentrega = ?,
           show_info_module = ?, info_module_description = ?, meta_pixel_id = ?
          WHERE tenant_id = ?`,
         [
           logoUrl || null, logoSizeNum, schedule || null, locationMapUrl || null, termsContent || null, privacyContent || null, shippingTerms || null,
           paymentMethods || null, socialInstagram || null, socialFacebook || null,
           socialTiktok || null, socialWhatsapp || null,
-          department || null, municipality || null, productCardStyle || 'style1', allowCod,
+          department || null, municipality || null, productCardStyle || 'style1', productDetailStyle || 'default', allowCod,
           infoModule, infoModuleDescription || null, metaPixelId || null,
           tenantId,
         ]

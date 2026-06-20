@@ -1217,11 +1217,29 @@ function ProductFormDialog({
     setFormData(prev => ({ ...prev, [name]: value }))
   }
 
+  // ── Promo de cantidad (2da unidad % + niveles) — derivada de formData.qtyPromo (JSON) ──
+  const parsePromo = (raw: any): { secondUnitPct: number; tiers: { minQty: number; discountPct: number }[] } => {
+    try {
+      const o = raw ? JSON.parse(raw) : {}
+      return { secondUnitPct: Number(o.secondUnitPct) || 0, tiers: Array.isArray(o.tiers) ? o.tiers : [] }
+    } catch { return { secondUnitPct: 0, tiers: [] } }
+  }
+  const promo = parsePromo(formData.qtyPromo)
+  const writePromo = (pct: number, tiers: { minQty: number; discountPct: number }[]) => {
+    const clean = tiers.filter(t => t.minQty >= 2 && t.discountPct > 0)
+    const obj: any = {}
+    if (pct > 0) obj.secondUnitPct = pct
+    if (clean.length) obj.tiers = clean
+    updateField('qtyPromo', Object.keys(obj).length ? JSON.stringify(obj) : '')
+  }
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    // Clean up empty/whitespace-only strings to not send them
+    // Clean up empty/whitespace-only strings to not send them.
+    // Excepción: qtyPromo SIEMPRE viaja (incluso '') para poder BORRAR la promo (backend → NULL).
     const cleaned: Record<string, any> = {}
     for (const [key, value] of Object.entries(formData)) {
+      if (key === 'qtyPromo') { cleaned[key] = value ?? ''; continue }
       if (value === '' || value === undefined || value === null) continue
       if (typeof value === 'string' && value.trim() === '') continue
       cleaned[key] = typeof value === 'string' ? value.trim() : value
@@ -1386,6 +1404,40 @@ function ProductFormDialog({
                     className="pl-7"
                   />
                 </div>
+              </div>
+            </div>
+
+            {/* ── Promo de cantidad (estilo "2da unidad con descuento") ── */}
+            <div className="space-y-3 rounded-lg border border-dashed p-3">
+              <div>
+                <Label className="text-sm font-medium">Promo de cantidad (opcional)</Label>
+                <p className="text-xs text-muted-foreground">Se muestra en el detalle estilo Mercado Libre como "Compra 1 / Compra 2…" y aplica el precio combinado al carrito.</p>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="secondUnitPct" className="text-xs">2da unidad con descuento (%)</Label>
+                <Input
+                  id="secondUnitPct"
+                  type="number"
+                  min="0"
+                  max="100"
+                  placeholder="Ej: 43 (la 2da unidad un 43% más barata)"
+                  value={promo.secondUnitPct || ''}
+                  onChange={(e) => { const v = Math.max(0, Math.min(100, parseInt(e.target.value) || 0)); writePromo(v, promo.tiers) }}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Niveles por cantidad</Label>
+                {promo.tiers.map((t, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <Input type="number" min="2" placeholder="Cantidad" className="w-24" value={t.minQty || ''}
+                      onChange={(e) => { const next = promo.tiers.map((x, j) => j === i ? { ...x, minQty: parseInt(e.target.value) || 0 } : x); writePromo(promo.secondUnitPct, next) }} />
+                    <span className="text-xs text-muted-foreground">uds →</span>
+                    <Input type="number" min="1" max="100" placeholder="% desc." className="w-24" value={t.discountPct || ''}
+                      onChange={(e) => { const next = promo.tiers.map((x, j) => j === i ? { ...x, discountPct: parseInt(e.target.value) || 0 } : x); writePromo(promo.secondUnitPct, next) }} />
+                    <button type="button" onClick={() => { const next = promo.tiers.filter((_, j) => j !== i); writePromo(promo.secondUnitPct, next) }} className="text-xs text-muted-foreground hover:text-red-500">Quitar</button>
+                  </div>
+                ))}
+                <button type="button" onClick={() => { const next = [...promo.tiers, { minQty: 2, discountPct: 10 }]; writePromo(promo.secondUnitPct, next) }} className="text-xs text-primary hover:underline">+ Agregar nivel</button>
               </div>
             </div>
 
