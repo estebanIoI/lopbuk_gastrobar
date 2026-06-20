@@ -370,6 +370,33 @@ class ApiService {
     })
   }
 
+  // ── Pasarela de pago (Wompi) — config de plataforma (superadmin) ──
+  async getPaymentGateway() {
+    return this.request<any>('/payments/superadmin/gateway')
+  }
+  async updatePaymentGateway(data: {
+    environment?: 'sandbox' | 'production'
+    publicKey?: string
+    privateKey?: string
+    integritySecret?: string
+    eventsSecret?: string
+    isActive?: boolean
+  }) {
+    return this.request<any>('/payments/superadmin/gateway', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  }
+  async createPaymentCheckout(data: { context: 'subscription' | 'package' | 'order'; contextId?: string; amountInCents?: number; currency?: string; redirectUrl?: string; customerEmail?: string }) {
+    return this.request<any>('/payments/checkout', { method: 'POST', body: JSON.stringify(data) })
+  }
+  async getPaymentTransaction(reference: string) {
+    return this.request<any>(`/payments/transaction/${reference}`)
+  }
+  async getPaymentAvailability() {
+    return this.request<any>('/payments/public/availability')
+  }
+
   async deleteProduct(id: string) {
     return this.request<any>(`/products/${id}`, {
       method: 'DELETE',

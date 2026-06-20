@@ -14,11 +14,12 @@
  */
 import { useMemo, useState, useEffect, type CSSProperties, type Dispatch, type SetStateAction } from 'react'
 import {
-  Star, Heart, Truck, ShieldCheck, RotateCcw, Store, BadgeCheck,
+  Star, Heart, Truck, ShieldCheck, RotateCcw, BadgeCheck,
   Plus, Minus, X, ThumbsUp, MessageCircleQuestion,
 } from 'lucide-react'
 import { VariantSelector, type RawVariant, type SelectedVariant } from '@/components/variant-selector'
 import { qtyPromoOptions, hasQtyPromo, type QtyPromo, type QtyPromoOption } from '@/lib/qty-promo'
+import { StoreCardML } from '@/components/theme-ml/store-card-ml'
 
 // ── Tipos públicos ────────────────────────────────────────────────────────────
 export interface MLProduct {
@@ -468,22 +469,22 @@ export function ProductDetailML({
               <p className="mt-2 text-[11px] text-[#e74c3c] text-center">Elige una variante para continuar</p>
             )}
 
-            {/* Vendedor */}
+            {/* Tarjeta de presentación del comercio (debajo de los botones) */}
             {seller && (
-              <div className="mt-4 pt-3 border-t border-[#eee] flex items-center gap-2">
-                {seller.logoUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={seller.logoUrl} alt={seller.name} className="w-8 h-8 rounded object-contain border border-[#eee]" />
-                ) : (
-                  <span className="w-8 h-8 rounded bg-[#f5f5f5] flex items-center justify-center"><Store className="w-4 h-4 text-[#999]" /></span>
-                )}
-                <div className="text-xs leading-tight">
-                  <div className="flex items-center gap-1 text-[#333] font-medium">
-                    {seller.isOfficial ? 'Tienda oficial' : 'Vendido por'} {seller.name}
-                    {seller.isOfficial && <BadgeCheck className="w-3.5 h-3.5" style={{ color: accent }} fill={accent} stroke="#fff" />}
-                  </div>
-                  {seller.salesText && <div className="text-[#999]">{seller.salesText}</div>}
-                </div>
+              <div className="mt-4">
+                <StoreCardML
+                  name={seller.name}
+                  logoUrl={seller.logoUrl}
+                  coverUrl={null}
+                  isOfficial={seller.isOfficial}
+                  followersText={seller.followersText}
+                  productsText={seller.productsText}
+                  level={seller.level}
+                  reputation={seller.reputation}
+                  salesText={seller.salesText}
+                  accentColor={accent}
+                  onGoToStore={onClose}
+                />
               </div>
             )}
 

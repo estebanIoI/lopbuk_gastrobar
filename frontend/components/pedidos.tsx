@@ -261,7 +261,11 @@ export function Pedidos() {
 
   // Mensaje de confirmación al cliente por WhatsApp, según el estado del pedido.
   const confirmWhatsApp = (order: Order) => {
-    const phone = order.customerPhone.replace(/\D/g, '')
+    // Normaliza a formato internacional para que wa.me resuelva el chat correcto.
+    // Colombia: si llega un móvil de 10 dígitos sin indicativo (empieza por 3), antepone 57.
+    let phone = order.customerPhone.replace(/\D/g, '')
+    if (phone.startsWith('0')) phone = phone.replace(/^0+/, '')
+    if (phone.length === 10 && phone.startsWith('3')) phone = '57' + phone
     const statusLine: Record<string, string> = {
       pendiente: 'Recibimos tu pedido y lo estamos confirmando. ✅',
       confirmado: '¡Tu pedido fue confirmado! Ya lo estamos preparando. 👨‍🍳',

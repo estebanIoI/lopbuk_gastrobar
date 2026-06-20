@@ -74,6 +74,8 @@ interface CheckoutViewProps {
   onPagarConAddi?: () => Promise<void>;
   // Sistecredito
   onPagarConSistecredito?: () => Promise<void>;
+  // Wompi (tarjeta / PSE / Nequi)
+  onPagarConWompi?: () => Promise<void>;
   // Contraentrega toggle
   allowContraentrega?: boolean;
   // Mínimo para domicilio gratis
@@ -115,6 +117,7 @@ export function CheckoutView({
   onPagarEnLinea,
   onPagarConAddi,
   onPagarConSistecredito,
+  onPagarConWompi,
   allowContraentrega = true,
   freeDeliveryMin = 0,
   deliveryFee = 0,
@@ -133,8 +136,10 @@ export function CheckoutView({
   const [errorAddi, setErrorAddi] = useState('');
   const [loadingSiste, setLoadingSiste] = useState(false);
   const [errorSiste, setErrorSiste] = useState('');
-  const defaultPayment = allowContraentrega ? 'contraentrega' : onPagarEnLinea ? 'mercadopago' : onPagarConAddi ? 'addi' : onPagarConSistecredito ? 'sistecredito' : 'contraentrega';
-  const [paymentMethod, setPaymentMethod] = useState<'contraentrega' | 'mercadopago' | 'addi' | 'sistecredito'>(defaultPayment);
+  const [loadingWompi, setLoadingWompi] = useState(false);
+  const [errorWompi, setErrorWompi] = useState('');
+  const defaultPayment = allowContraentrega ? 'contraentrega' : onPagarEnLinea ? 'mercadopago' : onPagarConAddi ? 'addi' : onPagarConSistecredito ? 'sistecredito' : onPagarConWompi ? 'wompi' : 'contraentrega';
+  const [paymentMethod, setPaymentMethod] = useState<'contraentrega' | 'mercadopago' | 'addi' | 'sistecredito' | 'wompi'>(defaultPayment);
   const [isLocatingAddress, setIsLocatingAddress] = useState(false);
   const [detectedAddress, setDetectedAddress] = useState<string | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
@@ -220,15 +225,31 @@ export function CheckoutView({
     }
   };
 
+  const handlePagarConWompi = async () => {
+    if (!onPagarConWompi) return;
+    if (!validateForm()) return;
+    setLoadingWompi(true);
+    setErrorWompi('');
+    try {
+      await onPagarConWompi();
+    } catch {
+      setErrorWompi('Error al iniciar el pago con Wompi. Intenta de nuevo.');
+    } finally {
+      setLoadingWompi(false);
+    }
+  };
+
   const handleFinalizar = async () => {
     if (paymentMethod === 'mercadopago') return handlePagarEnLinea();
     if (paymentMethod === 'addi') return handlePagarConAddi();
     if (paymentMethod === 'sistecredito') return handlePagarConSistecredito();
+    if (paymentMethod === 'wompi') return handlePagarConWompi();
     handleConfirmar();
   };
 
-  const isProcessing = loadingMP || loadingAddi || loadingSiste || enviandoEmail;
+  const isProcessing = loadingMP || loadingAddi || loadingSiste || loadingWompi || enviandoEmail;
   const currentPaymentError =
+    paymentMethod === 'wompi' ? errorWompi :
     paymentMethod === 'mercadopago' ? errorMP :
     paymentMethod === 'addi' ? errorAddi :
     paymentMethod === 'sistecredito' ? errorSiste : '';
@@ -994,6 +1015,21 @@ export function CheckoutView({
                           </div>
                         </label>
                       )}
+
+                      {/* Wompi */}
+                      {onPagarConWompi && (
+                        <label className={`flex items-center gap-3 p-3 border cursor-pointer transition-colors ${paymentMethod === 'wompi' ? 'border-[#3483fa] bg-blue-50' : 'border-gray-200 hover:border-gray-400'}`}>
+                          <input type="radio" name="paymentMethod" value="wompi" checked={paymentMethod === 'wompi'} onChange={() => setPaymentMethod('wompi')} className="shrink-0" style={{ accentColor: '#3483fa' }} />
+                          <svg viewBox="0 0 48 48" className="w-10 h-10 shrink-0" xmlns="http://www.w3.org/2000/svg">
+                            <rect width="48" height="48" rx="6" fill="#3483fa"/>
+                            <text x="24" y="31" textAnchor="middle" fontFamily="Arial, sans-serif" fontWeight="900" fontSize="20" fill="#fff">W</text>
+                          </svg>
+                          <div className="flex-1 min-w-0">
+                            <span className="text-sm font-semibold text-gray-900">Wompi</span>
+                            <p className="text-xs text-gray-500 font-light mt-0.5">Tarjeta, PSE, Nequi y más</p>
+                          </div>
+                        </label>
+                      )}
                     </div>
                   </div>
                 )}
@@ -1061,6 +1097,7 @@ export function CheckoutView({
                     paymentMethod === 'mercadopago' ? 'animate-mp-shimmer animate-mp-shake' :
                     paymentMethod === 'addi' ? 'bg-[#FF5E00] hover:bg-[#e05500]' :
                     paymentMethod === 'sistecredito' ? 'bg-[#1A3FA0] hover:bg-[#142e80]' :
+                    paymentMethod === 'wompi' ? 'bg-[#3483fa] hover:bg-[#2968c8]' :
                     'bg-gray-900 hover:bg-gray-700'
                   }`}
                 >
@@ -1093,6 +1130,7 @@ export function CheckoutView({
                           paymentMethod === 'mercadopago' ? 'PAGAR CON MERCADO PAGO' :
                           paymentMethod === 'addi' ? 'PAGAR CON ADDI' :
                           paymentMethod === 'sistecredito' ? 'PAGAR CON SISTECRÉDITO' :
+                          paymentMethod === 'wompi' ? 'PAGAR CON WOMPI' :
                           'CONFIRMAR PEDIDO'}
                       </span>
                       {paymentMethod === 'mercadopago' && <Sparkles className="w-4 h-4 flex-shrink-0 opacity-80" />}

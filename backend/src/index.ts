@@ -54,6 +54,7 @@ import { gastrobarRoutes } from './modules/gastrobar-ops';
 import { rutinaRoutes } from './modules/rutina';
 import variantsRoutes from './modules/variants/variants.routes';
 import affiliatesRoutes from './modules/affiliates/affiliates.routes';
+import paymentsRoutes from './modules/payments/payments.routes';
 import suppliersRoutes from './modules/suppliers/suppliers.routes';
 import { gymRoutes } from './modules/gym';
 import assistantRoutes from './modules/assistant/assistant.routes';
@@ -172,6 +173,7 @@ app.use(`${apiPrefix}/restbar`, restbarRoutes);
 app.use(`${apiPrefix}/restbar-qr`, restbarQrRoutes);
 app.use(`${apiPrefix}/loyalty`, loyaltyRoutes);
 app.use(`${apiPrefix}/affiliates`, affiliatesRoutes);
+app.use(`${apiPrefix}/payments`, paymentsRoutes);
 app.use(`${apiPrefix}/daimuz-chat`, daimuzChatRoutes);
 app.use(`${apiPrefix}/finances`, financesRoutes);
 app.use(`${apiPrefix}/portfolio`, portfolioRoutes);
@@ -396,6 +398,40 @@ const startServer = async () => {
       await addCol(`ALTER TABLE store_info ADD COLUMN marketplace_order INT NOT NULL DEFAULT 0 COMMENT 'Orden de aparición en el marketplace (menor primero)'`);
       await addCol(`ALTER TABLE store_info ADD COLUMN business_hours JSON NULL COMMENT 'Horario de atención por día con franjas: {"mon":[{"open":"08:00","close":"22:00"}],...}'`);
       await addCol(`ALTER TABLE store_info ADD COLUMN store_theme VARCHAR(20) NOT NULL DEFAULT 'theme1' COMMENT 'Tema visual de la tienda pública: theme1 (clásico) o theme2 (gastronómico)'`);
+
+      // ── Pasarelas de pago: llaves de plataforma (cifradas) + transacciones Wompi ──
+      await mPool.query(`
+        CREATE TABLE IF NOT EXISTS platform_payment_gateways (
+          provider         VARCHAR(20)  NOT NULL PRIMARY KEY,
+          environment      VARCHAR(20)  NOT NULL DEFAULT 'sandbox',
+          public_key       TEXT         NULL,
+          private_key      TEXT         NULL,
+          integrity_secret TEXT         NULL,
+          events_secret    TEXT         NULL,
+          is_active        TINYINT(1)   NOT NULL DEFAULT 0,
+          updated_at       TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `).catch(() => {});
+      await mPool.query(`
+        CREATE TABLE IF NOT EXISTS wompi_transactions (
+          reference        VARCHAR(64)  NOT NULL PRIMARY KEY,
+          owner            VARCHAR(20)  NOT NULL DEFAULT 'platform',
+          tenant_id        VARCHAR(36)  NULL,
+          context          VARCHAR(30)  NOT NULL,
+          context_id       VARCHAR(64)  NULL,
+          amount_in_cents  BIGINT       NOT NULL,
+          currency         VARCHAR(3)   NOT NULL DEFAULT 'COP',
+          status           VARCHAR(20)  NOT NULL DEFAULT 'PENDING',
+          wompi_id         VARCHAR(80)  NULL,
+          customer_email   VARCHAR(255) NULL,
+          payload          JSON         NULL,
+          created_at       TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+          updated_at       TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          INDEX idx_wtx_status  (status),
+          INDEX idx_wtx_tenant  (tenant_id),
+          INDEX idx_wtx_context (context, context_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `).catch(() => {});
 
       // ── Modificadores de producto (adiciones, combos, "sin X") ────────────────
       await mPool.query(`

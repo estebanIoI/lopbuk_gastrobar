@@ -44,6 +44,7 @@ export interface CheckoutWizardMLProps {
   onPagarEnLinea?: () => Promise<void>
   onPagarConAddi?: () => Promise<void>
   onPagarConSistecredito?: () => Promise<void>
+  onPagarConWompi?: () => Promise<void>
   allowContraentrega?: boolean
   freeDeliveryMin?: number
   deliveryFee?: number
@@ -51,7 +52,7 @@ export interface CheckoutWizardMLProps {
   storeName?: string
 }
 
-type PayMethod = 'contraentrega' | 'mercadopago' | 'addi' | 'sistecredito'
+type PayMethod = 'contraentrega' | 'mercadopago' | 'addi' | 'sistecredito' | 'wompi'
 
 const fmtDate = (d: Date) => d.toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'short' })
 
@@ -63,7 +64,7 @@ export function CheckoutWizardML(props: CheckoutWizardMLProps) {
     onValidarCupon, onAplicarCupon, onRemoverCupon,
     deliveryLatitude, deliveryLongitude, isDeliveryOrder = false, onLocationChange,
     onInputChange, onConfirmar, onCerrarModal, onVolver,
-    onPagarEnLinea, onPagarConAddi, onPagarConSistecredito,
+    onPagarEnLinea, onPagarConAddi, onPagarConSistecredito, onPagarConWompi,
     allowContraentrega = true, freeDeliveryMin = 0, deliveryFee = 0,
     accentColor = '#3483fa', storeName = 'la tienda',
   } = props
@@ -170,11 +171,15 @@ export function CheckoutWizardML(props: CheckoutWizardMLProps) {
   // ── Pago ──
   const pagar = async () => {
     setPayError('')
-    if (payMethod === 'contraentrega' || isDeliveryOrder) { onConfirmar(); return }
-    const fn = payMethod === 'mercadopago' ? onPagarEnLinea : payMethod === 'addi' ? onPagarConAddi : onPagarConSistecredito
-    if (!fn) { onConfirmar(); return }
+    // Pasarela en línea según el método (Wompi funciona también para domicilio).
+    const online =
+      payMethod === 'mercadopago' ? onPagarEnLinea :
+      payMethod === 'addi' ? onPagarConAddi :
+      payMethod === 'wompi' ? onPagarConWompi :
+      payMethod === 'sistecredito' ? onPagarConSistecredito : undefined
+    if (!online) { onConfirmar(); return } // contra entrega / sin pasarela
     setLoadingPay(true)
-    try { await fn() }
+    try { await online() }
     catch { setPayError('No se pudo iniciar el pago. Intenta de nuevo.') }
     finally { setLoadingPay(false) }
   }
@@ -230,7 +235,27 @@ export function CheckoutWizardML(props: CheckoutWizardMLProps) {
         {step === 0 && (
           <div className="bg-white rounded-xl border border-[#e6e6e6] p-4 space-y-3">
             {field({ label: 'Nombre completo *', name: 'nombre', placeholder: 'Tu nombre' })}
-            {field({ label: 'Teléfono / WhatsApp *', name: 'telefono', type: 'tel', placeholder: '3001234567' })}
+            {/* Teléfono con indicativo +57 fijo: el cliente solo escribe el número */}
+            <div>
+              <label className="block text-xs font-medium text-[#666] mb-1">Teléfono / WhatsApp *</label>
+              <div className="flex">
+                <span className="inline-flex items-center px-3 rounded-l-lg border border-r-0 border-[#e6e6e6] bg-[#f5f5f5] text-sm text-[#666] shrink-0">+57</span>
+                <input
+                  type="tel"
+                  name="telefono"
+                  inputMode="numeric"
+                  value={formData.telefono || ''}
+                  onChange={(e) => {
+                    const v = e.target.value.replace(/\D/g, '').slice(0, 10)
+                    onInputChange({ target: { name: 'telefono', value: v } } as React.ChangeEvent<HTMLInputElement>)
+                    if (errors.telefono) setErrors(p => { const n = { ...p }; delete n.telefono; return n })
+                  }}
+                  placeholder="300 123 4567"
+                  className={`flex-1 min-w-0 px-3 py-2.5 text-sm rounded-r-lg border bg-white focus:outline-none ${errors.telefono ? 'border-red-400' : 'border-[#e6e6e6] focus:border-[var(--mlw)]'}`}
+                />
+              </div>
+              {errors.telefono && <p className="text-xs text-red-500 mt-1">{errors.telefono}</p>}
+            </div>
             {field({ label: 'Correo electrónico *', name: 'email', type: 'email', placeholder: 'ejemplo@correo.com' })}
             {field({ label: 'Cédula / Documento *', name: 'cedula', placeholder: 'Número de documento' })}
           </div>
@@ -338,6 +363,7 @@ export function CheckoutWizardML(props: CheckoutWizardMLProps) {
                 onPagarEnLinea && { id: 'mercadopago' as PayMethod, name: 'Tarjeta / PSE (Mercado Pago)', desc: '10% de descuento', color: '#009ee3' },
                 onPagarConAddi && { id: 'addi' as PayMethod, name: 'ADDI · Cuotas sin interés', desc: 'Aprobación inmediata', color: '#FF5E00' },
                 onPagarConSistecredito && { id: 'sistecredito' as PayMethod, name: 'Sistecrédito · Solo con cédula', desc: 'Compra a cuotas sin tarjeta', color: '#1A3FA0' },
+                onPagarConWompi && { id: 'wompi' as PayMethod, name: 'Pagar con Wompi', desc: 'Tarjeta, PSE, Nequi y más', color: '#3483fa' },
               ].filter(Boolean) as { id: PayMethod; name: string; desc: string; color: string }[]).map(m => (
                 <button key={m.id} onClick={() => setPayMethod(m.id)} className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-[#fafafa]">
                   <span className="w-9 h-9 rounded-full shrink-0 flex items-center justify-center text-white text-[10px] font-bold" style={{ backgroundColor: m.color }}>

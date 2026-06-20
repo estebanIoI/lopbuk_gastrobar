@@ -7,9 +7,9 @@ const formatCOP = (value: number) =>
 import { Button } from '@/components/ui/button'
 import { VariantSelector, type RawVariant, type SelectedVariant } from '@/components/variant-selector'
 import { ProductDetailML, type MLProduct } from '@/components/theme-ml/product-detail-ml'
-import { StoreCardML } from '@/components/theme-ml/store-card-ml'
 import { CheckoutWizardML } from '@/components/theme-ml/checkout-wizard-ml'
 import { parseQtyPromo } from '@/lib/qty-promo'
+import { FloatingMarketplaceSticker } from '@/components/floating-marketplace-sticker'
 import { HomeHeroCarousel, HomeCategoryRail, MarketplaceHomeGovCo, type HeroSlide, type PromoCardConfig } from '@/components/home-theme2'
 import { WhatsAppFloatingWidget } from '@/components/whatsapp-floating-widget'
 import { BoxLoader } from '@/components/box-loader'
@@ -384,6 +384,13 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   const [paymentConfig, setPaymentConfig] = useState<{
     mercadopago: boolean; addi: boolean; sistecredito: boolean; contraentrega: boolean
   }>({ mercadopago: false, addi: false, sistecredito: false, contraentrega: true })
+  // Wompi (pasarela de plataforma) disponible para el storefront.
+  const [wompiAvailable, setWompiAvailable] = useState(false)
+  useEffect(() => {
+    let alive = true
+    api.getPaymentAvailability().then(r => { if (alive && r?.success) setWompiAvailable(!!r.data?.wompi) }).catch(() => {})
+    return () => { alive = false }
+  }, [])
 
   // ====== CART STATE ======
   const [carrito, setCarrito] = useState<ProductoCarrito[]>([])
@@ -1855,6 +1862,10 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       alert('Por favor completa todos los campos obligatorios')
       return
     }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
+      alert('El correo electrónico no es válido')
+      return
+    }
     if (carrito.length === 0) {
       alert('El carrito está vacío')
       return
@@ -1871,6 +1882,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       }
 
       const orderNumbers: string[] = []
+      let orderError = ''
       let vehicleFlota: { tipoVehiculo: string; pesoTotal: number } | null = null
 
       for (const [tid, tenantItems] of itemsByTenant) {
@@ -1936,10 +1948,25 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 tipoVehiculo: w < 50 ? 'Moto' : w <= 500 ? 'Camión Ligero' : 'Camión Planta',
               }
             }
+          } else {
+            // El backend rechazó el pedido: capturar el motivo real (validación, stock, etc.)
+            const msg = orderJson?.error
+              || (Array.isArray(orderJson?.errors) ? orderJson.errors.map((er: any) => er.msg || er.message).join(', ') : '')
+              || `Error ${orderRes.status}`
+            console.error('Pedido rechazado por el backend:', orderRes.status, orderJson)
+            orderError = msg
           }
         } catch (e) {
           console.error('Error saving order to backend:', e)
+          orderError = 'No se pudo conectar con el servidor.'
         }
+      }
+
+      // Si ningún pedido se guardó, no mostrar éxito falso: avisar el motivo real.
+      if (orderNumbers.length === 0) {
+        setEnviandoEmail(false)
+        alert(`No se pudo completar el pedido: ${orderError || 'error desconocido'}`)
+        return
       }
 
       // Register coupon usage (once)
@@ -2023,6 +2050,42 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     const url = json.data.initPoint || json.data.sandboxInitPoint
     if (url) window.location.href = url
     else throw new Error('No se recibió URL de pago')
+  }
+
+  // ── Pago con Wompi (Fase 2): crea el pedido y redirige al Web Checkout de Wompi ──
+  const handlePagarConWompi = async () => {
+    if (carrito.length === 0) return
+    const firstTenantId = carrito.find(i => i.tenantId)?.tenantId
+    const discount = cuponAplicado?.valido ? (cuponAplicado.descuento || 0) : 0
+    const total = Math.max(0, totalCarrito - discount)
+    const orderPayload: Record<string, any> = {
+      customerName: formData.nombre, customerPhone: formData.telefono, customerEmail: formData.email,
+      customerCedula: formData.cedula, department: formData.departamento, municipality: formData.municipio,
+      address: formData.direccion, neighborhood: formData.barrio, notes: formData.notas,
+      paymentMethod: 'wompi',
+      items: carrito.map(p => ({
+        productId: String(p.id), productName: p.nombre, quantity: p.cantidad,
+        unitPrice: p.precio, originalPrice: p.precioOriginal || p.precio,
+        productImage: p.imagen || undefined, variantId: p.variantId,
+      })),
+    }
+    if (firstTenantId) orderPayload.tenantId = firstTenantId
+    if (discount > 0) { orderPayload.discount = discount; orderPayload.couponCode = cuponCodigo }
+    if (deliveryLat !== null && deliveryLng !== null) { orderPayload.deliveryLatitude = deliveryLat; orderPayload.deliveryLongitude = deliveryLng }
+    if (isAuthenticated && authUser?.id) orderPayload.clientUserId = authUser.id
+
+    const orderRes = await fetch(`${API_URL}/orders/public`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(orderPayload) })
+    const orderJson = await orderRes.json()
+    if (!orderJson.success || !orderJson.data?.orderNumber) throw new Error(orderJson.error || 'No se pudo crear el pedido')
+
+    const res = await api.createPaymentCheckout({
+      context: 'order', contextId: orderJson.data.orderNumber,
+      amountInCents: Math.round(total * 100),
+      redirectUrl: `${window.location.origin}/pago/resultado`,
+      customerEmail: formData.email,
+    })
+    if (res?.success && res.data?.checkoutUrl) window.location.href = res.data.checkoutUrl
+    else throw new Error(res?.error || 'No se pudo iniciar el pago con Wompi')
   }
 
   const handlePagarConAddi = async () => {
@@ -2449,6 +2512,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
           onPagarEnLinea={paymentConfig.mercadopago ? handlePagarEnLinea : undefined}
           onPagarConAddi={paymentConfig.addi ? handlePagarConAddi : undefined}
           onPagarConSistecredito={paymentConfig.sistecredito ? handlePagarConSistecredito : undefined}
+          onPagarConWompi={wompiAvailable ? handlePagarConWompi : undefined}
           allowContraentrega={paymentConfig.contraentrega}
           freeDeliveryMin={DELIVERY_FREE_MIN}
           deliveryFee={activeDeliveryFee}
@@ -2540,6 +2604,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
           onPagarEnLinea={paymentConfig.mercadopago ? handlePagarEnLinea : undefined}
           onPagarConAddi={paymentConfig.addi ? handlePagarConAddi : undefined}
           onPagarConSistecredito={paymentConfig.sistecredito ? handlePagarConSistecredito : undefined}
+          onPagarConWompi={wompiAvailable ? handlePagarConWompi : undefined}
           allowContraentrega={paymentConfig.contraentrega}
           freeDeliveryMin={DELIVERY_FREE_MIN}
           deliveryFee={activeDeliveryFee}
@@ -5720,7 +5785,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
             <img
               src={storeConfig?.banners?.find(b => b.position === 'hero1')?.imageUrl || platformHeroUrl}
               alt={storeConfig?.banners?.find(b => b.position === 'hero1')?.title || platformHeroTitle || 'Banner principal'}
-              className={isMobile ? 'w-full h-auto block object-cover' : 'absolute inset-0 w-full h-full object-cover object-center'}
+              className={isMobile ? 'w-full h-auto block object-contain' : 'absolute inset-0 w-full h-full object-contain object-center'}
             />
           )}
           <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/10 to-black/70 pointer-events-none" />
@@ -6195,14 +6260,14 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       muted
                       loop
                       playsInline
-                      className={isMobile ? 'w-full h-auto block object-cover' : 'absolute inset-0 w-full h-full object-cover object-center'}
+                      className={isMobile ? 'w-full h-auto block object-contain' : 'absolute inset-0 w-full h-full object-contain object-center'}
                     />
                   ) : (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={hero4.imageUrl}
                       alt={hero4.title || 'Banner'}
-                      className={isMobile ? 'w-full h-auto block object-cover' : 'absolute inset-0 w-full h-full object-cover object-center'}
+                      className={isMobile ? 'w-full h-auto block object-contain' : 'absolute inset-0 w-full h-full object-contain object-center'}
                     />
                   )}
                   <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/10 to-black/70 pointer-events-none" />
@@ -7756,20 +7821,6 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 <X style={{ width: 15, height: 15 }} />
               </button>
             </div>
-
-            {/* Tarjeta del comercio (tema ML) */}
-            {productDetailStyle === 'ml' && carrito.length > 0 && (
-              <div style={{ padding: '12px 16px 0' }}>
-                <StoreCardML
-                  name={storeConfig?.storeInfo?.name || 'Tienda'}
-                  logoUrl={storeConfig?.storeInfo?.logoUrl || null}
-                  coverUrl={(storeConfig?.storeInfo as any)?.cardCoverUrl || null}
-                  accentColor={(activeThemeColors as any)?.primary || '#3483fa'}
-                  productsText={`+${products.length} Productos`}
-                  onGoToStore={() => setShowCart(false)}
-                />
-              </div>
-            )}
 
             {/* Items */}
             <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0', backgroundColor: '#ffffff' }}>
@@ -9796,35 +9847,17 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         </div>
       )}
 
-      {/* ========== FLOATING BACK TO STORES BUTTON ==========
-          Móvil: pill inferior centrado. Escritorio: pestaña flotante pegada al
-          borde derecho, centrada verticalmente, con deslizamiento suave al hover. */}
+      {/* ========== STICKER FLOTANTE "VER TODAS LAS TIENDAS" ==========
+          Usa el logo del comercio activo; izquierda, se expande al interactuar. */}
       {selectedStore !== 'all' && stores.length > 1 && !showProductModal && (
-        <button
-          onClick={() => { setSelectedStore('all'); setShowStoresView(true); setShowCatalog(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
-          aria-label="Ver todas las tiendas"
-          className={[
-            'group fixed z-[55] inline-flex items-center gap-2 font-semibold uppercase tracking-widest',
-            'whitespace-nowrap transition-all duration-300 ease-out',
-            // Móvil: pill flotante a la derecha (no centrado, para no tapar el contenido)
-            'bottom-[max(5.5rem,calc(env(safe-area-inset-bottom)+4.5rem))] right-4 px-4 py-2.5 rounded-full text-[11px]',
-            // Escritorio: pestaña al borde derecho, centrada
-            'md:bottom-auto md:top-1/2 md:-translate-y-1/2 md:right-0',
-            'md:rounded-l-2xl md:rounded-r-none md:pl-5 md:pr-4 md:py-4 md:text-xs md:translate-x-1 md:hover:translate-x-0',
-          ].join(' ')}
-          style={{
-            backgroundColor: isLightBg ? '#0f172a' : '#ffffff',
-            color: isLightBg ? '#ffffff' : '#0f172a',
-            boxShadow: isLightBg
-              ? '0 8px 24px rgba(2,6,23,0.30), -4px 0 16px rgba(2,6,23,0.12)'
-              : '0 8px 24px rgba(0,0,0,0.45)',
-          }}
-        >
-          {/* Barra de acento que toma el color de la paleta/tema */}
-          <span className="hidden md:block absolute left-0 top-0 h-full w-1 rounded-l-2xl" style={{ background: 'var(--primary, #007BFF)' }} />
-          <ArrowLeft className="w-4 h-4 flex-shrink-0 transition-transform duration-300 group-hover:-translate-x-0.5" />
-          <span>Todas las tiendas</span>
-        </button>
+        <FloatingMarketplaceSticker
+          storeName={storeConfig?.storeInfo?.name || 'Tienda'}
+          logo={storeConfig?.storeInfo?.logoUrl || null}
+          primaryColor={(activeThemeColors as any)?.primary || '#3483fa'}
+          secondaryColor={(activeThemeColors as any)?.secondary || '#ffffff'}
+          position="left"
+          onNavigate={() => { setSelectedStore('all'); setShowStoresView(true); setShowCatalog(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
+        />
       )}
 
       {/* ========== LOCATION CHANGE BUTTON (bottom of header) ========== */}
