@@ -1192,7 +1192,7 @@ class ApiService {
     termsContent?: string; privacyContent?: string; shippingTerms?: string;
     paymentMethods?: string; socialInstagram?: string; socialFacebook?: string;
     socialTiktok?: string; socialWhatsapp?: string;
-    department?: string; municipality?: string; productCardStyle?: string;
+    department?: string; municipality?: string; productCardStyle?: string; productDetailStyle?: string;
     allowContraentrega?: boolean; showInfoModule?: boolean; infoModuleDescription?: string;
     metaPixelId?: string;
     contactPageEnabled?: boolean; contactPageTitle?: string; contactPageDescription?: string;

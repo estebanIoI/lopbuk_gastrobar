@@ -99,6 +99,7 @@ interface StoreExtendedInfo {
   department: string
   municipality: string
   productCardStyle: string
+  productDetailStyle: string
   allowContraentrega: boolean
   showInfoModule: boolean
   infoModuleDescription: string
@@ -145,7 +146,7 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
     logoUrl: '', logoSize: 40, schedule: '', locationMapUrl: '', termsContent: '', privacyContent: '', shippingTerms: '',
     paymentMethods: '', socialInstagram: '', socialFacebook: '',
     socialTiktok: '', socialWhatsapp: '',
-    department: '', municipality: '', productCardStyle: 'style1',
+    department: '', municipality: '', productCardStyle: 'style1', productDetailStyle: 'default',
     allowContraentrega: true, showInfoModule: false, infoModuleDescription: '', metaPixelId: '',
   })
 
@@ -264,6 +265,7 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
             department: result.data.storeInfo.department || '',
             municipality: result.data.storeInfo.municipality || '',
             productCardStyle: result.data.storeInfo.productCardStyle || 'style1',
+            productDetailStyle: result.data.storeInfo.productDetailStyle || 'default',
             allowContraentrega: result.data.storeInfo.allowContraentrega !== false,
             showInfoModule: !!result.data.storeInfo.showInfoModule,
             infoModuleDescription: result.data.storeInfo.infoModuleDescription || '',
@@ -1775,6 +1777,76 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
                   </div>
                   <p className="text-sm font-medium">Estilo 2 — Tienda moderna</p>
                   <p className="text-xs text-muted-foreground">Imagen limpia con iconos de acción visibles al hacer hover sobre la tarjeta</p>
+                </button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Product Detail Style Picker */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Layout className="h-4 w-4" />
+                Presentación del Detalle de Producto
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-xs text-muted-foreground mb-4">
+                Elige cómo se verá la página de detalle al abrir un producto.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Default */}
+                <button
+                  type="button"
+                  onClick={() => setStoreInfo(prev => ({ ...prev, productDetailStyle: 'default' }))}
+                  className={`relative rounded-xl border-2 p-3 text-left transition-all ${
+                    storeInfo.productDetailStyle === 'default'
+                      ? 'border-primary ring-2 ring-primary/30'
+                      : 'border-muted hover:border-muted-foreground/40'
+                  }`}
+                >
+                  {storeInfo.productDetailStyle === 'default' && (
+                    <span className="absolute top-2 right-2 bg-primary text-primary-foreground text-[10px] font-bold px-2 py-0.5 rounded-full">
+                      Activo
+                    </span>
+                  )}
+                  <div className="w-full aspect-[4/3] bg-gray-900 rounded overflow-hidden mb-2 relative p-2">
+                    <div className="w-2/3 h-full bg-white/10 rounded" />
+                    <div className="absolute top-2 right-2 bottom-2 w-1/4 bg-white/15 rounded" />
+                  </div>
+                  <p className="text-sm font-medium">Clásico</p>
+                  <p className="text-xs text-muted-foreground">Detalle inmersivo oscuro, foco en la imagen (actual).</p>
+                </button>
+
+                {/* ML */}
+                <button
+                  type="button"
+                  onClick={() => setStoreInfo(prev => ({ ...prev, productDetailStyle: 'ml' }))}
+                  className={`relative rounded-xl border-2 p-3 text-left transition-all ${
+                    storeInfo.productDetailStyle === 'ml'
+                      ? 'border-primary ring-2 ring-primary/30'
+                      : 'border-muted hover:border-muted-foreground/40'
+                  }`}
+                >
+                  {storeInfo.productDetailStyle === 'ml' && (
+                    <span className="absolute top-2 right-2 bg-primary text-primary-foreground text-[10px] font-bold px-2 py-0.5 rounded-full">
+                      Activo
+                    </span>
+                  )}
+                  <div className="w-full aspect-[4/3] bg-white rounded overflow-hidden mb-2 border border-gray-200 flex gap-1 p-1.5">
+                    <div className="w-1/6 flex flex-col gap-1">
+                      {[0,1,2].map(i => <div key={i} className="w-full aspect-square bg-gray-200 rounded-sm" />)}
+                    </div>
+                    <div className="flex-1 bg-gray-100 rounded-sm" />
+                    <div className="w-2/5 flex flex-col gap-1">
+                      <div className="h-2 bg-gray-300 rounded w-2/3" />
+                      <div className="h-3 bg-gray-800 rounded w-1/2" />
+                      <div className="h-2 bg-green-500/60 rounded w-3/4 mt-auto" />
+                      <div className="h-3 bg-blue-500/70 rounded" />
+                    </div>
+                  </div>
+                  <p className="text-sm font-medium">Cargado (estilo Mercado Libre)</p>
+                  <p className="text-xs text-muted-foreground">Galería + cuotas, envío, características, opiniones y relacionados.</p>
                 </button>
               </div>
             </CardContent>

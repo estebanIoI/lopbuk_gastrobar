@@ -6,6 +6,7 @@ const formatCOP = (value: number) =>
   new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value);
 import { Minus, Plus, Trash2, Ticket, X, Check, Loader2, AlertCircle, Zap, ShoppingCart, Package, Sparkles, Navigation, MapPin, ChevronRight } from 'lucide-react';
 import { NewTransactionButton } from '@/components/ui/new-transaction-button';
+import { OrderCompletedML } from '@/components/theme-ml/order-completed-ml';
 
 interface FieldError {
   field: string;
@@ -79,6 +80,10 @@ interface CheckoutViewProps {
   freeDeliveryMin?: number;
   // Tarifa cobrada cuando no alcanza el mínimo
   deliveryFee?: number;
+  // Tema ML (detalle/checkout cargado estilo Mercado Libre)
+  mlStyle?: boolean;
+  accentColor?: string;
+  storeName?: string;
 }
 
 export function CheckoutView({
@@ -113,6 +118,9 @@ export function CheckoutView({
   allowContraentrega = true,
   freeDeliveryMin = 0,
   deliveryFee = 0,
+  mlStyle = false,
+  accentColor = '#3483fa',
+  storeName = 'la tienda',
 }: CheckoutViewProps) {
   const [inputCupon, setInputCupon] = useState(cuponCodigo);
   const [validandoCupon, setValidandoCupon] = useState(false);
@@ -312,7 +320,19 @@ export function CheckoutView({
   const descuentoAplicado = cuponAplicado?.valido ? cuponAplicado.descuento || 0 : 0;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className={`min-h-screen ${mlStyle ? 'ml-checkout' : 'bg-gray-50'}`}>
+      {mlStyle && (
+        <style>{`
+          .ml-checkout{background:#ededed}
+          .ml-checkout input,.ml-checkout select,.ml-checkout textarea{border-radius:8px!important}
+          .ml-checkout input:focus,.ml-checkout select:focus,.ml-checkout textarea:focus{border-color:${accentColor}!important;box-shadow:0 0 0 1px ${accentColor}!important}
+          .ml-checkout .bg-white.border-gray-200{border-radius:12px}
+          .ml-checkout .border-gray-200,.ml-checkout .border-gray-300,.ml-checkout .border-gray-100{border-color:#e6e6e6!important}
+          .ml-checkout .border-gray-900{border-color:${accentColor}!important}
+          .ml-checkout .bg-gray-900{background-color:${accentColor}!important}
+          .ml-checkout .hover\\:bg-gray-700:hover{background-color:${accentColor}!important;filter:brightness(.92)}
+        `}</style>
+      )}
 
       {/* ── Stepper bar ── */}
       <div className="bg-gray-900 text-white">
@@ -1091,7 +1111,9 @@ export function CheckoutView({
 
       {/* Modal de Pedido Exitoso */}
       {mostrarModalExito && pedidoConfirmado && (
-        <ModalExito pedido={pedidoConfirmado} onCerrar={onCerrarModal} />
+        mlStyle
+          ? <OrderCompletedML pedido={pedidoConfirmado} onCerrar={onCerrarModal} storeName={storeName} accentColor={accentColor} />
+          : <ModalExito pedido={pedidoConfirmado} onCerrar={onCerrarModal} />
       )}
     </div>
   );

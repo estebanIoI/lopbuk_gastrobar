@@ -6,6 +6,10 @@ const formatCOP = (value: number) =>
   new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value)
 import { Button } from '@/components/ui/button'
 import { VariantSelector, type RawVariant, type SelectedVariant } from '@/components/variant-selector'
+import { ProductDetailML, type MLProduct } from '@/components/theme-ml/product-detail-ml'
+import { StoreCardML } from '@/components/theme-ml/store-card-ml'
+import { CheckoutWizardML } from '@/components/theme-ml/checkout-wizard-ml'
+import { parseQtyPromo } from '@/lib/qty-promo'
 import { HomeHeroCarousel, HomeCategoryRail, MarketplaceHomeGovCo, type HeroSlide, type PromoCardConfig } from '@/components/home-theme2'
 import { WhatsAppFloatingWidget } from '@/components/whatsapp-floating-widget'
 import { BoxLoader } from '@/components/box-loader'
@@ -300,6 +304,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       termsContent: string | null; privacyContent: string | null; shippingTerms: string | null
       paymentMethods: string | null; socialInstagram: string | null; socialFacebook: string | null
       socialTiktok: string | null; socialWhatsapp: string | null; productCardStyle?: string | null
+      productDetailStyle?: string | null
       metaPixelId?: string | null
       showInfoModule?: boolean | null; infoModuleDescription?: string | null
       contactPageEnabled?: boolean | number | null
@@ -331,6 +336,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   // Modificadores del producto en el modal (compartidos con el Tema 2)
   const [t1Mods, setT1Mods] = useState<any[]>([])
   const [t1ModsLoading, setT1ModsLoading] = useState(false)
+  // Promo de cantidad (tema ML): precio unitario combinado elegido en el detalle.
+  const [promoUnitPrice, setPromoUnitPrice] = useState<number | null>(null)
   const [t1Sel, setT1Sel] = useState<Record<string, Set<string>>>({})
   const [activeImageIdx, setActiveImageIdx] = useState(0)
   const [viewersCount, setViewersCount] = useState(0)
@@ -1545,6 +1552,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     setProductQuantity(1)
     setActiveImageIdx(0)
     setSelectedVariant(null)
+    setPromoUnitPrice(null)
     setShowProductModal(true)
     // Seed viewers count uniquely per product and fluctuate over time
     const seed = (product.id * 2654435761) >>> 0
@@ -1584,6 +1592,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     setShowProductModal(false)
     setSelectedProduct(null)
     setProductQuantity(1)
+    setPromoUnitPrice(null)
     window.history.replaceState({}, '', window.location.pathname)
   }
 
@@ -1671,6 +1680,11 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
     // Modificadores: suma el extra al precio y diferencia el item por combinación
     finalPrice = finalPrice + t1Extra
+    // Promo de cantidad (tema ML): el precio unitario combinado manda.
+    if (promoUnitPrice != null) {
+      precioOriginal = precioOriginal ?? selectedProduct.salePrice
+      finalPrice = promoUnitPrice + t1Extra
+    }
     const modSuffix = t1SelMods.length ? ` (${t1SelMods.map(m => m.optionName).join(', ')})` : ''
     const modSig = t1SelMods.length ? `#${t1SelMods.map(m => m.optionName).sort().join('|')}` : ''
     const varSuffix = selectedVariant ? ` — ${selectedVariant.label}` : ''
@@ -2384,6 +2398,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     : (storeConfig?.bgColor && storeConfig.bgColor !== '#000000') ? storeConfig.bgColor : platformBgColor
   // Card style chosen by the merchant
   const productCardStyle = storeConfig?.storeInfo?.productCardStyle || 'style1'
+  // Estilo del detalle de producto: 'ml' = tema cargado estilo Mercado Libre. Por defecto el clásico.
+  const productDetailStyle = storeConfig?.storeInfo?.productDetailStyle || 'default'
 
   // Compute a slightly lighter/darker variant for alternate sections
   const hexToRgb = (hex: string) => {
@@ -2406,6 +2422,41 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
   // ====== IF CHECKOUT VIEW IS ACTIVE ======
   if (showCheckout) {
+    // ── Tema ML: checkout guiado por pasos (Forma de entrega → Cuándo llega → Cómo pagar) ──
+    if (productDetailStyle === 'ml') {
+      return (
+        <CheckoutWizardML
+          carrito={carrito}
+          totalCarrito={totalCarrito}
+          formData={formData}
+          enviandoEmail={enviandoEmail}
+          mostrarModalExito={mostrarModalExito}
+          pedidoConfirmado={pedidoConfirmado}
+          cuponCodigo={cuponCodigo}
+          cuponAplicado={cuponAplicado}
+          totalConDescuento={totalConDescuento}
+          deliveryLatitude={deliveryLat}
+          deliveryLongitude={deliveryLng}
+          isDeliveryOrder={carritoTieneDelivery}
+          onLocationChange={(lat, lng) => { setDeliveryLat(lat); setDeliveryLng(lng) }}
+          onValidarCupon={handleValidarCupon}
+          onAplicarCupon={handleAplicarCupon}
+          onRemoverCupon={handleRemoverCupon}
+          onInputChange={handleInputChange}
+          onConfirmar={handleConfirmarPedido}
+          onCerrarModal={handleCerrarModal}
+          onVolver={() => setShowCheckout(false)}
+          onPagarEnLinea={paymentConfig.mercadopago ? handlePagarEnLinea : undefined}
+          onPagarConAddi={paymentConfig.addi ? handlePagarConAddi : undefined}
+          onPagarConSistecredito={paymentConfig.sistecredito ? handlePagarConSistecredito : undefined}
+          allowContraentrega={paymentConfig.contraentrega}
+          freeDeliveryMin={DELIVERY_FREE_MIN}
+          deliveryFee={activeDeliveryFee}
+          accentColor={(activeThemeColors as any)?.primary || '#3483fa'}
+          storeName={storeConfig?.storeInfo?.name || 'la tienda'}
+        />
+      )
+    }
     return (
       <div className="min-h-screen bg-gray-50">
         {/* Minimal checkout header — store logo + back link */}
@@ -2492,6 +2543,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
           allowContraentrega={paymentConfig.contraentrega}
           freeDeliveryMin={DELIVERY_FREE_MIN}
           deliveryFee={activeDeliveryFee}
+          mlStyle={productDetailStyle === 'ml'}
+          accentColor={(activeThemeColors as any)?.primary || '#3483fa'}
+          storeName={storeConfig?.storeInfo?.name || 'la tienda'}
         />
       </div>
     )
@@ -3125,6 +3179,65 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
           const lower = name.toLowerCase().trim()
           if (/^#[0-9a-f]{3,6}$/i.test(lower)) return lower
           return map[lower] ?? null
+        }
+
+        // ── TEMA NUEVO: detalle cargado estilo Mercado Libre (no toca el clásico) ──
+        // Si el producto tiene modificadores (adiciones/combos), cae al detalle
+        // clásico —que sí los renderiza— para no romper el "Agregar al carrito".
+        if (productDetailStyle === 'ml' && t1Mods.length === 0) {
+          const toML = (p: any): MLProduct => {
+            let imgs: string[] = []
+            const ri = p.images
+            if (Array.isArray(ri)) imgs = (ri as string[]).filter(Boolean)
+            else if (typeof ri === 'string') { try { imgs = (JSON.parse(ri) as string[]).filter(Boolean) } catch { /* noop */ } }
+            if (!imgs.length && p.imageUrl) imgs = [p.imageUrl]
+            return {
+              id: String(p.id),
+              name: p.name,
+              description: p.description ?? null,
+              salePrice: p.salePrice,
+              offerPrice: p.offerPrice ?? null,
+              isOnOffer: p.isOnOffer,
+              imageUrl: p.imageUrl ?? null,
+              images: imgs,
+              variants: p.variants as RawVariant[] | undefined,
+              color: (p as any).color ?? null,
+              size: (p as any).size ?? null,
+              category: p.category ?? null,
+              stock: p.stock,
+            }
+          }
+          return (
+            <div
+              className="fixed z-[150] overflow-y-auto"
+              style={{
+                top: storeConfig?.announcementBar?.isActive ? '104px' : '64px',
+                left: 0, right: 0, bottom: 0, background: '#ededed',
+              }}
+            >
+              <ProductDetailML
+                product={toML(selectedProduct)}
+                related={relatedProducts.map(toML)}
+                seller={{
+                  name: storeConfig?.storeInfo?.name || 'Tienda',
+                  logoUrl: storeConfig?.storeInfo?.logoUrl || null,
+                  isOfficial: true,
+                }}
+                accentColor={(activeThemeColors as any)?.primary || '#3483fa'}
+                formatPrice={formatCOP}
+                variant={selectedVariant}
+                onVariantChange={setSelectedVariant}
+                qty={productQuantity}
+                onQtyChange={setProductQuantity}
+                onClose={closeProductModal}
+                onAddToCart={() => addFromModal()}
+                onBuyNow={() => { if (variantPending) return; addFromModal(); setShowCart(false); handleIrAlCheckout() }}
+                onSelectRelated={(mp) => { const orig = products.find(x => String(x.id) === String(mp.id)); if (orig) openProductModal(orig) }}
+                qtyPromo={parseQtyPromo((selectedProduct as any).qtyPromo)}
+                onPromoSelect={(u) => setPromoUnitPrice(u)}
+              />
+            </div>
+          )
         }
 
         return (
@@ -7643,6 +7756,20 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 <X style={{ width: 15, height: 15 }} />
               </button>
             </div>
+
+            {/* Tarjeta del comercio (tema ML) */}
+            {productDetailStyle === 'ml' && carrito.length > 0 && (
+              <div style={{ padding: '12px 16px 0' }}>
+                <StoreCardML
+                  name={storeConfig?.storeInfo?.name || 'Tienda'}
+                  logoUrl={storeConfig?.storeInfo?.logoUrl || null}
+                  coverUrl={(storeConfig?.storeInfo as any)?.cardCoverUrl || null}
+                  accentColor={(activeThemeColors as any)?.primary || '#3483fa'}
+                  productsText={`+${products.length} Productos`}
+                  onGoToStore={() => setShowCart(false)}
+                />
+              </div>
+            )}
 
             {/* Items */}
             <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0', backgroundColor: '#ffffff' }}>

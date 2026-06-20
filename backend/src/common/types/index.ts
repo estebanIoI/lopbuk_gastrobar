@@ -165,6 +165,8 @@ export interface Product {
   description?: string;
   purchasePrice: number;
   salePrice: number;
+  /** Promo de cantidad (JSON string): {secondUnitPct, tiers:[{minQty,discountPct}]}. */
+  qtyPromo?: string;
   sku: string;
   barcode?: string;
   stock: number;
