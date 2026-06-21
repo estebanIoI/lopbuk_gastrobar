@@ -322,6 +322,17 @@ export function CheckoutWizardML(props: CheckoutWizardMLProps) {
                 )}
                 {field({ label: 'Dirección de entrega *', name: 'direccion', placeholder: 'Calle, carrera, número…' })}
                 {field({ label: 'Barrio', name: 'barrio', placeholder: 'Nombre del barrio' })}
+                <div>
+                  <label className="block text-xs font-medium text-[#666] mb-1">Notas para la entrega (opcional)</label>
+                  <textarea
+                    name="notas"
+                    value={formData.notas || ''}
+                    onChange={onInputChange}
+                    rows={2}
+                    placeholder="Ej: apto 302, dejar en portería, llamar al llegar…"
+                    className="w-full px-3 py-2.5 text-sm rounded-lg border border-[#e6e6e6] bg-white focus:outline-none focus:border-[var(--mlw)] resize-none"
+                  />
+                </div>
                 {isDeliveryOrder && onLocationChange && detectedAddress && (
                   <LocationPicker latitude={deliveryLatitude ?? null} longitude={deliveryLongitude ?? null} onChange={onLocationChange} hideButton readOnly />
                 )}

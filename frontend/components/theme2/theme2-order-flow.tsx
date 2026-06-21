@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { Theme2OrderSuccess, type OrderSuccessData } from '@/components/theme2/theme2-order-success'
 import { VariantSelector, type RawVariant, type SelectedVariant } from '@/components/variant-selector'
+import { parseQtyPromo, qtyPromoUnit, type QtyPromo } from '@/lib/qty-promo'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'
 const ASSET_BASE = API_URL.replace(/\/api$/, '')
@@ -29,6 +30,7 @@ export interface T2Product {
   isPreorder?: boolean | number
   preorderShipStart?: string | null
   preorderShipEnd?: string | null
+  qtyPromo?: QtyPromo | string | null
 }
 export interface T2Sede { id: string; name: string; address?: string | null }
 interface T2Option { id: string; name: string; imageUrl?: string | null; priceDelta: number }
@@ -165,7 +167,12 @@ export function Theme2OrderFlow({
   }, [products, search, activeCat, activeFilter, newIds, featuredIds, trendingIds])
 
   const cartCount = cart.reduce((s, i) => s + i.qty, 0)
-  const cartTotal = cart.reduce((s, i) => s + i.unit * i.qty, 0)
+  // Precio unitario efectivo de la línea: aplica la promo de cantidad ("lleva 2, −X%")
+  // del producto según la cantidad de esa línea. Si no hay promo, devuelve i.unit.
+  const lineUnit = (i: CartItem) => qtyPromoUnit(i.unit, i.qty, parseQtyPromo(i.product.qtyPromo))
+  const cartTotal = cart.reduce((s, i) => s + lineUnit(i) * i.qty, 0)
+  const cartFull = cart.reduce((s, i) => s + i.unit * i.qty, 0)
+  const cartSavings = cartFull - cartTotal
 
   const openDetail = (p: T2Product) => {
     setDetail(p); setDetailQty(1); setDetailNotes(''); setKeepAdding(false)
@@ -211,6 +218,9 @@ export function Theme2OrderFlow({
   // El precio base lo manda la variante elegida (incluye su tier base / override); si no hay, el del producto
   const detailBase = selVariant ? selVariant.price : (detail ? priceOf(detail) : 0)
   const detailUnit = detailBase + detailExtra
+  // Promo de cantidad ("lleva 2, −X%") del producto en detalle
+  const detailPromo = useMemo(() => parseQtyPromo(detail?.qtyPromo), [detail])
+  const detailEffUnit = qtyPromoUnit(detailUnit, detailQty, detailPromo)
   const detailMissing = useMemo(() =>
     detailGroups.filter(g => g.isRequired && (selected[g.id]?.size ?? 0) < Math.max(1, g.minSelect)),
     [detailGroups, selected])
@@ -305,7 +315,7 @@ export function Theme2OrderFlow({
         `${i.product.name}${i.variantLabel ? ` — ${i.variantLabel}` : ''}`
         + (i.mods.length ? ` (${i.mods.map(m => m.optionName).join(', ')})` : ''),
       quantity: i.qty,
-      unitPrice: i.unit,
+      unitPrice: lineUnit(i),
       productImage: i.variantImage || i.product.imageUrl || undefined,
       variantId: i.variantId,
       isPreorder: i.product.isPreorder ? 1 : 0,
@@ -357,7 +367,7 @@ export function Theme2OrderFlow({
         const variant = i.variantLabel ? ` · ${i.variantLabel}` : ''
         const mods = i.mods.length ? `\n   ${i.mods.map(m => m.optionName).join(', ')}` : ''
         const note = i.notes ? `\n   _${i.notes}_` : ''
-        return `• ${i.qty}x ${i.product.name}${variant} — ${COP(i.unit * i.qty)}${mods}${note}`
+        return `• ${i.qty}x ${i.product.name}${variant} — ${COP(lineUnit(i) * i.qty)}${mods}${note}`
       }),
       '',
       `*Total a pagar: ${COP(cartTotal)}*`,
@@ -390,7 +400,7 @@ export function Theme2OrderFlow({
     setSubmitting(true)
     setOrderError('')
     // Snapshot ANTES de vaciar el carrito (para el ticket).
-    const snapshotItems = cart.map(i => ({ name: `${i.product.name}${i.variantLabel ? ` — ${i.variantLabel}` : ''}`, qty: i.qty, lineTotal: i.unit * i.qty }))
+    const snapshotItems = cart.map(i => ({ name: `${i.product.name}${i.variantLabel ? ` — ${i.variantLabel}` : ''}`, qty: i.qty, lineTotal: lineUnit(i) * i.qty }))
     const snapshotMode = mode
     const snapshotName = coName.trim()
     const snapshotSede = sede?.name ?? null
@@ -520,6 +530,11 @@ export function Theme2OrderFlow({
                   <h3 className="font-bold text-sm">{p.name}</h3>
                   {p.description && <p className="text-xs text-white/40 line-clamp-2 mt-0.5">{p.description}</p>}
                 </button>
+                {(() => { const pr = parseQtyPromo(p.qtyPromo); return pr ? (
+                  <span className="mt-1 inline-flex w-fit items-center rounded-full bg-green-500/15 text-green-400 text-[10px] font-bold px-2 py-0.5">
+                    {pr.secondUnitPct ? `2da −${pr.secondUnitPct}%` : 'Promo x cantidad'}
+                  </span>
+                ) : null })()}
                 <div className="mt-auto flex items-center justify-between pt-2">
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-cyan-400">{COP(priceOf(p))}</span>
@@ -635,6 +650,21 @@ export function Theme2OrderFlow({
                   <span className="w-8 text-center font-bold">{detailQty}</span>
                   <button onClick={() => setDetailQty(q => q + 1)} className="w-9 h-9 rounded-lg bg-white/5 flex items-center justify-center hover:bg-white/10"><Plus className="w-4 h-4" /></button>
                 </div>
+                {detailPromo && (
+                  <div className="mt-3 rounded-xl border border-green-500/30 bg-green-500/[0.07] px-3 py-2.5">
+                    <p className="text-[13px] font-semibold text-green-400">
+                      {detailPromo.secondUnitPct ? `🔥 Lleva 2 y la 2da con ${detailPromo.secondUnitPct}% menos` : '🔥 Promo por cantidad'}
+                    </p>
+                    {!!(detailPromo.tiers && detailPromo.tiers.length) && (
+                      <p className="text-[11px] text-green-300/80 mt-0.5">
+                        {detailPromo.tiers.map(t => `${t.minQty}+ → ${t.discountPct}% menos`).join(' · ')}
+                      </p>
+                    )}
+                    {detailEffUnit < detailUnit && (
+                      <p className="text-[11px] text-white/60 mt-1">Con {detailQty} unidades pagas {COP(detailEffUnit)} c/u · ahorras {COP((detailUnit - detailEffUnit) * detailQty)}</p>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div>
@@ -665,7 +695,7 @@ export function Theme2OrderFlow({
                 ? (selVariant && selVariant.available <= 0 ? 'Variante agotada' : 'Elige una opción')
                 : detailMissing.length > 0
                   ? `Elige: ${detailMissing.map(g => g.name).join(', ')}`
-                  : `Agregar ${COP(detailUnit * detailQty)}`}
+                  : `Agregar ${COP(detailEffUnit * detailQty)}`}
             </button>
           </div>
         </div>
@@ -674,8 +704,8 @@ export function Theme2OrderFlow({
       {/* ════ CARRITO (Fase 2: resumen + WhatsApp; checkout completo en Fase 3) ════ */}
       {showCart && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex justify-end" onClick={() => setShowCart(false)}>
-          <div className="w-full max-w-md h-full bg-[#0e0e0e] border-l border-white/[0.06] flex flex-col" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-4 border-b border-white/[0.06]">
+          <div className="w-full max-w-md h-[100dvh] max-h-[100dvh] bg-[#0e0e0e] border-l border-white/[0.06] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 border-b border-white/[0.06] shrink-0">
               <h3 className="font-bold">Tu pedido ({cartCount})</h3>
               <div className="flex items-center gap-3">
                 <button onClick={() => setCart([])} className="text-white/40 hover:text-red-400"><Trash2 className="w-4 h-4" /></button>
@@ -686,25 +716,39 @@ export function Theme2OrderFlow({
               {/* Items */}
               {cart.length === 0 ? (
                 <p className="text-center text-white/40 py-16 text-sm">Tu carrito está vacío.</p>
-              ) : cart.map(i => (
-                <div key={i.key} className="py-3 border-b border-white/[0.05]">
-                  <div className="flex justify-between gap-3">
-                    <p className="text-sm font-semibold text-white/90 leading-snug">{i.product.name}</p>
-                    <span className="text-sm font-bold text-white shrink-0">{COP(i.unit * i.qty)}</span>
-                  </div>
-                  {i.variantLabel && <p className="text-[11px] text-cyan-300/90 mt-1 font-medium">{i.variantLabel}</p>}
-                  {i.mods.length > 0 && <p className="text-[11px] text-cyan-300/70 mt-1">{i.mods.map(m => m.optionName).join(', ')}</p>}
-                  {i.notes && <p className="text-[11px] text-white/35 mt-0.5 italic">{i.notes}</p>}
-                  <div className="mt-2 flex items-center gap-3">
-                    <div className="inline-flex items-center rounded-full border border-white/10">
-                      <button onClick={() => changeCartQty(i.key, -1)} aria-label="Quitar uno" className="w-7 h-7 flex items-center justify-center text-white/60 hover:text-white"><Minus className="w-3.5 h-3.5" /></button>
-                      <span className="w-6 text-center text-sm font-bold">{i.qty}</span>
-                      <button onClick={() => changeCartQty(i.key, 1)} aria-label="Agregar uno" className="w-7 h-7 flex items-center justify-center text-white/60 hover:text-white"><Plus className="w-3.5 h-3.5" /></button>
+              ) : cart.map(i => {
+                const eff = lineUnit(i)
+                const discounted = eff < i.unit
+                return (
+                <div key={i.key} className="py-3 border-b border-white/[0.05] flex gap-3">
+                  {(() => { const src = abs(i.variantImage || i.product.imageUrl); return src ? (
+                    <img src={src} alt={i.product.name} className="w-16 h-16 rounded-lg object-cover shrink-0 bg-white/[0.04]" />
+                  ) : (
+                    <div className="w-16 h-16 rounded-lg shrink-0 bg-white/[0.04]" />
+                  ) })()}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between gap-3">
+                      <p className="text-sm font-semibold text-white/90 leading-snug">{i.product.name}</p>
+                      <span className="text-sm font-bold text-white shrink-0 text-right">
+                        {discounted && <span className="block text-[11px] font-normal text-white/30 line-through">{COP(i.unit * i.qty)}</span>}
+                        {COP(eff * i.qty)}
+                      </span>
                     </div>
-                    <span className="text-[11px] text-white/30">{COP(i.unit)} c/u</span>
+                    {i.variantLabel && <p className="text-[11px] text-cyan-300/90 mt-1 font-medium">{i.variantLabel}</p>}
+                    {i.mods.length > 0 && <p className="text-[11px] text-cyan-300/70 mt-1">{i.mods.map(m => m.optionName).join(', ')}</p>}
+                    {i.notes && <p className="text-[11px] text-white/35 mt-0.5 italic">{i.notes}</p>}
+                    {discounted && <p className="text-[11px] text-green-400 mt-1 font-semibold">Promo aplicada · ahorras {COP((i.unit - eff) * i.qty)}</p>}
+                    <div className="mt-2 flex items-center gap-3">
+                      <div className="inline-flex items-center rounded-full border border-white/10">
+                        <button onClick={() => changeCartQty(i.key, -1)} aria-label="Quitar uno" className="w-7 h-7 flex items-center justify-center text-white/60 hover:text-white"><Minus className="w-3.5 h-3.5" /></button>
+                        <span className="w-6 text-center text-sm font-bold">{i.qty}</span>
+                        <button onClick={() => changeCartQty(i.key, 1)} aria-label="Agregar uno" className="w-7 h-7 flex items-center justify-center text-white/60 hover:text-white"><Plus className="w-3.5 h-3.5" /></button>
+                      </div>
+                      <span className="text-[11px] text-white/30">{COP(eff)} c/u</span>
+                    </div>
                   </div>
                 </div>
-              ))}
+              )})}
 
               {cart.length > 0 && (
                 <div className="space-y-4 pt-2">
@@ -793,10 +837,15 @@ export function Theme2OrderFlow({
 
             {/* Footer fijo: totales + envío */}
             {cart.length > 0 && (
-              <div className="p-4 border-t border-white/[0.06] space-y-3">
+              <div className="p-4 border-t border-white/[0.06] space-y-3 shrink-0">
                 <div className="flex justify-between text-sm text-white/50">
                   <span>Subtotal</span><span>{COP(cartTotal)}</span>
                 </div>
+                {cartSavings > 0 && (
+                  <div className="flex justify-between text-sm text-green-400 font-semibold">
+                    <span>Ahorro por promos</span><span>−{COP(cartSavings)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-lg">
                   <span className="font-semibold">Total a pagar</span>
                   <span className="font-extrabold text-cyan-400">{COP(cartTotal)}</span>

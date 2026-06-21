@@ -106,3 +106,37 @@ export function qtyPromoOptions(base: number, promo?: QtyPromo | null): QtyPromo
 
   return Array.from(opts.values()).sort((a, b) => a.qty - b.qty)
 }
+
+/**
+ * Precio unitario combinado para una línea de carrito de cantidad arbitraria.
+ * Escala la promo a cualquier `qty` (no solo a las opciones discretas):
+ *  - secondUnitPct → cada 2da unidad del par con descuento (floor(qty/2) pares).
+ *  - tiers → mejor nivel alcanzado (minQty ≤ qty) descuenta TODAS las unidades.
+ * Se elige el total más bajo entre ambas estrategias. Devuelve `base` si no aplica.
+ */
+export function qtyPromoUnit(base: number, qty: number, promo?: QtyPromo | null): number {
+  if (!promo || qty < 2 || base <= 0) return base
+  const full = base * qty
+  let best = full
+
+  if (promo.secondUnitPct && promo.secondUnitPct > 0) {
+    const pct = Math.min(100, promo.secondUnitPct)
+    const pairs = Math.floor(qty / 2)
+    const singles = qty - pairs * 2
+    const total = round(pairs * (base + base * (1 - pct / 100)) + singles * base)
+    if (total < best) best = total
+  }
+
+  let bestTierPct = 0
+  for (const t of promo.tiers ?? []) {
+    if (t.minQty >= 2 && t.discountPct > 0 && qty >= t.minQty && t.discountPct > bestTierPct) {
+      bestTierPct = Math.min(100, t.discountPct)
+    }
+  }
+  if (bestTierPct > 0) {
+    const total = round(base * qty * (1 - bestTierPct / 100))
+    if (total < best) best = total
+  }
+
+  return round(best / qty)
+}
