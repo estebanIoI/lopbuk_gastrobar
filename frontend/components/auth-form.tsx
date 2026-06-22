@@ -56,7 +56,9 @@ export function AuthForm({ onGoBack }: AuthFormProps) {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
-  const [loginBgUrl, setLoginBgUrl] = useState('/image/giflogin.gif')
+  // Sin imagen por defecto (el asset /image/giflogin.gif no existe en el repo y daba 404).
+  // El superadmin puede configurar `login_image_url`; si no, queda el degradado de fondo.
+  const [loginBgUrl, setLoginBgUrl] = useState('')
   const googleBtnRef = useRef<HTMLDivElement>(null)
   const [googleBtnWidth, setGoogleBtnWidth] = useState(380)
   const [attemptsLeft, setAttemptsLeft] = useState<number | null>(null)
@@ -230,9 +232,11 @@ export function AuthForm({ onGoBack }: AuthFormProps) {
 
       {/* ═══ LEFT — Branding panel ═══ */}
       <div className="hidden lg:flex lg:w-[52%] relative overflow-hidden">
-        {/* Background image */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={loginBgUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />
+        {/* Background image (solo si hay una configurada; onError la oculta) */}
+        {loginBgUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={loginBgUrl} alt="" className="absolute inset-0 w-full h-full object-cover" onError={() => setLoginBgUrl('')} />
+        )}
         <div className="absolute inset-0 bg-gradient-to-br from-black/90 via-black/75 to-black/60" />
 
         <div className="relative z-10 flex flex-col justify-between p-12 text-white w-full overflow-y-auto">

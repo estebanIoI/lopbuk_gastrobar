@@ -405,6 +405,18 @@ class ApiService {
   async getLegendConfig() {
     return this.request<any>('/consumer-plans/legend-config')
   }
+  async getConsumerDiscounts() {
+    return this.request<any>('/consumer-plans/me/discounts')
+  }
+  async pingConsumer() {
+    return this.request<any>('/consumer-plans/me/ping', { method: 'POST' })
+  }
+  async trackConsumerEvent(event: string, metadata?: any) {
+    return this.request<any>('/consumer-plans/me/event', { method: 'POST', body: JSON.stringify({ event, metadata }) })
+  }
+  async adminGetEventStats(days = 30) {
+    return this.request<any>(`/consumer-plans/admin/events?days=${days}`)
+  }
   // ── Consumer Plans (superadmin) ──
   async adminCreatePlanCode(body: { tier?: string; durationValue: number; durationUnit: 'day' | 'month'; stackPolicy?: 'extend' | 'replace' | 'block'; maxRedemptions?: number | null; validUntil?: string | null; scope?: 'global' | 'tenant'; tenantId?: string | null; code?: string }) {
     return this.request<any>('/consumer-plans/admin/codes', { method: 'POST', body: JSON.stringify(body) })
@@ -424,6 +436,12 @@ class ApiService {
   }
   async adminGetPlanAnalytics() {
     return this.request<any>('/consumer-plans/admin/analytics')
+  }
+  async adminGetDiscountConfig() {
+    return this.request<any>('/consumer-plans/admin/discounts')
+  }
+  async adminSaveDiscountConfig(body: { percentOff: number; freeShipping: boolean }) {
+    return this.request<any>('/consumer-plans/admin/discounts', { method: 'PUT', body: JSON.stringify(body) })
   }
   async adminSaveLegendConfig(patch: Record<string, any>) {
     return this.request<any>('/consumer-plans/admin/legend-config', { method: 'PUT', body: JSON.stringify(patch) })
@@ -1173,6 +1191,12 @@ class ApiService {
   async getPublicNewLaunches(store?: string) {
     const q = store ? `?store=${encodeURIComponent(store)}` : ''
     return this.request<any[]>(`/storefront/new-launches${q}`)
+  }
+  async getRecommended(goal?: string, limit = 8) {
+    const q = new URLSearchParams()
+    if (goal) q.set('goal', goal)
+    q.set('limit', String(limit))
+    return this.request<any[]>(`/storefront/recommended?${q.toString()}`)
   }
 
   // =============================================

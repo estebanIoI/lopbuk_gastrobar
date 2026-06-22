@@ -1099,12 +1099,14 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
           }
           // Check which stores have published services (non-blocking — runs after stores are shown)
           Promise.allSettled(
-            json.data.map((s: { slug: string }) =>
-              fetch(`${API_URL}/services/public?store=${s.slug}`)
-                .then(r => r.json())
-                .then(j => j.success && j.data?.length > 0 ? s.slug : null)
-                .catch(() => null)
-            )
+            (json.data as { slug?: string }[])
+              .filter(s => !!s.slug)   // las tarjetas externas no tienen slug → evita ?store= vacío (400)
+              .map(s =>
+                fetch(`${API_URL}/services/public?store=${encodeURIComponent(s.slug as string)}`)
+                  .then(r => r.json())
+                  .then(j => j.success && j.data?.length > 0 ? s.slug : null)
+                  .catch(() => null)
+              )
           ).then(results => {
             if (cancelled) return
             const slugsWithServices = new Set<string>(

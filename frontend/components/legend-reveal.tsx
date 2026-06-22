@@ -7,6 +7,7 @@
  */
 import { useEffect, useRef } from 'react'
 import { Crown } from 'lucide-react'
+import { hapticLegend } from '@/lib/haptics'
 
 export interface LegendRevealConfig {
   animation?: 'chat-daimuz' | 'flame' | 'confetti'
@@ -22,6 +23,7 @@ export default function LegendReveal({ config, onDone }: { config?: LegendReveal
   const finish = () => { if (doneRef.current) return; doneRef.current = true; onDone() }
 
   useEffect(() => {
+    hapticLegend()
     const t = setTimeout(finish, duration)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps

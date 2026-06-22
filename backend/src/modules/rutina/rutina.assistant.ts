@@ -195,6 +195,7 @@ export async function runAssistant(
   userId: string,
   message: string,
   history: { role: string; content: string }[] = [],
+  advanced = false,   // C7.3: LEGEND (entitlement routine_ai) → modo coach avanzado
 ): Promise<{ reply: string; products?: any[]; action?: string }> {
   const apiKey = await getAIKey();
   if (!apiKey) return { reply: 'El asistente no está configurado todavía. Intenta más tarde.' };
@@ -204,16 +205,23 @@ export async function runAssistant(
     return { reply: 'El asistente requiere una clave de IA compatible (Gemini). Avísale al administrador.' };
   }
 
+  // Free = IA básica; LEGEND = AI Coach (planes completos, nutrición contextual, combos, más memoria).
+  const systemPrompt = advanced
+    ? `${SYSTEM_PROMPT}\n\n[MODO AI COACH LEGEND] El usuario es miembro LEGEND. Entrega planes completos y detallados, contexto nutricional profundo, recomendaciones inteligentes y combos de productos sugeridos para su objetivo. Sé proactivo, específico y motivador.`
+    : SYSTEM_PROMPT;
+  const maxOut1 = advanced ? 1100 : 600;
+  const maxOut2 = advanced ? 800 : 450;
+
   const contents = [...history, { role: 'user', content: message }]
     .filter(m => m.role !== 'system')
     .map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }));
 
   const body = {
-    system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+    system_instruction: { parts: [{ text: systemPrompt }] },
     contents,
     tools: [{ functionDeclarations: TOOLS }],
     tool_config: { function_calling_config: { mode: 'AUTO' } },
-    generationConfig: { maxOutputTokens: 700, temperature: 0.7 },
+    generationConfig: { maxOutputTokens: maxOut1, temperature: 0.7 },
   };
 
   const r1 = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
@@ -239,13 +247,13 @@ export async function runAssistant(
   const r2 = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+      system_instruction: { parts: [{ text: systemPrompt }] },
       contents: [
         ...contents,
         { role: 'model', parts: [{ functionCall: { name, args } }] },
         { role: 'user', parts: [{ functionResponse: { name, response: { content: exec.summary } } }] },
       ],
-      generationConfig: { maxOutputTokens: 500, temperature: 0.7 },
+      generationConfig: { maxOutputTokens: maxOut2, temperature: 0.7 },
     }),
   });
   let reply = exec.summary;

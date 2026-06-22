@@ -6,6 +6,7 @@ import { useAuthStore } from '@/lib/auth-store'
 import { AuthForm } from '@/components/auth-form'
 import { LandingPage } from '@/components/landing-page'
 import { MerchantPanel } from '@/components/merchant-panel'
+import ConsumerOS from '@/components/consumer/ConsumerOS'
 import { FullPageLoader } from '@/components/box-loader'
 
 export default function Home() {
@@ -83,9 +84,10 @@ export default function Home() {
     return <LandingPage onGoToLogin={() => setShowLogin(true)} />
   }
 
-  // Cliente: LandingPage con sesión activa
+  // Cliente: Consumer OS (el panel ES el producto; el marketplace es "Explore" dentro).
+  // El preview de tienda (?store=) ya se manejó arriba, así que los deep-links siguen vivos.
   if (isAuthenticated && user?.role === 'cliente') {
-    return <LandingPage onGoToLogin={() => {}} />
+    return <ConsumerOS />
   }
 
   // Sin sesión: landing pública y, al pulsar acceder, el formulario de login

@@ -10,6 +10,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { Crown, Loader2, Check, Ticket, Sparkles, Brain, Palette, Star, Tag, Boxes, Lock, Flame, Trophy } from 'lucide-react'
 import { api } from '@/lib/api'
 import LegendBadge from '@/components/legend-badge'
+import { refreshEntitlements } from '@/components/consumer/hooks/useEntitlements'
 
 interface TierState {
   tier: string
@@ -90,6 +91,8 @@ export default function PlanesView({ onUpgrade }: { onUpgrade?: (state: TierStat
         setState(r.data)
         setCode('')
         setSuccess('¡Código activado! Bienvenido a LEGEND.')
+        refreshEntitlements()   // invalida el cache para que los gates se desbloqueen ya
+        api.trackConsumerEvent('legend_redeemed').catch(() => {})
         onUpgrade?.(r.data)
       } else {
         setError(r.error || 'No se pudo activar el código')

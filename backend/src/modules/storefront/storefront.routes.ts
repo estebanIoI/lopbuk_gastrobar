@@ -2700,6 +2700,96 @@ router.get('/superadmin/sales-timeline', authenticate, async (req: Request, res:
 // PLATFORM FEATURED PRODUCTS (Superadmin pinned)
 // =============================================
 
+// GET /api/storefront/recommended?goal=...&limit=... — Public
+// Recos contextuales por objetivo del usuario (commerce intelligence). Hoy heurística
+// por palabras clave server-side; misma forma/visibilidad que el resto del storefront,
+// reemplazable luego por tags/IA/historial sin cambiar el contrato del frontend.
+const RECO_KEYWORDS: Record<string, string[]> = {
+  bajar_peso: ['proteina', 'light', 'fit', 'detox', 'ensalada', 'fibra', 'snack', 'saludable', 'integral', 'cero', 'te'],
+  subir_masa: ['proteina', 'whey', 'creatina', 'masa', 'gainer', 'pollo', 'huevo', 'avena', 'mani', 'barra'],
+  mantener: ['balance', 'integral', 'natural', 'proteina', 'fruta', 'avena'],
+  salud_general: ['vitamina', 'omega', 'natural', 'organico', 'fibra', 'colageno', 'probiotico', 'te'],
+};
+const recoNorm = (s: unknown) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+
+router.get('/recommended', authenticate, async (req: Request, res: Response) => {
+  try {
+    const goal = String(req.query.goal || '');
+    const limit = Math.min(24, Math.max(1, parseInt(String(req.query.limit || '8'), 10) || 8));
+    const kws = RECO_KEYWORDS[goal];
+
+    const [rows] = await pool.query(
+      `SELECT p.id, p.name, p.category, p.brand, p.description,
+              p.sale_price as salePrice, p.image_url as imageUrl, p.images,
+              p.is_on_offer as isOnOffer, p.offer_price as offerPrice,
+              p.tenant_id as tenantId, t.name as storeName, t.slug as storeSlug
+         FROM products p
+         LEFT JOIN tenants t ON t.id = p.tenant_id
+        WHERE p.published_in_store = 1 AND p.stock > 0
+          AND p.tenant_id IN (SELECT id FROM tenants WHERE status = 'activo')
+        ORDER BY p.is_on_offer DESC, p.created_at DESC
+        LIMIT 300`
+    ) as any;
+
+    const pool0 = (rows as any[]).map(parseImages);
+
+    // merchant_priority: boost a los productos destacados de plataforma (C7.8).
+    let featured = new Set<string>();
+    try {
+      const [fs]: any = await pool.query("SELECT setting_value FROM platform_settings WHERE setting_key = 'platform_featured_product_ids' LIMIT 1");
+      if (fs?.[0]?.setting_value) (JSON.parse(fs[0].setting_value) as any[]).forEach(id => featured.add(String(id)));
+    } catch { /* sin destacados */ }
+
+    // purchase_history: ids/categorías que el usuario ya compró (por su teléfono) (C7.8).
+    const boughtIds = new Set<string>();
+    const boughtCats = new Set<string>();
+    try {
+      const userId = (req as any).user?.userId;
+      if (userId) {
+        const [u]: any = await pool.query('SELECT phone FROM users WHERE id = ? LIMIT 1', [userId]);
+        const phone = u?.[0]?.phone ? String(u[0].phone).replace(/\D/g, '') : '';
+        if (phone.length >= 7) {
+          const [hist]: any = await pool.query(
+            `SELECT DISTINCT oi.product_id AS pid, p.category AS cat
+               FROM storefront_order_items oi
+               JOIN storefront_orders o ON o.id = oi.order_id
+               LEFT JOIN products p ON p.id = oi.product_id
+              WHERE REPLACE(REPLACE(o.customer_phone,' ',''),'+','') LIKE ?
+              LIMIT 300`,
+            [`%${phone}`]
+          );
+          (hist as any[]).forEach(h => { if (h.pid) boughtIds.add(String(h.pid)); if (h.cat) boughtCats.add(recoNorm(h.cat)); });
+        }
+      }
+    } catch { /* sin historial */ }
+
+    if (!kws) { res.json({ success: true, data: await attachVariants(pool0.slice(0, limit)) }); return; }
+
+    // score = goal_match + merchant_priority + purchase_history + oferta
+    // (macro_match real requiere tags de macros en productos — pendiente.)
+    const scored = pool0
+      .map((p: any) => {
+        const text = recoNorm(`${p.name} ${p.category} ${p.brand} ${p.description || ''}`);
+        let s = 0;
+        for (const k of kws) if (text.includes(k)) s += 2;       // goal_match
+        if (featured.has(String(p.id))) s += 1.5;                // merchant_priority
+        if (boughtIds.has(String(p.id))) s += 1.2;               // purchase_history (mismo producto)
+        else if (p.category && boughtCats.has(recoNorm(p.category))) s += 0.8; // categoría comprada
+        if (p.isOnOffer) s += 0.5;                               // oferta
+        return { p, s };
+      })
+      .filter((x: any) => x.s > 0)
+      .sort((a: any, b: any) => b.s - a.s)
+      .slice(0, limit)
+      .map((x: any) => x.p);
+
+    res.json({ success: true, data: await attachVariants(scored) });
+  } catch (error) {
+    console.error('Recommended error:', error);
+    res.json({ success: true, data: [] });
+  }
+});
+
 // GET /api/storefront/platform-featured — Public
 router.get('/platform-featured', async (req: Request, res: Response) => {
   try {

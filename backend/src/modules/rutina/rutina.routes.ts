@@ -7,6 +7,7 @@ import { Router, Response } from 'express';
 import { authenticate, authorize, AuthRequest } from '../../common/middleware';
 import * as svc from './rutina.service';
 import { runAssistant, isPlatformAssistantEnabled } from './rutina.assistant';
+import { hasEntitlement } from '../consumer-plans/consumer-plans.service';
 
 const router: ReturnType<typeof Router> = Router();
 
@@ -33,7 +34,9 @@ router.post('/assistant', async (req: AuthRequest, res) => {
     }
     const { message, history } = req.body || {};
     if (!message?.trim()) { res.status(400).json({ success: false, error: 'Mensaje requerido' }); return; }
-    ok(res, await runAssistant(req.user!.userId, message.trim(), history || []));
+    // C7.3: LEGEND con entitlement routine_ai → modo AI Coach avanzado.
+    const advanced = await hasEntitlement(req.user!.userId, 'routine_ai').catch(() => false);
+    ok(res, await runAssistant(req.user!.userId, message.trim(), history || [], advanced));
   } catch (e) { fail(res, e, 'Error en el asistente'); }
 });
 

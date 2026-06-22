@@ -25,12 +25,16 @@ function LoginInner() {
   }, [checkAuth])
 
   // En cuanto haya sesión (al cargar o tras login), va al destino solicitado.
-  // El rol comunidad_admin tiene su propio panel: /comunidad/admin.
+  // Si no hay un `?next=` explícito (destino por defecto = panel comerciante),
+  // se enruta por rol: cliente → su Consumer OS (`/`); comunidad_admin → su panel.
   useEffect(() => {
     if (!isAuthenticated) return
-    const dest = user?.role === 'comunidad_admin' && next === `/panel/${DEFAULT_SLUG}`
+    const isDefault = next === `/panel/${DEFAULT_SLUG}`
+    const dest = isDefault && user?.role === 'comunidad_admin'
       ? '/comunidad/admin'
-      : next
+      : isDefault && user?.role === 'cliente'
+        ? '/'                 // el cliente vive en su Consumer OS, no en el panel comerciante
+        : next
     router.replace(dest)
   }, [isAuthenticated, user, next, router])
 

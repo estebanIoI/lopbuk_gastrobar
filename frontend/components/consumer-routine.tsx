@@ -12,14 +12,19 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   X, Home, ChefHat, CalendarDays, ShoppingBasket, Plus, Trash2, Check, Clock,
   AlertTriangle, Sparkles, Loader2, Dumbbell, Flame, TrendingUp, Settings,
-  Droplet, Target, Carrot, ListChecks, Utensils, Repeat, QrCode, ShieldCheck, ShieldX, ShieldAlert, Crown,
+  Droplet, Target, Carrot, ListChecks, Utensils, Repeat, QrCode, ShieldCheck, ShieldX, ShieldAlert, Crown, Compass,
 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { api } from '@/lib/api'
 import PlanesView from '@/components/consumer-plans-view'
 import LegendReveal from '@/components/legend-reveal'
+import { useConsumerData, type ConsumerTab } from '@/components/consumer/hooks/useConsumerData'
+import ExploreSection from '@/components/consumer/sections/explore/ExploreSection'
+import CartButton from '@/components/consumer/widgets/CartButton'
+import { useEntitlements } from '@/components/consumer/hooks/useEntitlements'
+import LegendShine from '@/components/consumer/widgets/LegendShine'
 
-type Tab = 'hoy' | 'rutina' | 'cocina' | 'plan' | 'compras' | 'gym' | 'planes'
+type Tab = ConsumerTab
 
 const MEALS = [
   { key: 'desayuno', label: 'Desayuno' },
@@ -35,70 +40,18 @@ const GOAL_LABEL: Record<string, string> = {
 }
 
 export default function ConsumerRoutine({ onClose }: { onClose: () => void }) {
-  const [tab, setTab] = useState<Tab>('hoy')
-  const [loading, setLoading] = useState(false)
+  // Core de datos compartido (C1). La UI móvil de abajo queda idéntica.
+  const {
+    tab, setTab, today, loading,
+    assistantOn, hasGym, legend, setLegend, legendCfg, streak,
+    resumen, despensa, recetas, puedoHacer, rutinas, plan, compras, gym,
+    load,
+  } = useConsumerData('hoy')
+
+  // Estado de UI propio del shell móvil (no es data → se queda aquí)
   const [showPerfil, setShowPerfil] = useState(false)
   const [showAssistant, setShowAssistant] = useState(false)
-  const [assistantOn, setAssistantOn] = useState(false)
-  // LEGEND: tema premium + reveal
-  const [legend, setLegend] = useState(false)
-  const [legendCfg, setLegendCfg] = useState<any>(null)
   const [showReveal, setShowReveal] = useState(false)
-
-  const [resumen, setResumen] = useState<any>(null)
-  const [despensa, setDespensa] = useState<any[]>([])
-  const [recetas, setRecetas] = useState<any[]>([])
-  const [puedoHacer, setPuedoHacer] = useState<any[]>([])
-  const [rutinas, setRutinas] = useState<any[]>([])
-  const [plan, setPlan] = useState<any[]>([])
-  const [compras, setCompras] = useState<any[]>([])
-  const [hasGym, setHasGym] = useState(false)
-  const [gym, setGym] = useState<any>({ membresias: [], plan: [], progreso: [], asistencia: null, acceso: null })
-
-  const today = new Date().toISOString().slice(0, 10)
-
-  useEffect(() => {
-    api.getMisMembresias().then(r => { if (r.success && (r.data || []).length) setHasGym(true) })
-    api.getPlatformAssistant().then(r => { if (r.success && r.data?.enabled) setAssistantOn(true) })
-    api.getMyPlan().then(r => { if (r.success && r.data) setLegend(!r.data.isExpired && r.data.tier === 'legend') }).catch(() => {})
-    api.getLegendConfig().then(r => { if (r.success) setLegendCfg(r.data) }).catch(() => {})
-  }, [])
-
-  const load = useCallback(async (t: Tab) => {
-    setLoading(true)
-    try {
-      if (t === 'hoy') {
-        const [r, p, ru] = await Promise.all([api.getRutinaResumen(), api.getPlanComidas(today, today), api.getRutinas()])
-        if (r.success) setResumen(r.data)
-        if (p.success) setPlan(p.data || [])
-        if (ru.success) setRutinas(ru.data || [])
-      } else if (t === 'rutina') {
-        const r = await api.getRutinas(); if (r.success) setRutinas(r.data || [])
-      } else if (t === 'cocina') {
-        const [d, a, b] = await Promise.all([api.getDespensa(), api.getRutinaRecetas(), api.getRecetasQuePuedoHacer()])
-        if (d.success) setDespensa(d.data || [])
-        if (a.success) setRecetas(a.data || [])
-        if (b.success) setPuedoHacer(b.data || [])
-      } else if (t === 'plan') {
-        const r = await api.getPlanComidas(today, today); if (r.success) setPlan(r.data || [])
-      } else if (t === 'compras') {
-        const r = await api.getListaCompras(); if (r.success) setCompras(r.data || [])
-      } else if (t === 'gym') {
-        const [mem, pl, pr, as, ac] = await Promise.all([
-          api.getMisMembresias(), api.getMiPlanGym(), api.getMiProgresoGym(), api.getMiAsistenciaGym(), api.getMiAccesoGym(),
-        ])
-        setGym({
-          membresias: mem.success ? mem.data || [] : [],
-          plan: pl.success ? pl.data || [] : [],
-          progreso: pr.success ? pr.data || [] : [],
-          asistencia: as.success ? as.data : null,
-          acceso: ac.success ? ac.data : null,
-        })
-      }
-    } finally { setLoading(false) }
-  }, [today])
-
-  useEffect(() => { load(tab) }, [tab, load])
 
   const tabs = [
     { k: 'hoy', icon: Home, label: 'Hoy' },
@@ -114,16 +67,19 @@ export default function ConsumerRoutine({ onClose }: { onClose: () => void }) {
     <div className="fixed inset-0 z-[80] bg-neutral-50 text-neutral-900 flex flex-col md:hidden">
       {/* Header con degradado (cambia a LEGEND dorado si el plan está activo) */}
       <div
-        className={`flex-shrink-0 text-white px-4 pt-4 pb-5 ${legend ? '' : 'bg-gradient-to-br from-amber-400 to-orange-500'}`}
+        className={`relative overflow-hidden flex-shrink-0 text-white px-4 pt-4 pb-5 ${legend ? '' : 'bg-gradient-to-br from-amber-400 to-orange-500'}`}
         style={legend ? { background: 'linear-gradient(135deg, #1a1a1a 0%, #2a2410 55%, #4a3a0c 100%)' } : undefined}
       >
+        {legend && <LegendShine />}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             {legend ? <Crown className="w-5 h-5" style={{ color: '#D4AF37' }} /> : <Sparkles className="w-5 h-5" />}
             <span className="text-sm font-semibold tracking-wide uppercase" style={legend ? { color: '#D4AF37' } : undefined}>{legend ? 'LEGEND' : 'Mi Rutina'}</span>
+            {streak > 1 && <span className="text-[11px] font-bold bg-white/20 rounded-full px-2 py-0.5">🔥 {streak}</span>}
           </div>
           <div className="flex items-center gap-1">
-            {assistantOn && <button onClick={() => setShowAssistant(true)} className="px-3 py-1.5 rounded-full bg-white/20 hover:bg-white/30 flex items-center gap-1.5 text-xs font-semibold" title="Asistente IA"><Sparkles className="w-4 h-4" />Asistente</button>}
+            {assistantOn && <button onClick={() => setShowAssistant(true)} className="px-3 py-1.5 rounded-full flex items-center gap-1.5 text-xs font-semibold" style={legend ? { background: 'rgba(212,175,55,0.25)', color: '#D4AF37' } : { background: 'rgba(255,255,255,0.2)' }} title={legend ? 'AI Coach LEGEND' : 'Asistente IA'}>{legend ? <Crown className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />}{legend ? 'AI Coach' : 'IA'}</button>}
+            <CartButton className="p-2 rounded-full hover:bg-white/20" />
             <button onClick={() => setShowPerfil(true)} className="p-2 rounded-full hover:bg-white/20" title="Mi perfil"><Settings className="w-5 h-5" /></button>
             <button onClick={onClose} className="p-2 rounded-full hover:bg-white/20"><X className="w-5 h-5" /></button>
           </div>
@@ -140,6 +96,7 @@ export default function ConsumerRoutine({ onClose }: { onClose: () => void }) {
         {!loading && tab === 'plan' && <PlanView plan={plan} recetas={recetas} onReload={() => load('plan')} today={today} />}
         {!loading && tab === 'compras' && <ComprasView items={compras} onReload={() => load('compras')} />}
         {tab === 'planes' && <PlanesView onUpgrade={() => { setLegend(true); setShowReveal(true) }} />}
+        {tab === 'explore' && <ExploreSection goal={resumen?.perfil?.goal} onFullStore={onClose} onGoPlanes={() => setTab('planes')} />}
         {!loading && tab === 'gym' && <GymView data={gym} onReload={() => load('gym')} />}
       </div>
 
@@ -153,6 +110,11 @@ export default function ConsumerRoutine({ onClose }: { onClose: () => void }) {
             <span className="text-[10px] font-medium">{label}</span>
           </button>
         ))}
+        {/* Explore = marketplace modular dentro del OS (tab inline) */}
+        <button onClick={() => setTab('explore')} className={`flex flex-col items-center gap-0.5 flex-1 h-full justify-center transition-colors ${tab === 'explore' ? (legend ? '' : 'text-orange-600') : 'text-neutral-400'}`} style={tab === 'explore' && legend ? { color: '#D4AF37' } : undefined}>
+          <Compass className="w-5 h-5" />
+          <span className="text-[10px] font-medium">Explore</span>
+        </button>
       </div>
 
       {showPerfil && <PerfilModal onClose={() => setShowPerfil(false)} onSaved={() => { setShowPerfil(false); load('hoy') }} />}
@@ -164,6 +126,8 @@ export default function ConsumerRoutine({ onClose }: { onClose: () => void }) {
 
 // ═══════════════════ ASISTENTE IA (chat) ═══════════════════
 function ChatAssistant({ onClose, onChanged }: any) {
+  const { has: hasEnt } = useEntitlements()
+  const advanced = hasEnt('routine_ai')
   const [msgs, setMsgs] = useState<any[]>([
     { role: 'assistant', content: '¡Hola! Soy tu asistente de bienestar. Cuéntame tu objetivo (bajar de peso, ganar músculo, salud…) y armo tu rutina y plan a tu medida. ¿Empezamos?' },
   ])
@@ -172,6 +136,7 @@ function ChatAssistant({ onClose, onChanged }: any) {
   const endRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [msgs])
+  useEffect(() => { if (advanced) api.trackConsumerEvent('ai_advanced_opened').catch(() => {}) }, [advanced])
 
   const send = async () => {
     const text = input.trim()
@@ -191,8 +156,11 @@ function ChatAssistant({ onClose, onChanged }: any) {
 
   return (
     <div className="fixed inset-0 z-[95] bg-white flex flex-col">
-      <div className="flex items-center justify-between px-4 h-14 border-b border-black/10 bg-gradient-to-br from-amber-400 to-orange-500 text-white flex-shrink-0">
-        <div className="flex items-center gap-2"><Sparkles className="w-5 h-5" /><span className="font-semibold">Asistente de bienestar</span></div>
+      <div className={`flex items-center justify-between px-4 h-14 border-b border-black/10 text-white flex-shrink-0 ${advanced ? '' : 'bg-gradient-to-br from-amber-400 to-orange-500'}`} style={advanced ? { background: 'linear-gradient(135deg, #1a1a1a 0%, #3a2f0a 100%)' } : undefined}>
+        <div className="flex items-center gap-2">
+          {advanced ? <Crown className="w-5 h-5" style={{ color: '#D4AF37' }} /> : <Sparkles className="w-5 h-5" />}
+          <span className="font-semibold" style={advanced ? { color: '#D4AF37' } : undefined}>{advanced ? 'AI Coach LEGEND' : 'Asistente de bienestar'}</span>
+        </div>
         <button onClick={onClose} className="p-2 -mr-2 hover:bg-white/20 rounded-full"><X className="w-5 h-5" /></button>
       </div>
 
@@ -938,4 +906,12 @@ function LabeledInput({ label, value, onChange }: any) {
       <input value={value} onChange={e => onChange(e.target.value)} inputMode="decimal" className={inputCls} />
     </label>
   )
+}
+
+// ── Secciones reutilizables por los shells del Consumer OS (C2) ──
+// Las exporta para que el DesktopShell las componga distinto (sin duplicar UI).
+export {
+  HoyView, RutinaView, CocinaView, PlanView, ComprasView, GymView,
+  HeaderRings, PerfilModal, ChatAssistant, WeekStrip, ActividadForm, PlanModal,
+  DespensaView, RecipeModal,
 }

@@ -894,6 +894,41 @@ const startServer = async () => {
         (UUID(),'legend','discounts'),
         (UUID(),'legend','smart_combos'),
         (UUID(),'legend','content_vault')`);
+
+      // Reglas de descuento por tier (C7.5). Configurables; seed por defecto LEGEND.
+      await poolCP.query(`CREATE TABLE IF NOT EXISTS consumer_discount_rules (
+        id VARCHAR(36) PRIMARY KEY,
+        tier VARCHAR(50) NOT NULL DEFAULT 'legend',
+        kind ENUM('percent','free_shipping','preventa') NOT NULL DEFAULT 'percent',
+        percent_off DECIMAL(5,2) NULL,
+        scope ENUM('all','category') NOT NULL DEFAULT 'all',
+        category VARCHAR(120) NULL,
+        is_active TINYINT(1) NOT NULL DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_cdr_tier (tier, is_active)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+      // Seed idempotente (ids fijos → INSERT IGNORE no duplica).
+      await poolCP.query(`INSERT IGNORE INTO consumer_discount_rules (id, tier, kind, percent_off, scope) VALUES
+        ('seed-legend-percent','legend','percent',10.00,'all'),
+        ('seed-legend-shipping','legend','free_shipping',NULL,'all')`);
+
+      // Streak engine (C7.7): un día por usuario con actividad. Streak = días consecutivos.
+      await poolCP.query(`CREATE TABLE IF NOT EXISTS consumer_streak_days (
+        user_id VARCHAR(36) NOT NULL,
+        day DATE NOT NULL,
+        PRIMARY KEY (user_id, day)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+
+      // Eventos del consumidor (C7.10 analytics).
+      await poolCP.query(`CREATE TABLE IF NOT EXISTS consumer_events (
+        id VARCHAR(36) PRIMARY KEY,
+        user_id VARCHAR(36) NULL,
+        event VARCHAR(80) NOT NULL,
+        metadata JSON NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_cev_event (event, created_at),
+        INDEX idx_cev_user (user_id, created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
     } catch (e: any) { console.warn('[migration consumer-plans]', e?.message); }
 
     // ── Variantes: color exacto (hex) además del nombre ──────────────────────
