@@ -6,10 +6,11 @@
  * (endpoint endurecido). Pago: efectivo (registra y confirma) o Wompi (1 tienda,
  * redirige al checkout público que ya construimos). No saca al usuario del OS.
  */
-import { useMemo, useState } from 'react'
-import { X, Plus, Minus, Trash2, Loader2, Check, ShoppingBag, Store } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { X, Plus, Minus, Trash2, Loader2, Check, ShoppingBag, Store, Navigation, MapPin, Crown } from 'lucide-react'
 import { api } from '@/lib/api'
 import { useConsumerCart, cartSubtotal, type ConsumerCartItem } from '@/lib/consumer-cart-store'
+import { hapticSuccess } from '@/lib/haptics'
 
 const COP = (n: number) =>
   new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(Number(n) || 0)
@@ -26,6 +27,27 @@ export default function CartDrawer({ open, onClose }: { open: boolean; onClose: 
   const [payment, setPayment] = useState<'efectivo' | 'wompi'>('efectivo')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+  // Ubicación GPS (mini-mapa, sin mostrar coordenadas)
+  const [coLat, setCoLat] = useState<number | null>(null)
+  const [coLng, setCoLng] = useState<number | null>(null)
+  const [locating, setLocating] = useState(false)
+  // Descuento LEGEND (C7.5)
+  const [discountPct, setDiscountPct] = useState(0)
+
+  useEffect(() => {
+    if (!open) return
+    api.getConsumerDiscounts().then(r => { if (r.success && r.data?.hasDiscounts) setDiscountPct(Number(r.data.percentOff) || 0) }).catch(() => {})
+  }, [open])
+
+  const captureLocation = () => {
+    if (!navigator.geolocation) return
+    setLocating(true)
+    navigator.geolocation.getCurrentPosition(
+      pos => { setCoLat(pos.coords.latitude); setCoLng(pos.coords.longitude); setLocating(false) },
+      () => setLocating(false),
+      { enableHighAccuracy: true, timeout: 10000 },
+    )
+  }
 
   // Agrupa por comercio (multi-tienda → un pedido por tienda)
   const groups = useMemo(() => {
@@ -39,6 +61,8 @@ export default function CartDrawer({ open, onClose }: { open: boolean; onClose: 
   }, [items])
 
   const subtotal = cartSubtotal(items)
+  const savings = Math.round(subtotal * discountPct / 100)
+  const finalTotal = Math.max(0, subtotal - savings)
   const missing = !name.trim() || phone.replace(/\D/g, '').length < 10
   const wompiMultiBlock = payment === 'wompi' && groups.length > 1
 
@@ -49,13 +73,19 @@ export default function CartDrawer({ open, onClose }: { open: boolean; onClose: 
     try {
       const orderNumbers: string[] = []
       for (const g of groups) {
+        const gSubtotal = g.items.reduce((s, it) => s + it.unitPrice * it.qty, 0)
+        const gDiscount = Math.round(gSubtotal * discountPct / 100)
+        const baseNote = (coLat != null && coLng != null) ? `Pedido desde Explore (Consumer OS) · Ubicación: https://maps.google.com/?q=${coLat},${coLng}` : 'Pedido desde Explore (Consumer OS)'
         const r = await fetch(`${API_URL}/orders/public`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             customerName: name.trim(),
             customerPhone: phone.trim(),
             address: address.trim() || undefined,
-            notes: 'Pedido desde Explore (Consumer OS)',
+            notes: gDiscount > 0 ? `${baseNote} · Descuento LEGEND ${discountPct}%` : baseNote,
+            discount: gDiscount || undefined,
+            deliveryLatitude: coLat ?? undefined,
+            deliveryLongitude: coLng ?? undefined,
             tenantId: g.tenantId || undefined,
             paymentMethod: payment === 'wompi' ? 'wompi' : 'efectivo',
             items: g.items.map(it => ({
@@ -78,6 +108,8 @@ export default function CartDrawer({ open, onClose }: { open: boolean; onClose: 
         setError(res?.error || 'No se pudo iniciar el pago.'); setSubmitting(false); return
       }
       // Efectivo → confirmado
+      if (savings > 0) api.trackConsumerEvent('discount_used', { amount: savings, pct: discountPct }).catch(() => {})
+      hapticSuccess()
       clear(); setStep('done')
     } catch {
       setError('No se pudo conectar. Intenta de nuevo.')
@@ -140,6 +172,22 @@ export default function CartDrawer({ open, onClose }: { open: boolean; onClose: 
                   <input value={name} onChange={e => setName(e.target.value)} placeholder="Tu nombre *" className="w-full rounded-lg border border-neutral-200 px-3 py-2.5 text-sm focus:outline-none focus:border-emerald-400" />
                   <input value={phone} onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))} inputMode="numeric" placeholder="WhatsApp (10 dígitos) *" className="w-full rounded-lg border border-neutral-200 px-3 py-2.5 text-sm focus:outline-none focus:border-emerald-400" />
                   <input value={address} onChange={e => setAddress(e.target.value)} placeholder="Dirección de entrega (opcional)" className="w-full rounded-lg border border-neutral-200 px-3 py-2.5 text-sm focus:outline-none focus:border-emerald-400" />
+                  {/* Ubicación GPS exacta (mini-mapa, sin coordenadas) */}
+                  {coLat == null || coLng == null ? (
+                    <button onClick={captureLocation} disabled={locating} className="w-full rounded-lg border border-neutral-200 py-2.5 text-sm text-neutral-600 hover:border-emerald-400 flex items-center justify-center gap-2 disabled:opacity-60">
+                      {locating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Navigation className="w-4 h-4" />}
+                      {locating ? 'Obteniendo ubicación…' : 'Agregar ubicación exacta (opcional)'}
+                    </button>
+                  ) : (
+                    <div className="rounded-lg overflow-hidden border border-emerald-300">
+                      <iframe title="Ubicación" className="w-full h-32 block" loading="lazy"
+                        src={`https://www.openstreetmap.org/export/embed.html?bbox=${coLng - 0.0035}%2C${coLat - 0.002}%2C${coLng + 0.0035}%2C${coLat + 0.002}&layer=mapnik&marker=${coLat}%2C${coLng}`} />
+                      <div className="flex items-center justify-between px-3 py-2 bg-emerald-50">
+                        <span className="text-xs font-semibold text-emerald-700 flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> Ubicación lista</span>
+                        <button onClick={() => { setCoLat(null); setCoLng(null) }} className="text-[11px] text-neutral-500 hover:text-red-500">Quitar</button>
+                      </div>
+                    </div>
+                  )}
                   <div className="grid grid-cols-2 gap-2">
                     {(['efectivo', 'wompi'] as const).map(pm => (
                       <button key={pm} onClick={() => { setPayment(pm); setError('') }} className={`rounded-lg border p-2.5 text-sm font-medium ${payment === pm ? 'border-emerald-400 bg-emerald-50 text-emerald-700' : 'border-neutral-200 text-neutral-600'}`}>
@@ -153,8 +201,16 @@ export default function CartDrawer({ open, onClose }: { open: boolean; onClose: 
               )}
             </div>
 
-            <div className="p-4 border-t border-black/10 shrink-0 space-y-3">
-              <div className="flex justify-between text-base font-bold"><span>Subtotal</span><span>{COP(subtotal)}</span></div>
+            <div className="p-4 border-t border-black/10 shrink-0 space-y-2">
+              <div className="flex justify-between text-sm text-neutral-500"><span>Subtotal</span><span>{COP(subtotal)}</span></div>
+              {savings > 0 && (
+                <div className="flex justify-between text-sm font-semibold" style={{ color: '#D4AF37' }}>
+                  <span className="flex items-center gap-1"><Crown className="w-3.5 h-3.5" /> Precio LEGEND (−{discountPct}%)</span>
+                  <span>−{COP(savings)}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-base font-bold"><span>Total</span><span>{COP(finalTotal)}</span></div>
+              {savings > 0 && <p className="text-[11px] text-emerald-600 text-right -mt-1">Ahorraste {COP(savings)} 🎉</p>}
               {step === 'cart' ? (
                 <button onClick={() => setStep('form')} className="w-full rounded-xl bg-neutral-900 text-white font-bold py-3">Continuar</button>
               ) : (

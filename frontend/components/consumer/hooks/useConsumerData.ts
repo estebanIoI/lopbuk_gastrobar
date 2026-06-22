@@ -32,6 +32,7 @@ export function useConsumerData(initialTab: ConsumerTab = 'hoy') {
   const [legend, setLegend] = useState(false)
   const [legendCfg, setLegendCfg] = useState<any>(null)
   const [planState, setPlanState] = useState<any>(null)   // /me LEGEND completo (powerDays, milestones…)
+  const [streak, setStreak] = useState(0)                 // racha de actividad (C7.7)
 
   // Datos por sección
   const [resumen, setResumen] = useState<any>(null)
@@ -51,6 +52,8 @@ export function useConsumerData(initialTab: ConsumerTab = 'hoy') {
     api.getPlatformAssistant().then(r => { if (r.success && r.data?.enabled) setAssistantOn(true) }).catch(() => {})
     api.getMyPlan().then(r => { if (r.success && r.data) { setPlanState(r.data); setLegend(!r.data.isExpired && r.data.tier === 'legend') } }).catch(() => {})
     api.getLegendConfig().then(r => { if (r.success) setLegendCfg(r.data) }).catch(() => {})
+    // Streak: registra actividad de hoy y trae la racha (C7.7).
+    api.pingConsumer().then(r => { if (r.success && r.data) setStreak(Number(r.data.streak) || 0) }).catch(() => {})
   }, [])
 
   const load = useCallback(async (t: ConsumerTab) => {
@@ -97,7 +100,7 @@ export function useConsumerData(initialTab: ConsumerTab = 'hoy') {
     // nav
     tab, setTab, today, loading,
     // flags
-    assistantOn, hasGym, legend, setLegend, legendCfg, planState,
+    assistantOn, hasGym, legend, setLegend, legendCfg, planState, streak,
     // datos
     resumen, despensa, recetas, puedoHacer, rutinas, plan, compras, gym,
     // acciones

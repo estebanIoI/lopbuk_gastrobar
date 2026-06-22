@@ -21,6 +21,8 @@ import LegendReveal from '@/components/legend-reveal'
 import { useConsumerData, type ConsumerTab } from '@/components/consumer/hooks/useConsumerData'
 import ExploreSection from '@/components/consumer/sections/explore/ExploreSection'
 import CartButton from '@/components/consumer/widgets/CartButton'
+import { useEntitlements } from '@/components/consumer/hooks/useEntitlements'
+import LegendShine from '@/components/consumer/widgets/LegendShine'
 
 type Tab = ConsumerTab
 
@@ -41,7 +43,7 @@ export default function ConsumerRoutine({ onClose }: { onClose: () => void }) {
   // Core de datos compartido (C1). La UI móvil de abajo queda idéntica.
   const {
     tab, setTab, today, loading,
-    assistantOn, hasGym, legend, setLegend, legendCfg,
+    assistantOn, hasGym, legend, setLegend, legendCfg, streak,
     resumen, despensa, recetas, puedoHacer, rutinas, plan, compras, gym,
     load,
   } = useConsumerData('hoy')
@@ -65,16 +67,18 @@ export default function ConsumerRoutine({ onClose }: { onClose: () => void }) {
     <div className="fixed inset-0 z-[80] bg-neutral-50 text-neutral-900 flex flex-col md:hidden">
       {/* Header con degradado (cambia a LEGEND dorado si el plan está activo) */}
       <div
-        className={`flex-shrink-0 text-white px-4 pt-4 pb-5 ${legend ? '' : 'bg-gradient-to-br from-amber-400 to-orange-500'}`}
+        className={`relative overflow-hidden flex-shrink-0 text-white px-4 pt-4 pb-5 ${legend ? '' : 'bg-gradient-to-br from-amber-400 to-orange-500'}`}
         style={legend ? { background: 'linear-gradient(135deg, #1a1a1a 0%, #2a2410 55%, #4a3a0c 100%)' } : undefined}
       >
+        {legend && <LegendShine />}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             {legend ? <Crown className="w-5 h-5" style={{ color: '#D4AF37' }} /> : <Sparkles className="w-5 h-5" />}
             <span className="text-sm font-semibold tracking-wide uppercase" style={legend ? { color: '#D4AF37' } : undefined}>{legend ? 'LEGEND' : 'Mi Rutina'}</span>
+            {streak > 1 && <span className="text-[11px] font-bold bg-white/20 rounded-full px-2 py-0.5">🔥 {streak}</span>}
           </div>
           <div className="flex items-center gap-1">
-            {assistantOn && <button onClick={() => setShowAssistant(true)} className="px-3 py-1.5 rounded-full bg-white/20 hover:bg-white/30 flex items-center gap-1.5 text-xs font-semibold" title="Asistente IA"><Sparkles className="w-4 h-4" />Asistente</button>}
+            {assistantOn && <button onClick={() => setShowAssistant(true)} className="px-3 py-1.5 rounded-full flex items-center gap-1.5 text-xs font-semibold" style={legend ? { background: 'rgba(212,175,55,0.25)', color: '#D4AF37' } : { background: 'rgba(255,255,255,0.2)' }} title={legend ? 'AI Coach LEGEND' : 'Asistente IA'}>{legend ? <Crown className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />}{legend ? 'AI Coach' : 'IA'}</button>}
             <CartButton className="p-2 rounded-full hover:bg-white/20" />
             <button onClick={() => setShowPerfil(true)} className="p-2 rounded-full hover:bg-white/20" title="Mi perfil"><Settings className="w-5 h-5" /></button>
             <button onClick={onClose} className="p-2 rounded-full hover:bg-white/20"><X className="w-5 h-5" /></button>
@@ -92,7 +96,7 @@ export default function ConsumerRoutine({ onClose }: { onClose: () => void }) {
         {!loading && tab === 'plan' && <PlanView plan={plan} recetas={recetas} onReload={() => load('plan')} today={today} />}
         {!loading && tab === 'compras' && <ComprasView items={compras} onReload={() => load('compras')} />}
         {tab === 'planes' && <PlanesView onUpgrade={() => { setLegend(true); setShowReveal(true) }} />}
-        {tab === 'explore' && <ExploreSection goal={resumen?.perfil?.goal} onFullStore={onClose} />}
+        {tab === 'explore' && <ExploreSection goal={resumen?.perfil?.goal} onFullStore={onClose} onGoPlanes={() => setTab('planes')} />}
         {!loading && tab === 'gym' && <GymView data={gym} onReload={() => load('gym')} />}
       </div>
 
@@ -122,6 +126,8 @@ export default function ConsumerRoutine({ onClose }: { onClose: () => void }) {
 
 // ═══════════════════ ASISTENTE IA (chat) ═══════════════════
 function ChatAssistant({ onClose, onChanged }: any) {
+  const { has: hasEnt } = useEntitlements()
+  const advanced = hasEnt('routine_ai')
   const [msgs, setMsgs] = useState<any[]>([
     { role: 'assistant', content: '¡Hola! Soy tu asistente de bienestar. Cuéntame tu objetivo (bajar de peso, ganar músculo, salud…) y armo tu rutina y plan a tu medida. ¿Empezamos?' },
   ])
@@ -130,6 +136,7 @@ function ChatAssistant({ onClose, onChanged }: any) {
   const endRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [msgs])
+  useEffect(() => { if (advanced) api.trackConsumerEvent('ai_advanced_opened').catch(() => {}) }, [advanced])
 
   const send = async () => {
     const text = input.trim()
@@ -149,8 +156,11 @@ function ChatAssistant({ onClose, onChanged }: any) {
 
   return (
     <div className="fixed inset-0 z-[95] bg-white flex flex-col">
-      <div className="flex items-center justify-between px-4 h-14 border-b border-black/10 bg-gradient-to-br from-amber-400 to-orange-500 text-white flex-shrink-0">
-        <div className="flex items-center gap-2"><Sparkles className="w-5 h-5" /><span className="font-semibold">Asistente de bienestar</span></div>
+      <div className={`flex items-center justify-between px-4 h-14 border-b border-black/10 text-white flex-shrink-0 ${advanced ? '' : 'bg-gradient-to-br from-amber-400 to-orange-500'}`} style={advanced ? { background: 'linear-gradient(135deg, #1a1a1a 0%, #3a2f0a 100%)' } : undefined}>
+        <div className="flex items-center gap-2">
+          {advanced ? <Crown className="w-5 h-5" style={{ color: '#D4AF37' }} /> : <Sparkles className="w-5 h-5" />}
+          <span className="font-semibold" style={advanced ? { color: '#D4AF37' } : undefined}>{advanced ? 'AI Coach LEGEND' : 'Asistente de bienestar'}</span>
+        </div>
         <button onClick={onClose} className="p-2 -mr-2 hover:bg-white/20 rounded-full"><X className="w-5 h-5" /></button>
       </div>
 
@@ -902,5 +912,6 @@ function LabeledInput({ label, value, onChange }: any) {
 // Las exporta para que el DesktopShell las componga distinto (sin duplicar UI).
 export {
   HoyView, RutinaView, CocinaView, PlanView, ComprasView, GymView,
-  HeaderRings, PerfilModal, ChatAssistant,
+  HeaderRings, PerfilModal, ChatAssistant, WeekStrip, ActividadForm, PlanModal,
+  DespensaView, RecipeModal,
 }

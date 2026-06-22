@@ -8,20 +8,33 @@
  * inline compartido es el siguiente incremento (C4b-cart).
  */
 import { useEffect, useMemo, useState } from 'react'
-import { Search, Compass, Loader2, ExternalLink, Sparkles } from 'lucide-react'
+import { Search, Compass, Loader2, ExternalLink, Sparkles, Boxes, Plus } from 'lucide-react'
 import { api } from '@/lib/api'
 import ProductCard from './ProductCard'
 import { rankByGoal, topRecommended } from '@/lib/explore-recommend'
+import LegendGate from '@/components/consumer/widgets/LegendGate'
+import { useConsumerCart } from '@/lib/consumer-cart-store'
+
+const COPx = (n: number) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(Number(n) || 0)
+const priceOfP = (p: any) => (p.isOnOffer && p.offerPrice ? Number(p.offerPrice) : Number(p.salePrice))
 
 const GOAL_LABEL: Record<string, string> = {
   bajar_peso: 'bajar de peso', subir_masa: 'subir masa', mantener: 'mantener tu forma', salud_general: 'salud general',
 }
 
-export default function ExploreSection({ goal, onFullStore }: { goal?: string; onFullStore?: () => void }) {
+export default function ExploreSection({ goal, onFullStore, onGoPlanes }: { goal?: string; onFullStore?: () => void; onGoPlanes?: () => void }) {
+  const addToCart = useConsumerCart(s => s.add)
   const [products, setProducts] = useState<any[]>([])
+  const [serverRecs, setServerRecs] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [q, setQ] = useState('')
   const [cat, setCat] = useState('all')
+  const [legendPct, setLegendPct] = useState(0)
+
+  useEffect(() => {
+    api.getConsumerDiscounts().then(r => { if (r.success && r.data?.hasDiscounts) setLegendPct(Number(r.data.percentOff) || 0) }).catch(() => {})
+    api.trackConsumerEvent('explore_opened').catch(() => {})
+  }, [])
 
   useEffect(() => {
     let alive = true
@@ -38,6 +51,14 @@ export default function ExploreSection({ goal, onFullStore }: { goal?: string; o
     return () => { alive = false }
   }, [])
 
+  // Recos contextuales desde el backend (con fallback al heurístico de front).
+  useEffect(() => {
+    if (!goal) { setServerRecs([]); return }
+    let alive = true
+    api.getRecommended(goal, 8).then(r => { if (alive && (r as any)?.success) setServerRecs((r as any).data || []) }).catch(() => {})
+    return () => { alive = false }
+  }, [goal])
+
   const cats = useMemo(
     () => Array.from(new Set(products.map(p => p.category).filter(Boolean))) as string[],
     [products],
@@ -50,11 +71,17 @@ export default function ExploreSection({ goal, onFullStore }: { goal?: string; o
     return rankByGoal(base, goal)   // recomendación contextual: más relevantes primero
   }, [products, cat, q, goal])
 
-  // "Recomendado para ti": solo cuando no hay búsqueda/categoría activa.
+  // "Recomendado para ti": backend si respondió, si no el heurístico de front.
+  // Solo cuando no hay búsqueda/categoría activa.
   const recommended = useMemo(
-    () => (q.trim() || cat !== 'all') ? [] : topRecommended(products, goal, 8),
-    [products, goal, q, cat],
+    () => (q.trim() || cat !== 'all') ? [] : (serverRecs.length ? serverRecs : topRecommended(products, goal, 8)),
+    [serverRecs, products, goal, q, cat],
   )
+
+  // Smart combo: arma un combo con los top recomendados para el objetivo.
+  const combo = recommended.slice(0, 3)
+  const comboTotal = combo.reduce((s, p) => s + priceOfP(p), 0)
+  const addCombo = () => { combo.forEach(p => addToCart(p, 1)); api.trackConsumerEvent('smart_combo_clicked', { count: combo.length }).catch(() => {}) }
 
   const openStore = (slug?: string) => { if (slug) window.location.assign(`/?store=${encodeURIComponent(slug)}`) }
 
@@ -93,10 +120,45 @@ export default function ExploreSection({ goal, onFullStore }: { goal?: string; o
           <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1">
             {recommended.map(p => (
               <div key={`rec-${p.id}`} className="w-40 shrink-0">
-                <ProductCard p={p} onOpen={openStore} />
+                <ProductCard p={p} onOpen={openStore} legendPct={legendPct} />
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Smart Combos (LEGEND) — soft paywall para Free */}
+      {!loading && combo.length >= 2 && (
+        <div className="mb-5">
+          <LegendGate
+            entitlement="smart_combos"
+            onUpgrade={onGoPlanes}
+            title="Combos inteligentes"
+            perks={['Combos armados para tu objetivo', 'Agrega todo en un toque', 'Solo para miembros LEGEND']}
+            teaser={
+              <div className="rounded-2xl bg-white border border-black/[0.07] p-4">
+                <p className="text-sm font-bold mb-2">Combo para tu objetivo</p>
+                <div className="flex gap-2">{combo.map(p => <div key={p.id} className="w-16 h-16 rounded-lg bg-neutral-100" />)}</div>
+              </div>
+            }
+          >
+            <div className="rounded-2xl bg-gradient-to-br from-amber-50 to-white border border-amber-200 p-4">
+              <p className="text-sm font-bold text-neutral-800 mb-1 flex items-center gap-1.5"><Boxes className="w-4 h-4 text-amber-500" /> Combo para tu objetivo</p>
+              <p className="text-[11px] text-neutral-500 mb-3">Armado con tus productos más afines.</p>
+              <div className="flex items-center gap-2 mb-3 overflow-x-auto">
+                {combo.map(p => (
+                  <div key={p.id} className="w-20 shrink-0 text-center">
+                    <div className="w-20 h-20 rounded-lg bg-neutral-100 overflow-hidden">{p.imageUrl && <img src={String(p.imageUrl).startsWith('http') ? p.imageUrl : (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/api$/, '') + p.imageUrl} alt={p.name} className="w-full h-full object-cover" />}</div>
+                    <p className="text-[10px] text-neutral-600 mt-1 line-clamp-2 leading-tight">{p.name}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-bold text-neutral-900">{COPx(comboTotal)}</span>
+                <button onClick={addCombo} className="rounded-lg bg-amber-500 text-white text-sm font-semibold px-3 py-2 inline-flex items-center gap-1.5"><Plus className="w-4 h-4" /> Agregar combo</button>
+              </div>
+            </div>
+          </LegendGate>
         </div>
       )}
 
@@ -122,7 +184,7 @@ export default function ExploreSection({ goal, onFullStore }: { goal?: string; o
         <p className="text-center text-neutral-400 py-16 text-sm">No encontramos productos.</p>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-          {filtered.map(p => <ProductCard key={p.id} p={p} onOpen={openStore} />)}
+          {filtered.map(p => <ProductCard key={p.id} p={p} onOpen={openStore} legendPct={legendPct} />)}
         </div>
       )}
     </div>

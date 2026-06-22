@@ -64,6 +64,21 @@ router.get('/legend-config', authenticate, async (_req: AuthRequest, res: Respon
   catch (e) { fail(res, e, 'Error al leer la configuración'); }
 });
 
+router.get('/me/discounts', authenticate, async (req: AuthRequest, res: Response) => {
+  try { res.json({ success: true, data: await svc.getMyDiscounts(req.user!.userId) }); }
+  catch (e) { fail(res, e, 'Error al consultar descuentos'); }
+});
+
+router.post('/me/ping', authenticate, async (req: AuthRequest, res: Response) => {
+  try { res.json({ success: true, data: await svc.pingActivity(req.user!.userId) }); }
+  catch (e) { fail(res, e, 'Error al registrar actividad'); }
+});
+
+router.post('/me/event', authenticate, async (req: AuthRequest, res: Response) => {
+  try { await svc.trackEvent(req.user!.userId, String(req.body?.event || ''), req.body?.metadata); res.json({ success: true }); }
+  catch (e) { fail(res, e, 'Error al registrar evento'); }
+});
+
 // ── Superadmin ───────────────────────────────────────────────────────────────
 router.post('/admin/codes', SUPERADMIN, async (req: AuthRequest, res: Response) => {
   try {
@@ -99,6 +114,11 @@ router.get('/admin/analytics', SUPERADMIN, async (_req: AuthRequest, res: Respon
   catch (e) { fail(res, e, 'Error al obtener analytics'); }
 });
 
+router.get('/admin/events', SUPERADMIN, async (req: AuthRequest, res: Response) => {
+  try { res.json({ success: true, data: await svc.getEventStats(Number(req.query.days) || 30) }); }
+  catch (e) { fail(res, e, 'Error al obtener eventos'); }
+});
+
 router.get('/admin/legend-config', SUPERADMIN, async (_req: AuthRequest, res: Response) => {
   try { res.json({ success: true, data: await svc.getLegendConfig() }); }
   catch (e) { fail(res, e, 'Error al leer la configuración'); }
@@ -107,6 +127,16 @@ router.get('/admin/legend-config', SUPERADMIN, async (_req: AuthRequest, res: Re
 router.put('/admin/legend-config', SUPERADMIN, async (req: AuthRequest, res: Response) => {
   try { res.json({ success: true, data: await svc.saveLegendConfig(req.body || {}) }); }
   catch (e) { fail(res, e, 'Error al guardar la configuración'); }
+});
+
+router.get('/admin/discounts', SUPERADMIN, async (_req: AuthRequest, res: Response) => {
+  try { res.json({ success: true, data: await svc.adminGetDiscountConfig() }); }
+  catch (e) { fail(res, e, 'Error al leer los descuentos'); }
+});
+
+router.put('/admin/discounts', SUPERADMIN, async (req: AuthRequest, res: Response) => {
+  try { res.json({ success: true, data: await svc.adminSaveDiscountConfig({ percentOff: Number(req.body?.percentOff) || 0, freeShipping: !!req.body?.freeShipping }) }); }
+  catch (e) { fail(res, e, 'Error al guardar los descuentos'); }
 });
 
 export default router;

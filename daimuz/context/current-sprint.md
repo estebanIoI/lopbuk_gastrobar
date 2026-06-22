@@ -18,8 +18,28 @@ Visión: el panel del `cliente` es el producto; el marketplace es una función (
 | C5 ambient+micro | ✅ | `useConsumerTheme` (ambiente FREE/LEGEND + CSS vars), `useCountUp` (contador suave), hover-lift |
 | C4b carrito inline | ✅ | `lib/consumer-cart-store` (zustand+persist, multi-tienda); `CartDrawer` (checkout inline: contra entrega multi-tienda / Wompi 1 tienda vía `/orders/public` + checkout público); `CartButton` global (sidebar+header) |
 | C6 reco engine | ✅ | `lib/explore-recommend` (scoring por objetivo: `bajar_peso`/`subir_masa`/…); "Recomendado para ti" + grid ordenado por relevancia |
+| **C7 Entitlements + Premium** | ✅ | Membresía con ACCESO REAL (ver detalle abajo) |
 
-**Pendientes Consumer OS:** Wompi multi-tienda (hoy 1 a la vez); propagar ambient theme a todas las secciones (hoy shell/Today); entrega con GPS/sedes en el CartDrawer; recos desde backend/IA (hoy heurística front); dar tratamiento "widget desktop" a Rutina/Cocina/Plan/Compras (hoy reusan la vista móvil en columna).
+**C7 — Entitlements Engine + Premium Experience (LEGEND deja de ser solo visual):**
+- **C7.1/C7.2** Base ya existía (G1/G2: `consumer_entitlements` + `hasEntitlement`). Nuevos: `useEntitlements` (frontend, access profile + cache 60s + `has(key)`), `requireEntitlement(key)` (middleware backend con 403 + log en ledger), `LegendGate` (soft paywall, nunca "acceso denegado").
+- **C7.3** IA gated: `runAssistant(advanced)` — Free básica (600/450 tokens) vs LEGEND AI Coach (1100/800 + prompt coach). Ruta detecta `routine_ai`. Branding "AI Coach LEGEND" en botón + header del chat.
+- **C7.4** Smart Combos en Explore (gated `smart_combos`): combo del top-recomendado + "Agregar combo"; Free ve teaser.
+- **C7.5** Discounts engine: tabla `consumer_discount_rules` + seed (10% + envío gratis) + `getMyDiscounts` + UI superadmin (`LegendCodesTab`: % + envío gratis). ProductCard "−X% LEGEND", CartDrawer "Ahorraste $X" + `discount` por tienda.
+- **C7.6** UX premium: `lib/haptics` (Vibration API) en add-to-cart/reveal/checkout; `LegendShine` (brillo) en header LEGEND.
+- **C7.7** Streak engine: tabla `consumer_streak_days` + `pingActivity`/`getStreak` + ping al montar; chip "🔥 N" móvil + saludo desktop.
+- **C7.8** Explore intelligence: `/recommended` (ahora autenticado) puntúa `goal_match + merchant_priority (destacados) + purchase_history (por teléfono del user) + oferta`. macro_match real pendiente (requiere tags de macros en productos).
+- **C7.10** Analytics: tabla `consumer_events` + `trackEvent` (whitelist) + `POST /me/event` + `GET /admin/events` + tarjeta "Eventos (30d)" en superadmin. Eventos: legend_redeemed, smart_combo_clicked, product_added, explore_opened, ai_advanced_opened, discount_used.
+
+**Migraciones nuevas (corren al boot):** `consumer_discount_rules`, `consumer_streak_days`, `consumer_events` (en el bloque consumer-plans de `index.ts`).
+**Pendiente C7 (mejora futura):** macro_match real (tags de macros en productos) y UI superadmin para reglas de descuento por categoría (hoy solo % global + envío).
+
+**Pendientes Consumer OS:**
+- ✅ **Recos desde backend**: `GET /storefront/recommended?goal=&limit=` (scoring server-side, misma visibilidad), `api.getRecommended`, ExploreSection lo usa con fallback al heurístico front.
+- ✅ **GPS en CartDrawer**: captura `navigator.geolocation` + mini-mapa OSM + `deliveryLatitude/Longitude` y link Maps en notas.
+- ⏳ **Wompi multi-tienda**: constraint real — un pago Wompi = una referencia/comercio. Multi-tienda en un solo pago necesita *payment splitting* a nivel plataforma (decisión de negocio/backend). Hoy: contra entrega es multi-tienda; Wompi queda 1 tienda a la vez (bloqueo con mensaje claro).
+- ⏳ **Ambient theme en TODAS las secciones**: el shell/Today ya cambian con LEGEND; retrofittear los oranges hardcodeados de Rutina/Cocina/Plan/Compras es un repaso grande (comparten UI con el móvil) — pendiente dedicado.
+- ⏳ **Tratamiento widget desktop** de Rutina/Cocina/Plan/Compras: requieren rediseño por sección (layout multi-columna), no batchear sin validar en runtime.
+- ⏳ **Sedes (pickup)** en CartDrawer: multi-tienda complica (cada comercio sus sedes); pendiente.
 
 **Acción requerida:** `pnpm exec tsc --noEmit` + `pnpm build` en frontend, validar en runtime (móvil <768, desktop ≥768, Command Center ≥1280, flujo Explore→carrito→checkout) y **Deploy en Komodo**. NO se hizo push.
 

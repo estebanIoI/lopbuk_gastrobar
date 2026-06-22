@@ -14,14 +14,17 @@ import {
 import { useConsumerData, type ConsumerTab } from '@/components/consumer/hooks/useConsumerData'
 import { useConsumerTheme } from '@/components/consumer/hooks/useConsumerTheme'
 import {
-  RutinaView, CocinaView, PlanView, ComprasView, GymView,
-  PerfilModal, ChatAssistant,
+  GymView, PerfilModal, ChatAssistant,
 } from '@/components/consumer-routine'
 import PlanesView from '@/components/consumer-plans-view'
 import LegendReveal from '@/components/legend-reveal'
 import LegendBadge from '@/components/legend-badge'
 import CommandCenter from '@/components/consumer/widgets/CommandCenter'
 import TodayDashboard from '@/components/consumer/sections/TodayDashboard'
+import RoutineDashboard from '@/components/consumer/sections/RoutineDashboard'
+import PlanDashboard from '@/components/consumer/sections/PlanDashboard'
+import KitchenDashboard from '@/components/consumer/sections/KitchenDashboard'
+import ShoppingDashboard from '@/components/consumer/sections/ShoppingDashboard'
 import ExploreSection from '@/components/consumer/sections/explore/ExploreSection'
 import CartButton from '@/components/consumer/widgets/CartButton'
 
@@ -33,7 +36,7 @@ const TITLES: Record<string, string> = {
 export default function DesktopShell({ onExplore }: { onExplore: () => void }) {
   const {
     tab, setTab, today, loading,
-    assistantOn, hasGym, legend, setLegend, legendCfg, planState,
+    assistantOn, hasGym, legend, setLegend, legendCfg, planState, streak,
     resumen, despensa, recetas, puedoHacer, rutinas, plan, compras, gym,
     load,
   } = useConsumerData('hoy')
@@ -119,7 +122,8 @@ export default function DesktopShell({ onExplore }: { onExplore: () => void }) {
           {tab === 'hoy' && (
             <p className={`text-sm mt-0.5 ${legend ? 'text-white/60' : 'text-neutral-500'}`}>
               {new Date().toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' })}
-              {legend && planState?.powerDays != null ? ` · 🔥 ${planState.powerDays} días LEGEND` : ''}
+              {streak > 1 ? ` · 🔥 ${streak} días seguidos` : ''}
+              {legend && planState?.powerDays != null ? ` · 👑 ${planState.powerDays}d LEGEND` : ''}
             </p>
           )}
         </div>
@@ -130,21 +134,32 @@ export default function DesktopShell({ onExplore }: { onExplore: () => void }) {
         )}
         {/* Explore = marketplace modular dentro del OS (C4) */}
         {tab === 'explore' && (
-          <ExploreSection goal={resumen?.perfil?.goal} onFullStore={onExplore} />
+          <ExploreSection goal={resumen?.perfil?.goal} onFullStore={onExplore} onGoPlanes={() => setTab('planes')} />
         )}
-        {/* Resto de secciones: contenedor centrado, reusan las vistas */}
-        {tab !== 'hoy' && tab !== 'explore' && (
-          <div className={`mx-auto max-w-3xl ${legend ? 'bg-neutral-50 mx-8 my-4 rounded-2xl shadow-xl min-h-[calc(100vh-9rem)]' : 'min-h-[calc(100vh-5rem)]'}`}>
-            {loading && <div className="flex justify-center py-16 text-neutral-300"><Loader2 className="w-7 h-7 animate-spin" /></div>}
-            {!loading && tab === 'rutina' && <RutinaView rutinas={rutinas} onReload={() => load('rutina')} />}
-            {!loading && tab === 'cocina' && <CocinaView despensa={despensa} recetas={recetas} puedoHacer={puedoHacer} onReload={() => load('cocina')} />}
-            {!loading && tab === 'plan' && <PlanView plan={plan} onReload={() => load('plan')} today={today} />}
-            {!loading && tab === 'compras' && <ComprasView items={compras} onReload={() => load('compras')} />}
+        {/* Rutina = dashboard de widgets (desktop) */}
+        {tab === 'rutina' && !loading && (
+          <RoutineDashboard rutinas={rutinas} onReload={() => load('rutina')} />
+        )}
+        {/* Plan = dashboard de comidas (desktop) */}
+        {tab === 'plan' && !loading && (
+          <PlanDashboard plan={plan} today={today} onReload={() => load('plan')} />
+        )}
+        {/* Cocina = despensa + recetas a la vez (desktop) */}
+        {tab === 'cocina' && !loading && (
+          <KitchenDashboard despensa={despensa} recetas={recetas} puedoHacer={puedoHacer} onReload={() => load('cocina')} />
+        )}
+        {/* Compras = pendientes + comprados (desktop) */}
+        {tab === 'compras' && !loading && (
+          <ShoppingDashboard items={compras} onReload={() => load('compras')} />
+        )}
+        {/* Resto: contenedor centrado, reusa las vistas (planes, gym) */}
+        {(tab === 'planes' || tab === 'gym') && (
+          <div className={`mx-auto max-w-3xl ${legend ? 'bg-neutral-50 mx-8 my-4 rounded-2xl shadow-xl border border-amber-500/20 min-h-[calc(100vh-9rem)]' : 'min-h-[calc(100vh-5rem)]'}`}>
             {tab === 'planes' && <PlanesView onUpgrade={() => { setLegend(true); setShowReveal(true) }} />}
             {!loading && tab === 'gym' && <GymView data={gym} onReload={() => load('gym')} />}
           </div>
         )}
-        {tab === 'hoy' && loading && <div className="flex justify-center py-16 text-neutral-300"><Loader2 className="w-7 h-7 animate-spin" /></div>}
+        {(tab === 'hoy' || tab === 'rutina' || tab === 'plan' || tab === 'cocina' || tab === 'compras' || tab === 'gym') && loading && <div className="flex justify-center py-16 text-neutral-300"><Loader2 className="w-7 h-7 animate-spin" /></div>}
       </main>
 
       {/* ── Command Center (AI Insights, solo xl) ── */}

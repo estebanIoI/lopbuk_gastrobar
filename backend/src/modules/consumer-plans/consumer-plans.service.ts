@@ -93,6 +93,131 @@ export async function hasEntitlement(userId: string, key: string): Promise<boole
   return !state.isExpired && state.entitlements.includes(key);
 }
 
+/**
+ * Middleware Express: exige un entitlement para acceder a un endpoint premium.
+ * Si no lo tiene, 403 con code ENTITLEMENT_REQUIRED y registra el intento en el ledger.
+ * Reusable: `router.post('/ai/advanced', authenticate, requireEntitlement('routine_ai'), ...)`
+ */
+export function requireEntitlement(key: string) {
+  return async (req: any, res: any, next: any) => {
+    try {
+      const userId = req.user?.userId;
+      if (!userId) { res.status(401).json({ success: false, error: 'No autenticado' }); return; }
+      const ok = await hasEntitlement(userId, key);
+      if (!ok) {
+        // Auditoría: acceso denegado en el ledger (action 'revoke' con metadata de gate).
+        try {
+          await db.query(
+            `INSERT INTO consumer_access_ledger (id, user_id, action, metadata) VALUES (?, ?, 'revoke', ?)`,
+            [uuidv4(), userId, JSON.stringify({ gate: key, result: 'denied' })]
+          );
+        } catch { /* el ledger no debe bloquear la respuesta */ }
+        res.status(403).json({ success: false, error: 'Esta función es exclusiva de LEGEND', code: 'ENTITLEMENT_REQUIRED', entitlement: key });
+        return;
+      }
+      next();
+    } catch (e) { next(e); }
+  };
+}
+
+// ── Descuentos del usuario (C7.5) ────────────────────────────────────────────
+/** Resumen de descuentos aplicables al usuario, solo si tiene el entitlement 'discounts'. */
+export async function getMyDiscounts(userId: string): Promise<{
+  hasDiscounts: boolean; percentOff: number; freeShipping: boolean; rules: any[];
+}> {
+  const empty = { hasDiscounts: false, percentOff: 0, freeShipping: false, rules: [] as any[] };
+  if (!userId) return empty;
+  const state = await getUserTier(userId);
+  if (state.isExpired || !state.entitlements.includes('discounts')) return empty;
+
+  const [rows]: any = await db.query(
+    `SELECT kind, percent_off, scope, category FROM consumer_discount_rules WHERE tier = ? AND is_active = 1`,
+    [state.tier]
+  );
+  const rules = rows as any[];
+  const percentOff = rules
+    .filter(r => r.kind === 'percent' && r.scope === 'all')
+    .reduce((mx: number, r: any) => Math.max(mx, Number(r.percent_off) || 0), 0);
+  const freeShipping = rules.some(r => r.kind === 'free_shipping');
+  return { hasDiscounts: true, percentOff, freeShipping, rules };
+}
+
+// ── Streak engine (C7.7) ─────────────────────────────────────────────────────
+/** Cuenta días consecutivos con actividad terminando hoy (o ayer). */
+export async function getStreak(userId: string): Promise<number> {
+  if (!userId) return 0;
+  const [rows]: any = await db.query(
+    `SELECT day FROM consumer_streak_days WHERE user_id = ? AND day >= (CURDATE() - INTERVAL 120 DAY)`,
+    [userId]
+  );
+  const set = new Set((rows as any[]).map(r => String(r.day).slice(0, 10)));
+  const fmt = (x: Date) => x.toISOString().slice(0, 10);
+  const d = new Date();
+  if (!set.has(fmt(d))) { d.setDate(d.getDate() - 1); if (!set.has(fmt(d))) return 0; }
+  let streak = 0;
+  while (set.has(fmt(d))) { streak++; d.setDate(d.getDate() - 1); }
+  return streak;
+}
+
+/** Registra actividad de hoy (idempotente) y devuelve el streak. */
+export async function pingActivity(userId: string): Promise<{ streak: number }> {
+  if (!userId) return { streak: 0 };
+  await db.query(`INSERT IGNORE INTO consumer_streak_days (user_id, day) VALUES (?, CURDATE())`, [userId]);
+  return { streak: await getStreak(userId) };
+}
+
+// ── Analytics de eventos (C7.10) ─────────────────────────────────────────────
+const KNOWN_EVENTS = new Set([
+  'legend_redeemed', 'legend_expired', 'smart_combo_clicked', 'discount_used',
+  'ai_advanced_opened', 'milestone_unlocked', 'explore_opened', 'product_added',
+]);
+
+export async function trackEvent(userId: string | null, event: string, metadata?: any): Promise<void> {
+  if (!event || !KNOWN_EVENTS.has(event)) return;
+  try {
+    await db.query(
+      `INSERT INTO consumer_events (id, user_id, event, metadata) VALUES (?, ?, ?, ?)`,
+      [uuidv4(), userId ?? null, event, metadata ? JSON.stringify(metadata) : null]
+    );
+  } catch { /* analytics no debe romper el flujo */ }
+}
+
+export async function getEventStats(days = 30) {
+  const d = Math.max(1, Math.min(365, Math.floor(Number(days) || 30)));   // entero saneado (evita INTERVAL ? DAY)
+  const [rows]: any = await db.query(
+    `SELECT event, COUNT(*) c FROM consumer_events WHERE created_at >= NOW() - INTERVAL ${d} DAY GROUP BY event ORDER BY c DESC`
+  );
+  return (rows as any[]).map(r => ({ event: r.event, count: Number(r.c) || 0 }));
+}
+
+// ── Admin: configuración de reglas de descuento (C7.5) ───────────────────────
+export async function adminGetDiscountConfig(): Promise<{ percentOff: number; freeShipping: boolean }> {
+  const [rows]: any = await db.query(`SELECT kind, percent_off, is_active FROM consumer_discount_rules WHERE tier = 'legend'`);
+  const pct = (rows as any[]).find(r => r.kind === 'percent');
+  const ship = (rows as any[]).find(r => r.kind === 'free_shipping');
+  return {
+    percentOff: pct && pct.is_active ? Number(pct.percent_off) || 0 : 0,
+    freeShipping: !!(ship && ship.is_active),
+  };
+}
+
+export async function adminSaveDiscountConfig(params: { percentOff: number; freeShipping: boolean }) {
+  const pct = Math.min(100, Math.max(0, Math.round(Number(params.percentOff) || 0)));
+  await db.query(
+    `INSERT INTO consumer_discount_rules (id, tier, kind, percent_off, scope, is_active)
+       VALUES ('seed-legend-percent','legend','percent',?, 'all', ?)
+     ON DUPLICATE KEY UPDATE percent_off = VALUES(percent_off), is_active = VALUES(is_active)`,
+    [pct, pct > 0 ? 1 : 0]
+  );
+  await db.query(
+    `INSERT INTO consumer_discount_rules (id, tier, kind, scope, is_active)
+       VALUES ('seed-legend-shipping','legend','free_shipping','all', ?)
+     ON DUPLICATE KEY UPDATE is_active = VALUES(is_active)`,
+    [params.freeShipping ? 1 : 0]
+  );
+  return adminGetDiscountConfig();
+}
+
 // ── Canje (transaccional, anti-race, idempotente) ────────────────────────────
 export async function redeemCode(params: {
   userId: string;

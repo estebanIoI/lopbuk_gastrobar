@@ -35,8 +35,19 @@ export function LegendCodesTab() {
   const [savingCfg, setSavingCfg] = useState(false)
   const [cfgMsg, setCfgMsg] = useState('')
 
+  // ── Descuentos LEGEND (C7.5) ──
+  const [disc, setDisc] = useState<{ percentOff: number; freeShipping: boolean }>({ percentOff: 0, freeShipping: false })
+  const [savingDisc, setSavingDisc] = useState(false)
+  const [discMsg, setDiscMsg] = useState('')
+  const saveDisc = async () => {
+    setSavingDisc(true); setDiscMsg('')
+    try { const r = await api.adminSaveDiscountConfig(disc); setDiscMsg(r.success ? 'Descuentos guardados' : (r.error || 'No se pudo guardar')) }
+    finally { setSavingDisc(false) }
+  }
+
   // ── Analytics ──
   const [stats, setStats] = useState<any>(null)
+  const [events, setEvents] = useState<any[]>([])
 
   const loadCodes = useCallback(async () => {
     setLoading(true)
@@ -48,6 +59,8 @@ export function LegendCodesTab() {
     loadCodes()
     api.adminGetLegendConfig().then(r => { if (r.success && r.data) setCfg((c: any) => ({ ...c, ...r.data })) }).catch(() => {})
     api.adminGetPlanAnalytics().then(r => { if (r.success) setStats(r.data) }).catch(() => {})
+    api.adminGetDiscountConfig().then(r => { if (r.success && r.data) setDisc({ percentOff: Number(r.data.percentOff) || 0, freeShipping: !!r.data.freeShipping }) }).catch(() => {})
+    api.adminGetEventStats(30).then(r => { if (r.success) setEvents(r.data || []) }).catch(() => {})
   }, [loadCodes])
 
   const create = async () => {
@@ -246,6 +259,54 @@ export function LegendCodesTab() {
             {savingCfg ? <><RefreshCw className="h-3.5 w-3.5 mr-2 animate-spin" /> Guardando…</> : <><Save className="h-3.5 w-3.5 mr-2" /> Guardar configuración</>}
           </Button>
           {cfgMsg && <p className="text-xs text-green-500 flex items-center gap-1"><Check className="h-3.5 w-3.5" />{cfgMsg}</p>}
+        </CardContent>
+      </Card>
+
+      {/* Eventos (C7.10) */}
+      {events.length > 0 && (
+        <Card className="border-border bg-card">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base lg:text-lg flex items-center gap-2"><TrendingUp className="h-5 w-5 text-muted-foreground" /> Eventos (últimos 30 días)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
+              {events.map(e => (
+                <div key={e.event} className="rounded-lg border border-border p-2">
+                  <p className="font-bold text-foreground">{e.count}</p>
+                  <p className="text-[11px] text-muted-foreground">{e.event}</p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Descuentos LEGEND (C7.5) */}
+      <Card className="border-border bg-card">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base lg:text-lg flex items-center gap-2">
+            <Crown className="h-5 w-5 text-muted-foreground" /> Beneficios de descuento LEGEND
+          </CardTitle>
+          <CardDescription>Lo que ahorran los miembros LEGEND en Explore y el carrito. 0% lo desactiva.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap items-end gap-4">
+            <div>
+              <Label className="text-xs">% de descuento</Label>
+              <div className="flex items-center gap-1">
+                <Input type="number" value={disc.percentOff} onChange={e => setDisc(d => ({ ...d, percentOff: Number(e.target.value) }))} placeholder="10" className="text-sm w-24" />
+                <span className="text-sm text-muted-foreground">%</span>
+              </div>
+            </div>
+            <label className="flex items-center gap-2 cursor-pointer select-none pb-2">
+              <input type="checkbox" checked={disc.freeShipping} onChange={e => setDisc(d => ({ ...d, freeShipping: e.target.checked }))} className="h-4 w-4 accent-primary" />
+              <span className="text-sm">Envío gratis</span>
+            </label>
+          </div>
+          <Button onClick={saveDisc} disabled={savingDisc} variant="outline" size="sm">
+            {savingDisc ? <><RefreshCw className="h-3.5 w-3.5 mr-2 animate-spin" /> Guardando…</> : <><Save className="h-3.5 w-3.5 mr-2" /> Guardar descuentos</>}
+          </Button>
+          {discMsg && <p className="text-xs text-green-500 flex items-center gap-1"><Check className="h-3.5 w-3.5" />{discMsg}</p>}
         </CardContent>
       </Card>
     </div>
