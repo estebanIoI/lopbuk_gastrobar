@@ -14,7 +14,7 @@ import { AppError } from '../../common/middleware';
 import { encrypt, decrypt } from '../../utils/crypto';
 
 export type WompiEnv = 'sandbox' | 'production';
-export type PayContext = 'subscription' | 'package' | 'order' | 'coach_booking' | 'drop';
+export type PayContext = 'subscription' | 'package' | 'order' | 'coach_booking' | 'drop' | 'legend_subscription';
 
 const CHECKOUT_URL = 'https://checkout.wompi.co/p/';
 export const apiBase = (env: WompiEnv) =>
@@ -176,6 +176,13 @@ export async function createCheckout(params: {
     if (priceCop <= 0) throw new AppError('Este drop no tiene precio para pagar', 400);
     amount = priceCop * 100; // pesos → centavos
   }
+  if (params.context === 'legend_subscription') {
+    // Compra de membresía LEGEND. contextId = legend_purchases.id. Monto del server.
+    const ref = String(params.contextId || '');
+    if (!ref) throw new AppError('Falta la compra', 400);
+    const { getLegendPurchaseAmountCents } = await import('../consumer-plans/consumer-plans.service');
+    amount = await getLegendPurchaseAmountCents(ref);
+  }
   if (!Number.isFinite(amount) || amount <= 0) throw new AppError('Monto inválido', 400);
   const currency = (params.currency || 'COP').toUpperCase();
 
@@ -296,6 +303,14 @@ async function onApproved(reference: string): Promise<void> {
     const { trainersService } = await import('../trainers/trainers.service');
     await trainersService.activateBookingPaid(txn.context_id, txn.wompi_id ?? null);
     console.log(`[payments] Programa activado por pago Wompi booking=${txn.context_id} ref=${reference}`);
+    return;
+  }
+
+  // Membresía LEGEND: activa el grant del usuario (self-serve).
+  if (txn.context === 'legend_subscription' && txn.context_id) {
+    const { activateLegendPurchase } = await import('../consumer-plans/consumer-plans.service');
+    await activateLegendPurchase(txn.context_id, txn.wompi_id ?? null);
+    console.log(`[payments] LEGEND activado por pago Wompi purchase=${txn.context_id} ref=${reference}`);
     return;
   }
 

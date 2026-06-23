@@ -322,6 +322,86 @@ export async function redeemCode(params: {
   return getUserTier(userId);
 }
 
+// ── Compra self-serve de LEGEND (pricing + Wompi) ────────────────────────────
+export const LEGEND_PLANS = [
+  { key: 'mensual', label: 'Mensual', months: 1, priceCop: 29900, badge: null as string | null },
+  { key: 'semestral', label: 'Semestral', months: 6, priceCop: 149900, badge: 'Ahorra 16%' },
+  { key: 'anual', label: 'Anual', months: 12, priceCop: 249900, badge: 'Más popular' },
+];
+export function getLegendPricing() {
+  return LEGEND_PLANS.map(p => ({ ...p, perMonthCop: Math.round(p.priceCop / p.months) }));
+}
+
+/** Otorga/extiende LEGEND por N meses (compra pagada). Transaccional, sin tope de stack. */
+export async function grantLegendMonths(userId: string, months: number, source = 'purchase') {
+  if (!userId || !(months > 0)) throw new AppError('Datos de membresía inválidos', 400);
+  const conn = await (db as any).getConnection();
+  try {
+    await conn.beginTransaction();
+    const now = new Date();
+    const [grantRows] = await conn.query(
+      `SELECT * FROM consumer_plan_grants WHERE user_id = ? AND tier = 'legend' AND status = 'active' AND expires_at > NOW()
+        ORDER BY expires_at DESC LIMIT 1 FOR UPDATE`, [userId]
+    );
+    const existing = (grantRows as any[])[0];
+    const base = existing ? new Date(Math.max(now.getTime(), new Date(existing.expires_at).getTime())) : now;
+    const newExpiry = addDuration(base, months, 'month');
+    const startedAt = existing ? new Date(existing.started_at) : now;
+    const ledgerId = uuidv4();
+    await conn.query(
+      `INSERT INTO consumer_access_ledger (id, user_id, code_id, grant_id, action, old_expires_at, new_expires_at, metadata)
+       VALUES (?, ?, NULL, ?, ?, ?, ?, ?)`,
+      [ledgerId, userId, existing?.id ?? null, existing ? 'extend' : 'redeem',
+       existing ? toMysql(new Date(existing.expires_at)) : null, toMysql(newExpiry), JSON.stringify({ source })]
+    );
+    if (existing) {
+      await conn.query(`UPDATE consumer_plan_grants SET expires_at = ?, status = 'active', source_ledger_id = ?, last_checked_at = NOW() WHERE id = ?`,
+        [toMysql(newExpiry), ledgerId, existing.id]);
+    } else {
+      await conn.query(`INSERT INTO consumer_plan_grants (id, user_id, tier, status, started_at, expires_at, source_ledger_id) VALUES (?, ?, 'legend', 'active', ?, ?, ?)`,
+        [uuidv4(), userId, toMysql(startedAt), toMysql(newExpiry), ledgerId]);
+    }
+    await conn.commit();
+  } catch (e) { await conn.rollback(); throw e; } finally { conn.release(); }
+  try { const { achievementsService } = await import('../achievements/achievements.service'); await achievementsService.award(userId, 'legend_member', 'legend'); } catch { /* no bloquear */ }
+}
+
+/** Crea una compra pendiente + checkout Wompi. Devuelve { checkoutUrl }. */
+export async function createLegendCheckout(userId: string, planKey: string, origin?: string) {
+  if (!userId) throw new AppError('No autenticado', 401);
+  const plan = LEGEND_PLANS.find(p => p.key === planKey);
+  if (!plan) throw new AppError('Plan inválido', 400);
+  const id = uuidv4();
+  await db.execute(
+    `INSERT INTO legend_purchases (id, user_id, plan_key, months, amount_cop, status) VALUES (?, ?, ?, ?, ?, 'pending')`,
+    [id, userId, plan.key, plan.months, plan.priceCop]
+  );
+  const { createCheckout } = await import('../payments/payments.service');
+  const co = await createCheckout({
+    context: 'legend_subscription', contextId: id, tenantId: null, amountInCents: 0,
+    redirectUrl: `${String(origin || '').replace(/\/$/, '')}/pago/resultado`,
+  });
+  return { purchaseId: id, amountCop: plan.priceCop, checkoutUrl: co.checkoutUrl };
+}
+
+/** Monto (en centavos) de una compra LEGEND pendiente — para payments. */
+export async function getLegendPurchaseAmountCents(purchaseId: string): Promise<number> {
+  const [rows]: any = await db.query('SELECT amount_cop, status FROM legend_purchases WHERE id = ? LIMIT 1', [purchaseId]);
+  const p = rows?.[0];
+  if (!p) throw new AppError('Compra no encontrada', 404);
+  if (String(p.status) !== 'pending') throw new AppError('Esta compra ya no está pendiente', 409);
+  return Math.round(Number(p.amount_cop) * 100);
+}
+
+/** Activa LEGEND tras pago aprobado (idempotente). */
+export async function activateLegendPurchase(purchaseId: string, gatewayPaymentId?: string | null) {
+  const [rows]: any = await db.query('SELECT * FROM legend_purchases WHERE id = ? LIMIT 1', [purchaseId]);
+  const p = rows?.[0];
+  if (!p || p.status === 'paid') return;
+  await db.query('UPDATE legend_purchases SET status = ?, gateway_payment_id = ? WHERE id = ?', ['paid', gatewayPaymentId ?? null, purchaseId]);
+  await grantLegendMonths(p.user_id, Number(p.months) || 1, 'purchase');
+}
+
 // ── Admin: CRUD de códigos ───────────────────────────────────────────────────
 export async function createCode(params: {
   tier?: string;
@@ -399,6 +479,24 @@ export async function updateCode(id: string, patch: { isActive?: boolean; validU
   args.push(id);
   const [r]: any = await db.query(`UPDATE consumer_access_codes SET ${sets.join(', ')} WHERE id = ?`, args);
   if ((r as any).affectedRows === 0) throw new AppError('Código no encontrado', 404);
+}
+
+/**
+ * Elimina un código LEGEND. Si ya fue canjeado se bloquea (para no romper el
+ * historial/ledger) — en ese caso debe desactivarse. `force` permite borrar
+ * de todos modos limpiando ledger huérfano (uso excepcional del superadmin).
+ */
+export async function deleteCode(id: string, force = false) {
+  const [rows]: any = await db.query('SELECT redemptions FROM consumer_access_codes WHERE id = ? LIMIT 1', [id]);
+  const c = rows?.[0];
+  if (!c) throw new AppError('Código no encontrado', 404);
+  if (Number(c.redemptions) > 0 && !force) {
+    throw new AppError('Este código ya fue canjeado. Desactívalo, o elimínalo forzado para borrar también su historial.', 409);
+  }
+  if (force) { try { await db.query('DELETE FROM consumer_access_ledger WHERE code_id = ?', [id]); } catch { /* sin ledger */ } }
+  const [r]: any = await db.query('DELETE FROM consumer_access_codes WHERE id = ?', [id]);
+  if ((r as any).affectedRows === 0) throw new AppError('Código no encontrado', 404);
+  return { deleted: true };
 }
 
 // ── Config visual del reveal LEGEND (platform_settings KV, clave única JSON) ──

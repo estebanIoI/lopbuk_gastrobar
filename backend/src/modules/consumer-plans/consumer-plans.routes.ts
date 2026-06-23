@@ -69,6 +69,16 @@ router.get('/me/discounts', authenticate, async (req: AuthRequest, res: Response
   catch (e) { fail(res, e, 'Error al consultar descuentos'); }
 });
 
+// ── Compra self-serve de LEGEND ──
+router.get('/legend/pricing', authenticate, async (_req: AuthRequest, res: Response) => {
+  try { res.json({ success: true, data: svc.getLegendPricing() }); }
+  catch (e) { fail(res, e, 'Error al obtener precios'); }
+});
+router.post('/legend/checkout', authenticate, async (req: AuthRequest, res: Response) => {
+  try { res.json({ success: true, data: await svc.createLegendCheckout(req.user!.userId, String(req.body?.plan || ''), req.body?.origin) }); }
+  catch (e) { fail(res, e, 'Error al iniciar la compra'); }
+});
+
 router.post('/me/ping', authenticate, async (req: AuthRequest, res: Response) => {
   try { res.json({ success: true, data: await svc.pingActivity(req.user!.userId) }); }
   catch (e) { fail(res, e, 'Error al registrar actividad'); }
@@ -107,6 +117,13 @@ router.patch('/admin/codes/:id', SUPERADMIN, async (req: AuthRequest, res: Respo
     });
     res.json({ success: true });
   } catch (e) { fail(res, e, 'Error al actualizar el código'); }
+});
+
+router.delete('/admin/codes/:id', SUPERADMIN, async (req: AuthRequest, res: Response) => {
+  try {
+    const force = req.query.force === '1' || req.query.force === 'true';
+    res.json({ success: true, data: await svc.deleteCode(req.params.id, force) });
+  } catch (e) { fail(res, e, 'Error al eliminar el código'); }
 });
 
 router.get('/admin/analytics', SUPERADMIN, async (_req: AuthRequest, res: Response) => {

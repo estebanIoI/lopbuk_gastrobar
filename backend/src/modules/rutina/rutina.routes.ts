@@ -56,6 +56,26 @@ router.put('/perfil', async (req: AuthRequest, res) => {
   catch (e) { fail(res, e, 'Error al guardar perfil'); }
 });
 
+// ── Onboarding / Activación ──
+router.get('/onboarding/status', async (req: AuthRequest, res) => {
+  try { ok(res, await svc.getOnboardingStatus(req.user!.userId)); }
+  catch (e) { fail(res, e, 'Error al consultar onboarding'); }
+});
+router.post('/onboarding', async (req: AuthRequest, res) => {
+  try { ok(res, await svc.completeOnboarding(req.user!.userId, req.body || {})); }
+  catch (e) { fail(res, e, 'Error al completar onboarding'); }
+});
+
+// ── Mission Control (Hoy enfocado) ──
+router.get('/today-mission', async (req: AuthRequest, res) => {
+  try { ok(res, await svc.getTodayMission(req.user!.userId)); }
+  catch (e) { fail(res, e, 'Error al obtener la misión de hoy'); }
+});
+router.post('/check', async (req: AuthRequest, res) => {
+  try { ok(res, await svc.toggleDailyCheck(req.user!.userId, String(req.body?.item || ''), !!req.body?.done)); }
+  catch (e) { fail(res, e, 'Error al marcar el hábito'); }
+});
+
 // ── Despensa ──
 router.get('/despensa', async (req: AuthRequest, res) => {
   try { ok(res, await svc.listDespensa(req.user!.userId)); }

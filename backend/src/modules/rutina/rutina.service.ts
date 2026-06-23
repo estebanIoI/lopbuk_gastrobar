@@ -270,6 +270,198 @@ export async function createRutina(userId: string, data: any) {
   return { id };
 }
 
+// ─────────────────────────────────────────────────────────────
+// ONBOARDING / ACTIVACIÓN — genera el programa inicial del usuario
+// ─────────────────────────────────────────────────────────────
+const ACTIVITY_FACTOR: Record<string, number> = {
+  sedentario: 1.2, ligero: 1.375, moderado: 1.55, activo: 1.725, muy_activo: 1.9,
+};
+const GOAL_KCAL_DELTA: Record<string, number> = {
+  bajar_peso: -0.18, perder_grasa: -0.18, recomposicion: -0.05,
+  mantener: 0, salud_general: 0, rendimiento: 0.05,
+  subir_masa: 0.12, ganar_musculo: 0.12, volver_entrenar: 0,
+};
+
+/** Mifflin-St Jeor + factor de actividad + ajuste por objetivo → kcal y macros. */
+function computeNutrition(p: { sex?: string; weightKg?: number; heightCm?: number; age?: number; activityLevel?: string; goal?: string }) {
+  const w = Number(p.weightKg) || 70, h = Number(p.heightCm) || 170, age = Number(p.age) || 28;
+  const male = (p.sex || 'm').toLowerCase().startsWith('m');
+  const bmr = Math.round(10 * w + 6.25 * h - 5 * age + (male ? 5 : -161));
+  const tdee = Math.round(bmr * (ACTIVITY_FACTOR[p.activityLevel || 'moderado'] || 1.55));
+  const delta = GOAL_KCAL_DELTA[p.goal || 'mantener'] ?? 0;
+  const calories = Math.max(1200, Math.round(tdee * (1 + delta)));
+  const proteinG = Math.round(w * (p.goal === 'subir_masa' || p.goal === 'ganar_musculo' ? 2.0 : 1.8));
+  const fatG = Math.round((calories * 0.27) / 9);
+  const carbsG = Math.max(0, Math.round((calories - proteinG * 4 - fatG * 9) / 4));
+  const bmi = Math.round((w / Math.pow(h / 100, 2)) * 10) / 10;
+  const waterMl = Math.round(w * 35);
+  return { bmr, tdee, calories, proteinG, carbsG, fatG, bmi, waterMl };
+}
+
+/** Plantilla de split semanal según experiencia/lugar/días. */
+function buildSplit(experience: string, location: string, days: number): { name: string; sessions: { day: number; title: string }[] } {
+  const home = location === 'casa';
+  const d = Math.min(6, Math.max(2, days || 3));
+  if (experience === 'principiante' || d <= 3) {
+    const sessions = [{ day: 1, title: home ? 'Full Body en casa A' : 'Full Body A' }, { day: 3, title: home ? 'Full Body en casa B' : 'Full Body B' }];
+    if (d >= 3) sessions.push({ day: 5, title: home ? 'Full Body en casa C' : 'Full Body C' });
+    return { name: home ? 'Full Body en casa' : 'Full Body 3 días', sessions };
+  }
+  if (d >= 5) {
+    return { name: 'Push Pull Legs', sessions: [
+      { day: 1, title: 'Push (pecho/hombro/tríceps)' }, { day: 2, title: 'Pull (espalda/bíceps)' }, { day: 3, title: 'Legs (pierna)' },
+      { day: 4, title: 'Push B' }, { day: 5, title: 'Pull B' }, ...(d >= 6 ? [{ day: 6, title: 'Legs B' }] : []),
+    ] };
+  }
+  return { name: 'Upper / Lower', sessions: [
+    { day: 1, title: 'Tren superior A' }, { day: 2, title: 'Tren inferior A' }, { day: 4, title: 'Tren superior B' }, { day: 5, title: 'Tren inferior B' },
+  ] };
+}
+
+export async function getOnboardingStatus(userId: string) {
+  const p: any = await getPerfil(userId);
+  // Onboarded si lo completó explícitamente, o si ya es un usuario con perfil
+  // configurado (objetivo + peso) — para no forzar el wizard a usuarios existentes.
+  const grandfathered = !!(p && p.goal && p.weight_kg);
+  return { onboarded: !!(p && (p.onboarded_at || grandfathered)), hasProfile: !!p };
+}
+
+/** Completa el onboarding: guarda perfil, calcula nutrición y genera el programa inicial. */
+export async function completeOnboarding(userId: string, a: any) {
+  if (!userId) throw new AppError('No autenticado', 401);
+  const goal = String(a?.goal || 'mantener');
+  const sex = a?.sex || null;
+  const weightKg = a?.weightKg != null ? Number(a.weightKg) : null;
+  const heightCm = a?.heightCm != null ? Number(a.heightCm) : null;
+  const age = a?.age != null ? Number(a.age) : null;
+  const activityLevel = a?.activityLevel || 'moderado';
+  const experience = a?.experience || 'principiante';
+  const location = a?.trainingLocation || 'gym';
+  const daysPerWeek = a?.daysPerWeek != null ? Number(a.daysPerWeek) : 3;
+  const timePerDay = a?.timePerDay != null ? Number(a.timePerDay) : 45;
+  const dietaryPrefs = a?.dietaryPrefs || null;
+  const motivation = a?.motivation ? String(a.motivation).slice(0, 300) : null;
+
+  const n = computeNutrition({ sex, weightKg: weightKg ?? undefined, heightCm: heightCm ?? undefined, age: age ?? undefined, activityLevel, goal });
+
+  // Meta de peso estimada (si no la dio): ±5% según objetivo.
+  let targetWeightKg = a?.targetWeightKg != null ? Number(a.targetWeightKg) : null;
+  if (targetWeightKg == null && weightKg != null) {
+    if (goal === 'bajar_peso' || goal === 'perder_grasa') targetWeightKg = Math.round(weightKg * 0.92);
+    else if (goal === 'subir_masa' || goal === 'ganar_musculo') targetWeightKg = Math.round(weightKg * 1.05);
+    else targetWeightKg = weightKg;
+  }
+
+  // 1) Perfil (reusa upsertPerfil) + columnas de onboarding.
+  await upsertPerfil(userId, {
+    sex, heightCm, weightKg, goal, activityLevel,
+    dailyCalorieTarget: n.calories, targetWeightKg, bmr: n.bmr, tdee: n.tdee, bmi: n.bmi,
+    waterTargetMl: n.waterMl, dietaryPrefs, city: a?.city || null,
+  });
+  await db.execute(
+    `UPDATE rutina_perfil SET experience_level = ?, training_location = ?, time_per_day = ?, days_per_week = ?,
+       motivation = ?, protein_g = ?, carbs_g = ?, fat_g = ?, onboarded_at = COALESCE(onboarded_at, NOW()) WHERE user_id = ?`,
+    [experience, location, timePerDay, daysPerWeek, motivation, n.proteinG, n.carbsG, n.fatG, userId]
+  );
+
+  // 2) Rutina inicial con su split (solo si no tiene una de onboarding).
+  //    Defensivo: si la generación falla, el onboarding NO se rompe (lo crítico
+  //    es el perfil + onboarded_at). La rutina es un bonus.
+  const split = buildSplit(experience, location, daysPerWeek);
+  try {
+    const [existing] = await db.execute<Row[]>("SELECT id FROM rutina_rutinas WHERE user_id = ? AND name LIKE 'Mi programa%' AND is_active = 1 LIMIT 1", [userId]);
+    if (!existing.length) {
+      const { id: rutinaId } = await createRutina(userId, { name: `Mi programa · ${split.name}`, type: 'general', color: '#f59e0b' });
+      let order = 0;
+      const addAct = async (data: any) => { try { await addActividad(userId, rutinaId, data); } catch { /* enum/columna distinta: omitir */ } };
+      for (const s of split.sessions) await addAct({ dayOfWeek: s.day, title: s.title, type: 'otro', sortOrder: order++ });
+      await addAct({ dayOfWeek: null, title: `Tomar ${(n.waterMl / 1000).toFixed(1)} L de agua`, type: 'otro', sortOrder: order++ });
+      await addAct({ dayOfWeek: null, title: `${n.proteinG} g de proteína`, type: 'otro', sortOrder: order++ });
+    }
+  } catch (e) { console.warn('[onboarding] generación de rutina:', (e as any)?.message); }
+
+  // 3) Roadmap inicial (texto guía).
+  const roadmap = [
+    { week: 1, title: 'Adaptación', detail: 'Aprende la técnica y crea el hábito.' },
+    { week: 2, title: 'Constancia', detail: 'No falles a tus entrenos ni a tu proteína.' },
+    { week: 4, title: 'Progresión', detail: 'Sube peso/repeticiones. El cuerpo empieza a cambiar.' },
+    { week: 8, title: 'Transformación', detail: 'Resultados visibles si mantienes el ritmo.' },
+  ];
+
+  return {
+    calories: n.calories, macros: { proteinG: n.proteinG, carbsG: n.carbsG, fatG: n.fatG },
+    bmr: n.bmr, tdee: n.tdee, bmi: n.bmi, waterMl: n.waterMl,
+    targetWeightKg, goal, split: split.name, daysPerWeek, roadmap,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────
+// MISSION CONTROL — el "Hoy" enfocado en la misión del día
+// ─────────────────────────────────────────────────────────────
+const CHECK_ITEMS = [
+  { key: 'entrenar', label: 'Entrenar', emoji: '🏋️' },
+  { key: 'agua', label: 'Tomar agua', emoji: '💧' },
+  { key: 'proteina', label: 'Proteína', emoji: '🍗' },
+  { key: 'sueno', label: 'Dormir bien', emoji: '😴' },
+  { key: 'pasos', label: 'Caminar', emoji: '🚶' },
+];
+
+export async function getTodayMission(userId: string) {
+  const p: any = await getPerfil(userId);
+  const now = new Date();
+  const todayStr = now.toISOString().slice(0, 10);
+  const dow = now.getDay(); // 0=Dom
+
+  // Día N del programa (desde onboarded_at o creación del perfil).
+  const startRaw = p?.onboarded_at || p?.created_at || null;
+  let dayNumber = 1;
+  if (startRaw) dayNumber = Math.max(1, Math.floor((Date.now() - new Date(startRaw).getTime()) / 86400000) + 1);
+
+  // Sesión de hoy: actividad de la rutina "Mi programa" para el día de la semana.
+  let todaySession: string | null = null;
+  try {
+    const [rows] = await db.execute<Row[]>(
+      `SELECT a.title FROM rutina_actividades a
+         JOIN rutina_rutinas r ON r.id = a.rutina_id
+        WHERE a.user_id = ? AND a.is_active = 1 AND a.day_of_week = ? AND r.is_active = 1
+        ORDER BY (r.name LIKE 'Mi programa%') DESC, a.sort_order ASC LIMIT 1`, [userId, dow]
+    );
+    todaySession = (rows[0] as any)?.title || null;
+  } catch { /* sin rutina */ }
+
+  // Checklist del día.
+  const [checks] = await db.execute<Row[]>('SELECT item_key, done FROM consumer_daily_checks WHERE user_id = ? AND day = ?', [userId, todayStr]);
+  const doneSet = new Set((checks as any[]).filter(c => c.done).map(c => c.item_key));
+  const checklist = CHECK_ITEMS.map(i => ({ ...i, done: doneSet.has(i.key) }));
+  const completed = checklist.filter(c => c.done).length;
+
+  return {
+    dayNumber,
+    goal: p?.goal || null,
+    calorieTarget: p?.daily_calorie_target ?? null,
+    proteinG: p?.protein_g ?? null,
+    waterMl: p?.water_target_ml ?? null,
+    todaySession: todaySession || (dow === 0 || dow === 6 ? 'Descanso activo / movilidad' : 'Día libre — muévete'),
+    isRestDay: !todaySession,
+    checklist, completed, total: checklist.length,
+  };
+}
+
+export async function toggleDailyCheck(userId: string, itemKey: string, done: boolean) {
+  if (!CHECK_ITEMS.some(i => i.key === itemKey)) throw new AppError('Ítem inválido', 400);
+  const today = new Date().toISOString().slice(0, 10);
+  await db.execute(
+    `INSERT INTO consumer_daily_checks (id, user_id, day, item_key, done) VALUES (?, ?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE done = VALUES(done)`,
+    [uuidv4(), userId, today, itemKey, done ? 1 : 0]
+  );
+  // Marcar "entrenar" cuenta como actividad del día (alimenta la racha).
+  if (done && itemKey === 'entrenar') {
+    try { await db.query('INSERT IGNORE INTO consumer_streak_days (user_id, day) VALUES (?, CURDATE())', [userId]); } catch { /* sin streak */ }
+  }
+  return getTodayMission(userId);
+}
+
 export async function deleteRutina(userId: string, id: string) {
   const [r] = await db.execute<ResultSetHeader>(
     'UPDATE rutina_rutinas SET is_active = 0 WHERE id = ? AND user_id = ?', [id, userId]

@@ -14,18 +14,22 @@ import {
   X, Home, ChefHat, CalendarDays, ShoppingBasket, Plus, Trash2, Check, Clock,
   AlertTriangle, Sparkles, Loader2, Dumbbell, Flame, TrendingUp, Settings,
   Droplet, Target, Carrot, ListChecks, Utensils, Repeat, QrCode, ShieldCheck, ShieldX, ShieldAlert, Crown, Compass, Award, KeyRound,
-  MoreHorizontal, ChevronDown, ChevronUp, ChevronRight,
+  MoreHorizontal, ChevronDown, ChevronUp, ChevronRight, LogOut, Users,
 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { api } from '@/lib/api'
+import { useAuthStore } from '@/lib/auth-store'
 import PlanesView from '@/components/consumer-plans-view'
 import LegendReveal from '@/components/legend-reveal'
 import { useConsumerData, type ConsumerTab } from '@/components/consumer/hooks/useConsumerData'
 import ExploreSection from '@/components/consumer/sections/explore/ExploreSection'
 import CoachSection from '@/components/consumer/sections/CoachSection'
 import VaultSection from '@/components/consumer/sections/VaultSection'
+import CommunitySection from '@/components/consumer/sections/CommunitySection'
 import AchievementShelf from '@/components/consumer/AchievementShelf'
 import AdaptiveCards from '@/components/consumer/widgets/AdaptiveCards'
+import MissionControl from '@/components/consumer/widgets/MissionControl'
+import ProgressCard from '@/components/consumer/widgets/ProgressCard'
 import CartButton from '@/components/consumer/widgets/CartButton'
 import ActiveProgramBanner from '@/components/consumer/widgets/ActiveProgramBanner'
 import { useEntitlements } from '@/components/consumer/hooks/useEntitlements'
@@ -46,19 +50,21 @@ const GOAL_LABEL: Record<string, string> = {
   bajar_peso: 'Bajar de peso', subir_masa: 'Subir masa', mantener: 'Mantener', salud_general: 'Salud general',
 }
 
-// ── 4 tabs principales (móvil) ──
+// ── 4 tabs principales (móvil) + "Más" = 5 ítems ──
 const MAIN_TABS: { k: ConsumerTab; icon: any; label: string }[] = [
   { k: 'hoy', icon: Home, label: 'Hoy' },
+  { k: 'rutina', icon: Repeat, label: 'Rutina' },
   { k: 'plan', icon: CalendarDays, label: 'Plan' },
-  { k: 'coach', icon: Award, label: 'Coach' },
+  { k: 'comunidad', icon: Users, label: 'Comunidad' },
 ]
 
 // ── Tabs overflow (dentro de "Más") ──
 function getOverflowTabs(hasGym: boolean): { k: ConsumerTab; icon: any; label: string }[] {
   const base = [
-    { k: 'rutina' as ConsumerTab, icon: Repeat, label: 'Rutina' },
+    { k: 'coach' as ConsumerTab, icon: Award, label: 'Coach' },
     { k: 'cocina' as ConsumerTab, icon: ChefHat, label: 'Cocina' },
     { k: 'compras' as ConsumerTab, icon: ShoppingBasket, label: 'Compras' },
+    { k: 'vault' as ConsumerTab, icon: KeyRound, label: 'The Vault' },
     { k: 'planes' as ConsumerTab, icon: Crown, label: 'Planes' },
     { k: 'explore' as ConsumerTab, icon: Compass, label: 'Explore' },
   ]
@@ -169,20 +175,21 @@ export default function ConsumerRoutine({ onClose }: { onClose: () => void }) {
         {/* ── HOY (3-capas) ── */}
         {!loading && tab === 'hoy' && (
           <div className="pb-4">
-            {/* CAPA 1 — PRIORITY: CTA principal del día (sin scroll) */}
+            {/* Mission Control: ¿qué hago hoy? (activación) */}
+            <MissionControl onGoTo={setTab} />
+
+            {/* CAPA 1 — PRIORITY: programa activo del coach */}
             {activeProgram && (
               <div className="px-4 pt-3">
                 <ActiveProgramBanner program={activeProgram} onOpen={() => setTab('coach')} />
               </div>
             )}
-            {!activeProgram && streak === 0 && legend && (
-              <div className="px-4 pt-3">
-                <CTAStreak onGoTo={() => setTab('planes')} />
-              </div>
-            )}
 
             {/* Adaptive nudges compactos */}
             <AdaptiveCards onGoTo={setTab} />
+
+            {/* Progreso de transformación */}
+            <ProgressCard />
 
             {/* CAPA 2 — CONTEXTO: Comidas + Día */}
             <HoyViewCompact resumen={resumen} plan={plan} rutinas={rutinas} onReload={() => load('hoy')} onGoTo={setTab} />
@@ -204,6 +211,7 @@ export default function ConsumerRoutine({ onClose }: { onClose: () => void }) {
         {tab === 'explore' && <ExploreSection goal={resumen?.perfil?.goal} onFullStore={onClose} onGoPlanes={() => setTab('planes')} />}
         {tab === 'coach' && <CoachSection />}
         {tab === 'vault' && <VaultSection />}
+        {tab === 'comunidad' && <div className="p-4"><CommunitySection /></div>}
         {!loading && tab === 'gym' && <GymView data={gym} onReload={() => load('gym')} />}
       </div>
 
@@ -1153,6 +1161,9 @@ function PerfilModal({ onClose, onSaved }: any) {
           <input value={f.city} onChange={e => setF({ ...f, city: e.target.value })} placeholder="Ciudad" className={inputCls} />
           <button onClick={save} disabled={saving} className="w-full bg-neutral-900 text-white rounded-xl py-2.5 text-sm font-medium disabled:opacity-50">{saving ? 'Guardando…' : 'Guardar perfil'}</button>
           <div className="pt-3 border-t border-black/5"><AchievementShelf compact /></div>
+          <button onClick={() => { if (confirm('¿Cerrar sesión?')) useAuthStore.getState().logout() }} className="w-full flex items-center justify-center gap-2 text-sm font-medium text-red-500 hover:bg-red-50 rounded-xl py-2.5 mt-1">
+            <LogOut className="w-4 h-4" /> Cerrar sesión
+          </button>
         </div>
       )}
     </Modal>

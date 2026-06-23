@@ -4,7 +4,7 @@ import { useState } from 'react'
 import dynamic from 'next/dynamic'
 import {
   Briefcase, CreditCard, LayoutTemplate, MessageSquarePlus,
-  Plug, Star, Store, TrendingUp, ShoppingBag, Sparkles, Wallet, Crown, Dumbbell, KeyRound, Flame,
+  Plug, Star, Store, TrendingUp, ShoppingBag, Sparkles, Wallet, Crown, Dumbbell, KeyRound, Flame, Target,
 } from 'lucide-react'
 import { RefreshCw } from 'lucide-react'
 
@@ -25,10 +25,11 @@ const LegendCodesTab    = dynamic(() => import('./tabs/LegendCodesTab').then(m =
 const CoachPayoutsTab   = dynamic(() => import('./tabs/CoachPayoutsTab').then(m => ({ default: m.CoachPayoutsTab })), { loading: () => <TabLoader /> })
 const VaultKeysTab      = dynamic(() => import('./tabs/VaultKeysTab').then(m => ({ default: m.VaultKeysTab })), { loading: () => <TabLoader /> })
 const DropsTab          = dynamic(() => import('./tabs/DropsTab').then(m => ({ default: m.DropsTab })), { loading: () => <TabLoader /> })
+const ChallengesTab     = dynamic(() => import('./tabs/ChallengesTab').then(m => ({ default: m.ChallengesTab })), { loading: () => <TabLoader /> })
 
 // ── Tab definitions ───────────────────────────────────────────────────────────
 
-type TabId = 'pedidos' | 'pagina' | 'comercios' | 'timeline' | 'destacados' | 'integraciones' | 'pagos' | 'pasarela' | 'portafolio' | 'solicitudes' | 'comunidad' | 'legend' | 'coaches' | 'vault' | 'drops'
+type TabId = 'pedidos' | 'pagina' | 'comercios' | 'timeline' | 'destacados' | 'integraciones' | 'pagos' | 'pasarela' | 'portafolio' | 'solicitudes' | 'comunidad' | 'legend' | 'coaches' | 'vault' | 'drops' | 'retos'
 
 const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
   { id: 'pedidos',       label: 'Pedidos',          icon: ShoppingBag },
@@ -45,6 +46,7 @@ const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
   { id: 'coaches',       label: 'Coaches',          icon: Dumbbell },
   { id: 'vault',         label: 'Vault',            icon: KeyRound },
   { id: 'drops',         label: 'Drops',            icon: Flame },
+  { id: 'retos',         label: 'Retos',            icon: Target },
   { id: 'solicitudes',   label: 'Dev',              icon: MessageSquarePlus },
 ]
 
@@ -112,6 +114,7 @@ export function SuperadminLayout() {
       {activeTab === 'coaches'       && <CoachPayoutsTab />}
       {activeTab === 'vault'         && <VaultKeysTab />}
       {activeTab === 'drops'         && <DropsTab />}
+      {activeTab === 'retos'         && <ChallengesTab />}
       {activeTab === 'solicitudes'   && <DevRequestsTab />}
     </div>
   )

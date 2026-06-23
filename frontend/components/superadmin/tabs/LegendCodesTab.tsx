@@ -5,7 +5,7 @@
  * Generar / listar / desactivar códigos + configurar el reveal (animación + colores).
  */
 import { useEffect, useState, useCallback } from 'react'
-import { Crown, Check, Copy, RefreshCw, Plus, Save, Ticket, Users, Clock, TrendingUp, Flame } from 'lucide-react'
+import { Crown, Check, Copy, RefreshCw, Plus, Save, Ticket, Users, Clock, TrendingUp, Flame, Trash2 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -83,6 +83,19 @@ export function LegendCodesTab() {
 
   const toggleActive = async (id: string, isActive: boolean) => {
     await api.adminUpdatePlanCode(id, { isActive: !isActive })
+    loadCodes()
+  }
+
+  const deleteCode = async (id: string, redemptions: number) => {
+    if (redemptions > 0) {
+      if (!confirm('Este código ya fue canjeado. ¿Eliminarlo de todos modos? Se borrará también su historial.')) return
+      const r = await api.adminDeletePlanCode(id, true)
+      if (!r.success) { alert(r.error || 'No se pudo eliminar'); return }
+    } else {
+      if (!confirm('¿Eliminar este código?')) return
+      const r = await api.adminDeletePlanCode(id)
+      if (!r.success) { alert(r.error || 'No se pudo eliminar'); return }
+    }
     loadCodes()
   }
 
@@ -216,6 +229,9 @@ export function LegendCodesTab() {
                   </span>
                   <button onClick={() => toggleActive(c.id, c.isActive)} className={`text-xs px-2.5 py-1 rounded-full font-medium ${c.isActive ? 'bg-green-500/15 text-green-500' : 'bg-muted text-muted-foreground'}`}>
                     {c.isActive ? 'Activo' : 'Inactivo'}
+                  </button>
+                  <button onClick={() => deleteCode(c.id, c.redemptions)} title="Eliminar código" className="text-muted-foreground hover:text-red-500 p-1 rounded-md hover:bg-red-500/10">
+                    <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
               ))}
