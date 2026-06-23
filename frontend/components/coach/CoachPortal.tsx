@@ -500,7 +500,7 @@ function PerfilView({ me, onUpdate, onLogout }: { me: any; onUpdate: (t: any) =>
     try {
       const r = await api.updateTrainerProfile({
         name: form.name.trim(), bio: form.bio.trim(), photoUrl: form.photoUrl.trim() || undefined,
-        specialties: form.specialties.split(',').map(s => s.trim()).filter(Boolean),
+        specialties: form.specialties.split(',').map((s: string) => s.trim()).filter(Boolean),
       })
       if (r.success) { onUpdate(r.data); setOkMsg('Perfil actualizado.') }
     } finally { setBusy(false) }

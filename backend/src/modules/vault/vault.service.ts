@@ -30,7 +30,7 @@ type Unlocks = { keys: string[]; message?: string | null; productIds?: string[] 
 
 function normalizeUnlocks(input: any): Unlocks {
   const raw = Array.isArray(input?.keys) ? input.keys : Array.isArray(input) ? input : [];
-  const keys = Array.from(new Set(raw.map((k: any) => slug(String(k))).filter(Boolean)));
+  const keys: string[] = Array.from(new Set(raw.map((k: any) => slug(String(k))).filter(Boolean))) as string[];
   if (keys.length === 0) throw new AppError('La llave debe desbloquear al menos una interfaz', 400);
   return { keys, message: input?.message ? String(input.message).slice(0, 280) : null, productIds: Array.isArray(input?.productIds) ? input.productIds : null };
 }
