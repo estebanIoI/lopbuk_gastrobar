@@ -60,8 +60,35 @@ Dispara viralidad, FOMO, adquisición, comunidad, afiliados. Detalle: `plan-gami
 - **Afiliados como CURADORES:** emiten vault keys, desbloquean drops, crean campañas privadas, curan productos; comisión dinámica por tier/conversión/retención.
 - **Logros de cliente:** Founder, Early Access, Drop Hunter, Elite Buyer, Coach Disciple (en perfil/checkout/rankings/drops).
 
-## FASE 4 — AI + Adaptive System  🚧 (F4.1 construido)
-- **Adaptive OS:** ✅ F4.1 — módulo `adaptive` (`/adaptive/me`): nudges priorizados desde señales reales (feed coach sin leer, drop en vivo con acceso, racha, cercanía a logro, membresía por vencer/upgrade). Front: `AdaptiveCards` en Today (móvil+desktop), descartables 24h (localStorage). Pendiente: macros/compras/sueño, predictive commerce, drops sugeridos.
+## FASE 4 — AI + Adaptive System  ✅ (F4.1–F4.3 construido)
+- **Adaptive OS:** ✅ F4.1 — `adaptive` (`/adaptive/me`): nudges priorizados (coach, drop en vivo, racha, logro, membresía). `AdaptiveCards` en Today.
+- **Predictive commerce:** ✅ F4.2 — recompra por cadencia real del historial. Pendiente: predicción por macros/sueño.
+- **Transformation tracking:** ✅ F4.3 — `consumer_body_logs` + Progress Score (avance a meta + consistencia) + `ProgressCard`. Pendiente: fotos antes/después, body trend AI.
+
+## FASE 5 — Community Layer  ✅ (F5.1–F5.4 construido)
+- **Leaderboards + retos:** ✅ F5.1 — `arena` (Community Score leaderboard + retos de temporada). `CommunitySection` (gateado) + tab superadmin Retos.
+- **Guilds/Teams:** ✅ F5.2 — `guilds`/`guild_members`, ranking de guilds por suma de scores, pestaña Guilds.
+- **Social feed:** ✅ F5.3 — `arena_feed` + likes; auto-posts de logros/retos + posts manuales; pestaña Feed.
+- **Retos con premio automático:** ✅ F5.4 — `settleChallenge` otorga unlock + badge `challenge_champion` + feed a los ganadores.
+- Pendiente futuro: feed con fotos antes/después, comentarios en feed, retos por guild, notificaciones push.
+
+> **TODAS las fases 1–5 del plan maestro construidas.** Pendiente transversal: deploy (tsc + push + Komodo), prueba en vivo, y mejoras finas listadas por fase.
+
+## REFRAME (usuario, 2026-06): ACTIVACIÓN ＞ más módulos
+El problema real ya no es features, es **activación/retención**: el usuario nuevo entra sin objetivo ni plan → explora 20s → se va. Orden correcto: **Activación → Retención → Monetización → Expansión**.
+
+**P0 — Activación (en curso)**
+- ✅ **O1 Onboarding guiado** que genera el programa (rutina + calorías/macros + roadmap) + reveal "Tu plan está listo" + gate en ConsumerOS.
+- ✅ **O2 Logout móvil** (estaba atrapado).
+- ✅ **Mission Control home**: `MissionControl` (día N + sesión de hoy + macros + checklist diario accionable) arriba del Today, móvil+desktop.
+- ✅ **Nav móvil 5 ítems** (Hoy, Rutina, Plan, Comunidad, Más) + **Comunidad como tab directo** (fuera del Vault).
+
+**P1 — Conversión/Progreso ✅**
+- ✅ Planes: canje + comparativo de beneficios + upsell contextual `LegendUpsell` + **pricing self-serve** (Mensual/Semestral/Anual → checkout Wompi `legend_subscription` → activación automática).
+- ✅ **Vista de progreso completa** (`ProgressView`): timeline, before/after fotos, predicción AI.
+
+**P2 — Retención**
+- ⏳ Command Center móvil (resumen AI colapsable), sistema de motivación (mensajes/nudges), gamificación profunda (XP/niveles/ligas/temporadas).
 - **Predictive commerce:** "Probablemente necesitarás proteína en 4 días".
 - **AI transformation tracking:** peso/fotos/medidas/adherencia → progress score + body trend.
 

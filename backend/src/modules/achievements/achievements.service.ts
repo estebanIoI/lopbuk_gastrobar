@@ -21,6 +21,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { code: 'drop_legend', label: 'Drop Legend', emoji: '🔥', desc: 'Reclamaste 5 drops. Imparable.', rarity: 'epic' },
   { code: 'coach_disciple', label: 'Discípulo', emoji: '🥋', desc: 'Empezaste una transformación con un coach.', rarity: 'rare' },
   { code: 'streak_warrior', label: 'Guerrero de Racha', emoji: '⚡', desc: '7 días seguidos. Disciplina pura.', rarity: 'rare' },
+  { code: 'challenge_champion', label: 'Campeón', emoji: '🏆', desc: 'Completaste un reto de temporada.', rarity: 'epic' },
 ];
 
 const BY_CODE = new Map(ACHIEVEMENTS.map(a => [a.code, a]));
@@ -35,7 +36,13 @@ class AchievementsService {
       'INSERT IGNORE INTO consumer_achievements (id, user_id, achievement_code, source) VALUES (?, ?, ?, ?)',
       [uuidv4(), userId, code, source || null]
     );
-    return (r as any).affectedRows > 0;
+    const isNew = (r as any).affectedRows > 0;
+    // Auto-post al feed social (F5.3) cuando es un logro nuevo. Defensivo.
+    if (isNew) {
+      const def = BY_CODE.get(code)!;
+      try { const { arenaService } = await import('../arena/arena.service'); await arenaService.autoFeed(userId, 'achievement', `${def.emoji} desbloqueó "${def.label}"`, { code }); } catch { /* no bloquear */ }
+    }
+    return isNew;
   }
 
   async getMine(userId: string) {

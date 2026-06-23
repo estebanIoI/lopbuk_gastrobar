@@ -8,16 +8,30 @@
  * El marketplace se integra como vista "Explore" (sin sacar al usuario del OS).
  * Inicia en Today. El pulido premium del desktop continúa en C3/C4.
  */
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { ArrowLeft, Compass } from 'lucide-react'
 import ConsumerRoutine from '@/components/consumer-routine'
 import DesktopShell from '@/components/consumer/layouts/DesktopShell'
 import { useIsDesktop } from '@/components/consumer/hooks/useIsDesktop'
 import { LandingPage } from '@/components/landing-page'
+import OnboardingWizard from '@/components/consumer/OnboardingWizard'
+import { FullPageLoader } from '@/components/box-loader'
+import { api } from '@/lib/api'
 
 export default function ConsumerOS() {
   const [view, setView] = useState<'os' | 'market'>('os')
   const isDesktop = useIsDesktop()
+  // Gate de activación: el usuario nuevo hace onboarding antes de entrar al OS.
+  const [onboarded, setOnboarded] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    api.getOnboardingStatus()
+      .then(r => setOnboarded(r.success ? !!r.data?.onboarded : true)) // ante error, no bloquear
+      .catch(() => setOnboarded(true))
+  }, [])
+
+  if (onboarded === null) return <FullPageLoader />
+  if (!onboarded) return <OnboardingWizard onDone={() => setOnboarded(true)} />
 
   if (view === 'market') {
     return (

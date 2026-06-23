@@ -942,6 +942,18 @@ const startServer = async () => {
         INDEX idx_cev_event (event, created_at),
         INDEX idx_cev_user (user_id, created_at)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+      // Compras self-serve de LEGEND (pricing + Wompi).
+      await poolCP.query(`CREATE TABLE IF NOT EXISTS legend_purchases (
+        id VARCHAR(36) PRIMARY KEY,
+        user_id VARCHAR(36) NOT NULL,
+        plan_key VARCHAR(20) NOT NULL,
+        months INT NOT NULL,
+        amount_cop DECIMAL(14,2) NOT NULL,
+        status ENUM('pending','paid','cancelled') NOT NULL DEFAULT 'pending',
+        gateway_payment_id VARCHAR(120) NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_lp_user (user_id, status)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
     } catch (e: any) { console.warn('[migration consumer-plans]', e?.message); }
 
     // ── Vault / Access Ecosystem (V1) ────────────────────────────────────────
@@ -1073,7 +1085,96 @@ const startServer = async () => {
         INDEX idx_cp_user (user_id),
         FOREIGN KEY (challenge_id) REFERENCES seasonal_challenges(id) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+
+      // Guilds / equipos (F5.2). Un usuario pertenece a un guild a la vez.
+      await poolVk.query(`CREATE TABLE IF NOT EXISTS guilds (
+        id VARCHAR(36) PRIMARY KEY,
+        name VARCHAR(120) NOT NULL,
+        tagline VARCHAR(200) NULL,
+        emoji VARCHAR(12) NULL,
+        owner_user_id VARCHAR(36) NULL,
+        members_count INT NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE INDEX idx_guild_name (name)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+
+      await poolVk.query(`CREATE TABLE IF NOT EXISTS guild_members (
+        id VARCHAR(36) PRIMARY KEY,
+        guild_id VARCHAR(36) NOT NULL,
+        user_id VARCHAR(36) NOT NULL,
+        joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE INDEX idx_gm_user (user_id),
+        INDEX idx_gm_guild (guild_id),
+        FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+
+      // Social feed (F5.3): progreso/logros/retos + posts manuales + likes.
+      await poolVk.query(`CREATE TABLE IF NOT EXISTS arena_feed (
+        id VARCHAR(36) PRIMARY KEY,
+        user_id VARCHAR(36) NOT NULL,
+        kind ENUM('post','progress','achievement','challenge','milestone') NOT NULL DEFAULT 'post',
+        body VARCHAR(500) NULL,
+        photo_url VARCHAR(800) NULL,
+        metadata JSON NULL,
+        likes INT NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_af_created (created_at),
+        INDEX idx_af_user (user_id, created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+
+      await poolVk.query(`CREATE TABLE IF NOT EXISTS arena_feed_likes (
+        id VARCHAR(36) PRIMARY KEY,
+        feed_id VARCHAR(36) NOT NULL,
+        user_id VARCHAR(36) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE INDEX idx_afl_unique (feed_id, user_id),
+        FOREIGN KEY (feed_id) REFERENCES arena_feed(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+
+      // Comentarios del feed (mejora fina F5.3).
+      await poolVk.query(`CREATE TABLE IF NOT EXISTS arena_feed_comments (
+        id VARCHAR(36) PRIMARY KEY,
+        feed_id VARCHAR(36) NOT NULL,
+        user_id VARCHAR(36) NOT NULL,
+        body VARCHAR(400) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_afc_feed (feed_id, created_at),
+        FOREIGN KEY (feed_id) REFERENCES arena_feed(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+
+      // Premio automático de retos (F5.4): unlock + marca de liquidación + contador de comentarios.
+      const addArenaCol = async (sql: string) => { try { await poolVk.query(sql); } catch (e: any) { if (e?.errno !== 1060 && e?.errno !== 1061) throw e; } };
+      await addArenaCol(`ALTER TABLE seasonal_challenges ADD COLUMN reward_unlock VARCHAR(80) NULL`);
+      await addArenaCol(`ALTER TABLE seasonal_challenges ADD COLUMN settled_at DATETIME NULL`);
+      await addArenaCol(`ALTER TABLE arena_feed ADD COLUMN comments_count INT NOT NULL DEFAULT 0`);
     } catch (e: any) { console.warn('[migration vault]', e?.message); }
+
+    // ── Onboarding del consumidor (Activación): columnas extra en rutina_perfil ──
+    try {
+      const poolOb = (await import('./config/database')).default;
+      const addOb = async (sql: string) => { try { await poolOb.query(sql); } catch (e: any) { if (e?.errno !== 1060 && e?.errno !== 1061) throw e; } };
+      await addOb(`ALTER TABLE rutina_perfil ADD COLUMN experience_level VARCHAR(20) NULL`);
+      await addOb(`ALTER TABLE rutina_perfil ADD COLUMN training_location VARCHAR(20) NULL`);
+      await addOb(`ALTER TABLE rutina_perfil ADD COLUMN time_per_day INT NULL`);
+      await addOb(`ALTER TABLE rutina_perfil ADD COLUMN days_per_week INT NULL`);
+      await addOb(`ALTER TABLE rutina_perfil ADD COLUMN motivation VARCHAR(300) NULL`);
+      await addOb(`ALTER TABLE rutina_perfil ADD COLUMN protein_g INT NULL`);
+      await addOb(`ALTER TABLE rutina_perfil ADD COLUMN carbs_g INT NULL`);
+      await addOb(`ALTER TABLE rutina_perfil ADD COLUMN fat_g INT NULL`);
+      await addOb(`ALTER TABLE rutina_perfil ADD COLUMN onboarded_at DATETIME NULL`);
+
+      // Checklist diario (Mission Control): hábitos del día por usuario.
+      await poolOb.query(`CREATE TABLE IF NOT EXISTS consumer_daily_checks (
+        id VARCHAR(36) PRIMARY KEY,
+        user_id VARCHAR(36) NOT NULL,
+        day DATE NOT NULL,
+        item_key VARCHAR(30) NOT NULL,
+        done TINYINT(1) NOT NULL DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE INDEX idx_dc_unique (user_id, day, item_key),
+        INDEX idx_dc_user (user_id, day)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+    } catch (e: any) { console.warn('[migration onboarding]', e?.message); }
 
     // ── Coach Economy / Marketplace de Entrenadores (T1) ─────────────────────
     // Nivel plataforma (como afiliados): auth propia del coach, ofertas (programas),

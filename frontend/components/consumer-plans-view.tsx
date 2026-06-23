@@ -60,6 +60,17 @@ export default function PlanesView({ onUpgrade }: { onUpgrade?: (state: TierStat
   const [success, setSuccess] = useState('')
   const [now, setNow] = useState(Date.now())
   const tick = useRef<ReturnType<typeof setInterval> | null>(null)
+  const [pricing, setPricing] = useState<any[]>([])
+  const [buyingPlan, setBuyingPlan] = useState<string | null>(null)
+
+  useEffect(() => { api.getLegendPricing().then(r => { if (r.success) setPricing(r.data || []) }).catch(() => {}) }, [])
+  const buyLegend = async (plan: string) => {
+    if (buyingPlan) return
+    setBuyingPlan(plan)
+    const r = await api.createLegendCheckout(plan)
+    if (r.success && r.data?.checkoutUrl) { window.location.href = r.data.checkoutUrl; return }
+    setBuyingPlan(null)
+  }
 
   const fetchPlan = useCallback(async () => {
     setLoading(true)
@@ -151,6 +162,29 @@ export default function PlanesView({ onUpgrade }: { onUpgrade?: (state: TierStat
         {error && <p className="text-xs text-red-500 mt-1.5">{error}</p>}
         {success && <p className="text-xs text-green-600 mt-1.5 flex items-center gap-1"><Check className="w-3.5 h-3.5" />{success}</p>}
       </div>
+
+      {/* Pricing self-serve (solo si NO es LEGEND) */}
+      {!isLegend && pricing.length > 0 && (
+        <div className="rounded-2xl p-4 bg-white border border-black/10">
+          <p className="text-sm font-semibold text-neutral-800 mb-1 flex items-center gap-1.5"><Crown className="w-4 h-4" style={{ color: '#D4AF37' }} /> Hazte LEGEND</p>
+          <p className="text-xs text-neutral-500 mb-3">Paga en línea y desbloquea todo al instante.</p>
+          <div className="grid grid-cols-3 gap-2">
+            {pricing.map((p: any) => {
+              const popular = p.badge === 'Más popular'
+              return (
+                <button key={p.key} onClick={() => buyLegend(p.key)} disabled={!!buyingPlan}
+                  className={`relative rounded-xl border p-3 text-center transition-all disabled:opacity-60 ${popular ? 'border-amber-400 bg-amber-50' : 'border-neutral-200 bg-neutral-50 hover:border-neutral-300'}`}>
+                  {p.badge && <span className="absolute -top-2 left-1/2 -translate-x-1/2 text-[8px] font-bold uppercase tracking-wide text-white rounded-full px-2 py-0.5" style={{ backgroundColor: popular ? '#D4AF37' : '#9ca3af' }}>{p.badge}</span>}
+                  <p className="text-[11px] font-bold text-neutral-700 mt-1">{p.label}</p>
+                  <p className="text-base font-extrabold text-neutral-900 mt-1">{buyingPlan === p.key ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : `$${(p.priceCop / 1000).toLocaleString('es-CO')}k`}</p>
+                  <p className="text-[9px] text-neutral-400">${(p.perMonthCop / 1000).toFixed(0)}k/mes</p>
+                </button>
+              )
+            })}
+          </div>
+          <p className="text-[10px] text-neutral-400 text-center mt-2">Pago seguro con Wompi · se activa automáticamente</p>
+        </div>
+      )}
 
       {/* Milestones / días de poder */}
       {isLegend && (

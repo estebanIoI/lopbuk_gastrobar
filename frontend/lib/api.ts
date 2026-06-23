@@ -505,9 +505,97 @@ class ApiService {
   async getMyAchievements() {
     return this.request<any[]>('/achievements/me')
   }
+  // ── Onboarding / Activación ──
+  async getOnboardingStatus() {
+    return this.request<{ onboarded: boolean; hasProfile: boolean }>('/rutina/onboarding/status')
+  }
+  async completeOnboarding(body: any) {
+    return this.request<any>('/rutina/onboarding', { method: 'POST', body: JSON.stringify(body) })
+  }
+  async getTodayMission() {
+    return this.request<any>('/rutina/today-mission')
+  }
+  // ── Compra LEGEND ──
+  async getLegendPricing() {
+    return this.request<any[]>('/consumer-plans/legend/pricing')
+  }
+  async createLegendCheckout(plan: string) {
+    const origin = typeof window !== 'undefined' ? window.location.origin : ''
+    return this.request<{ checkoutUrl: string }>('/consumer-plans/legend/checkout', { method: 'POST', body: JSON.stringify({ plan, origin }) })
+  }
+  async toggleDailyCheck(item: string, done: boolean) {
+    return this.request<any>('/rutina/check', { method: 'POST', body: JSON.stringify({ item, done }) })
+  }
   // ── Adaptive OS (F4.1) ──
   async getAdaptiveNudges() {
     return this.request<any[]>('/adaptive/me')
+  }
+  // ── Transformation tracking (F4.3) ──
+  async getProgress() {
+    return this.request<any>('/progress/me')
+  }
+  async getProgressLogs(limit = 60) {
+    return this.request<any[]>(`/progress/me/logs?limit=${limit}`)
+  }
+  async logBody(body: { weightKg?: number; bodyFat?: number; photoUrl?: string; note?: string; measurements?: any; loggedOn?: string }) {
+    return this.request<any>('/progress/log', { method: 'POST', body: JSON.stringify(body) })
+  }
+  // ── Community / Arena (F5.1) ──
+  async getCommunityLeaderboard(limit = 20) {
+    return this.request<any>(`/arena/leaderboard?limit=${limit}`)
+  }
+  async getChallenges() {
+    return this.request<any[]>('/arena/challenges')
+  }
+  async joinChallenge(id: string) {
+    return this.request<any>(`/arena/challenges/${id}/join`, { method: 'POST' })
+  }
+  async getChallengeLeaderboard(id: string, limit = 20) {
+    return this.request<any>(`/arena/challenges/${id}/leaderboard?limit=${limit}`)
+  }
+  async adminListChallenges() {
+    return this.request<any[]>('/arena/admin/challenges')
+  }
+  async adminCreateChallenge(body: { title: string; description?: string; metric?: string; goalValue?: number; reward?: string; startsAt: string; endsAt: string }) {
+    return this.request<any>('/arena/admin/challenges', { method: 'POST', body: JSON.stringify(body) })
+  }
+  async adminUpdateChallenge(id: string, patch: any) {
+    return this.request<any>(`/arena/admin/challenges/${id}`, { method: 'PATCH', body: JSON.stringify(patch) })
+  }
+  async adminSettleChallenge(id: string) {
+    return this.request<any>(`/arena/admin/challenges/${id}/settle`, { method: 'POST' })
+  }
+  // ── Guilds (F5.2) ──
+  async getGuilds(limit = 20) {
+    return this.request<any>(`/arena/guilds?limit=${limit}`)
+  }
+  async getMyGuild() {
+    return this.request<any>('/arena/guilds/mine')
+  }
+  async createGuild(body: { name: string; tagline?: string; emoji?: string }) {
+    return this.request<any>('/arena/guilds', { method: 'POST', body: JSON.stringify(body) })
+  }
+  async joinGuild(id: string) {
+    return this.request<any>(`/arena/guilds/${id}/join`, { method: 'POST' })
+  }
+  async leaveGuild() {
+    return this.request<any>('/arena/guilds/leave', { method: 'POST' })
+  }
+  // ── Social feed (F5.3) ──
+  async getArenaFeed(limit = 30) {
+    return this.request<any[]>(`/arena/feed?limit=${limit}`)
+  }
+  async postArenaFeed(body: { body?: string; photoUrl?: string }) {
+    return this.request<any>('/arena/feed', { method: 'POST', body: JSON.stringify(body) })
+  }
+  async likeArenaFeed(id: string) {
+    return this.request<any>(`/arena/feed/${id}/like`, { method: 'POST' })
+  }
+  async getFeedComments(id: string) {
+    return this.request<any[]>(`/arena/feed/${id}/comments`)
+  }
+  async addFeedComment(id: string, body: string) {
+    return this.request<any>(`/arena/feed/${id}/comments`, { method: 'POST', body: JSON.stringify({ body }) })
   }
   // ── Consumer Plans (superadmin) ──
   async adminCreatePlanCode(body: { tier?: string; durationValue: number; durationUnit: 'day' | 'month'; stackPolicy?: 'extend' | 'replace' | 'block'; maxRedemptions?: number | null; validUntil?: string | null; scope?: 'global' | 'tenant'; tenantId?: string | null; code?: string }) {
@@ -522,6 +610,9 @@ class ApiService {
   }
   async adminUpdatePlanCode(id: string, patch: { isActive?: boolean; validUntil?: string | null; maxRedemptions?: number | null }) {
     return this.request<any>(`/consumer-plans/admin/codes/${id}`, { method: 'PATCH', body: JSON.stringify(patch) })
+  }
+  async adminDeletePlanCode(id: string, force = false) {
+    return this.request<any>(`/consumer-plans/admin/codes/${id}${force ? '?force=1' : ''}`, { method: 'DELETE' })
   }
   async adminGetLegendConfig() {
     return this.request<any>('/consumer-plans/admin/legend-config')
