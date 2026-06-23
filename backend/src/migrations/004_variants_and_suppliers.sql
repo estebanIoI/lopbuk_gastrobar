@@ -2,7 +2,7 @@
 -- MIGRACIÓN v3.9 — Variantes + Precios por Volumen + Proveedores
 -- ============================================================
 -- Fecha: 2026-06-07
--- Descripción: Agrega soporte para variantes de producto (color/talla/material)
+-- Descripción: Agregaaaa soporte para variantes de producto (color/talla/material)
 -- con stock independiente, precios escalonados (tiers), proveedores,
 -- y movimientos de inventario como fuente de verdad.
 -- ============================================================
