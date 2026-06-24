@@ -630,6 +630,41 @@ function toToolDefs(decls: any[]): ToolDef[] {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Tool-calls escritos COMO TEXTO (<function=NAME>{json}</function>).
+// Algunos proveedores no hacen function-calling nativo y el modelo escribe el
+// llamado en el mensaje. Los detectamos para (1) ejecutarlos de verdad si traen
+// los datos requeridos, y (2) no mostrar ese texto crudo al cliente.
+// ─────────────────────────────────────────────────────────────
+const TOOL_REQUIRED: Record<string, string[]> = {
+  registrar_pedido: ['nombre', 'telefono', 'items', 'tipo'],
+  crear_reserva: ['nombre', 'telefono', 'fecha', 'hora', 'personas'],
+  registrar_interes_cliente: ['nombre', 'telefono', 'interes'],
+  verificar_disponibilidad_reserva: ['fecha', 'personas'],
+};
+const FIELD_PROMPT: Record<string, string> = {
+  nombre: '¿A nombre de quién registro el pedido?',
+  telefono: '¿Me compartes tu número de teléfono para coordinar el pedido? 📱',
+  direccion: '¿Cuál es la dirección exacta de entrega? 📍',
+  items: '¿Qué te gustaría pedir?',
+  tipo: '¿Lo quieres a domicilio o para recoger?',
+  fecha: '¿Para qué fecha lo necesitas?',
+  hora: '¿A qué hora?',
+  personas: '¿Para cuántas personas?',
+};
+function extractInlineCalls(text: string): { name: string; args: any }[] {
+  const out: { name: string; args: any }[] = [];
+  const re = /<function=?\s*([a-zA-Z_]+)\s*>\s*([\s\S]*?)\s*<\/function>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text))) {
+    let args: any = {};
+    try { args = JSON.parse(m[2]); } catch { /* json roto: se ignora */ }
+    out.push({ name: m[1], args });
+  }
+  return out;
+}
+const TOOL_TAG_RE = /<function[^>]*>[\s\S]*?<\/function>|<function[\s\S]*$|<\/?function[^>]*>|<tool_call>[\s\S]*?<\/tool_call>|<\/?tool_call[^>]*>|<\|[^>]*\|>|\[COMPRAR:[^\]]+\]/gi;
+
+// ─────────────────────────────────────────────────────────────
 // Main pipeline — channel-agnostic
 // ─────────────────────────────────────────────────────────────
 
@@ -709,22 +744,32 @@ export async function processAgentMessage(
     return { reply: 'Tuve un problemita para responder. Intenta de nuevo en un momento. 🙂', suggestedProducts };
   }
 
-  // Limpieza: algunos modelos (cuando el tool-calling nativo no engancha) escriben el
-  // llamado de la herramienta COMO TEXTO (<function=...>{...}</function>, <tool_call>…,
-  // JSON suelto). Eso NUNCA debe verse en el chat → se elimina.
-  let cleaned = rawReply
-    .replace(/<function[^>]*>[\s\S]*?<\/function>/gi, '')   // <function=...>{...}</function> completo
-    .replace(/<function[\s\S]*$/i, '')                       // etiqueta sin cerrar: corta de ahí al final (con su JSON)
-    .replace(/<\/?function[^>]*>/gi, '')                     // etiquetas <function ...> sueltas
-    .replace(/<tool_call>[\s\S]*?<\/tool_call>/gi, '')       // <tool_call>{...}</tool_call> completo
-    .replace(/<\/?tool_call[^>]*>/gi, '')                    // etiquetas <tool_call> sueltas
-    .replace(/<\|[^>]*\|>/g, '')                             // tokens especiales tipo <|...|>
-    .replace(/\[COMPRAR:[^\]]+\]/gi, '')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
-  // Si tras limpiar no quedó nada útil (la respuesta era solo el llamado), damos un texto amable.
-  if (!cleaned || cleaned.length < 2) {
-    cleaned = '¿Te ayudo a completar tu pedido? Cuéntame qué deseas. 🙂';
+  // Si el modelo escribió el/los llamado(s) como TEXTO, los procesamos: ejecutamos los
+  // que traen los datos requeridos (para que el pedido SÍ se registre) y, si faltan datos,
+  // pedimos el primero faltante con naturalidad.
+  const inlineMsgs: string[] = [];
+  let missingPrompt = '';
+  for (const c of extractInlineCalls(rawReply)) {
+    const reqd = TOOL_REQUIRED[c.name];
+    if (reqd) {
+      const miss = reqd.filter(k => !String(c.args?.[k] ?? '').trim());
+      if (c.name === 'registrar_pedido' && c.args?.tipo === 'domicilio' && !String(c.args?.direccion ?? '').trim()) miss.push('direccion');
+      if (miss.length > 0) { if (!missingPrompt) missingPrompt = FIELD_PROMPT[miss[0]] || 'Me falta un dato para completar tu pedido, ¿me lo confirmas?'; continue; }
+    }
+    const sig = `${c.name}:${JSON.stringify(c.args || {})}`;
+    if (executedTools.has(sig)) { const prev = executedTools.get(sig); if (prev) inlineMsgs.push(prev); continue; }
+    try {
+      const r = await executeAgentTool(c.name, c.args || {}, tenantId, sessionId);
+      const out = r.userMessage || '';
+      executedTools.set(sig, out);
+      if (out) inlineMsgs.push(out);
+    } catch { /* noop */ }
   }
-  return { reply: cleaned, suggestedProducts };
+
+  // Limpieza: quita TODA etiqueta de herramienta del texto para que no se vea cruda.
+  const cleaned = rawReply.replace(TOOL_TAG_RE, '').replace(/\n{3,}/g, '\n\n').trim();
+  // Reply final = texto conversacional limpio + confirmaciones de herramientas ejecutadas.
+  let reply = [cleaned, ...inlineMsgs].filter(Boolean).join('\n\n').trim();
+  if (!reply) reply = missingPrompt || '¿Te ayudo a completar tu pedido? Cuéntame qué deseas. 🙂';
+  return { reply, suggestedProducts };
 }
