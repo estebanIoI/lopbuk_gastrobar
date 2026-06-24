@@ -61,7 +61,7 @@ router.get('/status/:slug', async (req: Request, res: Response) => {
 // =============================================
 router.post('/message', async (req: Request, res: Response) => {
   try {
-    const { slug, sessionToken, message, customerName } = req.body;
+    const { slug, sessionToken, message, customerName, excludeProductIds } = req.body;
     if (!slug || !message?.trim()) {
       res.status(400).json({ success: false, error: 'slug y message son requeridos' });
       return;
@@ -91,6 +91,7 @@ router.post('/message', async (req: Request, res: Response) => {
     const sessionId = await getOrCreateSession(token, tenantId, { customerName });
 
     if (await isHumanTakeover(sessionId)) {
+      await saveMessage(sessionId, tenantId, 'user', message.trim());
       res.json({
         success: true,
         data: { reply: 'Un asesor te atenderá en breve.', sessionToken: token },
@@ -98,12 +99,15 @@ router.post('/message', async (req: Request, res: Response) => {
       return;
     }
 
-    await saveMessage(sessionId, tenantId, 'user', message.trim());
-
+    // Se procesa ANTES de guardar el mensaje del usuario: así el historial que ve el
+    // modelo no incluye el mensaje actual (se anexa una sola vez dentro del pipeline),
+    // evitando el duplicado. Si el pipeline falla, no queda un mensaje huérfano.
     const { reply, suggestedProducts } = await processAgentMessage(
-      tenantId, sessionId, message.trim(), config
+      tenantId, sessionId, message.trim(), config,
+      Array.isArray(excludeProductIds) ? excludeProductIds.map(String) : []
     );
 
+    await saveMessage(sessionId, tenantId, 'user', message.trim());
     await saveMessage(sessionId, tenantId, 'assistant', reply);
 
     res.json({

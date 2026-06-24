@@ -6,44 +6,50 @@
  *
  * Se activa SOLO si el superadmin habilitó el asistente de plataforma
  * (platform_settings.platform_assistant_enabled) — el gate va en la ruta.
- * Reutiliza la API key central vía getAIKey() (Gemini / OpenAI / Groq).
+ * Corre sobre el orchestrator (agentLoop): function-calling provider-agnóstico,
+ * funciona con OpenCode Go / OpenAI / Groq / Gemini según lo configurado.
  */
 import { db } from '../../config';
-import { getAIKey } from '../agent/agent.service';
+import { agentLoop, ToolDef } from '../ai/orchestrator.service';
 import * as svc from './rutina.service';
+import { COACH_KB } from './rutina.coach-kb';
 import { RowDataPacket } from 'mysql2';
 
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-flash-latest';
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+// El conocimiento de coach (COACH_KB) va PRIMERO como bloque estable: define cómo
+// razona el coach (objetivos, programación, nutrición, progresión, seguridad). Debajo
+// va la capa específica de DAIMUZ (herramientas, productos de comercios, integración).
+const SYSTEM_PROMPT = `${COACH_KB}
 
-const SYSTEM_PROMPT = `Eres el asistente de bienestar de DAIMUZ, una plataforma que conecta a las personas con comercios (gimnasios, fruver, tiendas de proteína, ropa deportiva, etc.).
-Tu trabajo es ayudar al usuario a organizar su vida saludable: conocer sus objetivos, armar su rutina de ejercicio a su medida, planear sus comidas con macros, su lista de compras, y recomendarle productos de los comercios registrados según su situación.
-Reglas:
-- Habla en español, cercano y motivador, pero conciso.
-- Si el usuario es nuevo o le falta info, hazle un cuestionario BREVE (objetivo, peso, estatura, meta de peso, nivel de actividad) y guarda el perfil con la herramienta guardar_perfil.
-- Cuando tengas sus objetivos, ofrécele armar una rutina a su medida y créala con crear_rutina_ejercicio (distribuye los días según su nivel).
-- Sugiere comidas acordes a su objetivo y agrégalas con agregar_comida cuando el usuario acepte.
-- Si menciona que le falta algo o quiere comprar, usa agregar_lista_compras y/o recomendar_productos.
-- NO inventes productos: usa recomendar_productos para traerlos de los comercios reales.
-- Ejecuta UNA acción a la vez y confirma en lenguaje natural lo que hiciste. No pidas datos que el usuario ya te dio.`;
+# CONTEXTO DAIMUZ (cómo operas dentro de la app)
+Eres el Coach de bienestar de DAIMUZ, una plataforma que conecta a las personas con comercios (gimnasios, fruver, tiendas de proteína, ropa deportiva, etc.). Aplicas TODO el conocimiento base de arriba para dar recomendaciones precisas y seguras, y además operas la app del usuario con tus herramientas.
+Reglas de operación:
+- Habla en español, cercano y motivador, pero conciso. Aplica el conocimiento base: detecta el objetivo y ajusta series/reps/descanso/frecuencia y nutrición según corresponda.
+- Si el usuario es nuevo o falta info crítica, haz un cuestionario BREVE (objetivo, peso, estatura, meta de peso, nivel de actividad, días disponibles, lesiones) y guarda el perfil con guardar_perfil. No pidas lo que ya te dieron.
+- Cuando tengas el objetivo, ofrece armar la rutina y créala con crear_rutina_ejercicio, distribuyendo los días según objetivo y nivel (ej.: hipertrofia 4–6 días PPL/Torso-Pierna; fuerza 3–5 días Upper/Lower; salud 2–3 días full body). En cada día pon un título claro y, cuando aplique, el esquema (ej.: "Pierna — 4x8-12", "Cardio 30 min Z2").
+- Sugiere comidas acordes al objetivo (calorías según meta, proteína 1.6–2.2 g/kg) y agrégalas con agregar_comida cuando el usuario acepte. Da macros realistas.
+- Si le falta algo o quiere comprar, usa agregar_lista_compras y/o recomendar_productos. NO inventes productos: tráelos de comercios reales con recomendar_productos.
+- Ejecuta UNA acción a la vez y confirma en lenguaje natural lo que hiciste.
+- SEGURIDAD: ante dolor severo/persistente, mareo, dolor de pecho, lesión o señales de trastorno alimentario, recomienda atención profesional y no continúes con un plan que pueda dañar. Nunca recomiendes esteroides, dietas extremas ni sobreentrenamiento.`;
 
 // ─────────────────────────────────────────────────────────────
 // Declaraciones de herramientas (Gemini functionDeclarations)
 // ─────────────────────────────────────────────────────────────
-const TOOLS = [
+// Tools en JSON-schema estándar (tipos en minúscula). El orchestrator las traduce
+// al formato de cada proveedor (OpenAI `tools` o Gemini `functionDeclarations`).
+const TOOLS: ToolDef[] = [
   {
     name: 'guardar_perfil',
     description: 'Guarda o actualiza el perfil del usuario (objetivos y datos físicos).',
     parameters: {
-      type: 'OBJECT',
+      type: 'object',
       properties: {
-        goal: { type: 'STRING', description: 'bajar_peso | subir_masa | mantener | salud_general' },
-        weightKg: { type: 'NUMBER' },
-        heightCm: { type: 'NUMBER' },
-        targetWeightKg: { type: 'NUMBER' },
-        dailyCalorieTarget: { type: 'INTEGER' },
-        activityLevel: { type: 'STRING', description: 'sedentario | ligero | moderado | activo | muy_activo' },
-        waterTargetMl: { type: 'INTEGER' },
+        goal: { type: 'string', description: 'Guarda el objetivo en uno de estos 4 valores. Mapea la meta detectada: pérdida de grasa→bajar_peso; hipertrofia/fuerza/recomposición/rendimiento→subir_masa; movilidad→salud_general; salud/mantenimiento→mantener. Valores válidos: bajar_peso | subir_masa | mantener | salud_general' },
+        weightKg: { type: 'number' },
+        heightCm: { type: 'number' },
+        targetWeightKg: { type: 'number' },
+        dailyCalorieTarget: { type: 'integer' },
+        activityLevel: { type: 'string', description: 'sedentario | ligero | moderado | activo | muy_activo' },
+        waterTargetMl: { type: 'integer' },
       },
     },
   },
@@ -51,16 +57,16 @@ const TOOLS = [
     name: 'crear_rutina_ejercicio',
     description: 'Crea una rutina de ejercicio con actividades por día de la semana.',
     parameters: {
-      type: 'OBJECT',
+      type: 'object',
       properties: {
-        name: { type: 'STRING', description: 'Nombre de la rutina, ej: "Hipertrofia 4 días"' },
+        name: { type: 'string', description: 'Nombre de la rutina, ej: "Hipertrofia 4 días"' },
         actividades: {
-          type: 'ARRAY',
+          type: 'array',
           items: {
-            type: 'OBJECT',
+            type: 'object',
             properties: {
-              dayOfWeek: { type: 'INTEGER', description: '0=Dom..6=Sáb. Omitir para diario.' },
-              title: { type: 'STRING', description: 'ej: "Pecho y tríceps", "Cardio 30min"' },
+              dayOfWeek: { type: 'integer', description: '0=Dom..6=Sáb. Omitir para diario.' },
+              title: { type: 'string', description: 'ej: "Pecho y tríceps — 4x8-12", "Cardio 30min Z2"' },
             },
             required: ['title'],
           },
@@ -73,14 +79,14 @@ const TOOLS = [
     name: 'agregar_comida',
     description: 'Agrega una comida al plan de hoy con sus macros.',
     parameters: {
-      type: 'OBJECT',
+      type: 'object',
       properties: {
-        mealType: { type: 'STRING', description: 'desayuno | media_manana | almuerzo | onces | cena | snack' },
-        title: { type: 'STRING' },
-        calories: { type: 'INTEGER' },
-        proteinG: { type: 'NUMBER' },
-        carbsG: { type: 'NUMBER' },
-        fatG: { type: 'NUMBER' },
+        mealType: { type: 'string', description: 'desayuno | media_manana | almuerzo | onces | cena | snack' },
+        title: { type: 'string' },
+        calories: { type: 'integer' },
+        proteinG: { type: 'number' },
+        carbsG: { type: 'number' },
+        fatG: { type: 'number' },
       },
       required: ['mealType', 'title'],
     },
@@ -89,16 +95,16 @@ const TOOLS = [
     name: 'agregar_lista_compras',
     description: 'Agrega uno o varios ítems a la lista de compras del usuario.',
     parameters: {
-      type: 'OBJECT',
+      type: 'object',
       properties: {
         items: {
-          type: 'ARRAY',
+          type: 'array',
           items: {
-            type: 'OBJECT',
+            type: 'object',
             properties: {
-              name: { type: 'STRING' },
-              quantity: { type: 'NUMBER' },
-              unit: { type: 'STRING' },
+              name: { type: 'string' },
+              quantity: { type: 'number' },
+              unit: { type: 'string' },
             },
             required: ['name'],
           },
@@ -111,8 +117,8 @@ const TOOLS = [
     name: 'recomendar_productos',
     description: 'Busca productos reales en los comercios registrados para recomendarlos (proteína, fruta, ropa deportiva, etc.).',
     parameters: {
-      type: 'OBJECT',
-      properties: { query: { type: 'STRING', description: 'qué buscar, ej: "proteína whey", "frutas", "tenis"' } },
+      type: 'object',
+      properties: { query: { type: 'string', description: 'qué buscar, ej: "proteína whey", "frutas", "tenis"' } },
       required: ['query'],
     },
   },
@@ -197,71 +203,40 @@ export async function runAssistant(
   history: { role: string; content: string }[] = [],
   advanced = false,   // C7.3: LEGEND (entitlement routine_ai) → modo coach avanzado
 ): Promise<{ reply: string; products?: any[]; action?: string }> {
-  const apiKey = await getAIKey();
-  if (!apiKey) return { reply: 'El asistente no está configurado todavía. Intenta más tarde.' };
-
-  // Solo Gemini soporta el function-calling de este asistente
-  if (!apiKey.startsWith('AIza')) {
-    return { reply: 'El asistente requiere una clave de IA compatible (Gemini). Avísale al administrador.' };
-  }
-
   // Free = IA básica; LEGEND = AI Coach (planes completos, nutrición contextual, combos, más memoria).
   const systemPrompt = advanced
     ? `${SYSTEM_PROMPT}\n\n[MODO AI COACH LEGEND] El usuario es miembro LEGEND. Entrega planes completos y detallados, contexto nutricional profundo, recomendaciones inteligentes y combos de productos sugeridos para su objetivo. Sé proactivo, específico y motivador.`
     : SYSTEM_PROMPT;
-  const maxOut1 = advanced ? 1100 : 600;
-  const maxOut2 = advanced ? 800 : 450;
 
-  const contents = [...history, { role: 'user', content: message }]
-    .filter(m => m.role !== 'system')
-    .map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }));
+  // El orchestrator maneja el proveedor (OpenCode Go / OpenAI / Groq / Gemini),
+  // el function-calling, el respaldo y la telemetría. Capturamos products/action
+  // del último tool ejecutado vía closure para devolverlos al frontend.
+  let lastProducts: any[] | undefined;
+  let lastAction: string | undefined;
 
-  const body = {
-    system_instruction: { parts: [{ text: systemPrompt }] },
-    contents,
-    tools: [{ functionDeclarations: TOOLS }],
-    tool_config: { function_calling_config: { mode: 'AUTO' } },
-    generationConfig: { maxOutputTokens: maxOut1, temperature: 0.7 },
-  };
-
-  const r1 = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-  });
-  if (!r1.ok) {
-    if (r1.status === 429) return { reply: 'Estoy recibiendo muchas consultas, intenta en unos segundos. 🙏' };
-    throw new Error(`Gemini error: ${await r1.text()}`);
+  try {
+    const result = await agentLoop({
+      system: systemPrompt,
+      messages: [...history, { role: 'user', content: message }],
+      tools: TOOLS,
+      execute: async (name, args) => {
+        const exec = await executeTool(name, args || {}, userId);
+        if (exec.products) lastProducts = exec.products;
+        if (exec.action) lastAction = exec.action;
+        return exec.summary;
+      },
+      maxTokens: advanced ? 1100 : 600,
+      temperature: 0.7,
+      tier: advanced ? 'main' : 'small',
+      maxRounds: 6,
+    });
+    return { reply: result.reply || 'No pude procesar tu mensaje.', products: lastProducts, action: lastAction };
+  } catch (e: any) {
+    const msg = String(e?.message || '');
+    if (msg === 'NO_AI_KEY') return { reply: 'El asistente no está configurado todavía. Avísale al administrador.' };
+    if (msg.includes('429')) return { reply: 'Estoy recibiendo muchas consultas, intenta en unos segundos. 🙏' };
+    return { reply: 'No pude responder en este momento, intenta de nuevo.' };
   }
-  const d1 = await r1.json() as any;
-  const cand = d1.candidates?.[0]?.content;
-  const fcPart = cand?.parts?.find((p: any) => p.functionCall);
-
-  if (!fcPart) {
-    return { reply: cand?.parts?.find((p: any) => p.text)?.text || 'No pude procesar tu mensaje.' };
-  }
-
-  // Ejecutar la herramienta
-  const { name, args } = fcPart.functionCall;
-  const exec = await executeTool(name, args || {}, userId);
-
-  // Segunda llamada para respuesta natural a partir del resultado
-  const r2 = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      system_instruction: { parts: [{ text: systemPrompt }] },
-      contents: [
-        ...contents,
-        { role: 'model', parts: [{ functionCall: { name, args } }] },
-        { role: 'user', parts: [{ functionResponse: { name, response: { content: exec.summary } } }] },
-      ],
-      generationConfig: { maxOutputTokens: maxOut2, temperature: 0.7 },
-    }),
-  });
-  let reply = exec.summary;
-  if (r2.ok) {
-    const d2 = await r2.json() as any;
-    reply = d2.candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text || exec.summary;
-  }
-  return { reply, products: exec.products, action: exec.action };
 }
 
 /** ¿Está habilitado el asistente de plataforma? */

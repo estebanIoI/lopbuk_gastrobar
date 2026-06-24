@@ -291,8 +291,10 @@ export function Pedidos() {
 
   const formatDate = (date: string) => {
     const d = new Date(date)
+    // Hora de Colombia explícita (la fecha viene en UTC desde el backend).
     return d.toLocaleDateString('es-CO', {
-      day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+      day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+      timeZone: 'America/Bogota',
     })
   }
 
@@ -314,7 +316,7 @@ export function Pedidos() {
       </style>
       </head><body>
         <div class='header'>PERFUM MUA - Factura Pedido #${order.orderNumber}</div>
-        <div class='subheader'>Fecha: ${new Date(order.createdAt).toLocaleString('es-CO')}</div>
+        <div class='subheader'>Fecha: ${new Date(order.createdAt).toLocaleString('es-CO', { timeZone: 'America/Bogota' })}</div>
         <div class='subheader'>Cliente: ${order.customerName} (${order.customerPhone})</div>
         <div class='subheader'>Dirección: ${order.address || ''} ${order.department || ''} ${order.municipality || ''} ${order.neighborhood ? 'Barrio: ' + order.neighborhood : ''}</div>
         <table class='table'>
@@ -346,7 +348,7 @@ export function Pedidos() {
     orders.forEach((order, idx) => {
       win.document.write(`
         <div class='header'>PERFUM MUA - Factura Pedido #${order.orderNumber}</div>
-        <div class='subheader'>Fecha: ${new Date(order.createdAt).toLocaleString('es-CO')}</div>
+        <div class='subheader'>Fecha: ${new Date(order.createdAt).toLocaleString('es-CO', { timeZone: 'America/Bogota' })}</div>
         <div class='subheader'>Cliente: ${order.customerName} (${order.customerPhone})</div>
         <div class='subheader'>Dirección: ${order.address || ''} ${order.department || ''} ${order.municipality || ''} ${order.neighborhood ? 'Barrio: ' + order.neighborhood : ''}</div>
         <table class='table'>

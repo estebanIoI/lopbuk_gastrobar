@@ -164,7 +164,7 @@ export async function getUsageStats(): Promise<UsageStats> {
  * ventana) degrada el tier main→small. Si ya lo superó (≥100%), evita Go y deja
  * que la cadena caiga a Groq/Gemini.
  */
-async function limitGuard(req: TextLLMRequest): Promise<{ tier?: AiTier; avoidOpencodeGo: boolean }> {
+async function limitGuard(req: { tier?: AiTier }): Promise<{ tier?: AiTier; avoidOpencodeGo: boolean }> {
   const s = await getUsageStats();
   const frac = Math.max(s.spend5h / s.limit5h, s.spendWeek / s.limitWeek, s.spendMonth / s.limitMonth);
   if (frac >= 1) return { tier: 'small', avoidOpencodeGo: true };
@@ -365,4 +365,160 @@ export async function run(req: RunRequest): Promise<string> {
   return textReply(req.system, augmented, req.history || [], {
     maxTokens: req.maxTokens, temperature: req.temperature, historyLimit: req.historyLimit, model: req.model, tier: req.tier,
   });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AGENTE CON HERRAMIENTAS (IA7): function-calling PROVIDER-AGNÓSTICO.
+// Un solo loop que funciona con OpenCode Go / OpenAI / Groq (formato OpenAI
+// `tools`) y con Gemini (`functionDeclarations`). El call site define sus tools
+// en JSON-schema (tipos en minúscula: object/string/number/integer/array/boolean)
+// y un `execute(name, args)` que ejecuta la acción real y devuelve texto.
+// Así cualquier agente (AI Coach, etc.) corre con la IA que el admin configure.
+// ─────────────────────────────────────────────────────────────────────────────
+export interface ToolDef { name: string; description: string; parameters: any }
+export type ToolExecutor = (name: string, args: any) => Promise<string>;
+export interface AgentRequest {
+  system: string;
+  messages: { role: string; content: string }[];
+  tools: ToolDef[];
+  execute: ToolExecutor;
+  maxRounds?: number;     // def. 6
+  maxTokens?: number;     // def. 700
+  temperature?: number;   // def. 0.6
+  tier?: AiTier;
+  tenantId?: string | null;
+}
+export interface AgentResult { reply: string; rounds: number; usedProvider: AiProvider | null }
+
+// Gemini exige tipos de schema en MAYÚSCULA (OBJECT/STRING/...).
+function geminiSchema(schema: any): any {
+  if (!schema || typeof schema !== 'object') return schema;
+  if (Array.isArray(schema)) return schema.map(geminiSchema);
+  const out: any = {};
+  for (const [k, v] of Object.entries(schema)) {
+    if (k === 'type' && typeof v === 'string') out[k] = v.toUpperCase();
+    else out[k] = geminiSchema(v);
+  }
+  return out;
+}
+
+const addUsage = (a: Usage, b: Usage): Usage => ({ prompt: a.prompt + b.prompt, completion: a.completion + b.completion, total: a.total + b.total });
+
+// Loop OpenAI-compatible (OpenCode Go / OpenAI / Groq).
+async function agentOpenAICompat(url: string, apiKey: string, model: string, req: AgentRequest, flag: { executed: boolean }): Promise<LLMResult & { rounds: number }> {
+  const tools = req.tools.map(t => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.parameters } }));
+  const messages: any[] = [{ role: 'system', content: req.system }, ...req.messages.map(norm)];
+  let usage = { ...ZERO_USAGE };
+  const maxRounds = req.maxRounds ?? 6;
+  let rounds = 0;
+  for (let i = 0; i < maxRounds; i++) {
+    rounds++;
+    const r = await fetch(url, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ model, messages, tools, tool_choice: 'auto', max_tokens: req.maxTokens ?? 700, temperature: req.temperature ?? 0.6 }),
+    });
+    if (!r.ok) throw new Error(`${url} ${r.status}: ${await r.text()}`);
+    const d = await r.json() as any;
+    const u = d.usage || {};
+    usage = addUsage(usage, { prompt: u.prompt_tokens || 0, completion: u.completion_tokens || 0, total: u.total_tokens || 0 });
+    const msg = d.choices?.[0]?.message;
+    const calls = msg?.tool_calls;
+    if (!calls || calls.length === 0) return { text: msg?.content || '', usage, rounds };
+    messages.push({ role: 'assistant', content: msg.content ?? null, tool_calls: calls });
+    for (const c of calls) {
+      let args: any = {}; try { args = JSON.parse(c.function?.arguments || '{}'); } catch { /* sin args */ }
+      flag.executed = true;
+      const result = await req.execute(c.function?.name, args);
+      messages.push({ role: 'tool', tool_call_id: c.id, content: result });
+    }
+  }
+  // Se agotaron las rondas con tools: cierre forzado pidiendo texto final (sin tools).
+  const rf = await fetch(url, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({ model, messages, max_tokens: req.maxTokens ?? 700, temperature: req.temperature ?? 0.6 }),
+  });
+  if (!rf.ok) return { text: '', usage, rounds };
+  const df = await rf.json() as any;
+  return { text: df.choices?.[0]?.message?.content || '', usage, rounds };
+}
+
+// Loop Gemini (functionDeclarations).
+async function agentGemini(apiKey: string, model: string, req: AgentRequest, flag: { executed: boolean }): Promise<LLMResult & { rounds: number }> {
+  const decls = req.tools.map(t => ({ name: t.name, description: t.description, parameters: geminiSchema(t.parameters) }));
+  const contents: any[] = req.messages
+    .filter(m => m.role !== 'system')
+    .map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }));
+  let usage = { ...ZERO_USAGE };
+  const maxRounds = req.maxRounds ?? 6;
+  let rounds = 0;
+  const base = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  for (let i = 0; i < maxRounds; i++) {
+    rounds++;
+    const body: any = {
+      system_instruction: { parts: [{ text: req.system }] },
+      contents,
+      tools: [{ function_declarations: decls }],
+      tool_config: { function_calling_config: { mode: 'AUTO' } },
+      generationConfig: { maxOutputTokens: req.maxTokens ?? 700, temperature: req.temperature ?? 0.6 },
+    };
+    const r = await fetch(base, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (!r.ok) throw new Error(`gemini ${r.status}: ${await r.text()}`);
+    const d = await r.json() as any;
+    const m = d.usageMetadata || {};
+    usage = addUsage(usage, { prompt: m.promptTokenCount || 0, completion: m.candidatesTokenCount || 0, total: m.totalTokenCount || 0 });
+    const parts = d.candidates?.[0]?.content?.parts || [];
+    const fc = parts.find((p: any) => p.functionCall)?.functionCall;
+    if (!fc) return { text: parts.find((p: any) => p.text)?.text || '', usage, rounds };
+    contents.push({ role: 'model', parts: [{ functionCall: fc }] });
+    flag.executed = true;
+    const result = await req.execute(fc.name, fc.args || {});
+    contents.push({ role: 'user', parts: [{ functionResponse: { name: fc.name, response: { content: result } } }] });
+  }
+  // Cierre forzado: una llamada final sin tools para obtener texto.
+  const rf = await fetch(base, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ system_instruction: { parts: [{ text: req.system }] }, contents, generationConfig: { maxOutputTokens: req.maxTokens ?? 700, temperature: req.temperature ?? 0.6 } }),
+  });
+  if (!rf.ok) return { text: '', usage, rounds };
+  const df = await rf.json() as any;
+  return { text: df.candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text || '', usage, rounds };
+}
+
+/**
+ * Ejecuta un agente con herramientas usando el proveedor configurado, con respaldo
+ * automático, telemetría, tiering y guardas de límite. Si un proveedor falla ANTES
+ * de ejecutar cualquier herramienta, cae al siguiente; una vez que se ejecutó una
+ * herramienta (efecto en BD) NO cambia de proveedor para evitar doble ejecución.
+ */
+export async function agentLoop(req: AgentRequest): Promise<AgentResult> {
+  const keys = await getAIKeys();
+  const guard = await limitGuard({ tier: req.tier });
+  const tier = guard.tier;
+  let chain = providerChain(keys);
+  if (guard.avoidOpencodeGo && chain.some(p => p !== 'opencode_go')) chain = chain.filter(p => p !== 'opencode_go');
+  if (chain.length === 0) throw new Error('NO_AI_KEY');
+
+  const flag = { executed: false };
+  let lastErr: any;
+  for (const p of chain) {
+    const model = p === 'opencode_go' ? goModelFor(keys, { tier })
+      : p === 'groq' ? GROQ_MODEL
+      : p === 'gemini' ? GEMINI_MODEL
+      : keys.openaiModel;
+    try {
+      let res: LLMResult & { rounds: number };
+      const r2 = { ...req, tier };
+      if (p === 'gemini') res = await agentGemini(keys.geminiKey, model, r2, flag);
+      else if (p === 'opencode_go') res = await agentOpenAICompat(GO_URL, keys.opencodeGoKey, model, r2, flag);
+      else if (p === 'groq') res = await agentOpenAICompat(GROQ_URL, keys.groqKey, model, r2, flag);
+      else res = await agentOpenAICompat(keys.openaiBaseUrl + '/chat/completions', keys.openaiKey, model, r2, flag);
+      void logUsage(p, model, tier ? `agent-${tier}` : 'agent', res.usage, req.tenantId, true);
+      return { reply: res.text, rounds: res.rounds, usedProvider: p };
+    } catch (e) {
+      lastErr = e;
+      void logUsage(p, model, 'agent', ZERO_USAGE, req.tenantId, false);
+      if (flag.executed) break; // ya hubo efectos: no reintentar en otro proveedor
+    }
+  }
+  throw lastErr || new Error('AI_UNAVAILABLE');
 }

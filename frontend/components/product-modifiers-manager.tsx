@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { api } from '@/lib/api'
 import { toast } from 'sonner'
 import { X, Plus, Trash2, GripVertical, RefreshCw, Save } from 'lucide-react'
+import { CloudinaryUpload } from '@/components/ui/cloudinary-upload'
 
 interface EditOption { name: string; priceDelta: number; imageUrl: string; isActive: boolean }
 interface EditGroup {
@@ -119,17 +120,32 @@ export function ProductModifiersManager({ productId, productName, onClose }: { p
                 {/* Opciones */}
                 <div className="p-3 space-y-2">
                   {g.options.map((o, oi) => (
-                    <div key={oi} className="flex items-center gap-2">
-                      <input
-                        value={o.name} onChange={e => patchOption(gi, oi, { name: e.target.value })}
-                        placeholder="Opción (ej: Sin cebolla, Queso extra)"
-                        className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm"
-                      />
-                      <div className="flex items-center gap-1 text-sm">
-                        <span className="text-muted-foreground">+$</span>
-                        <input type="number" min={0} value={o.priceDelta} onChange={e => patchOption(gi, oi, { priceDelta: Number(e.target.value) || 0 })} className="w-24 rounded-md border border-border bg-background px-2 py-2" />
+                    <div key={oi} className="rounded-lg border border-border bg-secondary/10 p-2.5 space-y-2">
+                      <div className="flex items-center gap-2">
+                        {/* Miniatura de la opción (si tiene imagen) */}
+                        {o.imageUrl && (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={o.imageUrl} alt={o.name} className="w-9 h-9 rounded-md object-cover border border-border shrink-0" />
+                        )}
+                        <input
+                          value={o.name} onChange={e => patchOption(gi, oi, { name: e.target.value })}
+                          placeholder="Opción (ej: Sin cebolla, Queso extra)"
+                          className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm"
+                        />
+                        <div className="flex items-center gap-1 text-sm">
+                          <span className="text-muted-foreground">+$</span>
+                          <input type="number" min={0} value={o.priceDelta} onChange={e => patchOption(gi, oi, { priceDelta: Number(e.target.value) || 0 })} className="w-24 rounded-md border border-border bg-background px-2 py-2" />
+                        </div>
+                        <button onClick={() => patchGroup(gi, { options: g.options.filter((_, j) => j !== oi) })} className="text-muted-foreground hover:text-destructive p-2"><Trash2 className="h-4 w-4" /></button>
                       </div>
-                      <button onClick={() => patchGroup(gi, { options: g.options.filter((_, j) => j !== oi) })} className="text-muted-foreground hover:text-destructive p-2"><Trash2 className="h-4 w-4" /></button>
+                      {/* Imagen por opción (opcional) — se muestra al elegir en la tienda */}
+                      <div className="pl-1">
+                        <CloudinaryUpload
+                          value={o.imageUrl}
+                          onChange={url => patchOption(gi, oi, { imageUrl: url })}
+                          previewClassName="h-12 w-12 object-cover rounded-md border"
+                        />
+                      </div>
                     </div>
                   ))}
                   <button onClick={() => patchGroup(gi, { options: [...g.options, newOption()] })} className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">

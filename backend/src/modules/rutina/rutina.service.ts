@@ -345,7 +345,7 @@ export async function completeOnboarding(userId: string, a: any) {
   const dietaryPrefs = a?.dietaryPrefs || null;
   const motivation = a?.motivation ? String(a.motivation).slice(0, 300) : null;
 
-  const n = computeNutrition({ sex, weightKg: weightKg ?? undefined, heightCm: heightCm ?? undefined, age: age ?? undefined, activityLevel, goal });
+  const n = computeNutrition({ sex: sex ?? undefined, weightKg: weightKg ?? undefined, heightCm: heightCm ?? undefined, age: age ?? undefined, activityLevel, goal });
 
   // Meta de peso estimada (si no la dio): ±5% según objetivo.
   let targetWeightKg = a?.targetWeightKg != null ? Number(a.targetWeightKg) : null;

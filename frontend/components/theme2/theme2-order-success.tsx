@@ -3,7 +3,7 @@
 // Pantalla de éxito del pedido (Tema 2): animación holográfica "en camino" +
 // tarjeta de ticket con el resumen. CSS scoped a .t2-success / keyframes t2s-*
 // para no afectar el resto de la app.
-import { X } from 'lucide-react'
+import { X, MessageCircle } from 'lucide-react'
 
 const COP = (n: number) =>
   new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n || 0)
@@ -15,6 +15,8 @@ export interface OrderSuccessData {
   mode: 'domicilio' | 'recoger'
   customerName: string
   sedeName?: string | null
+  /** URL de WhatsApp con el resumen (opcional): se ofrece como botón, no redirige solo. */
+  whatsappUrl?: string
 }
 
 export function Theme2OrderSuccess({
@@ -75,8 +77,16 @@ export function Theme2OrderSuccess({
           <span className="t2s-notch t2s-notch-r" />
         </div>
 
+        {/* WhatsApp opcional: "¿Olvidaste algo?" — NO se abre solo, el cliente decide. */}
+        {data.whatsappUrl && (
+          <button onClick={() => window.open(data.whatsappUrl!, '_blank')} className="t2s-wa">
+            <MessageCircle className="w-4 h-4" />
+            ¿Olvidaste algo? Confírmalo por WhatsApp
+          </button>
+        )}
+
         <div className="t2s-actions">
-          <button onClick={onNewOrder} className="t2s-btn-ghost">Hacer otro pedido</button>
+          <button onClick={onNewOrder} className="t2s-btn-ghost">Seguir comprando</button>
           <button onClick={onClose} className="t2s-btn">Listo</button>
         </div>
       </div>
@@ -161,6 +171,13 @@ export function Theme2OrderSuccess({
           font-weight: 600; cursor: pointer; background: transparent; color: rgba(255,255,255,.75);
         }
         .t2s-btn-ghost:hover { background: rgba(255,255,255,.05); }
+        .t2s-wa {
+          display: flex; align-items: center; justify-content: center; gap: 8px;
+          width: 100%; margin-top: 14px; border: 1px solid rgba(37,211,102,.4);
+          border-radius: 12px; padding: 11px; font-weight: 700; cursor: pointer;
+          background: rgba(37,211,102,.12); color: #25d366; font-size: .85rem; transition: background .2s;
+        }
+        .t2s-wa:hover { background: rgba(37,211,102,.2); }
 
         @keyframes t2s-fade { from { opacity: 0; } to { opacity: 1; } }
         @keyframes t2s-pop { from { opacity: 0; transform: translateY(16px) scale(.96); } to { opacity: 1; transform: none; } }

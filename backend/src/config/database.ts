@@ -12,6 +12,16 @@ const pool = mysql.createPool({
   queueLimit: 0,
   enableKeepAlive: true,
   keepAliveInitialDelay: 0,
+  // Estandarización de zona horaria (UTC end-to-end). mysql2 interpreta/devuelve
+  // los DATETIME/TIMESTAMP como UTC; el frontend los muestra en America/Bogota.
+  timezone: 'Z',
+});
+
+// Forzar la sesión de MySQL a UTC en cada conexión nueva: así NOW()/CURRENT_TIMESTAMP
+// insertan en UTC y las lecturas de TIMESTAMP quedan en UTC consistente, evitando el
+// desfase de -5h que se veía cuando la sesión estaba en hora Colombia.
+(pool as any).pool?.on?.('connection', (connection: any) => {
+  try { connection.query("SET time_zone='+00:00'"); } catch { /* noop */ }
 });
 
 export const testConnection = async (): Promise<boolean> => {

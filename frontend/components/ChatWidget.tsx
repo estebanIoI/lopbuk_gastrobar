@@ -57,7 +57,7 @@ function ProductCard({
   accentColor: string
   isLight: boolean
   onProductClick?: (id: string) => void
-  onOrderByChat?: (productName: string) => void
+  onOrderByChat?: (product: SuggestedProduct) => void
 }) {
   const hasActions = onProductClick || onOrderByChat
   return (
@@ -102,7 +102,7 @@ function ProductCard({
           )}
           {onOrderByChat && (
             <button
-              onClick={() => onOrderByChat(product.name)}
+              onClick={() => onOrderByChat(product)}
               className="flex-1 flex items-center justify-center gap-1 text-[11px] font-semibold py-2 transition-colors hover:opacity-80"
               style={{ color: accentColor }}
             >
@@ -125,15 +125,24 @@ export function ChatWidget({ storeSlug, botName, botAvatarUrl, accentColor = '#f
   const iconColor = isLight ? 'text-gray-900' : 'text-white'
 
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'assistant', content: `¡Hola! Soy ${botName} 👋 ¿En qué puedo ayudarte hoy?` },
+    { role: 'assistant', content: `¡Hola! Soy ${botName} 👋 Cuéntame qué estás buscando y te ayudo a encontrar justo lo que necesitas.` },
   ])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [sessionToken, setSessionToken] = useState<string | undefined>()
+  // Productos que el cliente ya pidió por aquí: no se vuelven a mostrar como tarjeta.
+  const [orderedIds, setOrderedIds] = useState<Set<string>>(new Set())
+  const orderedIdsRef = useRef<Set<string>>(new Set())
   const bottomRef = useRef<HTMLDivElement>(null)
   const sessionTokenRef = useRef<string | undefined>(undefined)
 
   useEffect(() => { sessionTokenRef.current = sessionToken }, [sessionToken])
+
+  const markOrdered = (id: string) => {
+    const next = new Set(orderedIdsRef.current); next.add(id)
+    orderedIdsRef.current = next
+    setOrderedIds(next)
+  }
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -147,7 +156,7 @@ export function ChatWidget({ storeSlug, botName, botAvatarUrl, accentColor = '#f
       const res = await fetch(`${API_URL}/chatbot/message`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slug: storeSlug, sessionToken: sessionTokenRef.current, message: text }),
+        body: JSON.stringify({ slug: storeSlug, sessionToken: sessionTokenRef.current, message: text, excludeProductIds: Array.from(orderedIdsRef.current) }),
       })
       const json = await res.json()
       if (json.success) {
@@ -187,8 +196,9 @@ export function ChatWidget({ storeSlug, botName, botAvatarUrl, accentColor = '#f
     }
   }
 
-  const handleOrderByChat = (productName: string) => {
-    sendMessageText(`Quiero pedir: ${productName}`)
+  const handleOrderByChat = (product: SuggestedProduct) => {
+    markOrdered(product.id)   // se marca antes de enviar para excluirlo del backend
+    sendMessageText(`Quiero pedir: ${product.name}`)
   }
 
   return (
@@ -245,10 +255,10 @@ export function ChatWidget({ storeSlug, botName, botAvatarUrl, accentColor = '#f
                 {msg.content}
               </div>
 
-              {/* Suggested product cards */}
-              {msg.role === 'assistant' && msg.products && msg.products.length > 0 && (
+              {/* Tarjetas de producto — se ocultan las de productos ya pedidos por aquí */}
+              {msg.role === 'assistant' && msg.products && msg.products.filter(p => !orderedIds.has(p.id)).length > 0 && (
                 <div className="w-full space-y-1.5">
-                  {msg.products.map(product => (
+                  {msg.products.filter(p => !orderedIds.has(p.id)).map(product => (
                     <ProductCard
                       key={product.id}
                       product={product}

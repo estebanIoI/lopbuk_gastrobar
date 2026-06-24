@@ -7,38 +7,27 @@
  * Soporta Gemini (AIza…) y Groq (gsk_…) — detecta automáticamente por prefijo de key.
  */
 import { db } from '../../config';
-import { getAIKey, getAIKeys } from '../agent/agent.service';
-import { textReply } from '../ai/orchestrator.service';
+import { textReply, agentLoop, ToolDef } from '../ai/orchestrator.service';
 import { RowDataPacket } from 'mysql2';
-
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-flash-latest';
-const GEMINI_URL   = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
-
-const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
-const GROQ_URL   = 'https://api.groq.com/openai/v1/chat/completions';
-
-// OpenAI y compatibles (p. ej. opencode/openrouter) vía OPENAI_BASE_URL.
-const OPENAI_MODEL = process.env.OPENAI_MODEL || 'deepseek-v4-flash';
-const OPENAI_BASE  = (process.env.OPENAI_BASE_URL || 'https://opencode.ai/zen/v1').replace(/\/+$/, '');
-const OPENAI_URL   = `${OPENAI_BASE}/chat/completions`;
 
 const fmt = (n: number) => `$${Number(n || 0).toLocaleString('es-CO')}`;
 
 // ─────────────────────────────────────────────────────────────
-// Tool definitions (Gemini format — convertidas a OpenAI en toOpenAITools)
+// Tool definitions (JSON-schema estándar; el orchestrator las traduce
+// a OpenAI `tools` o Gemini `functionDeclarations` según el proveedor)
 // ─────────────────────────────────────────────────────────────
-const SUPERADMIN_TOOLS = [
-  { name: 'kpis_globales',              description: 'KPIs de toda la red: comercios, usuarios, productos, ventas hoy/mes, pedidos y citas pendientes.', parameters: { type: 'OBJECT', properties: {} } },
-  { name: 'top_comercios',              description: 'Top comercios por ventas.', parameters: { type: 'OBJECT', properties: { limit: { type: 'INTEGER' }, period: { type: 'STRING', description: 'hoy | mes | total' } } } },
-  { name: 'pedidos_pendientes_globales',description: 'Pedidos pendientes/en preparación de todos los comercios.', parameters: { type: 'OBJECT', properties: {} } },
-  { name: 'stock_critico_global',       description: 'Productos con stock crítico en toda la red.', parameters: { type: 'OBJECT', properties: {} } },
-  { name: 'comercios_inactivos',        description: 'Comercios suspendidos o sin ventas recientes.', parameters: { type: 'OBJECT', properties: {} } },
+const SUPERADMIN_TOOLS: ToolDef[] = [
+  { name: 'kpis_globales',              description: 'KPIs de toda la red: comercios, usuarios, productos, ventas hoy/mes, pedidos y citas pendientes.', parameters: { type: 'object', properties: {} } },
+  { name: 'top_comercios',              description: 'Top comercios por ventas.', parameters: { type: 'object', properties: { limit: { type: 'integer' }, period: { type: 'string', description: 'hoy | mes | total' } } } },
+  { name: 'pedidos_pendientes_globales',description: 'Pedidos pendientes/en preparación de todos los comercios.', parameters: { type: 'object', properties: {} } },
+  { name: 'stock_critico_global',       description: 'Productos con stock crítico en toda la red.', parameters: { type: 'object', properties: {} } },
+  { name: 'comercios_inactivos',        description: 'Comercios suspendidos o sin ventas recientes.', parameters: { type: 'object', properties: {} } },
 ];
-export const MERCHANT_TOOLS = [
-  { name: 'mis_ventas',           description: 'Ventas de mi negocio (hoy y mes).', parameters: { type: 'OBJECT', properties: {} } },
-  { name: 'mis_pedidos_pendientes',description: 'Pedidos pendientes de mi tienda online.', parameters: { type: 'OBJECT', properties: {} } },
-  { name: 'mi_stock_critico',     description: 'Mis productos con stock bajo o agotado.', parameters: { type: 'OBJECT', properties: {} } },
-  { name: 'mis_citas',            description: 'Mis próximas citas/reservas de servicios.', parameters: { type: 'OBJECT', properties: {} } },
+export const MERCHANT_TOOLS: ToolDef[] = [
+  { name: 'mis_ventas',           description: 'Ventas de mi negocio (hoy y mes).', parameters: { type: 'object', properties: {} } },
+  { name: 'mis_pedidos_pendientes',description: 'Pedidos pendientes de mi tienda online.', parameters: { type: 'object', properties: {} } },
+  { name: 'mi_stock_critico',     description: 'Mis productos con stock bajo o agotado.', parameters: { type: 'object', properties: {} } },
+  { name: 'mis_citas',            description: 'Mis próximas citas/reservas de servicios.', parameters: { type: 'object', properties: {} } },
 ];
 
 const SUPERADMIN_PROMPT = `Eres el Agente Maestro de Lopbuk, el asistente del superadministrador de la plataforma. Tienes acceso de solo lectura a métricas de TODA la red de comercios. Responde en español, claro y ejecutivo. Usa las herramientas para traer datos reales; NO inventes cifras. Resume con números concretos y, si aplica, recomienda acciones.`;
@@ -145,166 +134,38 @@ export async function execMerchant(name: string, tenantId: string): Promise<stri
 }
 
 // ─────────────────────────────────────────────────────────────
-// Runner: Gemini
-// ─────────────────────────────────────────────────────────────
-async function runWithGemini(
-  apiKey: string,
-  systemPrompt: string,
-  tools: typeof SUPERADMIN_TOOLS,
-  history: { role: string; content: string }[],
-  message: string,
-  exec: (name: string) => Promise<string>,
-): Promise<{ reply: string }> {
-  const contents = [...history, { role: 'user', content: message }]
-    .filter(m => m.role !== 'system')
-    .map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }));
-
-  const r1 = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      system_instruction: { parts: [{ text: systemPrompt }] },
-      contents,
-      tools: [{ functionDeclarations: tools }],
-      tool_config: { function_calling_config: { mode: 'AUTO' } },
-      generationConfig: { maxOutputTokens: 800, temperature: 0.5 },
-    }),
-  });
-  if (!r1.ok) {
-    if (r1.status === 429) return { reply: 'Muchas consultas a la vez, intenta en unos segundos. 🙏' };
-    throw new Error(`Gemini error: ${await r1.text()}`);
-  }
-  const d1 = await r1.json() as any;
-  const cand = d1.candidates?.[0]?.content;
-  const fcPart = cand?.parts?.find((p: any) => p.functionCall);
-  if (!fcPart) return { reply: cand?.parts?.find((p: any) => p.text)?.text || 'No pude procesar tu mensaje.' };
-
-  const { name, args } = fcPart.functionCall;
-  const summary = await exec(name);
-
-  const r2 = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      system_instruction: { parts: [{ text: systemPrompt }] },
-      contents: [
-        ...contents,
-        { role: 'model', parts: [{ functionCall: { name, args: args || {} } }] },
-        { role: 'user', parts: [{ functionResponse: { name, response: { content: summary } } }] },
-      ],
-      generationConfig: { maxOutputTokens: 600, temperature: 0.5 },
-    }),
-  });
-  if (!r2.ok) return { reply: summary };
-  const d2 = await r2.json() as any;
-  return { reply: d2.candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text || summary };
-}
-
-// ─────────────────────────────────────────────────────────────
-// Runner: Groq (OpenAI-compatible)
-// ─────────────────────────────────────────────────────────────
-// Loop de tool-calling OpenAI-compatible. Sirve para Groq y OpenAI (y compatibles)
-// según la url/model que se pasen.
-async function runWithOpenAICompat(
-  apiKey: string,
-  systemPrompt: string,
-  tools: typeof SUPERADMIN_TOOLS,
-  history: { role: string; content: string }[],
-  message: string,
-  exec: (name: string) => Promise<string>,
-  url: string = GROQ_URL,
-  model: string = GROQ_MODEL,
-): Promise<{ reply: string }> {
-  const messages = [
-    { role: 'system', content: systemPrompt },
-    ...history.map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content })),
-    { role: 'user', content: message },
-  ];
-
-  const r1 = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({
-      model,
-      messages,
-      tools: toOpenAITools(tools),
-      tool_choice: 'auto',
-      max_tokens: 800,
-      temperature: 0.5,
-    }),
-  });
-  if (!r1.ok) {
-    if (r1.status === 429) return { reply: 'Muchas consultas a la vez, intenta en unos segundos. 🙏' };
-    throw new Error(`AI error: ${await r1.text()}`);
-  }
-  const d1 = await r1.json() as any;
-  const choice = d1.choices?.[0];
-  const toolCall = choice?.message?.tool_calls?.[0];
-
-  if (!toolCall) {
-    return { reply: choice?.message?.content || 'No pude procesar tu mensaje.' };
-  }
-
-  const toolName = toolCall.function.name;
-  const summary = await exec(toolName);
-
-  const r2 = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({
-      model,
-      messages: [
-        ...messages,
-        { role: 'assistant', content: null, tool_calls: [toolCall] },
-        { role: 'tool', tool_call_id: toolCall.id, content: summary },
-      ],
-      max_tokens: 600,
-      temperature: 0.5,
-    }),
-  });
-  if (!r2.ok) return { reply: summary };
-  const d2 = await r2.json() as any;
-  return { reply: d2.choices?.[0]?.message?.content || summary };
-}
-
-// ─────────────────────────────────────────────────────────────
-// Key resolution (env fallback includes GROQ_API_KEY)
-// ─────────────────────────────────────────────────────────────
-async function getAssistantKey(): Promise<string> {
-  const dbKey = await getAIKey();
-  if (dbKey) return dbKey;
-  return process.env.GROQ_API_KEY || '';
-}
-
-// ─────────────────────────────────────────────────────────────
-// Public entry point
+// Public entry point — corre sobre el orchestrator (agentLoop):
+// function-calling provider-agnóstico (OpenCode Go / OpenAI / Groq / Gemini),
+// con respaldo, telemetría, tiering y guardas de límite.
 // ─────────────────────────────────────────────────────────────
 export async function runPlatformAssistant(
   user: { userId: string; role: string; tenantId?: string },
   message: string,
   history: { role: string; content: string }[] = [],
 ): Promise<{ reply: string }> {
-  const allKeys = await getAIKeys();
-  const apiKey = allKeys.defaultProvider === 'gemini' ? allKeys.geminiKey
-    : allKeys.defaultProvider === 'groq' ? allKeys.groqKey
-    : allKeys.defaultProvider === 'opencode_go' ? allKeys.opencodeGoKey
-    : allKeys.openaiKey;
-  if (!apiKey) return { reply: 'El asistente no está configurado todavía. Agrega una clave de IA en Integraciones.' };
-
   const isSuper = user.role === 'superadmin';
-  const tools       = isSuper ? SUPERADMIN_TOOLS : MERCHANT_TOOLS;
+  const tools        = isSuper ? SUPERADMIN_TOOLS : MERCHANT_TOOLS;
   const systemPrompt = isSuper ? SUPERADMIN_PROMPT : MERCHANT_PROMPT;
   const exec = (name: string) => isSuper ? execSuper(name) : execMerchant(name, user.tenantId || '');
 
-  if (apiKey.startsWith('gsk_')) {
-    return runWithOpenAICompat(apiKey, systemPrompt, tools, history, message, exec, GROQ_URL, GROQ_MODEL);
+  try {
+    const result = await agentLoop({
+      system: systemPrompt,
+      messages: [...history, { role: 'user', content: message }],
+      tools,
+      execute: async (name) => exec(name),
+      maxTokens: 800,
+      temperature: 0.5,
+      tier: 'main',
+      tenantId: user.tenantId || null,
+    });
+    return { reply: result.reply || 'No pude procesar tu mensaje.' };
+  } catch (e: any) {
+    const msg = String(e?.message || '');
+    if (msg === 'NO_AI_KEY') return { reply: 'El asistente no está configurado todavía. Agrega una clave de IA en Integraciones.' };
+    if (msg.includes('429')) return { reply: 'Muchas consultas a la vez, intenta en unos segundos. 🙏' };
+    return { reply: 'No pude responder en este momento, intenta de nuevo.' };
   }
-  if (apiKey.startsWith('AIza')) {
-    return runWithGemini(apiKey, systemPrompt, tools, history, message, exec);
-  }
-  // sk- keys: OpenAI u OpenCode Go
-  if (allKeys.defaultProvider === 'opencode_go') {
-    return runWithOpenAICompat(apiKey, systemPrompt, tools, history, message, exec, 'https://opencode.ai/zen/go/v1/chat/completions', allKeys.opencodeGoModel);
-  }
-  return runWithOpenAICompat(apiKey, systemPrompt, tools, history, message, exec, allKeys.openaiBaseUrl + '/chat/completions', allKeys.openaiModel);
 }
 
 export async function isPlatformAssistantEnabled(): Promise<boolean> {

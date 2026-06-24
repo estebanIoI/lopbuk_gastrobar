@@ -5,6 +5,53 @@
 ---
 
 
+## [2026-06-24] — Storefront: hora del pedido, checkout Tema 2, imágenes en modificadores
+
+- **Hora del pedido (-5h):** causa = `created_at` es TIMESTAMP (interno UTC) pero la sesión MySQL estaba en hora Colombia y mysql2 sin config de zona → el `Date` quedaba 5h atrás y el front lo mostraba en Colombia (doble desfase). Fix UTC end-to-end: `database.ts` con `timezone:'Z'` + `SET time_zone='+00:00'` en cada conexión nueva; `pedidos.tsx` formatea con `timeZone:'America/Bogota'` (tarjeta + tickets de impresión).
+- **Checkout Tema 2:** al confirmar ya NO redirige a WhatsApp. `submitOrder` muestra el contenedor "Tu pedido está en camino" y deja seguir comprando ("Seguir comprando"). `sendWhatsApp` → `buildWhatsAppUrl()`; el éxito (`Theme2OrderSuccess`) recibe `whatsappUrl` y ofrece botón opcional "¿Olvidaste algo? Confírmalo por WhatsApp".
+- **Imágenes en modificadores (por opción):** el schema (`product_modifier_options.image_url`), backend (GET/PUT) y storefront (Tema 2/Tema 1 ya renderizan `o.imageUrl`) YA lo soportaban; faltaba la subida en el editor → `product-modifiers-manager.tsx` ahora tiene `CloudinaryUpload` + miniatura por opción.
+- **Auditoría modificadores (valor/ítem separado):** en el código ACTUAL de Tema 2 (`detailUnit = detailBase + detailExtra`) y Tema 1 (`finalPrice += t1Extra`) el delta SÍ se suma al unitario y se une como UNA sola línea (el modificador se concatena al nombre, no crea ítem aparte); el pedido del reporte quedó en $16.000 = 14.000+2.000 (correcto). No se reprodujo el bug en fuente → probable desfase de deploy; recomendado redeploy + re-test.
+- Verificado con esbuild (backend + tsx), 0 NUL.
+
+
+## [2026-06-24] — Chatbot de comercio: auditoría resuelta (tools en cualquier IA + fixes)
+
+Resolución de la auditoría del chatbot de tienda:
+- **CRÍTICO — pedidos/reservas en cualquier proveedor:** `processAgentMessage` ya NO ramifica por proveedor. Todo pasa por `agentLoop` (IA7) con las herramientas reales (`registrar_pedido`/`crear_reserva`/`registrar_interes_cliente`). Antes solo Gemini ejecutaba herramientas; con el default `opencode_go` el bot no registraba nada. Ahora registra con la IA configurada, con respaldo y telemetría. Helper `toToolDefs`/`lowercaseTypes` convierte las declaraciones Gemini (MAYÚSCULA) a JSON-schema estándar para el orchestrator. **Dedupe por turno** (`executedTools`) evita pedidos/reservas duplicados si el modelo reintenta. `maxRounds: 4`, `maxTokens: 260`, tier main. Se conserva el error 'Servicio de IA no configurado' (mapea NO_AI_KEY).
+- **MEDIO — historial duplicado:** la ruta `/message` ahora procesa ANTES de guardar el mensaje del usuario, así el historial que ve el modelo no incluye el mensaje actual (se anexa una sola vez dentro del pipeline). Elimina el doble último turno y, de paso, el mensaje "huérfano" si el pipeline falla.
+- **MENORES:** telemetría del bot de tienda ahora sí se registra (pasa por orchestrator); en human takeover se guarda el mensaje del usuario.
+- Verificación: el mount del sandbox quedó stale (glitch conocido, esbuild dio falso EOF); contenido confirmado completo y correcto vía file-tools. Correr `pnpm exec tsc --noEmit` en Windows.
+
+
+## [2026-06-24] — Chatbot de comercio: asesor consultivo + no repetir/ofrecer productos
+
+Mejora del chatbot de tienda (`agent.service` + `chatbot.routes` + `ChatWidget`):
+- **Prompt** (`buildEnrichedSystemPrompt`): reescrito como ASESOR CONSULTIVO (entender→recomendar UNA opción→resolver objeciones→microcompromisos→cierre). Regla clave: solo mencionar/mostrar productos que el cliente pidió o que encajan; **nunca ofrecer el catálogo al azar**; y si el cliente ya dijo que quiere pedir un producto, **no repetir su tarjeta** sino avanzar el pedido (cantidad→nombre→teléfono→dirección). La carta pasa a "consulta interna — NO la listes".
+- **`processAgentMessage`**: nuevo parámetro `excludeProductIds`; se **eliminó el relleno con productos destacados** (causa de mostrar productos no pedidos); las sugerencias = solo coincidencias reales menos los ya pedidos.
+- **`chatbot.routes /message`**: lee `excludeProductIds` del body y lo pasa al pipeline.
+- **`ChatWidget`**: trackea los productos pedidos por "Pedir por aquí" (`orderedIds`), los envía como `excludeProductIds`, y oculta su tarjeta (incluso en mensajes previos) al pedirlos. `onOrderByChat` ahora recibe el producto completo (id+nombre).
+- Verificado con esbuild (backend + tsx), 0 NUL.
+
+
+## [2026-06-24] — IA7: tools provider-agnóstico + AI Coach con cualquier IA
+
+**Sin push/deploy — pendiente del usuario** (`pnpm exec tsc --noEmit` backend + redeploy).
+
+- Orchestrator: nuevo `agentLoop(req)` con function-calling **provider-agnóstico**. Tools en JSON-schema estándar (tipos minúscula) + callback `execute(name,args)`. Soporta OpenAI-compat (OpenCode Go/OpenAI/Groq con `tools`) y Gemini (`functionDeclarations`, convertidos con `geminiSchema` a MAYÚSCULA). Loop multi-ronda (def. 6) con cierre forzado a texto si se agotan; telemetría (`logUsage` tier `agent`), tiering, guardas de límite y respaldo entre proveedores. **No reintenta en otro proveedor tras ejecutar una tool** (evita doble escritura en BD) vía flag `executed`.
+- AI Coach (`rutina.assistant`) migrado a `agentLoop`: eliminado el fetch directo a Gemini y la restricción "solo Gemini". TOOLS reescritas a JSON-schema minúscula. Ahora corre con OpenCode Go / OpenAI / Groq / Gemini según configuración; el usuario tiene su coach funcional controlando su OS (perfil, rutina, comidas, compras, productos reales) con la IA que el admin elija. Free=tier small, LEGEND=tier main.
+- Fix: el archivo `rutina.assistant.ts` tenía 1082 bytes NUL al final (artefacto de edición); se limpiaron (verificado con esbuild, 0 NUL).
+- Asistente operador (`assistant.runPlatformAssistant`, superadmin Agente Maestro + comerciante) migrado también a `agentLoop`: se borraron los runners por proveedor (`runWithGemini`/`runWithOpenAICompat`) y `getAssistantKey`; tools (SUPERADMIN_TOOLS/MERCHANT_TOOLS) reescritas a JSON-schema minúscula y tipadas `ToolDef[]`. Ahora también corre con cualquier IA configurada (tier main, telemetría por tenant). `toOpenAITools` se conserva (lo usa `daimuz-chat`).
+- **Todos los agentes con tools quedan sobre el orchestrator unificado.**
+
+
+## [2026-06-24] — AI Coach: base de conocimiento certificada de fitness
+
+- Nuevo `backend/src/modules/rutina/rutina.coach-kb.ts` → `COACH_KB`: conocimiento estructurado de coach (objetivos: fuerza/hipertrofia/pérdida de grasa/movilidad/salud-mantenimiento/recomposición/rendimiento, con series·reps·descanso·frecuencia·ejercicios·splits por meta; nutrición por prioridad calorías→proteína 1.6–2.2 g/kg→grasas 20–30%→carbos; reglas de progresión entrenamiento+nutrición; recuperación; onboarding; SEGURIDAD —derivar a profesional, nunca esteroides/dietas extremas/sobreentrenamiento—; estructura de respuesta; tono).
+- `rutina.assistant.ts`: el `SYSTEM_PROMPT` ahora antepone `COACH_KB` como bloque estable y debajo la capa DAIMUZ (herramientas, productos reales, operación de la app). El coach detecta objetivo y ajusta rutina/nutrición según el KB; al crear rutina distribuye días y esquema por meta.
+- `guardar_perfil.goal`: descripción con mapeo de las 7 metas del KB a los 4 enums almacenados (bajar_peso/subir_masa/mantener/salud_general).
+- Nota: este asistente corre en Gemini (function-calling). Sin migración de DB.
+
+
 ## [2026-06-24] — Orquestación de IA: IA6 (telemetría + guardas de límite) — plan IA COMPLETO
 
 **Sin push/deploy — pendiente del usuario** (`pnpm exec tsc --noEmit` backend + redeploy; corre migración `ai_usage_log` al boot).

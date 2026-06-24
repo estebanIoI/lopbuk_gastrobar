@@ -410,8 +410,9 @@ export function Theme2OrderFlow({
     }
   }
 
-  const sendWhatsApp = () => {
-    if (missing.length > 0 || cart.length === 0) return
+  // Construye la URL de WhatsApp con el resumen del pedido (NO abre nada).
+  // Se calcula ANTES de vaciar el carrito y se ofrece como botón opcional en el éxito.
+  const buildWhatsAppUrl = (): string => {
     const phone = String(info.socialWhatsapp || '').replace(/\D/g, '')
     const lines = [
       `*Pedido — ${info.name || ''}*`,
@@ -436,8 +437,7 @@ export function Theme2OrderFlow({
       `Pago: ${paymentLabel[payment] || ''}`,
     ].filter(Boolean)
     const msg = encodeURIComponent(lines.join('\n'))
-    if (phone) window.open(`https://wa.me/${phone}?text=${msg}`, '_blank')
-    else window.open(`https://wa.me/?text=${msg}`, '_blank')
+    return phone ? `https://wa.me/${phone}?text=${msg}` : `https://wa.me/?text=${msg}`
   }
 
   // Resetea el checkout tras un pedido exitoso (evita reenvíos / duplicados).
@@ -462,7 +462,9 @@ export function Theme2OrderFlow({
     const snapshotSede = sede?.name ?? null
     const res = await registerOrder()
     if (res.ok) {
-      sendWhatsApp()
+      // NO redirige a WhatsApp: muestra el contenedor de éxito y deja seguir comprando.
+      // El WhatsApp queda como botón opcional ("¿Olvidaste algo?") dentro del éxito.
+      const whatsappUrl = buildWhatsAppUrl()
       setSuccess({
         orderNumber: res.orderNumber,
         total: res.total ?? cartTotal,
@@ -470,6 +472,7 @@ export function Theme2OrderFlow({
         mode: snapshotMode,
         customerName: snapshotName,
         sedeName: snapshotSede,
+        whatsappUrl,
       })
       resetCheckout()
     }

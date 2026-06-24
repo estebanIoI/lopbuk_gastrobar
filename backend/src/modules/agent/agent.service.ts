@@ -13,6 +13,8 @@ import {
   ORDER_TOOL_DECLARATION,
 } from './agent.tools';
 import { decrypt } from '../../utils/crypto';
+// type-only: no crea ciclo en runtime (el orchestrator importa getAIKeys de aquí).
+import type { ToolDef } from '../ai/orchestrator.service';
 
 // ─────────────────────────────────────────────────────────────
 // Types
@@ -407,20 +409,27 @@ export function buildEnrichedSystemPrompt(
     `Eres ${config.bot_name || 'Asistente'}, el asistente virtual de ${ctx.storeName || 'este negocio'}.\n` +
     `Tu tono debe ser ${tone}. Responde siempre en español.\n\n` +
     `## CÓMO HABLAS (MUY IMPORTANTE)\n` +
-    `Estás chateando como una persona real por WhatsApp, no escribiendo un correo ni un folleto.\n` +
-    `- Mensajes MUY cortos: 1 o 2 frases por respuesta. Casi nunca más de 40 palabras.\n` +
-    `- Una sola idea o una sola pregunta por mensaje. NO hagas varias preguntas juntas.\n` +
-    `- Nada de párrafos largos, listas largas ni "muros de texto". Si tienes que dar varias cosas, dale lo esencial y pregunta si quiere más.\n` +
-    `- Habla natural y cercano, como un vendedor amable: "¡Claro!", "Perfecto", "De una". Puedes usar 1 emoji ocasional, sin abusar.\n` +
-    `- No repitas tu presentación ("Soy el asistente virtual de...") en cada mensaje. Solo salúdalo una vez al inicio.\n` +
-    `- Si el cliente saluda o dice algo corto, responde corto. No le sueltes todo el catálogo de golpe.\n` +
-    `- Cuando muestres productos, di máximo 1 o 2 y pregunta cuál le interesa, en vez de listar todo.\n\n` +
+    `Eres un ASESOR COMERCIAL, no un contestador automático. Chateas como persona real por WhatsApp.\n` +
+    `- Mensajes MUY cortos: 1 o 2 frases, casi nunca más de 40 palabras. Una sola idea o pregunta por mensaje.\n` +
+    `- Nada de párrafos largos, listas largas ni "muros de texto". No repitas tu presentación en cada mensaje.\n` +
+    `- Tono cercano y seguro: "¡Claro!", "Perfecto", "De una". Máximo 1 emoji ocasional.\n` +
+    `- Habla de BENEFICIOS, no solo de características. Adapta el lenguaje al cliente.\n\n` +
+    `## CÓMO VENDES (asesor consultivo)\n` +
+    `1) ENTIENDE antes de ofrecer: detecta qué necesita y qué tan listo está para comprar. Si falta info, haz 1 pregunta corta.\n` +
+    `2) RECOMIENDA UNA sola opción principal, la que mejor encaja (no la más cara). Si comparas, máximo 2 y di cuál conviene.\n` +
+    `3) Resuelve dudas (precio, entrega, pago, disponibilidad) con seguridad: valida la duda y vuelve al beneficio.\n` +
+    `4) Usa microcompromisos: que el cliente elija, confirme o responda algo corto para avanzar.\n` +
+    `5) Detecta señales de compra (pregunta por precio, pago o entrega) y CIERRA: guía el pedido sin seguir explicando.\n\n` +
+    `## QUÉ PRODUCTOS MOSTRAR (REGLA CLAVE)\n` +
+    `- Solo menciona o sugieres productos que el cliente PIDIÓ o que encajan con lo que busca. NUNCA ofrezcas el catálogo completo ni productos al azar.\n` +
+    `- Si el cliente no preguntó por un producto, no lo metas: ayúdalo con lo que sí pidió.\n` +
+    `- Cuando el cliente YA dijo que quiere pedir un producto, NO se lo vuelvas a presentar ni repitas su tarjeta: avanza el pedido (primero la cantidad, luego nombre, teléfono y dirección si es domicilio).\n\n` +
     `## OBJETIVO\n` +
-    `(1) Ayudar con productos, precios y disponibilidad, (2) hacer reservas cuando aplique, ` +
+    `(1) Asesorar con productos, precios y disponibilidad, (2) hacer reservas cuando aplique, ` +
     `(3) tomar pedidos a domicilio o para llevar.\n` +
-    `Avanza la conversación paso a paso: pregunta una cosa, espera respuesta, sigue.\n\n` +
+    `Avanza paso a paso: una cosa a la vez.\n\n` +
     `## REGLAS\n` +
-    `NUNCA inventes información.\n` +
+    `NUNCA inventes información ni precios; usa solo lo que está en tu contexto.\n` +
     `CRÍTICO: NUNCA digas que un producto NO existe o no está disponible a menos que ` +
     `aparezca explícitamente en "PRODUCTOS QUE COINCIDEN CON LA CONSULTA" con stock 0. ` +
     `Si el cliente pide algo que no ves en tu contexto, dile que lo verificas y que puede confirmar con el negocio, ` +
@@ -462,13 +471,14 @@ export function buildEnrichedSystemPrompt(
     prompt += `\nPara reservar necesitas: nombre completo, teléfono, fecha, personas. Primero verifica disponibilidad.`;
   }
 
-  // Menú destacado — siempre visible al AI para que pueda sugerir proactivamente
+  // Carta SOLO para consulta interna: el bot conoce qué existe y a qué precio,
+  // pero NO debe ofrecer estos productos a menos que el cliente los pida o encajen.
   if (ctx.featuredProducts.length > 0) {
-    prompt += `\n\n## MENÚ / PRODUCTOS DISPONIBLES:\n`;
+    prompt += `\n\n## CARTA (consulta interna — NO la listes al cliente):\n`;
     ctx.featuredProducts.forEach(p => {
       prompt += `- ${p.name} — ${fmt(p.salePrice)}${p.category ? ` | ${p.category}` : ''}\n`;
     });
-    prompt += `\nPuedes mencionar estos productos cuando sea relevante. Si el cliente quiere pedir, usa la herramienta registrar_pedido.`;
+    prompt += `\nUsa esta carta solo para responder con precisión lo que el cliente pregunte. Menciona un producto únicamente si lo pide o encaja con lo que busca; NUNCA la enumeres completa ni ofrezcas productos al azar. Si el cliente quiere pedir, usa la herramienta registrar_pedido.`;
   }
 
   // Productos que coincidieron con la búsqueda del cliente
@@ -600,6 +610,24 @@ function isProductQuery(message: string): boolean {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Conversión de declaraciones de herramientas → ToolDef del orchestrator
+// (las declaraciones nativas son formato Gemini con tipos en MAYÚSCULA; el
+//  agentLoop espera JSON-schema estándar y lo adapta a cada proveedor).
+// ─────────────────────────────────────────────────────────────
+function lowercaseTypes(schema: any): any {
+  if (!schema || typeof schema !== 'object') return schema;
+  if (Array.isArray(schema)) return schema.map(lowercaseTypes);
+  const out: any = {};
+  for (const [k, v] of Object.entries(schema)) {
+    out[k] = (k === 'type' && typeof v === 'string') ? v.toLowerCase() : lowercaseTypes(v);
+  }
+  return out;
+}
+function toToolDefs(decls: any[]): ToolDef[] {
+  return decls.map(d => ({ name: d.name, description: d.description, parameters: lowercaseTypes(d.parameters) }));
+}
+
+// ─────────────────────────────────────────────────────────────
 // Main pipeline — channel-agnostic
 // ─────────────────────────────────────────────────────────────
 
@@ -608,6 +636,7 @@ export async function processAgentMessage(
   sessionId: string,
   message: string,
   config: any,
+  excludeProductIds: string[] = [],   // productos que el cliente ya está pidiendo: no repetir su tarjeta
 ): Promise<{ reply: string; suggestedProducts: ProductMatch[] }> {
   const historyMessages = await getConversationHistory(sessionId);
 
@@ -623,42 +652,55 @@ export async function processAgentMessage(
   const systemPrompt        = buildEnrichedSystemPrompt(config, dynamicCtx, matchedProducts);
   const conversationMessages = [...historyMessages, { role: 'user', content: message }];
 
-  const { geminiKey, openaiKey, groqKey, opencodeGoKey, defaultProvider } = await getAIKeys();
-  const apiKey = defaultProvider === 'gemini' ? geminiKey : defaultProvider === 'groq' ? groqKey : defaultProvider === 'opencode_go' ? opencodeGoKey : openaiKey;
-  if (!apiKey) throw new Error('Servicio de IA no configurado');
-
+  // IA7: TODOS los proveedores pasan por el agentLoop con las herramientas reales del
+  // negocio (reservas/leads/pedidos). Antes solo Gemini ejecutaba herramientas; ahora el
+  // bot registra pedidos con la IA configurada (OpenCode Go, etc.), con respaldo y
+  // telemetría centralizados. Import dinámico para evitar ciclo de módulos.
+  const { agentLoop } = await import('../ai/orchestrator.service');
+  const toolDecls = [
+    ...(dynamicCtx.reservationsEnabled ? RESERVATION_TOOL_DECLARATIONS : []),
+    LEAD_TOOL_DECLARATION,
+    ORDER_TOOL_DECLARATION,
+  ];
+  // Dedupe por turno: evita ejecutar dos veces la MISMA acción (mismo nombre+args),
+  // protegiendo contra pedidos/reservas duplicados si el modelo reintenta.
+  const executedTools = new Map<string, string>();
   let rawReply: string;
-  if (defaultProvider === 'gemini') {
-    // Gemini conserva su function-calling (reservas/leads/pedidos).
-    const tools = [
-      ...(dynamicCtx.reservationsEnabled ? RESERVATION_TOOL_DECLARATIONS : []),
-      LEAD_TOOL_DECLARATION,
-      ORDER_TOOL_DECLARATION,
-    ];
-    rawReply = await callGeminiWithTools(geminiKey, systemPrompt, conversationMessages, tools, tenantId, sessionId);
-  } else {
-    // Resto de proveedores (opencode_go / groq / openai): texto centralizado en el
-    // orchestrator con cadena de respaldo automática (IA4). El chat de tienda por estos
-    // proveedores no usa function-calling. Import dinámico para evitar ciclo de módulos.
-    const { textLLM } = await import('../ai/orchestrator.service');
-    rawReply = await textLLM({ system: systemPrompt, messages: conversationMessages, tier: 'main', tenantId });
+  try {
+    const result = await agentLoop({
+      system: systemPrompt,
+      messages: conversationMessages,
+      tools: toToolDefs(toolDecls),
+      execute: async (name, args) => {
+        const sig = `${name}:${JSON.stringify(args || {})}`;
+        const prev = executedTools.get(sig);
+        if (prev !== undefined) return prev;
+        const r = await executeAgentTool(name, args || {}, tenantId, sessionId);
+        const out = r.userMessage || JSON.stringify(r.data || {});
+        executedTools.set(sig, out);
+        return out;
+      },
+      maxTokens: 260,
+      temperature: 0.7,
+      maxRounds: 4,
+      tier: 'main',
+      tenantId,
+    });
+    rawReply = result.reply;
+  } catch (e: any) {
+    if (String(e?.message || '') === 'NO_AI_KEY') throw new Error('Servicio de IA no configurado');
+    throw e;
   }
 
   const reply = rawReply.replace(/\[COMPRAR:[^\]]+\]/gi, '').replace(/\n{3,}/g, '\n\n').trim();
 
-  // Build suggestions: matched products first; if none found on a product query,
-  // fall back to featured products so cards always appear when the AI mentions menu items.
-  let suggestedProducts: ProductMatch[] = matchedProducts.slice(0, 3);
-  if (suggestedProducts.length === 0 && productQuery && dynamicCtx.featuredProducts.length > 0) {
-    suggestedProducts = dynamicCtx.featuredProducts.slice(0, 3).map(fp => ({
-      id: fp.id,
-      name: fp.name,
-      salePrice: fp.salePrice,
-      imageUrl: fp.imageUrl,
-      category: fp.category,
-      stock: 1,
-    }));
-  }
+  // Solo mostramos tarjetas de productos que el cliente realmente pidió (coincidencias
+  // con su consulta). NO hay relleno con destacados: nunca ofrecemos productos al azar.
+  // Y excluimos los que el cliente ya está pidiendo (no repetir su tarjeta).
+  const exclude = new Set((excludeProductIds || []).map(String));
+  const suggestedProducts: ProductMatch[] = matchedProducts
+    .filter(p => !exclude.has(String(p.id)))
+    .slice(0, 3);
 
   return { reply, suggestedProducts };
 }
