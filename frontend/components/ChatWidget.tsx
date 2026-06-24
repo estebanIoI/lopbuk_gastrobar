@@ -130,25 +130,19 @@ export function ChatWidget({ storeSlug, botName, botAvatarUrl, accentColor = '#f
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [sessionToken, setSessionToken] = useState<string | undefined>()
-  // Productos que el cliente ya pidió por aquí: no se vuelven a mostrar como tarjeta.
-  const [orderedIds, setOrderedIds] = useState<Set<string>>(new Set())
-  const orderedIdsRef = useRef<Set<string>>(new Set())
   const bottomRef = useRef<HTMLDivElement>(null)
   const sessionTokenRef = useRef<string | undefined>(undefined)
 
   useEffect(() => { sessionTokenRef.current = sessionToken }, [sessionToken])
 
-  const markOrdered = (id: string) => {
-    const next = new Set(orderedIdsRef.current); next.add(id)
-    orderedIdsRef.current = next
-    setOrderedIds(next)
-  }
-
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  const sendMessageText = async (text: string) => {
+  // excludeProductIds se usa SOLO al pedir por el botón (para que el bot no repita esa
+  // tarjeta en su respuesta inmediata). En mensajes escritos va vacío, así si el cliente
+  // vuelve a preguntar por un producto, su tarjeta sí aparece.
+  const sendMessageText = async (text: string, excludeProductIds: string[] = []) => {
     if (!text || sending) return
     setMessages(prev => [...prev, { role: 'user', content: text }])
     setSending(true)
@@ -156,7 +150,7 @@ export function ChatWidget({ storeSlug, botName, botAvatarUrl, accentColor = '#f
       const res = await fetch(`${API_URL}/chatbot/message`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slug: storeSlug, sessionToken: sessionTokenRef.current, message: text, excludeProductIds: Array.from(orderedIdsRef.current) }),
+        body: JSON.stringify({ slug: storeSlug, sessionToken: sessionTokenRef.current, message: text, excludeProductIds }),
       })
       const json = await res.json()
       if (json.success) {
@@ -197,8 +191,8 @@ export function ChatWidget({ storeSlug, botName, botAvatarUrl, accentColor = '#f
   }
 
   const handleOrderByChat = (product: SuggestedProduct) => {
-    markOrdered(product.id)   // se marca antes de enviar para excluirlo del backend
-    sendMessageText(`Quiero pedir: ${product.name}`)
+    // Excluye SOLO en este mensaje: el bot no repite la tarjeta del producto que ya está pidiendo.
+    sendMessageText(`Quiero pedir: ${product.name}`, [product.id])
   }
 
   return (
@@ -255,10 +249,10 @@ export function ChatWidget({ storeSlug, botName, botAvatarUrl, accentColor = '#f
                 {msg.content}
               </div>
 
-              {/* Tarjetas de producto — se ocultan las de productos ya pedidos por aquí */}
-              {msg.role === 'assistant' && msg.products && msg.products.filter(p => !orderedIds.has(p.id)).length > 0 && (
+              {/* Tarjetas de producto sugeridas */}
+              {msg.role === 'assistant' && msg.products && msg.products.length > 0 && (
                 <div className="w-full space-y-1.5">
-                  {msg.products.filter(p => !orderedIds.has(p.id)).map(product => (
+                  {msg.products.map(product => (
                     <ProductCard
                       key={product.id}
                       product={product}

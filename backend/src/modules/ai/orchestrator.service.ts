@@ -43,10 +43,15 @@ const norm = (m: { role: string; content: string }) => ({
  * cortas) y "main" (chat/agente complejo). Sin tier → el modelo Go configurado.
  */
 function goModelFor(keys: any, req: { tier?: AiTier; model?: string }): string {
-  if (req.model) return req.model;
-  if (req.tier === 'small') return keys.opencodeGoModelSmall || keys.opencodeGoModel;
-  if (req.tier === 'main') return keys.opencodeGoModelMain || keys.opencodeGoModel;
-  return keys.opencodeGoModel;
+  let m: string;
+  if (req.model) m = req.model;
+  else if (req.tier === 'small') m = keys.opencodeGoModelSmall || keys.opencodeGoModel;
+  else if (req.tier === 'main') m = keys.opencodeGoModelMain || keys.opencodeGoModel;
+  else m = keys.opencodeGoModel;
+  // La API de OpenCode espera el id del modelo PELADO (ej. "deepseek-v4-flash").
+  // El prefijo "opencode-go/" o "opencode/" es solo para el config del CLI y la API
+  // responde 401 ModelError ("Model ... is not supported") si se manda con prefijo.
+  return String(m || '').replace(/^opencode(?:-go)?\//i, '');
 }
 
 // ── Telemetría (IA6): tokens + costo por llamada ──────────────────────────────
@@ -103,11 +108,12 @@ async function gemini(apiKey: string, req: TextLLMRequest): Promise<LLMResult> {
 
 // Tarifas aproximadas USD por 1M tokens [entrada, salida]. Default para modelos no listados.
 const RATES: Record<string, [number, number]> = {
-  'opencode-go/deepseek-v4-flash': [0.14, 0.28],
-  'opencode-go/deepseek-v4-flash-free': [0, 0],
-  'opencode-go/mimo-v2.5': [0.14, 0.28],
-  'opencode-go/glm-5.2': [0.6, 2.2],
-  'opencode-go/kimi-k2.7': [0.6, 2.5],
+  // ids pelados (los que realmente se mandan a la API tras quitar el prefijo)
+  'deepseek-v4-flash': [0.14, 0.28],
+  'deepseek-v4-flash-free': [0, 0],
+  'mimo-v2.5': [0.14, 0.28],
+  'glm-5.2': [1.4, 4.4],
+  'kimi-k2.6': [0.95, 4.0],
   'llama-3.3-70b-versatile': [0, 0],            // Groq free tier
   'gemini-flash-latest': [0.075, 0.30],
   'gpt-4o': [2.5, 10],
