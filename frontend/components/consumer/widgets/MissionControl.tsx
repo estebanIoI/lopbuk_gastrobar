@@ -10,6 +10,7 @@ import { Flame, Dumbbell, Check, ChevronRight } from 'lucide-react'
 import { api } from '@/lib/api'
 import type { ConsumerTab } from '../hooks/useConsumerData'
 import LegendUpsell from './LegendUpsell'
+import XpWidget from './XpWidget'
 
 const GOAL_LABEL: Record<string, string> = {
   bajar_peso: 'Bajar grasa', subir_masa: 'Ganar masa', mantener: 'Mantener', salud_general: 'Salud general',
@@ -39,17 +40,15 @@ export default function MissionControl({ onGoTo }: { onGoTo: (t: ConsumerTab) =>
     <div className="px-4 pt-3 space-y-3">
       {/* Hero */}
       <div className="rounded-2xl p-4 text-white relative overflow-hidden" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #b45309 130%)' }}>
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2">
           <span className="text-[11px] uppercase tracking-wide text-white/50 font-bold">Día {m.dayNumber}{m.goal ? ` · ${GOAL_LABEL[m.goal] || m.goal}` : ''}</span>
-          {m.calorieTarget ? <span className="text-[11px] font-bold bg-white/15 rounded-full px-2 py-0.5">{m.calorieTarget} kcal</span> : null}
+          <XpWidget compact />
         </div>
         <p className="text-[11px] text-amber-300 font-semibold mt-2 uppercase tracking-wide">Hoy toca</p>
         <p className="text-xl font-extrabold leading-tight">{m.todaySession}</p>
-        {(m.proteinG || m.waterMl) && (
-          <p className="text-xs text-white/60 mt-1">
-            {m.proteinG ? `${m.proteinG}g proteína` : ''}{m.proteinG && m.waterMl ? ' · ' : ''}{m.waterMl ? `${(m.waterMl / 1000).toFixed(1)}L agua` : ''}
-          </p>
-        )}
+        <p className="text-xs text-white/60 mt-1">
+          {[m.calorieTarget ? `${m.calorieTarget} kcal` : '', m.proteinG ? `${m.proteinG}g proteína` : '', m.waterMl ? `${(m.waterMl / 1000).toFixed(1)}L agua` : ''].filter(Boolean).join(' · ')}
+        </p>
         {!m.isRestDay && (
           <button onClick={() => onGoTo('rutina')} className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-amber-400 text-neutral-900 font-bold text-sm px-4 py-2 active:scale-[0.98]">
             <Dumbbell className="w-4 h-4" /> Iniciar rutina <ChevronRight className="w-4 h-4" />

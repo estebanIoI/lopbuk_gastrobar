@@ -37,10 +37,11 @@ class AchievementsService {
       [uuidv4(), userId, code, source || null]
     );
     const isNew = (r as any).affectedRows > 0;
-    // Auto-post al feed social (F5.3) cuando es un logro nuevo. Defensivo.
+    // Auto-post al feed social (F5.3) + XP (P2) cuando es un logro nuevo. Defensivo.
     if (isNew) {
       const def = BY_CODE.get(code)!;
       try { const { arenaService } = await import('../arena/arena.service'); await arenaService.autoFeed(userId, 'achievement', `${def.emoji} desbloqueó "${def.label}"`, { code }); } catch { /* no bloquear */ }
+      try { const { gamificationService } = await import('../gamification/gamification.service'); await gamificationService.awardXp(userId, 'achievement'); } catch { /* no bloquear */ }
     }
     return isNew;
   }

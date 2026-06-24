@@ -10,7 +10,7 @@ import { RowDataPacket } from 'mysql2';
 
 export interface Nudge {
   id: string;
-  kind: 'coach' | 'streak' | 'drop' | 'membership' | 'achievement' | 'program' | 'predictive';
+  kind: 'coach' | 'streak' | 'drop' | 'membership' | 'achievement' | 'program' | 'predictive' | 'motivation';
   priority: number; // mayor = más arriba
   emoji: string;
   title: string;
@@ -128,6 +128,14 @@ class AdaptiveService {
     // 5) Predictive commerce (recompra de consumible).
     const predictive = await safe(() => predictiveNudge(userId), null as Nudge | null);
     if (predictive) nudges.push(predictive);
+
+    // 5b) Motivación: cerca de subir de liga (gamificación P2).
+    const xp = await safe(async () => (await import('../gamification/gamification.service')).gamificationService.getXpProfile(userId), null as any);
+    if (xp?.league?.next && xp.league.next.toGo > 0 && xp.league.next.toGo <= 60) {
+      nudges.push({ id: 'league-push', kind: 'motivation', priority: 55, emoji: '⚡',
+        title: `Cerca de ${xp.league.next.label}`, body: `Te faltan ${xp.league.next.toGo} XP esta semana para subir de liga.`,
+        action: { type: 'tab', target: 'comunidad', label: 'Ver liga' } });
+    }
 
     // 6) Membresía.
     const isLegend = tier && !tier.isExpired && tier.tier === 'legend';

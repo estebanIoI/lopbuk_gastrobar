@@ -6,9 +6,10 @@
  *   Guilds (equipos) · Feed (social, auto-posts + manual + likes).
  */
 import { useEffect, useState } from 'react'
-import { Loader2, Trophy, Flame, Target, Users, Crown, Medal, Shield, Heart, Send, Plus, LogOut, Image as ImageIcon, MessageCircle } from 'lucide-react'
+import { Loader2, Trophy, Flame, Target, Users, Crown, Medal, Shield, Heart, Send, Plus, LogOut, Image as ImageIcon, MessageCircle, Zap } from 'lucide-react'
 import { api } from '@/lib/api'
 import AccessGate from '../AccessGate'
+import XpWidget from '../widgets/XpWidget'
 
 const METRIC_META: Record<string, { label: string; emoji: string }> = {
   streak: { label: 'días activos', emoji: '🔥' },
@@ -31,11 +32,12 @@ const ago = (d?: string) => {
   return `${Math.floor(s / 86400)}d`
 }
 
-type Tab = 'retos' | 'ranking' | 'guilds' | 'feed'
+type Tab = 'liga' | 'retos' | 'ranking' | 'guilds' | 'feed'
 
 export default function CommunitySection() {
-  const [tab, setTab] = useState<Tab>('retos')
+  const [tab, setTab] = useState<Tab>('liga')
   const TABS: { k: Tab; label: string; icon: any }[] = [
+    { k: 'liga', label: 'Liga', icon: Zap },
     { k: 'retos', label: 'Retos', icon: Target },
     { k: 'ranking', label: 'Ranking', icon: Trophy },
     { k: 'guilds', label: 'Guilds', icon: Shield },
@@ -51,10 +53,49 @@ export default function CommunitySection() {
           </button>
         ))}
       </div>
+      {tab === 'liga' && <LeagueTab />}
       {tab === 'retos' && <Challenges />}
       {tab === 'ranking' && <AccessGate requires="leaderboard" teaserTitle="🏆 Leaderboard" teaserText="El ranking social de DAIMUZ. Consigue su Vault Key para verlo."><Leaderboard /></AccessGate>}
       {tab === 'guilds' && <Guilds />}
       {tab === 'feed' && <Feed />}
+    </div>
+  )
+}
+
+// ── Liga (XP semanal) ──
+function LeagueTab() {
+  const [data, setData] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  useEffect(() => { api.getLeagueBoard(20).then(r => { if (r.success) setData(r.data) }).finally(() => setLoading(false)) }, [])
+  const top: any[] = data?.top || []
+  const me = data?.me
+  return (
+    <div className="space-y-4">
+      <XpWidget />
+      <div>
+        <h3 className="text-sm font-bold text-neutral-800 mb-2 flex items-center gap-1.5"><Zap className="w-4 h-4 text-amber-500" /> Liga de esta semana</h3>
+        {loading ? <Spin /> : top.length === 0 ? <Empty text="Suma XP entrenando para entrar a la liga. ⚡" /> : (
+          <div className="space-y-1.5">
+            {top.map(r => (
+              <div key={r.rank} className={`flex items-center gap-3 rounded-xl px-3 py-2 ${r.isMe ? 'bg-amber-50 border border-amber-200' : 'bg-white border border-black/[0.05]'}`}>
+                <span className={`w-6 text-center font-extrabold ${r.rank === 1 ? 'text-amber-500' : r.rank <= 3 ? 'text-neutral-600' : 'text-neutral-300'}`}>
+                  {r.rank === 1 ? <Crown className="w-4 h-4 mx-auto text-amber-500" /> : r.rank <= 3 ? <Medal className="w-4 h-4 mx-auto" /> : r.rank}
+                </span>
+                <span className="flex-1 font-medium text-neutral-800 truncate">{r.name}{r.isMe ? ' (tú)' : ''}</span>
+                <span className="text-[11px] text-neutral-400">{r.league}</span>
+                <span className="text-sm font-bold text-neutral-900 flex items-center gap-1"><Zap className="w-3.5 h-3.5 text-amber-500" />{r.xp}</span>
+              </div>
+            ))}
+            {me && !top.some((r: any) => r.isMe) && (
+              <div className="flex items-center gap-3 rounded-xl px-3 py-2 bg-amber-50 border border-amber-200 mt-1">
+                <span className="w-6 text-center font-extrabold text-neutral-400">{me.rank}</span>
+                <span className="flex-1 font-medium text-neutral-800">Tú</span>
+                <span className="text-sm font-bold text-neutral-900 flex items-center gap-1"><Zap className="w-3.5 h-3.5 text-amber-500" />{me.xp}</span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

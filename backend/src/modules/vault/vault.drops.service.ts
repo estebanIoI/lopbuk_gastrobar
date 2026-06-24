@@ -160,6 +160,8 @@ class DropsService {
         const { achievementsService } = await import('../achievements/achievements.service');
         await achievementsService.award(userId, 'drop_hunter', 'drop');
         if (await achievementsService.countDropClaims(userId) >= 5) await achievementsService.award(userId, 'drop_legend', 'drop');
+        const { gamificationService } = await import('../gamification/gamification.service');
+        await gamificationService.awardXp(userId, 'drop_claim');
       } catch { /* no bloquear el claim */ }
       return { claimed: true, alreadyClaimed: false, slotsTaken, totalSlots, soldOut, productRef: safeJson(d.product_ref) };
     } catch (e) { await conn.rollback(); throw e; } finally { conn.release(); }

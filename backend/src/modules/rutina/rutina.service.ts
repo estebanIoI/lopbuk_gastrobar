@@ -330,7 +330,10 @@ export async function getOnboardingStatus(userId: string) {
 export async function completeOnboarding(userId: string, a: any) {
   if (!userId) throw new AppError('No autenticado', 401);
   const goal = String(a?.goal || 'mantener');
-  const sex = a?.sex || null;
+  // Normaliza el sexo a los valores que acepta el ENUM de rutina_perfil
+  // ('masculino'/'femenino'); el wizard manda 'm'/'f'.
+  const rawSex = String(a?.sex || '').toLowerCase();
+  const sex = !rawSex ? null : (rawSex.startsWith('m') ? 'masculino' : rawSex.startsWith('f') ? 'femenino' : rawSex);
   const weightKg = a?.weightKg != null ? Number(a.weightKg) : null;
   const heightCm = a?.heightCm != null ? Number(a.heightCm) : null;
   const age = a?.age != null ? Number(a.age) : null;
@@ -379,6 +382,9 @@ export async function completeOnboarding(userId: string, a: any) {
       await addAct({ dayOfWeek: null, title: `${n.proteinG} g de proteína`, type: 'otro', sortOrder: order++ });
     }
   } catch (e) { console.warn('[onboarding] generación de rutina:', (e as any)?.message); }
+
+  // XP por completar el onboarding (P2).
+  try { const { gamificationService } = await import('../gamification/gamification.service'); await gamificationService.awardXp(userId, 'onboarding'); } catch { /* no bloquear */ }
 
   // 3) Roadmap inicial (texto guía).
   const roadmap = [
@@ -455,9 +461,15 @@ export async function toggleDailyCheck(userId: string, itemKey: string, done: bo
      ON DUPLICATE KEY UPDATE done = VALUES(done)`,
     [uuidv4(), userId, today, itemKey, done ? 1 : 0]
   );
-  // Marcar "entrenar" cuenta como actividad del día (alimenta la racha).
-  if (done && itemKey === 'entrenar') {
-    try { await db.query('INSERT IGNORE INTO consumer_streak_days (user_id, day) VALUES (?, CURDATE())', [userId]); } catch { /* sin streak */ }
+  // Marcar "entrenar" cuenta como actividad del día (alimenta la racha) + XP.
+  if (done) {
+    try {
+      const { gamificationService } = await import('../gamification/gamification.service');
+      await gamificationService.awardXp(userId, itemKey === 'entrenar' ? 'workout' : 'daily_check');
+    } catch { /* no bloquear */ }
+    if (itemKey === 'entrenar') {
+      try { await db.query('INSERT IGNORE INTO consumer_streak_days (user_id, day) VALUES (?, CURDATE())', [userId]); } catch { /* sin streak */ }
+    }
   }
   return getTodayMission(userId);
 }

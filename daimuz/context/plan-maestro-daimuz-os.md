@@ -88,7 +88,12 @@ El problema real ya no es features, es **activación/retención**: el usuario nu
 - ✅ **Vista de progreso completa** (`ProgressView`): timeline, before/after fotos, predicción AI.
 
 **P2 — Retención**
-- ⏳ Command Center móvil (resumen AI colapsable), sistema de motivación (mensajes/nudges), gamificación profunda (XP/niveles/ligas/temporadas).
+- ✅ **Gamificación profunda**: XP por acción + niveles (curva triangular) + **ligas semanales** (Bronce→Diamante) + `XpWidget` + pestaña Liga + nudge motivacional. Módulo `gamification`.
+- ⏳ Command Center móvil (resumen AI colapsable). Temporadas/seasons de ligas (reset semanal ya implícito por ventana 7d; falta histórico/premios de temporada).
+
+**Pendientes de infraestructura (no críticos)**
+- ⏳ Notificaciones push reales (requiere service worker + VAPID + tabla de subscripciones). Hoy hay nudges in-app (adaptive) en su lugar.
+- ⏳ Retos por guild (guild vs guild): extender `seasonal_challenges` con dimensión de guild + scoring agregado.
 - **Predictive commerce:** "Probablemente necesitarás proteína en 4 días".
 - **AI transformation tracking:** peso/fotos/medidas/adherencia → progress score + body trend.
 

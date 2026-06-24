@@ -526,6 +526,13 @@ class ApiService {
   async toggleDailyCheck(item: string, done: boolean) {
     return this.request<any>('/rutina/check', { method: 'POST', body: JSON.stringify({ item, done }) })
   }
+  // ── Gamificación (P2): XP, nivel, liga ──
+  async getXpProfile() {
+    return this.request<any>('/gamification/me')
+  }
+  async getLeagueBoard(limit = 20) {
+    return this.request<any>(`/gamification/league?limit=${limit}`)
+  }
   // ── Adaptive OS (F4.1) ──
   async getAdaptiveNudges() {
     return this.request<any[]>('/adaptive/me')

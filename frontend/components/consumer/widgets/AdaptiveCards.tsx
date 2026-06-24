@@ -18,6 +18,7 @@ const KIND_BAR: Record<string, string> = {
   achievement: 'bg-violet-500',
   program: 'bg-emerald-500',
   predictive: 'bg-indigo-500',
+  motivation: 'bg-amber-500',
 }
 
 const DISMISS_KEY = 'dz_adaptive_dismissed'

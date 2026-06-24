@@ -148,6 +148,7 @@ class VaultService {
       await conn.commit();
       if (!already) {
         try { const { achievementsService } = await import('../achievements/achievements.service'); await achievementsService.award(userId, 'vault_initiate', 'vault'); } catch { /* no bloquear */ }
+        try { const { gamificationService } = await import('../gamification/gamification.service'); await gamificationService.awardXp(userId, 'vault_redeem'); } catch { /* no bloquear */ }
       }
       return { label: k.label, unlocks: unlocks.keys || [], message: unlocks.message || null, alreadyRedeemed: !!already };
     } catch (e) { await conn.rollback(); throw e; } finally { conn.release(); }

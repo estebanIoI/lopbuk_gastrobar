@@ -90,7 +90,8 @@ class ArenaService {
     const c = rows[0] as any;
     if (!c) throw new AppError('Reto no encontrado', 404);
     if (c.status !== 'active' || new Date(c.ends_at).getTime() < Date.now()) throw new AppError('Este reto ya cerró', 410);
-    await db.execute('INSERT IGNORE INTO challenge_participants (id, challenge_id, user_id) VALUES (?, ?, ?)', [uuidv4(), challengeId, userId]);
+    const [r] = await db.execute('INSERT IGNORE INTO challenge_participants (id, challenge_id, user_id) VALUES (?, ?, ?)', [uuidv4(), challengeId, userId]);
+    if ((r as any).affectedRows > 0) { try { const { gamificationService } = await import('../gamification/gamification.service'); await gamificationService.awardXp(userId, 'challenge_join'); } catch { /* no bloquear */ } }
     return { joined: true };
   }
 
@@ -172,6 +173,8 @@ class ArenaService {
       try {
         const { achievementsService } = await import('../achievements/achievements.service');
         await achievementsService.award(p.user_id, 'challenge_champion', 'challenge');
+        const { gamificationService } = await import('../gamification/gamification.service');
+        await gamificationService.awardXp(p.user_id, 'challenge_won');
       } catch { /* no bloquear */ }
       await this.autoFeed(p.user_id, 'challenge', `🏆 completó el reto "${c.title}"`, { challengeId });
     }

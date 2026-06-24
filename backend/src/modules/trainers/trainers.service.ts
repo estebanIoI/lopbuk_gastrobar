@@ -359,7 +359,10 @@ class TrainersService {
     try {
       const [br] = await db.execute<RowDataPacket[]>('SELECT user_id FROM trainer_bookings WHERE id = ? LIMIT 1', [bookingId]);
       const uid = (br[0] as any)?.user_id;
-      if (uid) { const { achievementsService } = await import('../achievements/achievements.service'); await achievementsService.award(uid, 'coach_disciple', 'coach'); }
+      if (uid) {
+        const { achievementsService } = await import('../achievements/achievements.service'); await achievementsService.award(uid, 'coach_disciple', 'coach');
+        const { gamificationService } = await import('../gamification/gamification.service'); await gamificationService.awardXp(uid, 'coach_program');
+      }
     } catch { /* no bloquear */ }
   }
 

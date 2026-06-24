@@ -62,6 +62,7 @@ import achievementsRoutes from './modules/achievements/achievements.routes';
 import adaptiveRoutes from './modules/adaptive/adaptive.routes';
 import progressRoutes from './modules/progress/progress.routes';
 import arenaRoutes from './modules/arena/arena.routes';
+import gamificationRoutes from './modules/gamification/gamification.routes';
 import paymentsRoutes from './modules/payments/payments.routes';
 import suppliersRoutes from './modules/suppliers/suppliers.routes';
 import { gymRoutes } from './modules/gym';
@@ -188,6 +189,7 @@ app.use(`${apiPrefix}/achievements`, achievementsRoutes);
 app.use(`${apiPrefix}/adaptive`, adaptiveRoutes);
 app.use(`${apiPrefix}/progress`, progressRoutes);
 app.use(`${apiPrefix}/arena`, arenaRoutes);
+app.use(`${apiPrefix}/gamification`, gamificationRoutes);
 app.use(`${apiPrefix}/payments`, paymentsRoutes);
 app.use(`${apiPrefix}/daimuz-chat`, daimuzChatRoutes);
 app.use(`${apiPrefix}/finances`, financesRoutes);
@@ -1131,6 +1133,16 @@ const startServer = async () => {
         FOREIGN KEY (feed_id) REFERENCES arena_feed(id) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
 
+      // Gamificación profunda (P2): XP log → nivel + liga semanal.
+      await poolVk.query(`CREATE TABLE IF NOT EXISTS consumer_xp_log (
+        id VARCHAR(36) PRIMARY KEY,
+        user_id VARCHAR(36) NOT NULL,
+        amount INT NOT NULL,
+        reason VARCHAR(40) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_xp_user (user_id, created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+
       // Comentarios del feed (mejora fina F5.3).
       await poolVk.query(`CREATE TABLE IF NOT EXISTS arena_feed_comments (
         id VARCHAR(36) PRIMARY KEY,
@@ -1162,6 +1174,8 @@ const startServer = async () => {
       await addOb(`ALTER TABLE rutina_perfil ADD COLUMN carbs_g INT NULL`);
       await addOb(`ALTER TABLE rutina_perfil ADD COLUMN fat_g INT NULL`);
       await addOb(`ALTER TABLE rutina_perfil ADD COLUMN onboarded_at DATETIME NULL`);
+      // sex era ENUM y truncaba valores del wizard ('m'/'f'). VARCHAR = sin truncado.
+      try { await poolOb.query(`ALTER TABLE rutina_perfil MODIFY COLUMN sex VARCHAR(20) NULL`); } catch (e: any) { console.warn('[migration] sex→varchar:', e?.message); }
 
       // Checklist diario (Mission Control): hábitos del día por usuario.
       await poolOb.query(`CREATE TABLE IF NOT EXISTS consumer_daily_checks (
