@@ -430,6 +430,8 @@ export function buildEnrichedSystemPrompt(
     `Avanza paso a paso: una cosa a la vez.\n\n` +
     `## REGLAS\n` +
     `NUNCA inventes información ni precios; usa solo lo que está en tu contexto.\n` +
+    `SIEMPRE responde con un mensaje de TEXTO claro al cliente (jamás dejes la respuesta en blanco). Cuando el cliente diga qué quiere, lo PRIMERO es recomendarle el producto que encaja con su nombre y precio, y avanzar la venta; no saltes a pedir datos en seco.\n` +
+    `NO registres el pedido (registrar_pedido) hasta tener TODOS los datos: nombre, teléfono, productos con cantidad, y si es a domicilio o para recoger. Ve pidiéndolos de a uno, con naturalidad.\n` +
     `Habla SIEMPRE en lenguaje natural y conversacional. Haz UNA sola pregunta por mensaje (nunca dos o tres juntas).\n` +
     `JAMÁS escribas llamados de herramientas como texto: nada de etiquetas tipo <function...>, <tool_call>, ni JSON de pedidos en el mensaje. El sistema ejecuta las herramientas por su cuenta. Si te falta un dato para registrar un pedido (nombre, teléfono, etc.), pídelo con naturalidad, de a uno.\n` +
     `CRÍTICO: NUNCA digas que un producto NO existe o no está disponible a menos que ` +
@@ -770,6 +772,17 @@ export async function processAgentMessage(
   const cleaned = rawReply.replace(TOOL_TAG_RE, '').replace(/\n{3,}/g, '\n\n').trim();
   // Reply final = texto conversacional limpio + confirmaciones de herramientas ejecutadas.
   let reply = [cleaned, ...inlineMsgs].filter(Boolean).join('\n\n').trim();
-  if (!reply) reply = missingPrompt || '¿Te ayudo a completar tu pedido? Cuéntame qué deseas. 🙂';
+  if (!reply) {
+    // El modelo no devolvió texto (suele pasar al intentar un tool-call vacío). En vez de
+    // un genérico, damos una respuesta de VENTA: si hay un producto que coincide con lo
+    // que pidió, lo mencionamos con su precio y avanzamos; si faltaba un dato, lo pedimos.
+    if (missingPrompt) reply = missingPrompt;
+    else if (suggestedProducts.length > 0) {
+      const p0 = suggestedProducts[0];
+      reply = `¡Claro que sí! Tenemos ${p0.name} a $${Number(p0.salePrice).toLocaleString('es-CO')}. ¿Cuántos necesitas o te muestro más opciones? 🙂`;
+    } else {
+      reply = '¡Con gusto te ayudo! Cuéntame qué producto buscas. 🙂';
+    }
+  }
   return { reply, suggestedProducts };
 }

@@ -44,7 +44,7 @@ function LoginInner() {
     )
   }
 
-  return <AuthForm onGoBack={() => router.push('/')} />
+  return <AuthForm />
 }
 
 export default function LoginPage() {
