@@ -4,7 +4,7 @@ import { useState } from 'react'
 import dynamic from 'next/dynamic'
 import {
   Briefcase, CreditCard, LayoutTemplate, MessageSquarePlus,
-  Plug, Star, Store, TrendingUp, ShoppingBag, Sparkles, Wallet, Crown, Dumbbell, KeyRound, Flame, Target,
+  Plug, Star, Store, TrendingUp, ShoppingBag, Sparkles, Wallet, Crown, Dumbbell, KeyRound, Flame, Target, UserCog,
 } from 'lucide-react'
 import { RefreshCw } from 'lucide-react'
 
@@ -26,14 +26,16 @@ const CoachPayoutsTab   = dynamic(() => import('./tabs/CoachPayoutsTab').then(m 
 const VaultKeysTab      = dynamic(() => import('./tabs/VaultKeysTab').then(m => ({ default: m.VaultKeysTab })), { loading: () => <TabLoader /> })
 const DropsTab          = dynamic(() => import('./tabs/DropsTab').then(m => ({ default: m.DropsTab })), { loading: () => <TabLoader /> })
 const ChallengesTab     = dynamic(() => import('./tabs/ChallengesTab').then(m => ({ default: m.ChallengesTab })), { loading: () => <TabLoader /> })
+const UsersRolesTab     = dynamic(() => import('./tabs/UsersRolesTab').then(m => ({ default: m.UsersRolesTab })), { loading: () => <TabLoader /> })
 
 // ── Tab definitions ───────────────────────────────────────────────────────────
 
-type TabId = 'pedidos' | 'pagina' | 'comercios' | 'timeline' | 'destacados' | 'integraciones' | 'pagos' | 'pasarela' | 'portafolio' | 'solicitudes' | 'comunidad' | 'legend' | 'coaches' | 'vault' | 'drops' | 'retos'
+type TabId = 'pedidos' | 'pagina' | 'comercios' | 'timeline' | 'destacados' | 'integraciones' | 'pagos' | 'pasarela' | 'portafolio' | 'solicitudes' | 'comunidad' | 'legend' | 'coaches' | 'vault' | 'drops' | 'retos' | 'usuarios'
 
 const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
   { id: 'pedidos',       label: 'Pedidos',          icon: ShoppingBag },
   { id: 'comercios',     label: 'Comercios',        icon: Store },
+  { id: 'usuarios',      label: 'Usuarios',         icon: UserCog },
   { id: 'pagina',        label: 'Página',           icon: LayoutTemplate },
   { id: 'timeline',      label: 'Ventas',           icon: TrendingUp },
   { id: 'destacados',    label: 'Destacados',       icon: Star },
@@ -103,6 +105,7 @@ export function SuperadminLayout() {
       {activeTab === 'pedidos'       && <OrdersCenterTab />}
       {activeTab === 'pagina'        && <LandingConfigTab />}
       {activeTab === 'comercios'     && <CommercesTab />}
+      {activeTab === 'usuarios'      && <UsersRolesTab />}
       {activeTab === 'timeline'      && <AnalyticsTab />}
       {activeTab === 'destacados'    && <FeaturedTab />}
       {activeTab === 'integraciones' && <IntegrationsTab />}

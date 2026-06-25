@@ -2054,6 +2054,25 @@ class ApiService {
     return this.request<any>('/chatbot/superadmin/ai-usage')
   }
 
+  // Superadmin: buscar usuarios por email (cross-tenant) y cambiar su rol.
+  async superadminFindUsers(email: string) {
+    return this.request<any[]>(`/users/superadmin/find?email=${encodeURIComponent(email)}`)
+  }
+
+  async superadminSetUserRole(id: string, role: string) {
+    return this.request<any>(`/users/superadmin/${id}/role`, {
+      method: 'PUT',
+      body: JSON.stringify({ role }),
+    })
+  }
+
+  async superadminSetUserActive(id: string, active: boolean) {
+    return this.request<any>(`/users/superadmin/${id}/active`, {
+      method: 'PUT',
+      body: JSON.stringify({ active }),
+    })
+  }
+
   async revealIntegrationKey(provider: 'gemini' | 'openai' | 'groq' | 'opencode_go') {
     return this.request<{ key: string }>(`/chatbot/superadmin/integrations/reveal/${provider}`)
   }

@@ -28,13 +28,19 @@ function LoginInner() {
   // Si no hay un `?next=` explícito (destino por defecto = panel comerciante),
   // se enruta por rol: cliente → su Consumer OS (`/`); comunidad_admin → su panel.
   useEffect(() => {
-    if (!isAuthenticated) return
+    // Espera a tener el usuario cargado para no enrutar con un rol indefinido.
+    if (!isAuthenticated || !user) return
     const isDefault = next === `/panel/${DEFAULT_SLUG}`
-    const dest = isDefault && user?.role === 'comunidad_admin'
-      ? '/comunidad/admin'
-      : isDefault && user?.role === 'cliente'
-        ? '/'                 // el cliente vive en su Consumer OS, no en el panel comerciante
-        : next
+    let dest: string
+    if (user.role === 'cliente') {
+      // El cliente vive en su Consumer OS, NUNCA en el panel de comerciante.
+      // Solo respeta un `next` que no sea del panel (ej. deep-link a una tienda).
+      dest = (isDefault || next.startsWith('/panel')) ? '/' : next
+    } else if (isDefault && user.role === 'comunidad_admin') {
+      dest = '/comunidad/admin'
+    } else {
+      dest = next
+    }
     router.replace(dest)
   }, [isAuthenticated, user, next, router])
 

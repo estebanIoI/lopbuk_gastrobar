@@ -35,7 +35,7 @@ function GoogleG({ className = 'h-5 w-5' }: { className?: string }) {
   )
 }
 
-export function AuthForm() {
+export function AuthForm({ onGoBack }: { onGoBack?: () => void } = {}) {
   const { login, googleLogin } = useAuthStore()
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
@@ -241,6 +241,16 @@ export function AuthForm() {
 
       {/* ═══════════════ CONTENEDOR PRINCIPAL ═══════════════ */}
       <div className="relative z-10 flex min-h-screen items-center justify-center px-4 sm:px-6 lg:justify-end lg:pr-[clamp(4rem,8vw,12rem)] lg:pl-12">
+        {/* Back button (solo si el contexto lo provee, p.ej. desde la landing) */}
+        {onGoBack && (
+          <button
+            onClick={onGoBack}
+            className="absolute top-6 left-6 z-20 text-white/40 hover:text-white/80 transition-colors text-xs uppercase tracking-[0.2em] font-light"
+          >
+            ← Volver
+          </button>
+        )}
+
         {/* ═══════════════ GLASS AUTH CARD ═══════════════ */}
         <div
           className={`w-full max-w-[420px] transition-all duration-700 ease-out ${mounted ? 'opacity-100 translate-y-0 blur-0' : 'opacity-0 translate-y-4 blur-[6px]'}`}
