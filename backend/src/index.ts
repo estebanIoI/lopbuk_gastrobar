@@ -66,6 +66,8 @@ import gamificationRoutes from './modules/gamification/gamification.routes';
 import pushRoutes from './modules/push/push.routes';
 import paymentsRoutes from './modules/payments/payments.routes';
 import suppliersRoutes from './modules/suppliers/suppliers.routes';
+import hormasRoutes from './modules/hormas/hormas.routes';
+import locationsRoutes from './modules/locations/locations.routes';
 import { gymRoutes } from './modules/gym';
 import assistantRoutes from './modules/assistant/assistant.routes';
 import modifiersRoutes from './modules/modifiers/modifiers.routes'
@@ -217,6 +219,8 @@ app.use(`${apiPrefix}/theme4`, theme4Routes);
 // Variantes + Proveedores
 app.use(`${apiPrefix}`, variantsRoutes);
 app.use(`${apiPrefix}/suppliers`, suppliersRoutes);
+app.use(`${apiPrefix}/hormas`, hormasRoutes);
+app.use(`${apiPrefix}/locations`, locationsRoutes);
 
 // Error handling
 app.use(notFoundHandler);
@@ -1493,6 +1497,6 @@ const startServer = async () => {
     console.error('Error al iniciar el servidor:', error);
     process.exit(1);
   }
-}
+};
 
 startServer();

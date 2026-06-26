@@ -135,6 +135,215 @@ Sesión larga sobre el DAIMUZ Fitness Lifestyle OS. Detalle completo en `context
 
 **Eventos nuevos en whitelist analytics:** coach_review_submitted, vault_key_redeemed, drop_claimed.
 
+## [2026-06-21] (parte 2) — Rediseño del filtro y de "Editar en grupo" (feedback de UX)
+
+Feedback directo tras la parte 1 de hoy: las etiquetas pill "Todas / [nombre horma]" se veían poco
+profesionales, "Editar en grupo" repetido dentro de cada producto era ruidoso, y había que confirmar
+que el filtro combina horma+talla+color (no es "repartir stock en cascada", es "filtrar en cascada" —
+aclarado con el usuario).
+
+- **Filtro unificado "Filtrar por:".** Se eliminaron los pills de horma ("Todas", "Oversize Americana", "Oversize Fit") y los chips sueltos de talla/color de la fila expandida. Reemplazados por 3 `Select` (Horma/Talla/Color, ocultos si el producto no tiene esa dimensión) + botón "Limpiar" — mismo lenguaje visual que los filtros de Tipo/Categoría/Stock del toolbar principal. Las opciones de cada Select salen de `getDisplayTallas`/`getDisplayColors`/`getDisplayHormas` (ya existían, estaban sin usar).
+- **"Editar en grupo" ya no vive dentro de cada producto.** El toggle se movió a UN solo lugar: el botón "Editar variantes" en el header, junto a "Seleccionar" (mismo patrón `variant={modo ? 'default' : 'outline'}`). Con el modo activo, cada fila expandida muestra checkboxes por variante; "seleccionar grupo visible" pasó de ser un link de texto subrayado a un checkbox real en el header de la tabla (escritorio) y una fila con checkbox (mobile) — selecciona/deselecciona todas las variantes que pasan el filtro activo.
+- **Confirmado con el usuario:** "cascada" = el filtro debe combinarse según lo que se seleccione (horma solo, talla solo, color solo, o cualquier combinación de los 3) — NO es repartir una cantidad total entre variantes. La lógica `getFilteredVariantsFor` (AND entre los 3 filtros) ya cumplía esto desde la parte 1; no requirió cambios de lógica, solo de UI.
+
+## [2026-06-21] — Talla/Color como filtro real de variantes + edición en grupo (bulk) en Inventario
+
+- **Talla y color ahora filtran, no solo consultan.** El picker rápido (Horma/Talla/Color) en la fila principal de `inventory-list.tsx` ya sincronizaba la horma con la fila expandida (`onHormaChange`, ver parte 15); ahora `useVariantPicker` también dispara `onSizeChange`/`onColorChange`, conectados a nuevo estado `expandedSizeFilter`/`expandedColorFilter` (por producto). La fila expandida ("Ver variantes") y el bloque móvil filtran la tabla completa combinando horma+talla+color a la vez (`getFilteredVariantsFor`), con chips removibles ("Talla M ✕", "Color Negro ✕") para ver/limpiar el filtro activo.
+- **Edición en grupo de variantes (bulk).** Botón "Editar en grupo" dentro de la fila expandida de cada producto activa `bulkVariantMode`: aparecen checkboxes por variante + botón "Seleccionar grupo visible" (selecciona de un click todas las variantes que pasan el filtro activo de talla/color/horma). La selección es global (`selectedVariantIds`, un `Set<string>` no atado a un producto), así se puede armar un lote combinando variantes de varios productos/filtros. Barra sticky muestra el contador y abre el diálogo de edición: stock (sumar/restar/establecer cantidad exacta, con motivo obligatorio), precio override, costo y stock mínimo — cada campo es opt-in (checkbox "Cambiar X") para no pisar lo que no se quiere tocar.
+- **Backend nuevo:** `POST /api/variants/bulk-update` (`variants.service.ts::bulkUpdate`, `variants.controller.ts::bulkUpdate`, ruta declarada ANTES de `/variants/:id` igual que `/variants/summary`). Itera variante por variante (no transaccional entre ellas a propósito): si una falla (ej. stock insuficiente al restar) las demás igual se aplican; reporta `{ updated, failed: [{id, error}] }`. El stock reusa `adjustStock` (atómico, registra `inventory_movements` con `reference_type: 'bulk_edit'`); precio/costo/stock mínimo reusan `update()`.
+- **Frontend:** `api.bulkUpdateVariants()` en `lib/api.ts`. Toda la UI vive en `inventory-list.tsx` (no se tocó `variant-manager.tsx` — ese modal es por-producto, esto es cross-variante desde la vista de inventario).
+- Petición del usuario: "que seleccionar la talla y el color también funcione como filtro en las variantes" + "una opción para editar por grupos por si se necesita modificar grandes cantidades".
+
+## [2026-06-19] (parte 16) — Talla y Color: mismo orden siempre, sin importar la horma
+
+Las columnas/chips de Talla y Color del picker rápido (`VariantPickerColumns` /
+`VariantQuickPicker`) tomaban el orden tal cual venía del array de variantes — podía
+"saltar" al cambiar de horma. Se agregaron `SIZE_ORDER`/`sortSizes` a nivel de módulo
+(antes `SIZE_ORDER` vivía duplicado dentro de `InventoryList`) y se aplican siempre:
+- **Talla:** orden de confección XS/S/M/L/XL/XXL/XXXL.
+- **Color:** alfabético (A-Z).
+Al cambiar de horma se sigue filtrando a las tallas/colores de ESA horma (eso no
+cambió), pero el orden visual ya no varía — siempre el mismo criterio.
+
+## [2026-06-19] (parte 15) — Picker de Horma sincroniza el filtro + feedback de hover
+
+- **Elegir horma en la columna "Horma" (o en el bloque móvil) ahora también filtra la
+  fila expandida ("Ver variantes")** — antes eran dos selecciones independientes (la del
+  picker rápido y la del filtro de la tabla expandida), había que elegir la horma dos
+  veces. `useVariantPicker` acepta un callback `onHormaChange` que ambos componentes
+  (`VariantQuickPicker`, `VariantPickerColumns`) disparan al click, conectado a
+  `setHormaFilterFor(product.id, hormaId)`.
+- **Feedback de hover/cursor** en todos los botones clickeables del picker (horma, talla,
+  círculos de color) y en los chips de filtro de la fila expandida: `cursor-pointer` +
+  borde resaltado en hover para horma/talla, y los círculos de color ahora escalan
+  (`hover:scale-125`) y muestran un anillo sutil al pasar el mouse — antes no tenían
+  ninguna señal visual de que eran clickeables.
+
+## [2026-06-19] (parte 14) — Fix colisión de SKU entre hormas + filtro, círculo de color, 4 imágenes
+
+- **Fix real:** "Oversize Fit" y "Oversize Americana" generaban el mismo tag de horma
+  en el SKU ("OVERSI", truncado a 6 chars) — `0009-OVERSI-BLANCO-S` para las dos,
+  imposible diferenciarlas. `variant-manager.tsx` ahora usa el **slug completo** de la
+  horma (sin truncar) para ese tag — los slugs ya son únicos por definición
+  (`UNIQUE KEY uk_horma_slug_tenant`), así que no puede volver a colisionar. No se
+  renombran los SKUs ya creados con el bug viejo — solo aplica a variantes nuevas.
+- **Filtro por horma en la fila expandida:** cuando un producto tiene variantes en más
+  de una horma, aparecen chips ("Todas" + cada horma) arriba de la lista/tabla para
+  filtrar qué variantes se muestran — en escritorio y en la tarjeta móvil. El "Stock
+  total" del pie cambia a "Stock de esta horma" cuando hay un filtro activo.
+- **Columna Color (tabla expandida, escritorio):** ya no muestra el nombre como texto
+  ("Blanco") — solo el círculo con su hex, el nombre queda de tooltip (`title`).
+- **4 imágenes por variante desde el editor rápido:** el diálogo "Editar variante" que
+  se abre con el lápiz de la fila expandida ahora tiene la misma galería de 4 slots
+  (`CloudinaryUpload`) que ya existía en el gestor completo de Variantes — antes solo
+  se podían cargar imágenes abriendo "Variantes / Tiers".
+
+## [2026-06-19] (parte 13) — Fila expandida: variantes ordenadas por Horma → Color → Talla
+
+El orden de las variantes al expandir un producto dependía de cuándo se habían creado
+en la base de datos (`sort_order`/`created_at`), así que podían salir mezcladas si se
+agregaron en momentos distintos o por hormas distintas. Se agregó `sortVariantsForDisplay`
+(ordena por nombre de horma, después color, después talla con el orden de confección
+S/M/L/XL/XXL) y se aplicó en ambas vistas expandidas:
+- **Escritorio:** la tabla ya tenía columna "Horma" (cuando hay más de una) — al ordenar,
+  las filas de la misma horma quedan juntas, fáciles de escanear.
+- **Móvil:** además del orden, se agregó una pequeña etiqueta en negrita con el nombre
+  de la horma cada vez que cambia de grupo (solo si el producto tiene más de una).
+
+## [2026-06-19] (parte 12) — El selector Horma/Talla/Color en la tabla queda solo de lectura
+
+A pedido del usuario: el stock que aparece al elegir horma+talla+color en la tabla de
+inventario (columnas nuevas + tarjeta móvil) ya **no se puede editar ahí** — solo se
+consulta. Se quitó `api.adjustVariantStock` y el `<Input>` editable de `useVariantPicker`
+y de los dos componentes que lo consumen (`VariantQuickPicker`, `VariantPickerColumns`);
+ahora muestran el stock de la variante elegida con el mismo estilo de punto+número que
+el total agregado (verde/ámbar/rojo según `suficiente/bajo/agotado`). Para editar stock
+sigue estando el lápiz de la fila expandida o el gestor completo de "Variantes / Tiers".
+
+## [2026-06-19] (parte 11) — Tabla de inventario: Horma/Talla/Color en columnas separadas + Stock dinámico
+
+- Se quitó el resumen "Hormas · colores · tallas" que aparecía debajo del nombre del
+  producto (en tarjeta móvil y en la celda Producto del escritorio) — esa info ya vive
+  en columnas dedicadas, era redundante.
+- **Columna "Variante" partida en 3 columnas reales:** Horma | Talla | Color (antes
+  todo apilado en una sola celda). Lógica compartida vía el hook `useVariantPicker`
+  (extraído de lo que antes era el cuerpo de `VariantQuickPicker`), consumido por dos
+  componentes: `VariantQuickPicker` (móvil, todo en un bloque) y `VariantPickerColumns`
+  (escritorio, 4 `<TableCell>` propias: Horma, Talla, Color, Stock).
+- **La columna Stock ahora es dinámica:** sin selección, muestra el total agregado (como
+  antes). En cuanto se elige talla + color, muestra el stock de **esa variante exacta**
+  en un input editable (mismo guardado atómico de siempre). Se movió a continuación de
+  Color en vez de su posición anterior (junto a Precio) — comparten la misma instancia/
+  estado de selección, así que tenían que quedar en el mismo componente.
+- `inventoryColSpan` recalculado: Producto, Horma, Talla, Color, Stock, SKU, Tipo,
+  Categoria, [Sede], Precio, Acciones.
+
+## [2026-06-19] (parte 10) — Unificación: la generación por horma vive SOLO en el Gestor de Variantes
+
+A pedido del usuario ("vamos a unificar las dos en una sola ya que hacen lo mismo"):
+había DOS implementaciones del mismo generador color×talla por horma — una en
+"Agregar Producto" (`inventory-list.tsx`) y el modo guiado libre en el Gestor de
+Variantes (`variant-manager.tsx`). Se consolidó en una sola.
+
+- **`variant-manager.tsx`:** el modo "Crear rápido" ahora tiene un conmutador
+  **Usar horma / Libre**. Con horma: chips de selección múltiple + una tabla de
+  stock color×talla por cada horma elegida (idéntico a lo que tenía antes
+  `inventory-list.tsx`), hex heredado de `horma_colors`, SKU con tag de horma si
+  hay más de una seleccionada. Libre: el modo de siempre (ejes color/talla/material
+  en texto libre). `generate()` quedó unificado con un branch interno según el modo.
+  Carga la lista completa de hormas (`api.getHormas`) en vez de solo una por prop.
+- **Form manual de variante:** ganó un `<Select>` de Horma (guarda/edita `hormaId`
+  directo en la variante) — ya estaba "preparado para guardar" todo lo demás, faltaba
+  este campo.
+- **`inventory-list.tsx` (ProductFormDialog):** se eliminó por completo el selector
+  múltiple de hormas y las tablas de stock — ya no genera variantes al crear el
+  producto. Flujo nuevo: crear el producto (datos generales) → abrir "Variantes /
+  Tiers" → generar ahí (con horma o sin ella). `handleSubmit` quedó en una sola
+  línea (`onSubmit(cleaned)`, sin segundo argumento).
+- El encabezado del diálogo de Variantes ahora deriva **todas** las hormas en juego
+  desde las variantes ya creadas (`existingHormaNames`), no de un único `hormaId` fijo.
+
+## [2026-06-19] (parte 9) — Horma como plantilla, no como validador: fin de la duplicación de colores
+
+Decisión arquitectónica (a pedido): la horma deja de ser una segunda fuente de verdad
+que compite con la variante. Pasa a ser solo una **plantilla de arranque** — define
+qué colores/tallas sugerir al crear, pero no sigue validando ni sincronizando nada
+después. `isColorAllowed` se mantiene tal cual (sigue bloqueando al crear desde la
+matriz, aunque ahí es imposible violarlo porque los colores YA salen de la paleta de
+la horma). `horma_colors`/`size_chart` quedan como plantilla/sugerencia, sin validación
+posterior sobre variantes ya creadas (confirmado con el usuario).
+
+- **`frontend/lib/colors.ts` (nuevo):** única fuente para "nombre de color → hex" —
+  `COLOR_HEX_FALLBACK`, `normalizeColorName`, `hashHex`, `resolveColorHex`, `colorToCss`.
+  Reemplaza 3 copias pegadas a mano (con listas ligeramente distintas) en
+  `horma-manager.tsx`, `inventory-list.tsx` y `variant-selector.tsx` — los tres ahora
+  importan de aquí.
+- **Variantes generadas desde la matriz de horma heredan el hex real** de
+  `horma_colors.hex` al nacer (antes nacían sin hex, dependían 100% del fallback por
+  nombre). Una vez creada, la variante es dueña de su propio `colorHex` — no se vuelve
+  a tocar desde la horma.
+
+## [2026-06-19] (parte 8) — Columna "Variante": selector Horma→Talla→Color con stock editable inline
+
+- Nueva columna **Variante** en la tabla de inventario (entre Producto y SKU), componente `VariantQuickPicker`: muestra la horma (label si es una sola, chips si son varias) → tallas (chips) → colores (círculos), en ese orden. Al elegir talla y color se resuelve la variante exacta y aparece un input de stock; al perder foco (blur) o Enter, guarda con `api.adjustVariantStock(id, { type: 'ajuste', ... })` (ajuste atómico, set absoluto — no delta) y refresca el resumen.
+- Misma lógica reutilizada en la tarjeta móvil (debajo de los botones de acción, solo si el producto tiene variantes).
+- Cada fila tiene su propia instancia con selección independiente (no hay estado compartido entre productos).
+- `inventoryColSpan` actualizado (+1) para la nueva columna.
+
+## [2026-06-19] (parte 7) — Un producto puede tener variantes en VARIAS hormas + resumen compacto
+
+- **`horma_id` pasó de `products` a `product_variants`:** antes un producto tenía UNA sola horma; ahora cada VARIANTE tiene la suya. Permite que un mismo producto (ej. "Estampado DTF") tenga variantes repartidas en distintas hormas (Oversize Fit, Camiseta Clásica...), cada una con su propia paleta de colores y tabla de tallas. Migración idempotente en `variants.service.ts → ensureTables()` (+ backfill desde `products.horma_id` para variantes existentes) y `migrations/v46_product_variants_horma_id.sql`. `hormasService.ensureTables()` se hizo público porque `variantsService` la necesita (LEFT JOIN a `hormas` por `horma_id`).
+- **Validación de paleta por variante:** `variantsService.create()` valida el color contra la paleta de SU horma (`hormasService.isColorAllowed`), no la del producto.
+- **Formulario "Agregar Producto":** selector de horma pasó de único a **multi-selección** (chips). Cada horma elegida muestra su propia tabla de stock color×talla. El SKU de cada variante incluye la horma como prefijo solo cuando hay más de una horma seleccionada (evita colisión real: "Negro-M" puede existir en dos hormas distintas).
+- **Catálogo (storefront):** `attachVariants` (storefront.routes.ts) y `VariantSelector` (frontend) ganaron el eje **Horma/Modelo** — si un producto tiene variantes en más de una horma, el cliente la elige como un eje más (junto a Color/Talla/Material).
+- **Resumen más corto en la tabla de inventario:** se consolidó todo en una sola línea compacta bajo el nombre del producto — hormas (texto, no badges), círculos de TODOS los colores, y TODAS las tallas — en vez de badges apilados en varias filas. Se quitó el badge de horma duplicado de la columna "Tipo".
+- **Fix colores grises:** los círculos de color usaban `colorHex || gris-fijo`; como las variantes creadas desde la matriz de horma no traen hex, todos salían grises. Se agregó `resolveColorHex` (mapa de nombres conocidos + hash estable de respaldo) igual que en `horma-manager.tsx`, aplicado en fila principal, tarjetas móvil y tabla expandida.
+- Tabla expandida: agrega columna **Horma** por variante solo cuando el producto tiene variantes en más de una horma (si es una sola, no hace falta repetirla en cada fila — ya está en el encabezado).
+
+## [2026-06-19] (parte 6) — Variantes expandidas: misma estética de la tabla + Editar/Eliminar
+
+- La fila expandida de variantes en `inventory-list.tsx` dejó de ser un `<table>` HTML suelto y ahora usa los mismos componentes `Table/TableHeader/TableRow/TableHead/TableCell` (y las mismas clases de texto/color) que la tabla principal de productos — misma tipografía, mismos bordes, mismo estilo de fila.
+- Cada variante tiene columna **Acciones** con botones Editar/Eliminar (ghost icon, igual que la fila de producto):
+  - **Editar** abre un diálogo liviano (`editingQuickVariant` / `quickVariantForm`) para color, hex exacto, talla, costo y precio override — usa `api.updateVariant`. El stock sigue ajustándose desde "Variantes / Tiers" (movimiento auditado, no edición directa).
+  - **Eliminar** pide confirmación (`deletingQuickVariant`) y hace soft-delete vía `api.deleteVariant`.
+  - Ambas acciones refrescan el resumen (`loadVariantsSummary()`) al terminar.
+  - Mismo patrón (iconos más chicos) en la vista expandida de las tarjetas móviles.
+
+## [2026-06-19] (parte 5) — Inventario: stock total real, todos los colores, horma y precio en variantes
+
+- **Fix `isUUID()` en rutas de variantes:** `variants.routes.ts` exigía `param('productId'/'id'/'tierId').isUUID()` — algunos productos heredados de la migración anterior no tienen ID UUID, y esa validación los rechazaba con 400 silencioso (solo visible como "Validation errors" en consola, sin toast). Se relajó a `.notEmpty()`.
+- **Endpoint nuevo `GET /api/variants/summary`:** trae TODAS las variantes activas del tenant en un solo viaje (`variantsService.findAllByTenant`, sin eager-load de tiers — liviano a propósito). Antes solo existía por-producto (`GET /products/:id/variants`), forzando N+1 si se quería un resumen global.
+- **Inventario (`inventory-list.tsx`) consume ese resumen al cargar** (`loadVariantsSummary`, junto a `fetchProducts`) y ya no hace fetch perezoso por fila al expandir — todo queda pre-cargado:
+  - **Stock "general" = suma de todas las variantes** del producto (`getDisplayStock`), no el campo `products.stock` desconectado. Se refresca tras crear producto+horma y al cerrar el gestor de Variantes.
+  - **Todos los colores** del producto se pintan como círculos en la fila principal (antes tope de 5) — `getDisplayColors`, deduplicados por nombre.
+  - Si el producto tiene `hormaId`, se muestra un badge **Horma** junto a "Tipo" (y repetido como encabezado al expandir).
+  - Tabla expandida: agregó columna **Precio** (`priceOverride ?? basePrice`), fila de **stock total**, y el SKU ahora se ve como chip `<code>` en vez de texto monoespaciado plano (mismo tratamiento en SKU del producto).
+
+> **Tipo vs Categoría (aclaración, no cambia código):** `Tipo` (`productType`, fijo: ropa/alimentos/electrónica/...) es del sistema y decide qué **campos extra** pide el formulario (talla/material para ropa, vencimiento/registro sanitario para alimentos, etc.) — vive en `lib/product-config.ts`. `Categoría` es libre, la crea cada comercio (`categories` table) para **organizar/filtrar** su propio catálogo (ej. "Camisetas", "Promos") — no afecta el formulario. Son independientes: un producto tiene un Tipo (estructura) y una Categoría (organización), a la vez.
+
+## [2026-06-19] (parte 4) — Fix: `ER_NO_SUCH_TABLE` product_variants (auto-heal de schema)
+
+- **Causa:** `004_variants_and_suppliers.sql` (tablas `product_variants`, `variant_price_tiers`, `inventory_movements`, `suppliers`, `supplier_products` + columna `products.base_price`) es una migración que se corre **a mano**. En tenants donde nunca se ejecutó (ej. `stockpro_db`), cualquier llamada al módulo de variantes tronaba con `ER_NO_SUCH_TABLE` — se disparó al usar el nuevo expandible de inventario (`findByProduct`).
+- **Fix:** `variants.service.ts` ganó `ensureTables()` (auto-migración idempotente, mismo patrón que `hormasService.ensureTables()`): crea las 5 tablas con `CREATE TABLE IF NOT EXISTS` + agrega `products.base_price` (backfill desde `sale_price`) si falta. Se llama al inicio de **todos** los métodos públicos del service (`findByProduct`, `findById`, `create`, `update` vía `findById`, `softDelete` vía `findById`, `adjustStock`, `decrementStockInTransaction`, `reserveForPublicOrder`, `releaseForOrder`, `settleVariantForSale`, tiers, `getMovements`). El método es público (no `private`) porque `import.service.ts` (CSV bulk) y `suppliers.service.ts` también tocan estas tablas directamente — ambos ahora llaman `variantsService.ensureTables()` antes de su primera query. En `import.service.ts` se llama **antes** de abrir la transacción (DDL hace COMMIT implícito en MySQL, rompería una transacción en curso).
+- **No tocado:** `purchases.service.ts` también lee `suppliers` pero no se incluyó en este fix (fuera del alcance del error reportado); si falla igual, aplica el mismo patrón.
+
+## [2026-06-19] (parte 3) — Variantes: galería de 4 imágenes por color + inventario expandible (color/talla/stock)
+
+- **Hasta 4 imágenes por color en variantes:** `variant-manager.tsx` reemplazó el campo único "Imagen del color (URL)" por una galería de 4 slots (`CloudinaryUpload`, igual patrón que la galería de 4 imágenes del producto general). `ProductVariant.images` ya soportaba un array; ahora la UI lo expone completo. Cap de **4** también validado en backend (`variants.service.ts` → `create`/`update`, constante `MAX_VARIANT_IMAGES`, error 400 si se excede).
+- **Tabla de inventario expandible:** en `inventory-list.tsx`, cada fila de producto (desktop y tarjetas móvil) tiene un toggle (chevron / "Ver colores/tallas") que carga `api.getVariantsByProduct` (lazy + cache en `variantsByProduct`) y muestra una mini-tabla con **color (swatch), talla, SKU y stock** (coloreado según `stock`/`minStock`). Si el producto no tiene variantes, se indica explícitamente.
+
+## [2026-06-19] (parte 2) — Hormas: campo Composición (ej. "100% Algodón")
+
+- **`hormas.composition`** (VARCHAR(150), nullable, ej. "100% Algodón"): auto-migración idempotente en `ensureTables` + migración manual `v45_hormas_composicion.sql`. Se decidió mantener `weight_grams` **numérico** (no convertirlo a texto libre) y agregar este campo separado, para no perder el peso usable en cálculos futuros (envíos, etc.). Input "Composición" en `horma-manager.tsx` junto al de Peso; la tabla de listado muestra ambos apilados en la columna "Peso / Composición".
+
+## [2026-06-19] — Hormas: campo Sexo + paleta de colores con círculos seleccionables
+
+- **Campo `sexo` en hormas** (`unisex` | `hombre` | `mujer`, default `unisex`): columna ENUM con auto-migración idempotente en `hormasService.ensureTables` + migración manual `v44_hormas_sexo.sql`. Validado en `create`/`update` (`assertValidSexo`). Selector en `horma-manager.tsx` (form) + columna "Sexo" en la tabla de listado.
+- **Paleta de colores con círculos seleccionables:** `horma-manager.tsx` ahora deduplica los colores de **todas** las hormas del tenant (`existingColorCatalog`, vía `useMemo` sobre `hormas`) y los muestra como círculos clicables — clic agrega/quita el color de la horma actual sin re-tipearlo. Se agregó `resolveColorHex` (mapa de nombres conocidos → hex + hash estable de fallback) para que cualquier color tenga un círculo visible aunque no tenga `hex` guardado. Sigue existiendo el flujo manual (nombre + `<input type=color>` para hex exacto) para colores nuevos. La tabla de listado también pinta mini-círculos de la paleta de cada horma.
+- Sin cambios de breaking: `colors`/`hex` ya existían en el backend (`horma_colors.hex`); solo se expuso bien en la UI.
+
+> Pendiente: confirmar con patronaje real la manga estimada de "Camiseta Clásica" (ver `brain/horma-architecture.md`).
+
 
 ## [2026-06-18] (parte 3) — Color exacto por variante, bulk inventario, auto-fallback IA, tamaño de logo, posición del Lanyard
 

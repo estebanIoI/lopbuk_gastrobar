@@ -31,9 +31,11 @@ export interface ProductVariant {
   isActive: boolean
   preorderLimit?: number | null   // cupo máximo de preventa (null = ilimitado)
   preorderCount?: number          // unidades ya vendidas/reservadas en preventa
+  hormaId?: string | null         // horma (silueta) de ESTA variante — un producto puede tener variantes en distintas hormas
   priceTiers?: VariantPriceTier[]
   productName?: string
   basePrice?: number
+  hormaName?: string
   label?: string        // "Negro / M"
   // storefront extras
   minPrice?: number
@@ -74,6 +76,7 @@ export interface Product {
   reorderPoint: number
   supplier?: string
   supplierId?: string
+  hormaId?: string
   entryDate: string
   imageUrl?: string
   images?: string[]

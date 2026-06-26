@@ -17,6 +17,7 @@
  */
 import { useEffect, useMemo, useState } from 'react'
 import { Check } from 'lucide-react'
+import { colorToCss } from '@/lib/colors'
 
 // ── Forma cruda que llega del backend (snake_case + algunos camelCase) ──
 export interface RawVariant {
@@ -36,6 +37,9 @@ export interface RawVariant {
   priceTiers?: { minQty: number; price: number; marginPct?: number }[]
   min_price?: number | null
   minPrice?: number | null
+  /** Horma (silueta/fit) de ESTA variante — un producto puede ofrecerse en varias. */
+  hormaId?: string | number | null
+  hormaName?: string | null
 }
 
 // ── Variante seleccionada que se reporta al padre ──
@@ -55,47 +59,22 @@ interface NormVariant {
   colorHex?: string
   size?: string
   material?: string
+  horma?: string
   available: number
   priceOverride?: number
   tiers: { minQty: number; price: number }[]
   image: string | null
 }
 
-const AXES: { key: 'color' | 'size' | 'material'; defaultLabel: string }[] = [
+// "horma" va primero a propósito: es la elección más amplia (ej. "Oversize Fit" vs
+// "Camiseta Clásica") — tiene sentido elegirla antes de color/talla, ya que cada
+// horma puede traer su propia paleta de colores y tabla de tallas.
+const AXES: { key: 'horma' | 'color' | 'size' | 'material'; defaultLabel: string }[] = [
+  { key: 'horma', defaultLabel: 'Modelo' },
   { key: 'color', defaultLabel: 'Color' },
   { key: 'size', defaultLabel: 'Talla' },
   { key: 'material', defaultLabel: 'Material' },
 ]
-
-// Mapa de nombres de color (ES/EN) → CSS, para los swatches
-const COLOR_MAP: Record<string, string> = {
-  negro: '#111111', black: '#111111',
-  blanco: '#f8f8f8', white: '#f8f8f8',
-  gris: '#9ca3af', gray: '#9ca3af', grey: '#9ca3af',
-  rojo: '#dc2626', red: '#dc2626',
-  azul: '#2563eb', blue: '#2563eb',
-  'azul marino': '#1e3a8a', navy: '#1e3a8a',
-  verde: '#16a34a', green: '#16a34a',
-  amarillo: '#facc15', yellow: '#facc15',
-  naranja: '#f97316', orange: '#f97316',
-  morado: '#7c3aed', purple: '#7c3aed', violeta: '#7c3aed',
-  rosado: '#ec4899', rosa: '#ec4899', pink: '#ec4899',
-  cafe: '#78350f', café: '#78350f', marron: '#78350f', marrón: '#78350f', brown: '#78350f',
-  beige: '#e7d8c0', crema: '#f5e9d6',
-  dorado: '#d4af37', gold: '#d4af37',
-  plateado: '#c0c0c0', plata: '#c0c0c0', silver: '#c0c0c0',
-  turquesa: '#06b6d4', celeste: '#7dd3fc',
-  vino: '#7f1d1d', bordo: '#7f1d1d', bordó: '#7f1d1d',
-}
-
-function colorToCss(name?: string): string | null {
-  if (!name) return null
-  const n = name.trim().toLowerCase()
-  if (COLOR_MAP[n]) return COLOR_MAP[n]
-  // ¿es un color CSS válido directamente? (#hex, nombres en inglés)
-  if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(n)) return n
-  return null
-}
 
 const num = (v: unknown): number | undefined => {
   if (v === null || v === undefined || v === '') return undefined
@@ -117,6 +96,7 @@ function normalize(v: RawVariant): NormVariant {
     colorHex: (v.colorHex ?? v.color_hex ?? undefined)?.trim() || undefined,
     size: v.size?.trim() || undefined,
     material: v.material?.trim() || undefined,
+    horma: v.hormaName?.trim() || undefined,
     available: Math.max(0, stock - reserved),
     priceOverride: num(v.price_override ?? v.priceOverride),
     tiers,

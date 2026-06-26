@@ -26,6 +26,11 @@
   - Tras tocar muchos archivos, **verificar en disco** que cada uno termina bien (último token) y está balanceado — NO confiar solo en `tsc`, que puede leer una vista distinta del disco.
   - Recuperación: `git show <commit-bueno>:ruta > ruta` restaura una versión íntegra.
 
+### ⚠️ Cowork sandbox (bash): el mount de `C:\dev\lopbuk_gastrobar` puede estar desincronizado/roto (2026-06-21)
+- El bash del sandbox de Cowork monta la carpeta del proyecto, pero en una sesión los `node_modules` (pnpm symlinks hacia el store global de Windows) dieron `Input/output error` al leerlos, y el archivo recién editado por la herramienta Edit aparecía con **fecha de ayer y menos líneas** que la versión real (la herramienta Edit/Read SÍ escribe al archivo real; el mount de bash no lo refleja al instante, o es una vista distinta).
+- **No confiar en bash para correr `tsc`/`npm run build`/lint contra ediciones recién hechas en este entorno.** Si hace falta verificar, usar el editor (Read tool) para revisar el archivo realmente escrito (balance de llaves/JSX a ojo) y pedirle al usuario que corra el build en su máquina.
+- Pedirle a pnpm que reinstale dentro del sandbox tampoco sirve (mismo problema de symlinks rotos + conflictos de peer deps con `react-leaflet`).
+
 ### ✅ @dnd-kit para Kanban sin dependencias pesadas
 - `@dnd-kit/core` + `@dnd-kit/utilities` — drag & drop con ~15KB, sin conflictos con React 19
 - Patrón "drag to column": `useDraggable` en tarjeta + `useDroppable` en columna (no `SortableContext`)
