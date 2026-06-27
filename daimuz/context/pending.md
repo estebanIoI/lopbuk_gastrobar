@@ -4,6 +4,40 @@
 
 ## 🔴 P1 — Crítico
 
+### 🐛 [2026-06-25] Onboarding rompe: `Data truncated for column 'goal'` (prod) — PENDIENTE
+
+**Síntoma (logs prod `daimuz_backend`):**
+```
+WARN_DATA_TRUNCATED (errno 1265): Data truncated for column 'goal' at row 1
+  at upsertPerfil (rutina.service.js:89) → completeOnboarding (rutina.service.js:361) → rutina.routes.js:121
+SQL: INSERT INTO rutina_perfil (... goal ...) VALUES (...) ON DUPLICATE KEY UPDATE ...
+```
+El usuario NO puede completar el onboarding (POST `/rutina/onboarding` falla).
+
+**Causa raíz (confirmada):** desajuste de esquema. La columna está definida como **ENUM corto** en `backend/migrations/add_lifestyle_rutina_and_gym_modules.sql:40`:
+```sql
+goal ENUM('bajar_peso','subir_masa','mantener','salud_general') NULL,
+```
+…pero el wizard de onboarding envía objetivos que **no están en ese ENUM**: `perder_grasa`, `ganar_musculo`, `recomposicion`, `rendimiento`, `volver_entrenar` (ver `GOAL_KCAL_DELTA` y `GOAL_LABEL` en `rutina.service.ts` / `MissionControl.tsx`). En MySQL strict mode, insertar un valor fuera del ENUM → `WARN_DATA_TRUNCATED` → error 1265. **Es el MISMO patrón que el fix de `sex`** (ENUM→VARCHAR) del 2026-06-22.
+
+**Fix propuesto (idempotente, al boot, espejo del fix de `sex` en `index.ts:1222`):**
+```ts
+// junto al ALTER de sex (index.ts ~1222)
+try { await poolOb.query(`ALTER TABLE rutina_perfil MODIFY COLUMN goal VARCHAR(30) NULL`); }
+catch (e: any) { console.warn('[migration] goal→varchar:', e?.message); }
+```
+`VARCHAR(30)` cubre el valor más largo (`volver_entrenar` = 15). Alternativa más estricta: ampliar el ENUM con todos los valores del wizard, pero VARCHAR es más a prueba de futuro (igual que se hizo con `sex`). Tras el ALTER, redeploy. **Verificar** que ningún otro consumidor de `goal` asuma el set viejo del ENUM (no debería: `progress.service` solo lo lee).
+
+**Acción:** aplicar el ALTER idempotente + redeploy. Confirmar onboarding completo con objetivo "Recomposición"/"Ganar músculo"/"Bajar grasa".
+
+### 🐛 [2026-06-25] Comunidad: `Unknown column 'device_id'` en community_reactions — PENDIENTE (análisis)
+
+**Síntoma:** `Error al obtener el feed: Unknown column 'device_id' in 'where clause'` (errno 1054) en `community.routes.js userReactions`:
+```sql
+SELECT post_id, type FROM community_reactions WHERE device_id = '...' AND type = 'like' AND post_id IN (...)
+```
+**Causa raíz (probable):** migración faltante/no corrida en esta BD — la tabla `community_reactions` no tiene la columna `device_id` que el query espera (reacciones por dispositivo para usuarios anónimos). Pendiente: localizar la migración que añade `device_id` (o crearla idempotente: `ALTER TABLE community_reactions ADD COLUMN device_id VARCHAR(64) NULL` + índice) y asegurar que corra al boot. Degradar defensivamente el `userReactions` (try/catch → `[]`) para que el feed no rompa si falta la columna. Bug independiente del de onboarding (módulo `community`).
+
 ### LEGEND — conectar entitlements a features (próxima sesión)
 
 Módulo Consumer Plans / LEGEND implementado G1–G8 (2026-06-21). **Pendiente:** usar `consumerPlansService.hasEntitlement(userId, key)` para gatear features reales según el grant activo:
