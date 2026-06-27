@@ -57,6 +57,28 @@ El botón "Iniciar rutina" ahora SÍ lleva a un modo entrenamiento real con prog
 - ✅ **Multi-sede** — Sedes con inventario y caja independientes
 - ✅ **Colorimetría por IA** — Paleta desde el logo: tienda del comercio (full), panel (solo acento), plataforma (home/login/default). Ambos temas de home la consumen (Tema 1 vía remap Tailwind→`--color-primary`; Tema 2 vía variables `--brand-*`). Regla: todo tema nuevo debe consumirla → [[brain/colorimetria]]
 
+## ✅ Implementado: Talla/Color como filtro real + edición en grupo de variantes (2026-06-21)
+
+- **Filtro real:** elegir talla/color en el picker rápido de `inventory-list.tsx` ahora también filtra la tabla de variantes de la fila expandida (antes solo mostraba el stock de esa combinación exacta). Combina con el filtro de horma. Chips removibles para ver/limpiar.
+- **Edición en grupo (bulk):** botón "Editar en grupo" → checkboxes por variante + "Seleccionar grupo visible" (toma el filtro talla/color/horma activo). Diálogo aplica de una vez: ajuste de stock (sumar/restar/exacto + motivo), precio override, costo, stock mínimo — campos opt-in.
+- **Backend:** `POST /variants/bulk-update` (`variantsService.bulkUpdate`) — por-variante, no transaccional entre ellas, reporta updated/failed.
+- Ver `[2026-06-21]` en `memory/changelog.md` para detalle completo de archivos.
+
+## ✅ Implementado: Variantes — 4 imágenes por color + inventario expandible (2026-06-19 p3)
+
+- **Galería de 4 imágenes por color** en `variant-manager.tsx` (antes solo 1 URL). Cap de 4 validado también en el backend (`variants.service.ts`).
+- **Inventario expandible:** cada producto en la tabla/cards de `inventory-list.tsx` se puede expandir para ver sus variantes (color con swatch, talla, SKU, stock) sin abrir el modal de Variantes. Carga lazy vía `api.getVariantsByProduct`.
+
+## ✅ Implementado: Hormas — campo Composición (2026-06-19 p2)
+
+- **`hormas.composition`** (texto libre, ej. "100% Algodón"), separado de `weight_grams` que sigue numérico. Auto-migración + `v45_hormas_composicion.sql`. Input en el form de `horma-manager.tsx`; la tabla muestra "Peso / Composición" apilados.
+
+## ✅ Implementado: Hormas — campo Sexo + paleta de colores con círculos seleccionables (2026-06-19)
+
+- **`hormas.sexo`** (ENUM `unisex`/`hombre`/`mujer`, default `unisex`): auto-migración + migración manual `v44_hormas_sexo.sql`. Selector en el form de `horma-manager.tsx` + columna en la tabla.
+- **Paleta de colores:** ya no es solo texto libre. Se muestran círculos clicables con **todos los colores ya usados** en cualquier horma del tenant (deduplicados); clic los agrega/quita de la horma actual. Colores sin `hex` guardado reciben un color de respaldo (mapa de nombres conocidos + hash estable) para que el círculo siempre se vea. Sigue habiendo input manual + `<input type=color>` para colores nuevos con hex exacto.
+- Ver `daimuz/brain/horma-architecture.md` para el modelo completo de hormas (precio/costo heredado, tabla de medidas, validación de paleta por variante).
+
 ## ✅ Implementado: Multi-API Key para Agente IA + cifrado en reposo (2026-06-15)
 
 **Problema:** El superadmin tenía un solo campo `openai_api_key`. El agente soporta Gemini/OpenAI/Groq pero solo se podía tener 1 key a la vez y la selección era implícita por prefijo.

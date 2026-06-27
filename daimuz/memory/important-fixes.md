@@ -17,6 +17,45 @@
 
 ## Historial
 
+### [2026-06-19] (p4) — Borrar un producto no borraba sus variantes → SKU bloqueado para siempre
+**Síntoma:** "Producto creado, pero 50 variante(s) fallaron: El SKU de la variante ya existe" — TODAS las variantes de un producto recién creado chocaban.
+**Causa:** `productsService.delete()`/`bulkDelete()` hacían `DELETE FROM products` pero nunca tocaban `product_variants` — quedaban huérfanas (producto ya no existe, pero la fila sigue `is_active=1` con su SKU original). Al recrear un producto con el mismo SKU base (`generateNextSku` lo vuelve a generar porque el producto borrado ya no cuenta), sus variantes nuevas chocan contra las huérfanas en el `UNIQUE KEY (sku, tenant_id)`. Por separado, `variantsService.softDelete()` tampoco liberaba el SKU al desactivar una variante (la unicidad no distingue `is_active`).
+**Fix:**
+- `productsService.delete()`/`bulkDelete()` ahora borran `product_variants` + `variant_price_tiers` del producto ANTES de borrar el producto.
+- `variantsService.softDelete()` renombra el SKU (`sku + '-DEL-' + id[:8]`) al desactivar, liberándolo de verdad.
+- `create()`/`update()` filtran `is_active = 1` en el chequeo de SKU duplicado (ya no bloquean contra variantes eliminadas).
+- Limpieza única en `ensureTables()`: borra variantes/tiers huérfanas existentes + renombra SKUs de variantes ya desactivadas que quedaron sin renombrar (corrige el estado actual sin esperar a que el usuario las toque una por una).
+**Archivos:** `backend/src/modules/products/products.service.ts`, `backend/src/modules/variants/variants.service.ts`.
+**Regla:** soft-delete + UNIQUE KEY es una combinación peligrosa — si el campo único (aquí `sku`) no se libera/renombra al desactivar, queda bloqueado para siempre. Y borrar un "padre" (producto) SIEMPRE debe arrastrar a sus "hijos" (variantes, tiers) — nunca asumir que no hace falta solo porque no hay FK CASCADE definida.
+
+### [2026-06-19] (p3) — `ER_CANT_AGGREGATE_2COLLATIONS` al crear/leer variantes (collation mismatch)
+**Síntoma:** "Error interno del servidor" en **todas** las variantes al crear un producto con horma; en backend: `Illegal mix of collations (utf8mb4_unicode_ci,IMPLICIT) and (utf8mb4_0900_ai_ci,IMPLICIT) for operation '='` (errno 1267) en `findById`/`findByProduct` (el JOIN `products p ON p.id = pv.product_id`).
+**Causa:** el `ensureTables()` que se agregó hoy (parte 4) para auto-crear `product_variants`/`variant_price_tiers`/`inventory_movements`/`suppliers`/`supplier_products` usaba `DEFAULT CHARSET=utf8mb4` **sin `COLLATE` explícito** (igual que el `004_variants_and_suppliers.sql` original). El servidor MySQL le puso su collation default (`utf8mb4_0900_ai_ci`, típico de MySQL 8), mientras `products` ya existía con `utf8mb4_unicode_ci`. Cualquier JOIN/comparación entre las dos truena.
+**Fix:** las 5 `CREATE TABLE` ahora especifican `COLLATE=utf8mb4_unicode_ci` explícito. Como las tablas ya habían quedado creadas con el collation malo en el intento anterior, se agregó además un `ALTER TABLE ... CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci` idempotente (corre una vez por arranque, no-op si ya está bien) para corregir las que ya existían.
+**Archivos:** `backend/src/modules/variants/variants.service.ts` (`ensureTables()`).
+**Regla:** **nunca** especificar `DEFAULT CHARSET=utf8mb4` en un `CREATE TABLE` sin su `COLLATE` — el default del servidor puede no coincidir con el de las tablas existentes (especialmente en MySQL 8+, cuyo default cambió a `utf8mb4_0900_ai_ci`). Siempre fijar `COLLATE=utf8mb4_unicode_ci` explícito para que combine con el resto del esquema (mismo patrón ya usado en `hormasService.ensureTables()`).
+
+### [2026-06-19] (p2) — SKU colisionaba para "Azul Navy/Rey/Agua/Medio" → variantes fallaban en silencio
+**Síntoma:** producto creado pero el toast decía "con 0 variante(s)" (o menos de las esperadas), sin error visible.
+**Causa:** el SKU autogenerado por combinación (`ProductFormDialog.handleSubmit`) abreviaba el color a solo **4 caracteres** (`ab(color)`). La paleta real de la horma "Camiseta Clásica" tiene "Azul Navy", "Azul Rey", "Azul Agua", "Azul Medio" — los 4 abrevian a **"AZUL"**, generando el mismo SKU para una talla → el backend rechazaba el duplicado con `400 El SKU de la variante ya existe`, y el loop del frontend lo absorbía sin mostrarlo (solo contaba éxitos).
+**Fix:** abreviación subida a 6 caracteres + red de seguridad que desambigua (`-2`, `-3`...) si dos combinaciones generan igual SKU. Además, el loop de creación de variantes ahora junta los fallos y los muestra en un `toast.error` + `console.error` (antes se perdían).
+**Archivos:** `frontend/components/inventory-list.tsx` (`ProductFormDialog.handleSubmit`, `onSubmit` del diálogo "Agregar Producto").
+**Regla:** cualquier slug/abreviación derivado de texto libre (nombres de color, talla, etc.) necesita o suficientes caracteres o una red de seguridad anti-colisión — nunca asumir que un recorte corto es único. Y todo loop que cree N recursos debe **mostrar** los fallos individuales, no solo contar éxitos.
+
+### [2026-06-19] — Al crear producto con horma, faltaban variantes (solo creaba las celdas con stock)
+**Síntoma:** al elegir una horma en "Agregar Producto" y dejar vacías las celdas de stock que aún no se manejan, esas combinaciones color×talla **no se creaban como variante** — solo entraban las celdas con un número.
+**Causa:** `ProductFormDialog.handleSubmit` (inventory-list.tsx) hacía `if (raw === undefined || raw === '') continue` al armar el array de variantes — saltaba toda celda vacía en vez de crear la variante con stock 0.
+**Fix:** se quitó ese `continue`; ahora se crea **una variante por cada combinación color × talla de la horma**, siempre, con `stock = Number(raw) || 0`. Texto de ayuda en el formulario actualizado para reflejarlo.
+**Archivos:** `frontend/components/inventory-list.tsx` (`ProductFormDialog.handleSubmit`).
+**Regla:** cuando un producto usa horma, la horma define el universo completo de variantes (todo color × toda talla) — el formulario de creación nunca debe omitir combinaciones por falta de stock inicial.
+
+### [2026-06-19] — `ER_NO_SUCH_TABLE: product_variants` (migración manual nunca corrida)
+**Síntoma:** `Error: Table 'stockpro_db.product_variants' doesn't exist` al cargar variantes (ej. expandible de inventario).
+**Causa:** `004_variants_and_suppliers.sql` crea `product_variants`, `variant_price_tiers`, `inventory_movements`, `suppliers`, `supplier_products` + `products.base_price`, pero es una migración **manual** (no corre sola al arrancar el backend). En tenants donde nunca se ejecutó, el módulo de variantes truena apenas se usa.
+**Fix:** `variants.service.ts` → `ensureTables()` (auto-heal idempotente, mismo patrón que `hormasService`), llamado al inicio de todos sus métodos públicos. `import.service.ts` y `suppliers.service.ts` (tocan las mismas tablas directo) llaman `variantsService.ensureTables()` antes de su primera query.
+**Archivos:** `backend/src/modules/variants/variants.service.ts`, `import.service.ts`; `backend/src/modules/suppliers/suppliers.service.ts`.
+**Regla:** cualquier módulo nuevo que dependa de una migración SQL "para correr a mano" (`backend/src/migrations/*.sql` o `backend/migrations/*.sql`) necesita su propio `ensureTables()` de respaldo — no asumir que el tenant ya la corrió. `purchases.service.ts` también lee `suppliers` directo y quedó pendiente de este mismo parche si llega a fallar igual.
+
 ### [2026-06-14] — Archivos truncados por mezclar `sed` con el editor (build roto)
 **Síntoma:** `next build` falla con `Unterminated block comment` en `app/portfolio/page.tsx:1697`. Varios archivos del portafolio quedaron truncados en disco (page.tsx, lanyard.tsx, package.json, usePortfolio.ts, PortfolioTab.tsx, portfolio.routes.ts).
 **Causa:** Se editó `page.tsx` con `sed -i` mientras la vista del editor y el disco estaban desincronizados; `sed` reescribió una copia cortada y se commiteó. Otras escrituras quedaron truncadas por el mismo desfase.

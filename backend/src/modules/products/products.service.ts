@@ -22,6 +22,7 @@ interface ProductRow extends RowDataPacket {
   reorder_point: number;
   supplier: string | null;
   supplier_id: string | null;
+  horma_id: string | null;
   entry_date: Date;
   image_url: string | null;
   image_urls: string | null;
@@ -129,6 +130,7 @@ const fieldMap: Record<string, string> = {
   reorderPoint: 'reorder_point',
   supplier: 'supplier',
   supplierId: 'supplier_id',
+  hormaId: 'horma_id',
   entryDate: 'entry_date',
   imageUrl: 'image_url',
   images: 'image_urls',
@@ -262,6 +264,7 @@ export class ProductsService {
       reorderPoint: row.reorder_point,
       supplier: row.supplier || undefined,
       supplierId: row.supplier_id || undefined,
+      hormaId: row.horma_id || undefined,
       entryDate: row.entry_date,
       imageUrl: row.image_url || undefined,
       images: row.image_urls ? (typeof row.image_urls === 'string' ? JSON.parse(row.image_urls) : row.image_urls) : undefined,
@@ -596,6 +599,23 @@ export class ProductsService {
     await this.findById(id, tenantId);
 
     try {
+      // Limpia variantes (y sus price tiers) ANTES de borrar el producto. Sin esto
+      // quedan huérfanas en product_variants con su SKU original — bloqueando ese
+      // mismo SKU para siempre (UNIQUE KEY uk_pv_sku_tenant), así que si luego se crea
+      // un producto nuevo que reusa el mismo SKU base, TODAS sus variantes chocan con
+      // "El SKU de la variante ya existe" aunque el producto viejo ya no exista.
+      try {
+        await db.execute(
+          `DELETE vpt FROM variant_price_tiers vpt
+           JOIN product_variants pv ON pv.id = vpt.variant_id
+           WHERE pv.product_id = ?`,
+          [id]
+        );
+        await db.execute('DELETE FROM product_variants WHERE product_id = ?', [id]);
+      } catch (e: any) {
+        if (e?.errno !== 1146) throw e; // 1146 = la tabla no existe aún (tenant sin variantes) — ignorar
+      }
+
       const [result] = await db.execute<ResultSetHeader>(
         'DELETE FROM products WHERE id = ?',
         [id]
@@ -617,6 +637,19 @@ export class ProductsService {
     if (list.length === 0) return { deleted: 0, skipped: 0 };
     const placeholders = list.map(() => '?').join(',');
     const tenantClause = tenantId ? ' AND tenant_id = ?' : '';
+    // Limpia variantes huérfanas ANTES de borrar (mismo motivo que en delete() de arriba:
+    // sin esto sus SKUs quedan bloqueados para siempre).
+    try {
+      await db.execute(
+        `DELETE vpt FROM variant_price_tiers vpt
+         JOIN product_variants pv ON pv.id = vpt.variant_id
+         WHERE pv.product_id IN (${placeholders})`,
+        list
+      );
+      await db.execute(`DELETE FROM product_variants WHERE product_id IN (${placeholders})`, list);
+    } catch (e: any) {
+      if (e?.errno !== 1146) throw e; // 1146 = tabla no existe aún — ignorar
+    }
     try {
       const [result] = await db.execute<ResultSetHeader>(
         `DELETE FROM products WHERE id IN (${placeholders})${tenantClause}`,

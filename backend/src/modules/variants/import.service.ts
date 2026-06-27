@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { RowDataPacket } from 'mysql2/promise';
 import { db } from '../../config';
 import { AppError } from '../../common/middleware';
+import { variantsService } from './variants.service';
 
 export interface ImportRow {
   handle: string;          // Slug único del producto (agrupa variantes)
@@ -28,6 +29,8 @@ export interface ImportResult {
 export class ImportService {
 
   async importFromCsv(tenantId: string, rows: ImportRow[]): Promise<ImportResult> {
+    // DDL hace COMMIT implícito en MySQL — debe correr ANTES de abrir la transacción.
+    await variantsService.ensureTables();
     const conn = await (db as any).getConnection();
     const result: ImportResult = {
       totalRows: rows.length,

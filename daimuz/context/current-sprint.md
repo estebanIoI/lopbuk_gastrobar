@@ -148,6 +148,20 @@ Visión: el panel del `cliente` es el producto; el marketplace es una función (
 
 **PENDIENTE (próxima sesión):** conectar `hasEntitlement(userId, key)` a features reales (gatear asistente IA con `routine_ai`, descuentos con `discounts`, etc.). Además: tsc front+back en Windows y **Deploy en Komodo** (la migración G1 corre al boot). NO se hizo push.
 
+### ✅ Completado [2026-06-21]: Inventario — talla/color como filtro real + edición en grupo de variantes
+
+| Tarea | Estado | Descripción |
+|---|---|---|
+| Talla/color filtran la tabla expandida | ✅ | `useVariantPicker` dispara `onSizeChange`/`onColorChange`; nuevo estado `expandedSizeFilter`/`expandedColorFilter` (por producto) en `inventory-list.tsx`; combinado con horma vía `getFilteredVariantsFor` |
+| Chips de filtro activo | ✅ | "Talla M ✕" / "Color Negro ✕" en la fila expandida (mobile y escritorio), removibles |
+| Selección por grupo | ✅ | `bulkVariantMode` + checkboxes por variante + "Seleccionar grupo visible" (toma el filtro activo); selección global (`selectedVariantIds`, cross-producto) |
+| Diálogo de edición en grupo | ✅ | Stock (sumar/restar/exacto + motivo obligatorio), precio override, costo, stock mínimo — cada campo opt-in |
+| Backend bulk-update | ✅ | `POST /api/variants/bulk-update` — `variants.service.ts::bulkUpdate` (itera, no transaccional entre variantes, reporta `{updated, failed}`), ruta declarada antes de `/variants/:id` |
+
+**Archivos clave:** `frontend/components/inventory-list.tsx` (grueso del cambio), `frontend/lib/api.ts` (`bulkUpdateVariants`), `backend/src/modules/variants/variants.service.ts` (`bulkUpdate`), `variants.controller.ts` (`bulkUpdate`), `variants.routes.ts` (`POST /variants/bulk-update`).
+
+**Pendiente operativo:** no se pudo correr `tsc`/build en este sandbox (node_modules con symlinks pnpm rotos al montar la carpeta en Linux — limitación del entorno, no del código); verificar con `npm run build` o el dev server local del usuario. Sin cambios de schema.
+
 ### ✅ Completado [2026-06-18 parte 2]: Integración de variantes COMPLETA (asiento + pasarelas + variant_id + cupo)
 
 | Tarea | Estado | Descripción |

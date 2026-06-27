@@ -3,6 +3,7 @@ import { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
 import { db } from '../../config';
 import { Supplier, SupplierProduct } from '../../common/types';
 import { AppError } from '../../common/middleware';
+import { variantsService } from '../variants/variants.service';
 
 interface SupplierRow extends RowDataPacket {
   id: string; tenant_id: string; name: string;
@@ -41,6 +42,7 @@ function mapSp(r: SpRow): SupplierProduct {
 export class SuppliersService {
 
   async findAll(tenantId: string): Promise<Supplier[]> {
+    await variantsService.ensureTables();
     const [rows] = await db.execute<SupplierRow[]>(
       'SELECT * FROM suppliers WHERE tenant_id = ? AND is_active = 1 ORDER BY name ASC',
       [tenantId]
@@ -49,6 +51,7 @@ export class SuppliersService {
   }
 
   async findById(id: string, tenantId: string): Promise<Supplier> {
+    await variantsService.ensureTables();
     const [rows] = await db.execute<SupplierRow[]>(
       'SELECT * FROM suppliers WHERE id = ? AND tenant_id = ? AND is_active = 1',
       [id, tenantId]
@@ -98,6 +101,7 @@ export class SuppliersService {
   // ── Supplier Products ──────────────────────────────────────────────────────
 
   async getProducts(supplierId: string, tenantId: string): Promise<SupplierProduct[]> {
+    await variantsService.ensureTables();
     const [rows] = await db.execute<SpRow[]>(
       `SELECT sp.*, sp.tenant_id FROM supplier_products sp
        WHERE sp.supplier_id = ? AND sp.tenant_id = ? AND sp.is_active = 1`,
@@ -132,6 +136,7 @@ export class SuppliersService {
   }
 
   async unlinkProduct(supplierId: string, productId: string, tenantId: string): Promise<void> {
+    await variantsService.ensureTables();
     await db.execute(
       'UPDATE supplier_products SET is_active = 0 WHERE supplier_id = ? AND product_id = ? AND tenant_id = ?',
       [supplierId, productId, tenantId]

@@ -10,7 +10,7 @@ interface AppState {
   products: Product[]
   isLoadingProducts: boolean
   fetchProducts: () => Promise<void>
-  addProduct: (product: Record<string, any>) => Promise<{ success: boolean; error?: string }>
+  addProduct: (product: Record<string, any>) => Promise<{ success: boolean; error?: string; data?: any }>
   updateProduct: (id: string, product: Partial<Product>) => Promise<{ success: boolean; error?: string }>
   deleteProduct: (id: string) => Promise<{ success: boolean; error?: string }>
   bulkDeleteProducts: (ids: string[]) => Promise<{ success: boolean; data?: { deleted: number; skipped: number }; error?: string }>
@@ -181,7 +181,7 @@ export const useStore = create<AppState>()(
           set(state => ({
             products: [...state.products, result.data]
           }))
-          return { success: true }
+          return { success: true, data: result.data }
         }
         return { success: false, error: result.error || 'Error al crear producto' }
       },

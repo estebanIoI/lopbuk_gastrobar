@@ -2,12 +2,13 @@
 
 import React from "react"
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useStore, getStockStatus } from '@/lib/store'
 import { api } from '@/lib/api'
-import { type Product, type Category, type ProductType, type Sede } from '@/lib/types'
+import { type Product, type Category, type ProductType, type Sede, type ProductVariant } from '@/lib/types'
 import { PRODUCT_TYPES, FIELD_DEFINITIONS, getFieldsForProductType } from '@/lib/product-config'
 import { formatCOP } from '@/lib/utils'
+import { resolveColorHex } from '@/lib/colors'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -39,6 +40,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { CloudinaryUpload } from '@/components/ui/cloudinary-upload'
+import { LocationPicker } from '@/components/ui/location-picker'
 import { VariantManager } from '@/components/variant-manager'
 import { ProductModifiersManager } from '@/components/product-modifiers-manager'
 import {
@@ -56,6 +58,7 @@ import {
   SlidersHorizontal,
   MapPin,
   ChevronDown,
+  ChevronRight,
   Settings2,
   FileDown,
   ImageIcon,
@@ -65,11 +68,306 @@ import {
   GripVertical,
   CheckSquare,
   CheckCircle2,
+  X,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { BarcodeScanner } from '@/components/barcode-scanner'
 import { RemoteScanner } from '@/components/remote-scanner'
 import { BulkUploadDialog } from '@/components/bulk-upload-dialog'
+import { HormaManager } from '@/components/horma-manager'
+
+// Orden estándar de confección — se usa en todos lados donde se muestran tallas
+// (picker rápido, fila expandida, resumen) para que el orden sea siempre el mismo,
+// sin importar qué horma esté seleccionada ni en qué orden vengan de la base de datos.
+const SIZE_ORDER = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL']
+function sortSizes(sizes: string[]): string[] {
+  return [...sizes].sort((a, b) => {
+    const ia = SIZE_ORDER.indexOf(a.toUpperCase())
+    const ib = SIZE_ORDER.indexOf(b.toUpperCase())
+    if (ia === -1 && ib === -1) return a.localeCompare(b)
+    if (ia === -1) return 1
+    if (ib === -1) return -1
+    return ia - ib
+  })
+}
+
+// ── Selector rápido Horma → Talla → Color — solo CONSULTA el stock de esa
+// combinación exacta (no se edita acá; para eso está el lápiz de la fila expandida
+// o "Variantes / Tiers"). Estado compartido por las dos formas de mostrarlo: en una
+// sola columna (mobile, VariantQuickPicker) o repartido en columnas (escritorio,
+// VariantPickerColumns). Cada fila/instancia tiene su propio estado de selección.
+function useVariantPicker(
+  variants: ProductVariant[],
+  onHormaChange?: (hormaId: string | null) => void,
+  onSizeChange?: (size: string | null) => void,
+  onColorChange?: (color: string | null) => void,
+) {
+  const hormaIds = useMemo(
+    () => Array.from(new Set(variants.map(v => v.hormaId).filter(Boolean))) as string[],
+    [variants]
+  )
+  const [selHorma, setSelHormaState] = useState<string | null>(hormaIds[0] ?? null)
+  const [selSize, setSelSizeState] = useState<string | null>(null)
+  const [selColor, setSelColorState] = useState<string | null>(null)
+
+  // Elegir horma acá también sincroniza el filtro de la fila expandida ("Ver variantes"),
+  // para no tener que elegirla dos veces si después abrís el detalle completo.
+  const setSelHorma = (hid: string | null) => {
+    setSelHormaState(hid)
+    onHormaChange?.(hid)
+  }
+  // Elegir talla/color en el picker rápido TAMBIÉN filtra la tabla de variantes
+  // de la fila expandida — así "elegir talla y color" funciona como filtro real,
+  // no solo como consulta del stock de esa combinación exacta.
+  const setSelSize = (sz: string | null) => {
+    setSelSizeState(sz)
+    onSizeChange?.(sz)
+  }
+  const setSelColor = (c: string | null) => {
+    setSelColorState(c)
+    onColorChange?.(c)
+  }
+
+  const scoped = useMemo(
+    () => (selHorma ? variants.filter(v => v.hormaId === selHorma) : variants),
+    [variants, selHorma]
+  )
+  // Orden siempre igual (S/M/L/XL/XXL y colores A-Z) — al cambiar de horma se filtra
+  // a las tallas/colores de ESA horma, pero el orden no "salta" de un lado a otro.
+  const sizes = useMemo(
+    () => sortSizes(Array.from(new Set(scoped.map(v => v.size).filter(Boolean))) as string[]),
+    [scoped]
+  )
+  const colors = useMemo(() => {
+    const seen = new Map<string, { color: string; hex?: string }>()
+    for (const v of scoped) {
+      if (v.color && !seen.has(v.color.toLowerCase())) seen.set(v.color.toLowerCase(), { color: v.color, hex: v.colorHex })
+    }
+    return Array.from(seen.values()).sort((a, b) => a.color.localeCompare(b.color))
+  }, [scoped])
+
+  const matched = useMemo(() => {
+    if (!selSize || !selColor) return null
+    return scoped.find(v => v.size === selSize && v.color === selColor) || null
+  }, [scoped, selSize, selColor])
+
+  return { hormaIds, selHorma, setSelHorma, selSize, setSelSize, selColor, setSelColor, sizes, colors, matched }
+}
+
+// Mobile: todo apilado en un solo bloque (debajo de los botones de acción de la tarjeta).
+function VariantQuickPicker({
+  variants, hormaById, getVariantStockStatus, onHormaChange, onSizeChange, onColorChange,
+}: {
+  variants: ProductVariant[]
+  hormaById: Record<string, any>
+  getVariantStockStatus: (v: ProductVariant) => 'suficiente' | 'bajo' | 'agotado'
+  onHormaChange?: (hormaId: string | null) => void
+  onSizeChange?: (size: string | null) => void
+  onColorChange?: (color: string | null) => void
+}) {
+  const p = useVariantPicker(variants, onHormaChange, onSizeChange, onColorChange)
+
+  if (variants.length === 0) {
+    return <span className="text-xs text-muted-foreground">Sin variantes</span>
+  }
+
+  return (
+    <div className="space-y-1.5 min-w-[150px]">
+      {p.hormaIds.length > 1 ? (
+        <div className="flex flex-wrap gap-1">
+          {p.hormaIds.map(hid => (
+            <button
+              key={hid}
+              type="button"
+              onClick={() => { p.setSelHorma(hid === p.selHorma ? null : hid); p.setSelSize(null); p.setSelColor(null) }}
+              className={`text-[10px] px-1.5 py-0.5 rounded border cursor-pointer transition-colors ${
+                p.selHorma === hid ? 'border-primary bg-primary/10 text-foreground' : 'border-input text-muted-foreground hover:bg-muted hover:border-primary/50'
+              }`}
+            >
+              {hormaById[hid]?.name || 'Horma'}
+            </button>
+          ))}
+        </div>
+      ) : p.hormaIds.length === 1 ? (
+        <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+          <Layers className="h-2.5 w-2.5" /> {hormaById[p.hormaIds[0]]?.name || 'Horma'}
+        </p>
+      ) : null}
+      {p.sizes.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {p.sizes.map(sz => (
+            <button
+              key={sz}
+              type="button"
+              onClick={() => p.setSelSize(sz === p.selSize ? null : sz)}
+              className={`text-[10px] px-1.5 py-0.5 rounded border font-medium cursor-pointer transition-colors ${
+                p.selSize === sz ? 'border-primary bg-primary text-primary-foreground' : 'border-input text-muted-foreground hover:bg-muted hover:border-primary/50'
+              }`}
+            >
+              {sz}
+            </button>
+          ))}
+        </div>
+      )}
+      {p.colors.length > 0 && (
+        <div className="flex flex-wrap gap-1 items-center">
+          {p.colors.map(c => (
+            <button
+              key={c.color}
+              type="button"
+              title={c.color}
+              onClick={() => p.setSelColor(c.color === p.selColor ? null : c.color)}
+              className={`h-4 w-4 rounded-full border shrink-0 cursor-pointer transition-transform hover:scale-125 ${
+                p.selColor === c.color ? 'ring-2 ring-primary ring-offset-1' : 'hover:ring-2 hover:ring-muted-foreground/40'
+              }`}
+              style={{ backgroundColor: resolveColorHex(c.color, c.hex) }}
+            />
+          ))}
+        </div>
+      )}
+      {p.matched ? (
+        <div className="flex items-center gap-1.5 pt-0.5">
+          {(() => {
+            const st = getVariantStockStatus(p.matched)
+            return (
+              <>
+                <span className={`h-2 w-2 rounded-full ${st === 'suficiente' ? 'bg-primary' : st === 'bajo' ? 'bg-warning' : 'bg-destructive'}`} />
+                <span className={`text-xs font-medium ${st === 'suficiente' ? 'text-primary' : st === 'bajo' ? 'text-warning' : 'text-destructive'}`}>
+                  {p.matched.stock} en stock
+                </span>
+              </>
+            )
+          })()}
+        </div>
+      ) : (
+        <p className="text-[10px] text-muted-foreground">Elige talla y color para ver el stock</p>
+      )}
+    </div>
+  )
+}
+
+// Escritorio: las mismas 3 elecciones (Horma/Talla/Color) repartidas en 3 columnas
+// separadas, y una 4ta celda de Stock que muestra el total agregado por defecto, o el
+// stock de la variante exacta (solo lectura) en cuanto se elige talla + color.
+function VariantPickerColumns({
+  variants, hormaById, getVariantStockStatus,
+  fallbackStock, fallbackStatus, onHormaChange, onSizeChange, onColorChange,
+}: {
+  variants: ProductVariant[]
+  hormaById: Record<string, any>
+  getVariantStockStatus: (v: ProductVariant) => 'suficiente' | 'bajo' | 'agotado'
+  fallbackStock: number
+  fallbackStatus: 'suficiente' | 'bajo' | 'agotado'
+  onHormaChange?: (hormaId: string | null) => void
+  onSizeChange?: (size: string | null) => void
+  onColorChange?: (color: string | null) => void
+}) {
+  const p = useVariantPicker(variants, onHormaChange, onSizeChange, onColorChange)
+  const dot = (st: string) => st === 'suficiente' ? 'bg-primary' : st === 'bajo' ? 'bg-warning' : 'bg-destructive'
+  const text = (st: string) => st === 'suficiente' ? 'text-primary' : st === 'bajo' ? 'text-warning' : 'text-destructive'
+
+  if (variants.length === 0) {
+    return (
+      <>
+        <TableCell><span className="text-xs text-muted-foreground">—</span></TableCell>
+        <TableCell><span className="text-xs text-muted-foreground">—</span></TableCell>
+        <TableCell><span className="text-xs text-muted-foreground">—</span></TableCell>
+        <TableCell className="text-center">
+          <div className="flex items-center justify-center gap-2">
+            <span className={`h-2 w-2 lg:h-2.5 lg:w-2.5 rounded-full ${dot(fallbackStatus)}`} />
+            <span className={`font-medium text-sm lg:text-base ${text(fallbackStatus)}`}>{fallbackStock}</span>
+          </div>
+        </TableCell>
+      </>
+    )
+  }
+
+  const matchedStatus = p.matched ? getVariantStockStatus(p.matched) : fallbackStatus
+
+  return (
+    <>
+      <TableCell>
+        {p.hormaIds.length > 1 ? (
+          <div className="flex flex-wrap gap-1">
+            {p.hormaIds.map(hid => (
+              <button
+                key={hid}
+                type="button"
+                onClick={() => { p.setSelHorma(hid === p.selHorma ? null : hid); p.setSelSize(null); p.setSelColor(null) }}
+                className={`text-[10px] px-1.5 py-0.5 rounded border cursor-pointer transition-colors ${
+                  p.selHorma === hid ? 'border-primary bg-primary/10 text-foreground' : 'border-input text-muted-foreground hover:bg-muted hover:border-primary/50'
+                }`}
+              >
+                {hormaById[hid]?.name || 'Horma'}
+              </button>
+            ))}
+          </div>
+        ) : p.hormaIds.length === 1 ? (
+          <span className="text-xs text-muted-foreground">{hormaById[p.hormaIds[0]]?.name || 'Horma'}</span>
+        ) : (
+          <span className="text-xs text-muted-foreground">—</span>
+        )}
+      </TableCell>
+      <TableCell>
+        {p.sizes.length > 0 ? (
+          <div className="flex flex-wrap gap-1">
+            {p.sizes.map(sz => (
+              <button
+                key={sz}
+                type="button"
+                onClick={() => p.setSelSize(sz === p.selSize ? null : sz)}
+                className={`text-[10px] px-1.5 py-0.5 rounded border font-medium cursor-pointer transition-colors ${
+                  p.selSize === sz ? 'border-primary bg-primary text-primary-foreground' : 'border-input text-muted-foreground hover:bg-muted hover:border-primary/50'
+                }`}
+              >
+                {sz}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <span className="text-xs text-muted-foreground">—</span>
+        )}
+      </TableCell>
+      <TableCell>
+        {p.colors.length > 0 ? (
+          <div className="flex flex-wrap gap-1 items-center">
+            {p.colors.map(c => (
+              <button
+                key={c.color}
+                type="button"
+                title={c.color}
+                onClick={() => p.setSelColor(c.color === p.selColor ? null : c.color)}
+                className={`h-4 w-4 rounded-full border shrink-0 cursor-pointer transition-transform hover:scale-125 ${
+                  p.selColor === c.color ? 'ring-2 ring-primary ring-offset-1' : 'hover:ring-2 hover:ring-muted-foreground/40'
+                }`}
+                style={{ backgroundColor: resolveColorHex(c.color, c.hex) }}
+              />
+            ))}
+          </div>
+        ) : (
+          <span className="text-xs text-muted-foreground">—</span>
+        )}
+      </TableCell>
+      <TableCell className="text-center">
+        <div className="flex items-center justify-center gap-2">
+          <span className={`h-2 w-2 lg:h-2.5 lg:w-2.5 rounded-full ${dot(matchedStatus)}`} />
+          <span className={`font-medium text-sm lg:text-base ${text(matchedStatus)}`}>
+            {p.matched ? p.matched.stock : fallbackStock}
+          </span>
+        </div>
+        {!p.matched && (p.selSize || p.selColor) && (
+          <p className="text-[10px] text-muted-foreground mt-0.5">Elige talla y color</p>
+        )}
+        {!p.matched && !p.selSize && !p.selColor && (
+          <p className="text-[10px] text-muted-foreground mt-0.5">suma de {variants.length} variante(s)</p>
+        )}
+        {p.matched && (
+          <p className="text-[10px] text-muted-foreground mt-0.5">de esta variante</p>
+        )}
+      </TableCell>
+    </>
+  )
+}
 
 export function InventoryList() {
   const { products, isLoadingProducts, fetchProducts, addProduct, updateProduct, deleteProduct, bulkDeleteProducts, categories, fetchCategories, addCategory, updateCategory, toggleCategoryVisibility, deleteCategory, inventoryStockFilter, inventorySearchQuery, clearInventoryFilters, sedes, fetchSedes, addSede, updateSede, deleteSede } = useStore()
@@ -89,12 +387,333 @@ export function InventoryList() {
   const [isBulkDeleting, setIsBulkDeleting] = useState(false)
   const [isCategoryDialogOpen, setIsCategoryDialogOpen] = useState(false)
   const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false)
+  const [isHormaManagerOpen, setIsHormaManagerOpen] = useState(false)
   const [isSedeDialogOpen, setIsSedeDialogOpen] = useState(false)
   const [isImageDialogOpen, setIsImageDialogOpen] = useState(false)
   const [imageDialogData, setImageDialogData] = useState<{ imageUrl: string; images: string[] }>({ imageUrl: '', images: ['', '', '', ''] })
   const [isSavingImages, setIsSavingImages] = useState(false)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [isExporting, setIsExporting] = useState(false)
+
+  // ── Variantes (color x talla) inline en la tabla de inventario ──
+  // Se cargan TODAS de una vez (no por producto) para poder mostrar en la fila
+  // principal el stock total y todos los colores sin tener que expandir cada fila.
+  const [allVariants, setAllVariants] = useState<ProductVariant[]>([])
+  const [loadingAllVariants, setLoadingAllVariants] = useState(false)
+  const [hormasList, setHormasList] = useState<any[]>([])
+  const [expandedVariantIds, setExpandedVariantIds] = useState<Set<string>>(new Set())
+  // Filtro por horma/talla/color dentro de la fila expandida — por producto,
+  // null/undefined = mostrar todas. Talla y color se alimentan del mismo picker
+  // rápido (Horma/Talla/Color) que ya vive en la fila principal: elegir ahí
+  // ahora también filtra la tabla completa de variantes, no solo el stock de esa
+  // combinación exacta.
+  const [expandedHormaFilter, setExpandedHormaFilter] = useState<Record<string, string | null>>({})
+  const [expandedSizeFilter, setExpandedSizeFilter] = useState<Record<string, string | null>>({})
+  const [expandedColorFilter, setExpandedColorFilter] = useState<Record<string, string | null>>({})
+
+  // ── Edición en grupo (bulk) de variantes ──
+  // Selección global de variant IDs (no por producto) — permite, por ejemplo,
+  // filtrar por talla M en dos productos distintos y editar ambos grupos a la vez.
+  const [bulkVariantMode, setBulkVariantMode] = useState(false)
+  const [selectedVariantIds, setSelectedVariantIds] = useState<Set<string>>(new Set())
+  const [isBulkVariantEditOpen, setIsBulkVariantEditOpen] = useState(false)
+  const [savingBulkVariant, setSavingBulkVariant] = useState(false)
+  const [bulkVariantForm, setBulkVariantForm] = useState({
+    stockMode: 'none' as 'none' | 'set' | 'add' | 'subtract',
+    stockValue: '',
+    stockReason: '',
+    changePrice: false,
+    priceOverride: '',
+    changeCost: false,
+    costPrice: '',
+    changeMinStock: false,
+    minStock: '',
+  })
+
+  const loadVariantsSummary = useCallback(async () => {
+    setLoadingAllVariants(true)
+    try {
+      const res: any = await api.getVariantsSummary()
+      if (Array.isArray(res)) {
+        setAllVariants(res)
+      } else if (res?.success) {
+        setAllVariants(res.data ?? [])
+      } else {
+        toast.error(res?.error || 'No se pudieron cargar las variantes')
+      }
+    } catch {
+      toast.error('No se pudieron cargar las variantes')
+    } finally {
+      setLoadingAllVariants(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadVariantsSummary()
+    api.getHormas().then(r => { if (r.success && r.data) setHormasList(r.data as any[]) })
+  }, [loadVariantsSummary])
+
+  const variantsByProductId = useMemo(() => {
+    const map: Record<string, ProductVariant[]> = {}
+    for (const v of allVariants) {
+      if (!map[v.productId]) map[v.productId] = []
+      map[v.productId].push(v)
+    }
+    return map
+  }, [allVariants])
+
+  const hormaById = useMemo(() => {
+    const map: Record<string, any> = {}
+    for (const h of hormasList) map[h.id] = h
+    return map
+  }, [hormasList])
+
+  // Stock "general" de un producto: si tiene variantes, es la SUMA de todas
+  // (la fuente de verdad real); si no, el stock propio del producto.
+  const getDisplayStock = (product: Product) => {
+    const variants = variantsByProductId[product.id]
+    if (variants && variants.length > 0) return variants.reduce((sum, v) => sum + v.stock, 0)
+    return product.stock
+  }
+
+  const getDisplayStockStatus = (product: Product): 'suficiente' | 'bajo' | 'agotado' => {
+    const stock = getDisplayStock(product)
+    if (stock === 0) return 'agotado'
+    if (stock <= product.reorderPoint) return 'bajo'
+    return 'suficiente'
+  }
+
+  // Tallas distintas de un producto, ordenadas en el orden estándar de confección.
+  const getDisplayTallas = (product: Product): string[] => {
+    const variants = variantsByProductId[product.id]
+    if (!variants) return []
+    const seen = new Set<string>()
+    for (const v of variants) if (v.size) seen.add(v.size)
+    return sortSizes(Array.from(seen))
+  }
+
+  // Colores distintos de un producto (deduplicados por nombre), para pintar
+  // TODOS los círculos en la fila principal — no solo los primeros.
+  const getDisplayColors = (product: Product): { color: string; hex?: string }[] => {
+    const variants = variantsByProductId[product.id]
+    if (!variants) return []
+    const seen = new Map<string, { color: string; hex?: string }>()
+    for (const v of variants) {
+      if (!v.color) continue
+      const key = v.color.toLowerCase()
+      if (!seen.has(key)) seen.set(key, { color: v.color, hex: v.colorHex })
+    }
+    return Array.from(seen.values())
+  }
+
+  // Todas las hormas distintas en juego para un producto. Ya NO asumimos una sola
+  // (product.hormaId) — un producto puede tener variantes repartidas en varias hormas
+  // (ej. el mismo diseño impreso sobre Oversize Fit Y sobre Camiseta Clásica), así que
+  // se derivan de las variantes reales; product.hormaId queda solo de fallback legacy.
+  const getDisplayHormas = (product: Product): { id: string; name: string }[] => {
+    const variants = variantsByProductId[product.id]
+    if (variants && variants.length > 0) {
+      const seen = new Map<string, { id: string; name: string }>()
+      for (const v of variants) {
+        if (!v.hormaId) continue
+        if (!seen.has(v.hormaId)) seen.set(v.hormaId, { id: v.hormaId, name: v.hormaName || hormaById[v.hormaId]?.name || 'Horma' })
+      }
+      return Array.from(seen.values())
+    }
+    if (product.hormaId && hormaById[product.hormaId]) {
+      return [{ id: product.hormaId, name: hormaById[product.hormaId].name }]
+    }
+    return []
+  }
+
+  const toggleVariantRow = (productId: string) => {
+    setExpandedVariantIds(prev => {
+      const next = new Set(prev)
+      if (next.has(productId)) next.delete(productId)
+      else next.add(productId)
+      return next
+    })
+  }
+
+  const setHormaFilterFor = (productId: string, hormaIdOrNull: string | null) => {
+    setExpandedHormaFilter(prev => ({ ...prev, [productId]: hormaIdOrNull }))
+  }
+  const setSizeFilterFor = (productId: string, sizeOrNull: string | null) => {
+    setExpandedSizeFilter(prev => ({ ...prev, [productId]: sizeOrNull }))
+  }
+  const setColorFilterFor = (productId: string, colorOrNull: string | null) => {
+    setExpandedColorFilter(prev => ({ ...prev, [productId]: colorOrNull }))
+  }
+
+  // Variantes de un producto aplicando horma + talla + color a la vez (las tres
+  // se alimentan del mismo picker rápido). Centralizado para que la fila expandida
+  // (mobile y escritorio) y la selección "grupo visible" usen siempre el mismo cálculo.
+  const getFilteredVariantsFor = (productId: string, variants: ProductVariant[] | undefined): ProductVariant[] => {
+    if (!variants) return []
+    const horma = expandedHormaFilter[productId] || null
+    const size = expandedSizeFilter[productId] || null
+    const color = expandedColorFilter[productId] || null
+    if (!horma && !size && !color) return variants
+    return variants.filter(v =>
+      (!horma || v.hormaId === horma) &&
+      (!size || v.size === size) &&
+      (!color || v.color === color)
+    )
+  }
+
+  // ── Edición en grupo (bulk) de variantes ──
+  const toggleVariantSelect = (id: string) =>
+    setSelectedVariantIds(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  const isVariantSelected = (id: string) => selectedVariantIds.has(id)
+  // Selecciona/deselecciona en bloque todas las variantes de una lista (ej. el
+  // grupo que está visible bajo el filtro actual de talla/color).
+  const toggleSelectVariantGroup = (variants: ProductVariant[]) => {
+    setSelectedVariantIds(prev => {
+      const ids = variants.map(v => v.id)
+      const allSelected = ids.length > 0 && ids.every(id => prev.has(id))
+      const next = new Set(prev)
+      if (allSelected) ids.forEach(id => next.delete(id))
+      else ids.forEach(id => next.add(id))
+      return next
+    })
+  }
+  const exitBulkVariantMode = () => { setBulkVariantMode(false); setSelectedVariantIds(new Set()) }
+
+  const openBulkVariantEdit = () => {
+    setBulkVariantForm({
+      stockMode: 'none', stockValue: '', stockReason: '',
+      changePrice: false, priceOverride: '',
+      changeCost: false, costPrice: '',
+      changeMinStock: false, minStock: '',
+    })
+    setIsBulkVariantEditOpen(true)
+  }
+
+  const applyBulkVariantEdit = async () => {
+    const ids = Array.from(selectedVariantIds)
+    if (ids.length === 0) return
+    const f = bulkVariantForm
+    if (f.stockMode !== 'none' && !f.stockReason.trim()) {
+      toast.error('El ajuste de stock requiere un motivo')
+      return
+    }
+    const payload: Parameters<typeof api.bulkUpdateVariants>[0] = { variantIds: ids }
+    if (f.stockMode !== 'none') {
+      payload.stock = {
+        type: f.stockMode === 'set' ? 'ajuste' : f.stockMode === 'add' ? 'entrada' : 'salida',
+        quantity: Number(f.stockValue) || 0,
+        reason: f.stockReason.trim(),
+      }
+    }
+    if (f.changePrice) payload.priceOverride = f.priceOverride === '' ? null : Number(f.priceOverride)
+    if (f.changeCost) payload.costPrice = f.costPrice === '' ? null : Number(f.costPrice)
+    if (f.changeMinStock) payload.minStock = Number(f.minStock) || 0
+
+    setSavingBulkVariant(true)
+    try {
+      const r = await api.bulkUpdateVariants(payload)
+      if (!r.success) { toast.error(r.error || 'No se pudo aplicar la edición en grupo'); return }
+      const d = r.data as { updated: number; failed: { id: string; error: string }[] }
+      toast.success(`${d.updated} variante(s) actualizada(s)${d.failed?.length ? ` · ${d.failed.length} con errores` : ''}`)
+      setIsBulkVariantEditOpen(false)
+      exitBulkVariantMode()
+      await loadVariantsSummary()
+    } finally {
+      setSavingBulkVariant(false)
+    }
+  }
+
+  const getVariantStockStatus = (v: ProductVariant): 'suficiente' | 'bajo' | 'agotado' => {
+    if (v.stock === 0) return 'agotado'
+    if (v.stock <= v.minStock) return 'bajo'
+    return 'suficiente'
+  }
+
+  // Orden de la fila expandida: agrupado por Horma → Color → Talla, para poder
+  // ver de un vistazo todo el stock sin que las combinaciones salgan mezcladas
+  // (el orden que trae la base de datos depende de cuándo se creó cada variante).
+  const sortVariantsForDisplay = (variants: ProductVariant[]): ProductVariant[] => {
+    const sizeIndex = (s?: string) => {
+      if (!s) return 999
+      const i = SIZE_ORDER.indexOf(s.toUpperCase())
+      return i === -1 ? 998 : i
+    }
+    return [...variants].sort((a, b) => {
+      const ha = (a.hormaName || (a.hormaId ? hormaById[a.hormaId]?.name : '') || '').toLowerCase()
+      const hb = (b.hormaName || (b.hormaId ? hormaById[b.hormaId]?.name : '') || '').toLowerCase()
+      if (ha !== hb) return ha.localeCompare(hb)
+      const ca = (a.color || '').toLowerCase()
+      const cb = (b.color || '').toLowerCase()
+      if (ca !== cb) return ca.localeCompare(cb)
+      return sizeIndex(a.size) - sizeIndex(b.size)
+    })
+  }
+
+  // ── Editar / Eliminar variante directo desde la fila expandida ──
+  const MAX_VARIANT_IMAGES = 4
+  const [editingQuickVariant, setEditingQuickVariant] = useState<ProductVariant | null>(null)
+  const [quickVariantForm, setQuickVariantForm] = useState({
+    color: '', colorHex: '', size: '', costPrice: '', priceOverride: '',
+    images: ['', '', '', ''] as string[],
+  })
+  const [savingQuickVariant, setSavingQuickVariant] = useState(false)
+  const [deletingQuickVariant, setDeletingQuickVariant] = useState<ProductVariant | null>(null)
+  const [isDeletingQuickVariant, setIsDeletingQuickVariant] = useState(false)
+
+  const openQuickEditVariant = (v: ProductVariant) => {
+    setEditingQuickVariant(v)
+    const imgs = v.images || []
+    setQuickVariantForm({
+      color: v.color || '',
+      colorHex: v.colorHex || '',
+      size: v.size || '',
+      costPrice: v.costPrice != null ? String(v.costPrice) : '',
+      priceOverride: v.priceOverride != null ? String(v.priceOverride) : '',
+      images: [imgs[0] || '', imgs[1] || '', imgs[2] || '', imgs[3] || ''],
+    })
+  }
+
+  const saveQuickVariantEdit = async () => {
+    if (!editingQuickVariant) return
+    setSavingQuickVariant(true)
+    try {
+      const r = await api.updateVariant(editingQuickVariant.id, {
+        color: quickVariantForm.color.trim() || undefined,
+        colorHex: quickVariantForm.colorHex.trim(),
+        size: quickVariantForm.size.trim() || undefined,
+        costPrice: quickVariantForm.costPrice !== '' ? Number(quickVariantForm.costPrice) : undefined,
+        priceOverride: quickVariantForm.priceOverride !== '' ? Number(quickVariantForm.priceOverride) : undefined,
+        images: quickVariantForm.images.map(u => u.trim()).filter(Boolean).slice(0, MAX_VARIANT_IMAGES),
+      })
+      if (!r.success) { toast.error(r.error || 'No se pudo actualizar la variante'); return }
+      toast.success('Variante actualizada')
+      setEditingQuickVariant(null)
+      await loadVariantsSummary()
+    } finally {
+      setSavingQuickVariant(false)
+    }
+  }
+
+  const confirmDeleteQuickVariant = async () => {
+    if (!deletingQuickVariant) return
+    setIsDeletingQuickVariant(true)
+    try {
+      const r = await api.deleteVariant(deletingQuickVariant.id)
+      if (!r.success) { toast.error(r.error || 'No se pudo eliminar la variante'); return }
+      toast.success('Variante eliminada')
+      setDeletingQuickVariant(null)
+      await loadVariantsSummary()
+    } finally {
+      setIsDeletingQuickVariant(false)
+    }
+  }
+
+  // Producto, Horma, Talla, Color, Stock, SKU, Tipo, Categoria, [Sede], Precio, Acciones
+  const inventoryColSpan = (sedes.length >= 2 ? 11 : 10) + (selectMode ? 1 : 0)
 
   const handleExportCsv = async () => {
     setIsExporting(true)
@@ -339,6 +958,10 @@ export function InventoryList() {
             <Tags className="h-4 w-4 lg:h-5 lg:w-5" />
             Categorías
           </Button>
+          <Button variant="outline" onClick={() => setIsHormaManagerOpen(true)} className="gap-2 h-10 lg:h-11 text-sm lg:text-base">
+            <Layers className="h-4 w-4 lg:h-5 lg:w-5" />
+            Hormas
+          </Button>
           <Button variant="outline" onClick={() => setIsBulkUploadOpen(true)} className="gap-2 h-10 lg:h-11 text-sm lg:text-base">
             <Upload className="h-4 w-4 lg:h-5 lg:w-5" />
             Importar CSV
@@ -354,6 +977,15 @@ export function InventoryList() {
           >
             <CheckSquare className="h-4 w-4 lg:h-5 lg:w-5" />
             {selectMode ? 'Cancelar selección' : 'Seleccionar'}
+          </Button>
+          <Button
+            variant={bulkVariantMode ? 'default' : 'outline'}
+            onClick={() => { if (bulkVariantMode) exitBulkVariantMode(); else setBulkVariantMode(true) }}
+            className="gap-2 h-10 lg:h-11 text-sm lg:text-base"
+            title="Selecciona variantes desde 'Ver colores/tallas' en cualquier producto para editarlas en grupo"
+          >
+            <Layers className="h-4 w-4 lg:h-5 lg:w-5" />
+            {bulkVariantMode ? 'Cancelar edición' : 'Editar variantes'}
           </Button>
           <Button data-tour="inv-new" onClick={() => setIsAddDialogOpen(true)} className="gap-2 h-10 lg:h-11 text-sm lg:text-base">
             <Plus className="h-4 w-4 lg:h-5 lg:w-5" />
@@ -432,6 +1064,22 @@ export function InventoryList() {
         </div>
       )}
 
+      {/* Barra de acciones — edición en grupo de variantes (talla/color/lote) */}
+      {bulkVariantMode && (
+        <div className="sticky top-0 z-20 flex flex-wrap items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 backdrop-blur p-3">
+          <Layers className="h-4 w-4 text-primary shrink-0" />
+          <span className="text-sm font-medium">
+            {selectedVariantIds.size > 0 ? `${selectedVariantIds.size} variante(s) seleccionada(s)` : 'Edición en grupo — marca variantes en "Ver colores/tallas"'}
+          </span>
+          <Button size="sm" variant="ghost" onClick={exitBulkVariantMode} className="ml-auto">
+            Cancelar
+          </Button>
+          <Button size="sm" disabled={selectedVariantIds.size === 0} onClick={openBulkVariantEdit} className="gap-1.5">
+            <Edit2 className="h-3.5 w-3.5" /> Editar {selectedVariantIds.size > 0 ? `(${selectedVariantIds.size})` : ''}
+          </Button>
+        </div>
+      )}
+
       {/* Products Table */}
       <Card className="border-border bg-card">
         <CardContent className="p-0">
@@ -445,9 +1093,13 @@ export function InventoryList() {
             ) : (
               <div className="divide-y divide-border">
                 {filteredProducts.map((product) => {
-                  const status = getStockStatus(product)
                   const typeInfo = getProductTypeInfo(product.productType)
                   const mainImg = product.imageUrl || (Array.isArray(product.images) ? product.images[0] : '') || ''
+                  const isVariantRowExpanded = expandedVariantIds.has(product.id)
+                  const productVariants = variantsByProductId[product.id]
+                  const displayStock = getDisplayStock(product)
+                  const status = getDisplayStockStatus(product)
+                  const displayHormas = getDisplayHormas(product)
                   return (
                     <div
                       key={product.id}
@@ -487,16 +1139,161 @@ export function InventoryList() {
                           <p className="text-[11px] text-muted-foreground">Costo {formatCOP(product.purchasePrice)}</p>
                           <div className="flex items-center justify-end gap-1 mt-1">
                             <span className={`h-2 w-2 rounded-full ${status === 'suficiente' ? 'bg-primary' : status === 'bajo' ? 'bg-warning' : 'bg-destructive'}`} />
-                            <span className={`text-xs font-medium ${status === 'suficiente' ? 'text-primary' : status === 'bajo' ? 'text-warning' : 'text-destructive'}`}>{product.stock}</span>
+                            <span className={`text-xs font-medium ${status === 'suficiente' ? 'text-primary' : status === 'bajo' ? 'text-warning' : 'text-destructive'}`}>{displayStock}</span>
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center justify-end gap-1 mt-2 pt-2 border-t border-border/60">
-                        <Button variant="ghost" size="icon" title="Variantes / Tiers" onClick={() => setVariantProduct(product)} className="h-8 w-8 text-primary"><Layers className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" title="Modificadores" onClick={() => setModifiersProduct(product)} className="h-8 w-8 text-primary"><SlidersHorizontal className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleEdit(product)} className="h-8 w-8"><Edit2 className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleDelete(product)} className="h-8 w-8 text-destructive"><Trash2 className="h-4 w-4" /></Button>
+                      <div className="flex items-center justify-between gap-1 mt-2 pt-2 border-t border-border/60">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => toggleVariantRow(product.id)}
+                          className="h-8 px-2 text-xs text-muted-foreground gap-1"
+                        >
+                          {isVariantRowExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                          Ver colores/tallas
+                        </Button>
+                        <div className="flex items-center gap-1">
+                          <Button variant="ghost" size="icon" title="Variantes / Tiers" onClick={() => setVariantProduct(product)} className="h-8 w-8 text-primary"><Layers className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="icon" title="Modificadores" onClick={() => setModifiersProduct(product)} className="h-8 w-8 text-primary"><SlidersHorizontal className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="icon" onClick={() => handleEdit(product)} className="h-8 w-8"><Edit2 className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="icon" onClick={() => handleDelete(product)} className="h-8 w-8 text-destructive"><Trash2 className="h-4 w-4" /></Button>
+                        </div>
                       </div>
+                      {productVariants && productVariants.length > 0 && (
+                        <div className="mt-2 pt-2 border-t border-border/60">
+                          <VariantQuickPicker
+                            variants={productVariants}
+                            hormaById={hormaById}
+                            getVariantStockStatus={getVariantStockStatus}
+                            onHormaChange={(hid) => setHormaFilterFor(product.id, hid)}
+                            onSizeChange={(sz) => setSizeFilterFor(product.id, sz)}
+                            onColorChange={(c) => setColorFilterFor(product.id, c)}
+                          />
+                        </div>
+                      )}
+                      {isVariantRowExpanded && (() => {
+                        const activeHormaFilter = expandedHormaFilter[product.id] || null
+                        const activeSizeFilter = expandedSizeFilter[product.id] || null
+                        const activeColorFilter = expandedColorFilter[product.id] || null
+                        const isFiltered = !!(activeHormaFilter || activeSizeFilter || activeColorFilter)
+                        const filteredVariants = getFilteredVariantsFor(product.id, productVariants)
+                        const productSizes = getDisplayTallas(product)
+                        const productColors = getDisplayColors(product)
+                        const allVisibleSelected = filteredVariants.length > 0 && filteredVariants.every(v => selectedVariantIds.has(v.id))
+                        return (
+                        <div className="mt-2 pt-2 border-t border-border/60">
+                          {(displayHormas.length > 1 || productSizes.length > 0 || productColors.length > 0) && (
+                            <div className="flex flex-wrap items-center gap-1.5 mb-2">
+                              {displayHormas.length > 1 && (
+                                <Select value={activeHormaFilter || 'all'} onValueChange={(v) => setHormaFilterFor(product.id, v === 'all' ? null : v)}>
+                                  <SelectTrigger className="h-7 w-auto min-w-[92px] text-[11px] bg-secondary border-none px-2"><SelectValue placeholder="Horma" /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="all">Todas las hormas</SelectItem>
+                                    {displayHormas.map(h => <SelectItem key={h.id} value={h.id}>{h.name}</SelectItem>)}
+                                  </SelectContent>
+                                </Select>
+                              )}
+                              {productSizes.length > 0 && (
+                                <Select value={activeSizeFilter || 'all'} onValueChange={(v) => setSizeFilterFor(product.id, v === 'all' ? null : v)}>
+                                  <SelectTrigger className="h-7 w-auto min-w-[80px] text-[11px] bg-secondary border-none px-2"><SelectValue placeholder="Talla" /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="all">Todas las tallas</SelectItem>
+                                    {productSizes.map(sz => <SelectItem key={sz} value={sz}>{sz}</SelectItem>)}
+                                  </SelectContent>
+                                </Select>
+                              )}
+                              {productColors.length > 0 && (
+                                <Select value={activeColorFilter || 'all'} onValueChange={(v) => setColorFilterFor(product.id, v === 'all' ? null : v)}>
+                                  <SelectTrigger className="h-7 w-auto min-w-[90px] text-[11px] bg-secondary border-none px-2"><SelectValue placeholder="Color" /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="all">Todos los colores</SelectItem>
+                                    {productColors.map(c => (
+                                      <SelectItem key={c.color} value={c.color}>
+                                        <span className="inline-flex items-center gap-1.5">
+                                          <span className="h-2.5 w-2.5 rounded-full border shrink-0" style={{ backgroundColor: resolveColorHex(c.color, c.hex) }} />
+                                          {c.color}
+                                        </span>
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              )}
+                              {isFiltered && (
+                                <button
+                                  type="button"
+                                  onClick={() => { setHormaFilterFor(product.id, null); setSizeFilterFor(product.id, null); setColorFilterFor(product.id, null) }}
+                                  className="flex items-center gap-0.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+                                >
+                                  <X className="h-3 w-3" /> Limpiar
+                                </button>
+                              )}
+                            </div>
+                          )}
+                          {bulkVariantMode && filteredVariants.length > 0 && (
+                            <label className="flex items-center gap-2 mb-1.5 cursor-pointer select-none">
+                              <Checkbox checked={allVisibleSelected} onCheckedChange={() => toggleSelectVariantGroup(filteredVariants)} />
+                              <span className="text-[11px] text-muted-foreground">
+                                Seleccionar {isFiltered ? 'este grupo' : 'todas'} ({filteredVariants.length})
+                              </span>
+                            </label>
+                          )}
+                          {!filteredVariants || filteredVariants.length === 0 ? (
+                            <p className="text-xs text-muted-foreground py-1">
+                              {isFiltered ? 'Ninguna variante coincide con el filtro.' : 'Sin variantes (color/talla) registradas.'}
+                            </p>
+                          ) : (
+                            <div className="space-y-1.5">
+                              {sortVariantsForDisplay(filteredVariants).map((v, idx, arr) => {
+                                const vStatus = getVariantStockStatus(v)
+                                const price = v.priceOverride ?? v.basePrice
+                                const vHorma = v.hormaName || (v.hormaId ? hormaById[v.hormaId]?.name : null)
+                                const prevHorma = idx > 0 ? (arr[idx - 1].hormaName || (arr[idx - 1].hormaId ? hormaById[arr[idx - 1].hormaId!]?.name : null)) : null
+                                const showHormaLabel = displayHormas.length > 1 && vHorma !== prevHorma
+                                return (
+                                  <div key={v.id}>
+                                    {showHormaLabel && (
+                                      <p className="text-[10px] font-semibold text-foreground mt-2 mb-1 first:mt-0">{vHorma || 'Sin horma'}</p>
+                                    )}
+                                    <div className="flex items-center gap-2 text-xs">
+                                      {bulkVariantMode && (
+                                        <Checkbox
+                                          checked={isVariantSelected(v.id)}
+                                          onCheckedChange={() => toggleVariantSelect(v.id)}
+                                          aria-label={`Seleccionar ${v.sku}`}
+                                          className="shrink-0"
+                                        />
+                                      )}
+                                      {v.color && (
+                                        <span
+                                          className="h-3 w-3 rounded-full border shrink-0"
+                                          style={{ backgroundColor: resolveColorHex(v.color || '', v.colorHex) }}
+                                        />
+                                      )}
+                                      <span className="flex-1 truncate">{v.color || '—'}{v.size ? ` · ${v.size}` : ''}</span>
+                                      <code className="text-[10px] text-muted-foreground bg-muted rounded px-1 py-0.5">{v.sku}</code>
+                                      {price != null && <span className="text-muted-foreground">{formatCOP(price)}</span>}
+                                      <span className={`font-medium ${
+                                        vStatus === 'suficiente' ? 'text-primary' :
+                                        vStatus === 'bajo' ? 'text-warning' : 'text-destructive'
+                                      }`}>
+                                        {v.stock}
+                                      </span>
+                                      {!bulkVariantMode && (
+                                        <>
+                                          <Button variant="ghost" size="icon" title="Editar variante" onClick={() => openQuickEditVariant(v)} className="h-6 w-6 shrink-0"><Edit2 className="h-3 w-3" /></Button>
+                                          <Button variant="ghost" size="icon" title="Eliminar variante" onClick={() => setDeletingQuickVariant(v)} className="h-6 w-6 shrink-0 text-destructive"><Trash2 className="h-3 w-3" /></Button>
+                                        </>
+                                      )}
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )}
+                        </div>
+                        )
+                      })()}
                     </div>
                   )
                 })}
@@ -519,19 +1316,22 @@ export function InventoryList() {
                   </TableHead>
                 )}
                 <TableHead className="text-muted-foreground text-sm lg:text-base">Producto</TableHead>
+                <TableHead className="text-muted-foreground text-sm lg:text-base">Horma</TableHead>
+                <TableHead className="text-muted-foreground text-sm lg:text-base">Talla</TableHead>
+                <TableHead className="text-muted-foreground text-sm lg:text-base">Color</TableHead>
+                <TableHead className="text-muted-foreground text-sm lg:text-base text-center">Stock</TableHead>
                 <TableHead className="text-muted-foreground text-sm lg:text-base">SKU</TableHead>
                 <TableHead className="text-muted-foreground text-sm lg:text-base">Tipo</TableHead>
                 <TableHead className="text-muted-foreground text-sm lg:text-base">Categoria</TableHead>
                 {sedes.length >= 2 && <TableHead className="text-muted-foreground text-sm lg:text-base">Sede</TableHead>}
                 <TableHead className="text-muted-foreground text-sm lg:text-base text-right">Precio</TableHead>
-                <TableHead className="text-muted-foreground text-sm lg:text-base text-center">Stock</TableHead>
                 <TableHead className="text-muted-foreground text-sm lg:text-base text-right">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredProducts.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={(sedes.length >= 2 ? 8 : 7) + (selectMode ? 1 : 0)} className="h-24 text-center">
+                  <TableCell colSpan={inventoryColSpan} className="h-24 text-center">
                     <div className="flex flex-col items-center gap-2">
                       <Package className="h-8 w-8 lg:h-10 lg:w-10 text-muted-foreground" />
                       <p className="text-sm lg:text-base text-muted-foreground">No se encontraron productos</p>
@@ -540,11 +1340,15 @@ export function InventoryList() {
                 </TableRow>
               ) : (
                 filteredProducts.map((product) => {
-                  const status = getStockStatus(product)
                   const typeInfo = getProductTypeInfo(product.productType)
+                  const isVariantRowExpanded = expandedVariantIds.has(product.id)
+                  const productVariants = variantsByProductId[product.id]
+                  const displayStock = getDisplayStock(product)
+                  const status = getDisplayStockStatus(product)
+                  const displayHormas = getDisplayHormas(product)
                   return (
+                    <React.Fragment key={product.id}>
                     <TableRow
-                      key={product.id}
                       id={`product-${product.id}`}
                       className={`border-border transition-colors duration-1000 ${
                         highlightedProduct === product.id ? 'bg-primary/15 ring-1 ring-primary/30' : ''
@@ -561,6 +1365,14 @@ export function InventoryList() {
                       )}
                       <TableCell>
                         <div className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => toggleVariantRow(product.id)}
+                            title="Ver variantes (color / talla / stock)"
+                            className="shrink-0 h-6 w-6 flex items-center justify-center rounded hover:bg-muted text-muted-foreground"
+                          >
+                            {isVariantRowExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                          </button>
                           {(() => {
                             const mainImg = product.imageUrl || (Array.isArray(product.images) ? product.images[0] : '') || ''
                             return (
@@ -598,8 +1410,18 @@ export function InventoryList() {
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell className="text-muted-foreground font-mono text-xs lg:text-sm">
-                        {product.sku}
+                      <VariantPickerColumns
+                        variants={productVariants || []}
+                        hormaById={hormaById}
+                        getVariantStockStatus={getVariantStockStatus}
+                        fallbackStock={displayStock}
+                        fallbackStatus={status}
+                        onHormaChange={(hid) => setHormaFilterFor(product.id, hid)}
+                        onSizeChange={(sz) => setSizeFilterFor(product.id, sz)}
+                        onColorChange={(c) => setColorFilterFor(product.id, c)}
+                      />
+                      <TableCell>
+                        <code className="text-muted-foreground text-xs lg:text-sm bg-muted rounded px-1.5 py-0.5">{product.sku}</code>
                       </TableCell>
                       <TableCell>
                         <Badge variant="secondary" className="bg-secondary text-muted-foreground text-xs">
@@ -631,20 +1453,6 @@ export function InventoryList() {
                           <p className="text-xs lg:text-sm text-muted-foreground">
                             Costo: {formatCOP(product.purchasePrice)}
                           </p>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <div className="flex items-center justify-center gap-2">
-                          <span className={`h-2 w-2 lg:h-2.5 lg:w-2.5 rounded-full ${
-                            status === 'suficiente' ? 'bg-primary' :
-                            status === 'bajo' ? 'bg-warning' : 'bg-destructive'
-                          }`} />
-                          <span className={`font-medium text-sm lg:text-base ${
-                            status === 'suficiente' ? 'text-primary' :
-                            status === 'bajo' ? 'text-warning' : 'text-destructive'
-                          }`}>
-                            {product.stock}
-                          </span>
                         </div>
                       </TableCell>
                       <TableCell className="text-right">
@@ -686,6 +1494,181 @@ export function InventoryList() {
                         </div>
                       </TableCell>
                     </TableRow>
+                    {isVariantRowExpanded && (() => {
+                      const activeHormaFilter = expandedHormaFilter[product.id] || null
+                      const activeSizeFilter = expandedSizeFilter[product.id] || null
+                      const activeColorFilter = expandedColorFilter[product.id] || null
+                      const isFiltered = !!(activeHormaFilter || activeSizeFilter || activeColorFilter)
+                      const filteredVariants = getFilteredVariantsFor(product.id, productVariants)
+                      const productSizes = getDisplayTallas(product)
+                      const productColors = getDisplayColors(product)
+                      const allVisibleSelected = filteredVariants.length > 0 && filteredVariants.every(v => selectedVariantIds.has(v.id))
+                      return (
+                      <TableRow className="border-border bg-muted/10 hover:bg-muted/10">
+                        <TableCell colSpan={inventoryColSpan} className="p-0">
+                          <div className="px-4 py-3">
+                            {(displayHormas.length > 1 || productSizes.length > 0 || productColors.length > 0) && (
+                              <div className="flex flex-wrap items-center gap-2 mb-2">
+                                {displayHormas.length > 1 && (
+                                  <Select value={activeHormaFilter || 'all'} onValueChange={(v) => setHormaFilterFor(product.id, v === 'all' ? null : v)}>
+                                    <SelectTrigger className="h-8 w-auto min-w-[140px] text-xs bg-secondary border-none px-2.5"><SelectValue placeholder="Horma" /></SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="all">Todas las hormas</SelectItem>
+                                      {displayHormas.map(h => <SelectItem key={h.id} value={h.id}>{h.name}</SelectItem>)}
+                                    </SelectContent>
+                                  </Select>
+                                )}
+                                {productSizes.length > 0 && (
+                                  <Select value={activeSizeFilter || 'all'} onValueChange={(v) => setSizeFilterFor(product.id, v === 'all' ? null : v)}>
+                                    <SelectTrigger className="h-8 w-auto min-w-[110px] text-xs bg-secondary border-none px-2.5"><SelectValue placeholder="Talla" /></SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="all">Todas las tallas</SelectItem>
+                                      {productSizes.map(sz => <SelectItem key={sz} value={sz}>{sz}</SelectItem>)}
+                                    </SelectContent>
+                                  </Select>
+                                )}
+                                {productColors.length > 0 && (
+                                  <Select value={activeColorFilter || 'all'} onValueChange={(v) => setColorFilterFor(product.id, v === 'all' ? null : v)}>
+                                    <SelectTrigger className="h-8 w-auto min-w-[120px] text-xs bg-secondary border-none px-2.5"><SelectValue placeholder="Color" /></SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="all">Todos los colores</SelectItem>
+                                      {productColors.map(c => (
+                                        <SelectItem key={c.color} value={c.color}>
+                                          <span className="inline-flex items-center gap-1.5">
+                                            <span className="h-2.5 w-2.5 rounded-full border shrink-0" style={{ backgroundColor: resolveColorHex(c.color, c.hex) }} />
+                                            {c.color}
+                                          </span>
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                )}
+                                {isFiltered && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 text-xs gap-1 text-muted-foreground hover:text-foreground"
+                                    onClick={() => { setHormaFilterFor(product.id, null); setSizeFilterFor(product.id, null); setColorFilterFor(product.id, null) }}
+                                  >
+                                    <X className="h-3 w-3" /> Limpiar
+                                  </Button>
+                                )}
+                              </div>
+                            )}
+                            {!filteredVariants || filteredVariants.length === 0 ? (
+                              <p className="text-xs text-muted-foreground py-2">
+                                {isFiltered ? 'Ninguna variante coincide con el filtro.' : 'Este producto no tiene variantes (color/talla) registradas.'}
+                              </p>
+                            ) : (
+                              <div className="rounded-lg border border-border overflow-x-auto">
+                                <Table>
+                                  <TableHeader>
+                                    <TableRow className="border-border hover:bg-transparent">
+                                      {bulkVariantMode && (
+                                        <TableHead className="w-8">
+                                          <Checkbox
+                                            checked={allVisibleSelected}
+                                            onCheckedChange={() => toggleSelectVariantGroup(filteredVariants)}
+                                            aria-label="Seleccionar grupo visible"
+                                          />
+                                        </TableHead>
+                                      )}
+                                      {displayHormas.length > 1 && <TableHead className="text-muted-foreground text-xs lg:text-sm">Horma</TableHead>}
+                                      <TableHead className="text-muted-foreground text-xs lg:text-sm">Color</TableHead>
+                                      <TableHead className="text-muted-foreground text-xs lg:text-sm">Talla</TableHead>
+                                      <TableHead className="text-muted-foreground text-xs lg:text-sm">SKU</TableHead>
+                                      <TableHead className="text-muted-foreground text-xs lg:text-sm text-right">Precio</TableHead>
+                                      <TableHead className="text-muted-foreground text-xs lg:text-sm text-center">Stock</TableHead>
+                                      <TableHead className="text-muted-foreground text-xs lg:text-sm text-right">Acciones</TableHead>
+                                    </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                    {sortVariantsForDisplay(filteredVariants).map(v => {
+                                      const vStatus = getVariantStockStatus(v)
+                                      const price = v.priceOverride ?? v.basePrice
+                                      return (
+                                        <TableRow key={v.id} className={`border-border ${bulkVariantMode && isVariantSelected(v.id) ? 'bg-primary/5' : ''}`}>
+                                          {bulkVariantMode && (
+                                            <TableCell className="w-8">
+                                              <Checkbox
+                                                checked={isVariantSelected(v.id)}
+                                                onCheckedChange={() => toggleVariantSelect(v.id)}
+                                                aria-label={`Seleccionar ${v.sku}`}
+                                              />
+                                            </TableCell>
+                                          )}
+                                          {displayHormas.length > 1 && (
+                                            <TableCell className="text-xs lg:text-sm text-muted-foreground">
+                                              {v.hormaName || (v.hormaId ? hormaById[v.hormaId]?.name : null) || '—'}
+                                            </TableCell>
+                                          )}
+                                          <TableCell>
+                                            {v.color ? (
+                                              <span
+                                                title={v.color}
+                                                className="inline-block h-5 w-5 rounded-full border shadow-sm"
+                                                style={{ backgroundColor: resolveColorHex(v.color || '', v.colorHex) }}
+                                              />
+                                            ) : (
+                                              <span className="text-sm text-muted-foreground">—</span>
+                                            )}
+                                          </TableCell>
+                                          <TableCell className="text-sm lg:text-base text-foreground">{v.size || '—'}</TableCell>
+                                          <TableCell>
+                                            <code className="text-muted-foreground text-xs lg:text-sm bg-muted rounded px-1.5 py-0.5">{v.sku}</code>
+                                          </TableCell>
+                                          <TableCell className="text-right text-sm lg:text-base text-muted-foreground">
+                                            {price != null ? formatCOP(price) : '—'}
+                                          </TableCell>
+                                          <TableCell className="text-center">
+                                            <span className={`font-medium text-sm lg:text-base ${
+                                              vStatus === 'suficiente' ? 'text-primary' :
+                                              vStatus === 'bajo' ? 'text-warning' : 'text-destructive'
+                                            }`}>
+                                              {v.stock}
+                                            </span>
+                                          </TableCell>
+                                          <TableCell className="text-right">
+                                            {!bulkVariantMode && (
+                                              <div className="flex items-center justify-end gap-2">
+                                                <Button
+                                                  variant="ghost"
+                                                  size="icon"
+                                                  title="Editar variante"
+                                                  onClick={() => openQuickEditVariant(v)}
+                                                  className="h-8 w-8 lg:h-9 lg:w-9"
+                                                >
+                                                  <Edit2 className="h-4 w-4" />
+                                                </Button>
+                                                <Button
+                                                  variant="ghost"
+                                                  size="icon"
+                                                  title="Eliminar variante"
+                                                  onClick={() => setDeletingQuickVariant(v)}
+                                                  className="h-8 w-8 lg:h-9 lg:w-9 text-destructive hover:text-destructive"
+                                                >
+                                                  <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                              </div>
+                                            )}
+                                          </TableCell>
+                                        </TableRow>
+                                      )
+                                    })}
+                                  </TableBody>
+                                </Table>
+                                <div className="flex items-center justify-end gap-2 px-4 py-2 border-t border-border bg-muted/20 text-sm">
+                                  <span className="text-muted-foreground">Stock {isFiltered ? 'del filtro' : 'total'}:</span>
+                                  <span className="font-semibold text-foreground">{filteredVariants.reduce((s, v) => s + v.stock, 0)}</span>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                      )
+                    })()}
+                    </React.Fragment>
                   )
                 })
               )}
@@ -699,11 +1682,32 @@ export function InventoryList() {
       <ProductFormDialog
         open={isAddDialogOpen}
         onOpenChange={setIsAddDialogOpen}
-        onSubmit={async (data) => {
+        onSubmit={async (data, variants) => {
           const result = await addProduct(data)
           if (result.success) {
+            const newId = (result as any).data?.id
+            if (newId && variants && variants.length) {
+              let okc = 0
+              const failures: { sku: string; error: string }[] = []
+              for (const v of variants) {
+                const r = await api.createVariant(newId, v)
+                if (r.success) okc++
+                else failures.push({ sku: v.sku, error: r.error || 'Error desconocido' })
+              }
+              if (failures.length) {
+                console.error('Variantes que fallaron al crear:', failures)
+                toast.error(
+                  `Producto creado, pero ${failures.length} variante(s) fallaron: ${failures[0].error}` +
+                  (failures.length > 1 ? ` (+${failures.length - 1} más, ver consola)` : '')
+                )
+              }
+              if (okc) toast.success(`Producto creado con ${okc} variante(s)`)
+              await fetchProducts()
+              await loadVariantsSummary()
+            } else {
+              toast.success('Producto creado exitosamente')
+            }
             setIsAddDialogOpen(false)
-            toast.success('Producto creado exitosamente')
           } else {
             toast.error(result.error || 'Error al crear producto')
             console.error('Error creando producto:', result.error, 'Datos enviados:', data)
@@ -1150,13 +2154,17 @@ export function InventoryList() {
         onOpenChange={setIsBulkUploadOpen}
       />
 
+      {/* Horma Manager */}
+      <HormaManager open={isHormaManagerOpen} onClose={() => setIsHormaManagerOpen(false)} />
+
       {/* Variant Manager */}
       {variantProduct && (
         <VariantManager
           productId={variantProduct.id}
           productName={variantProduct.name}
+          hormaId={(variantProduct as any).hormaId}
           open={!!variantProduct}
-          onClose={() => setVariantProduct(null)}
+          onClose={() => { setVariantProduct(null); loadVariantsSummary() }}
         />
       )}
 
@@ -1167,6 +2175,218 @@ export function InventoryList() {
           onClose={() => setModifiersProduct(null)}
         />
       )}
+
+      {/* Editar variante (rápido, desde la tabla de inventario) */}
+      <Dialog open={!!editingQuickVariant} onOpenChange={(o) => { if (!o) setEditingQuickVariant(null) }}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Editar variante — {editingQuickVariant?.sku}</DialogTitle>
+            <DialogDescription>Para ajustar stock, usa el botón &quot;Variantes / Tiers&quot; del producto.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3">
+            <div>
+              <Label className="text-xs">Color (nombre)</Label>
+              <div className="flex items-center gap-2">
+                <Input value={quickVariantForm.color}
+                  onChange={e => setQuickVariantForm(p => ({ ...p, color: e.target.value }))} />
+                <input
+                  type="color"
+                  aria-label="Color exacto"
+                  value={/^#[0-9a-fA-F]{6}$/.test(quickVariantForm.colorHex) ? quickVariantForm.colorHex : '#000000'}
+                  onChange={e => setQuickVariantForm(p => ({ ...p, colorHex: e.target.value.toUpperCase() }))}
+                  className="h-9 w-10 shrink-0 cursor-pointer rounded-md border border-input bg-background p-1"
+                />
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs">Talla / Tamaño</Label>
+              <Input value={quickVariantForm.size}
+                onChange={e => setQuickVariantForm(p => ({ ...p, size: e.target.value }))} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Costo</Label>
+                <Input type="number" min={0} value={quickVariantForm.costPrice}
+                  onChange={e => setQuickVariantForm(p => ({ ...p, costPrice: e.target.value }))} />
+              </div>
+              <div>
+                <Label className="text-xs">Precio override</Label>
+                <Input type="number" min={0} placeholder="Usa precio base" value={quickVariantForm.priceOverride}
+                  onChange={e => setQuickVariantForm(p => ({ ...p, priceOverride: e.target.value }))} />
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs">Imágenes del color (máx. {MAX_VARIANT_IMAGES})</Label>
+              <p className="text-[11px] text-muted-foreground mb-2">
+                La primera es la principal: al elegir este color en la tienda, la foto cambia a esta galería.
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {quickVariantForm.images.map((url, idx) => (
+                  <div key={idx} className="rounded-lg border border-border p-1.5 bg-secondary/20">
+                    <p className="text-[10px] font-medium text-muted-foreground mb-1">
+                      {idx === 0 ? 'Principal ★' : `Imagen ${idx + 1}`}
+                    </p>
+                    <CloudinaryUpload
+                      value={url}
+                      onChange={(newUrl) => setQuickVariantForm(p => {
+                        const next = [...p.images]
+                        next[idx] = newUrl
+                        return { ...p, images: next }
+                      })}
+                      previewClassName="h-16 w-full object-cover rounded border"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingQuickVariant(null)} disabled={savingQuickVariant}>Cancelar</Button>
+            <Button onClick={saveQuickVariantEdit} disabled={savingQuickVariant}>
+              {savingQuickVariant ? 'Guardando…' : 'Guardar cambios'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Eliminar variante (confirmación) */}
+      <Dialog open={!!deletingQuickVariant} onOpenChange={(o) => { if (!o && !isDeletingQuickVariant) setDeletingQuickVariant(null) }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Eliminar variante</DialogTitle>
+            <DialogDescription>
+              ¿Seguro que deseas eliminar la variante &quot;{deletingQuickVariant?.color || '—'}{deletingQuickVariant?.size ? ` / ${deletingQuickVariant.size}` : ''}&quot; ({deletingQuickVariant?.sku})? Esta acción no se puede deshacer.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeletingQuickVariant(null)} disabled={isDeletingQuickVariant}>Cancelar</Button>
+            <Button variant="destructive" onClick={confirmDeleteQuickVariant} disabled={isDeletingQuickVariant}>
+              {isDeletingQuickVariant ? 'Eliminando…' : 'Eliminar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edición en grupo de variantes — aplica el mismo cambio a todas las
+          variantes seleccionadas (ej. todas las de talla M, o todo un color). */}
+      <Dialog open={isBulkVariantEditOpen} onOpenChange={(o) => { if (!o && !savingBulkVariant) setIsBulkVariantEditOpen(false) }}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Editar {selectedVariantIds.size} variante(s) en grupo</DialogTitle>
+            <DialogDescription>
+              El cambio se aplica a todas las variantes seleccionadas. Deja una sección sin marcar para no tocar ese campo.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4">
+            {/* Stock */}
+            <div className="rounded-lg border border-border p-3 space-y-2">
+              <Label className="text-xs font-medium">Stock</Label>
+              <Select
+                value={bulkVariantForm.stockMode}
+                onValueChange={(v) => setBulkVariantForm(p => ({ ...p, stockMode: v as typeof p.stockMode }))}
+              >
+                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sin cambios</SelectItem>
+                  <SelectItem value="add">Sumar (entrada)</SelectItem>
+                  <SelectItem value="subtract">Restar (salida)</SelectItem>
+                  <SelectItem value="set">Establecer cantidad exacta (ajuste)</SelectItem>
+                </SelectContent>
+              </Select>
+              {bulkVariantForm.stockMode !== 'none' && (
+                <>
+                  <Input
+                    type="number" min={0}
+                    placeholder={bulkVariantForm.stockMode === 'set' ? 'Cantidad final' : 'Cantidad'}
+                    value={bulkVariantForm.stockValue}
+                    onChange={e => setBulkVariantForm(p => ({ ...p, stockValue: e.target.value }))}
+                  />
+                  <Input
+                    placeholder="Motivo (requerido) — ej: Recepción pedido proveedor"
+                    value={bulkVariantForm.stockReason}
+                    onChange={e => setBulkVariantForm(p => ({ ...p, stockReason: e.target.value }))}
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    {bulkVariantForm.stockMode === 'set'
+                      ? 'Cada variante seleccionada quedará con esta cantidad exacta.'
+                      : `Esta cantidad se ${bulkVariantForm.stockMode === 'add' ? 'sumará' : 'restará'} al stock actual de cada variante (no es un total).`}
+                  </p>
+                </>
+              )}
+            </div>
+
+            {/* Precio override */}
+            <div className="rounded-lg border border-border p-3 space-y-2">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <Checkbox
+                  checked={bulkVariantForm.changePrice}
+                  onCheckedChange={(v) => setBulkVariantForm(p => ({ ...p, changePrice: !!v }))}
+                />
+                <span className="text-xs font-medium">Cambiar precio override</span>
+              </label>
+              {bulkVariantForm.changePrice && (
+                <Input
+                  type="number" min={0}
+                  placeholder="Vacío = quitar override (usar precio base)"
+                  value={bulkVariantForm.priceOverride}
+                  onChange={e => setBulkVariantForm(p => ({ ...p, priceOverride: e.target.value }))}
+                />
+              )}
+            </div>
+
+            {/* Costo */}
+            <div className="rounded-lg border border-border p-3 space-y-2">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <Checkbox
+                  checked={bulkVariantForm.changeCost}
+                  onCheckedChange={(v) => setBulkVariantForm(p => ({ ...p, changeCost: !!v }))}
+                />
+                <span className="text-xs font-medium">Cambiar costo (proveedor)</span>
+              </label>
+              {bulkVariantForm.changeCost && (
+                <Input
+                  type="number" min={0}
+                  placeholder="0"
+                  value={bulkVariantForm.costPrice}
+                  onChange={e => setBulkVariantForm(p => ({ ...p, costPrice: e.target.value }))}
+                />
+              )}
+            </div>
+
+            {/* Stock mínimo */}
+            <div className="rounded-lg border border-border p-3 space-y-2">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <Checkbox
+                  checked={bulkVariantForm.changeMinStock}
+                  onCheckedChange={(v) => setBulkVariantForm(p => ({ ...p, changeMinStock: !!v }))}
+                />
+                <span className="text-xs font-medium">Cambiar stock mínimo (alerta)</span>
+              </label>
+              {bulkVariantForm.changeMinStock && (
+                <Input
+                  type="number" min={0}
+                  placeholder="0"
+                  value={bulkVariantForm.minStock}
+                  onChange={e => setBulkVariantForm(p => ({ ...p, minStock: e.target.value }))}
+                />
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsBulkVariantEditOpen(false)} disabled={savingBulkVariant}>Cancelar</Button>
+            <Button
+              onClick={applyBulkVariantEdit}
+              disabled={
+                savingBulkVariant ||
+                (bulkVariantForm.stockMode === 'none' && !bulkVariantForm.changePrice && !bulkVariantForm.changeCost && !bulkVariantForm.changeMinStock) ||
+                (bulkVariantForm.stockMode !== 'none' && !bulkVariantForm.stockReason.trim())
+              }
+            >
+              {savingBulkVariant ? 'Aplicando…' : `Aplicar a ${selectedVariantIds.size} variante(s)`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -1174,7 +2394,7 @@ export function InventoryList() {
 interface ProductFormDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onSubmit: (data: any) => void
+  onSubmit: (data: any, variants?: any[]) => void
   title: string
   description: string
   initialData?: Product
@@ -1196,6 +2416,7 @@ function ProductFormDialog({
   const [showScanner, setShowScanner] = useState(false)
   const [showRemoteScanner, setShowRemoteScanner] = useState(false)
   const [formData, setFormData] = useState<Record<string, any>>(() => getInitialFormData(initialData, categories, defaultSedeId))
+  const [hormasList, setHormasList] = useState<any[]>([])
 
   // Reset form and scanner state when dialog opens/closes or initialData changes
   useEffect(() => {
@@ -1207,6 +2428,8 @@ function ProductFormDialog({
       setFormData(initial)
       setShowScanner(false)
       setShowRemoteScanner(false)
+      // Cargar hormas para productos tipo ropa
+      api.getHormas().then(r => { if (r.success && r.data) setHormasList(r.data as any[]) })
     }
   }, [open, initialData, categories, defaultSedeId, products])
 
@@ -1233,6 +2456,32 @@ function ProductFormDialog({
     updateField('qtyPromo', Object.keys(obj).length ? JSON.stringify(obj) : '')
   }
 
+  // ── Matriz horma (color × talla) inline — solo para productType === 'ropa' ──
+  const [hormaMatrix, setHormaMatrix] = useState<Record<string, Record<string, string>>>({})
+
+  // Cuando cambia la horma seleccionada, inicializar/limpiar la matriz
+  useEffect(() => {
+    const hid = formData.hormaId
+    if (!hid) { setHormaMatrix({}); return }
+    const h = hormasList.find((x: any) => x.id === hid)
+    if (!h) { setHormaMatrix({}); return }
+    const sizes: string[] = h.sizeChart ? Object.keys(h.sizeChart) : []
+    const colors: { color: string; hex?: string }[] = h.colors || []
+    const matrix: Record<string, Record<string, string>> = {}
+    for (const c of colors) {
+      matrix[c.color] = {}
+      for (const sz of sizes) matrix[c.color][sz] = ''
+    }
+    setHormaMatrix(matrix)
+  }, [formData.hormaId, hormasList])
+
+  const setMatrixCell = (color: string, size: string, val: string) => {
+    setHormaMatrix(prev => ({
+      ...prev,
+      [color]: { ...(prev[color] || {}), [size]: val },
+    }))
+  }
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     // Clean up empty/whitespace-only strings to not send them.
@@ -1242,133 +2491,137 @@ function ProductFormDialog({
       if (key === 'qtyPromo') { cleaned[key] = value ?? ''; continue }
       if (value === '' || value === undefined || value === null) continue
       if (typeof value === 'string' && value.trim() === '') continue
+      // countryOfOrigin es objeto { country, state, city } → serializar como string legible
+      if (key === 'countryOfOrigin' && typeof value === 'object') {
+        const parts = [value.country, value.state, value.city].filter(Boolean)
+        if (parts.length) cleaned[key] = parts.join(', ')
+        continue
+      }
       cleaned[key] = typeof value === 'string' ? value.trim() : value
     }
-    onSubmit(cleaned)
+
+    // Construir variantes desde la matriz si hay horma seleccionada
+    let variants: any[] | undefined
+    const hid = formData.hormaId
+    if (hid && Object.keys(hormaMatrix).length > 0) {
+      const h = hormasList.find((x: any) => x.id === hid)
+      const skuBase = (cleaned.sku || 'VAR').toUpperCase().replace(/[^A-Z0-9]/g, '')
+      const slug = (s: string) => s.trim().toUpperCase().replace(/\s+/g, '-').replace(/[^A-Z0-9-]/g, '')
+      variants = []
+      for (const [color, sizes] of Object.entries(hormaMatrix)) {
+        const colorEntry = (h?.colors || []).find((c: any) => c.color === color)
+        for (const [size, stockVal] of Object.entries(sizes as Record<string, string>)) {
+          variants!.push({
+            sku: `${skuBase}-${slug(color)}-${slug(size)}`,
+            color,
+            colorHex: colorEntry?.hex || '',
+            size,
+            hormaId: hid,
+            stock: Number(stockVal) || 0,
+            minStock: 0,
+          })
+        }
+      }
+    }
+
+    onSubmit(cleaned, variants)
+  }
+
+  // Campos dinámicos del tipo — para ropa, excluir 'color' y 'size' (los maneja la tabla de variantes)
+  const visibleTypeFields = productType === 'ropa'
+    ? typeFields.filter(f => f.name !== 'color' && f.name !== 'size')
+    : typeFields
+
+  // Helper para el slot de imágenes
+  const renderImageSlot = (idx: number) => {
+    const imagesArr: string[] = Array.isArray(formData.images) ? formData.images : []
+    const slotValue = idx === 0 ? (formData.imageUrl || imagesArr[0] || '') : (imagesArr[idx] || '')
+    const handleSlotChange = (url: string) => {
+      const next = [...Array(4)].map((_, i) => {
+        if (i === 0) return idx === 0 ? url : (formData.imageUrl || imagesArr[0] || '')
+        return i === idx ? url : (imagesArr[i] || '')
+      })
+      updateField('images', next.map(u => u.trim()))
+      if (idx === 0) updateField('imageUrl', url)
+    }
+    return (
+      <div key={idx} className="rounded-lg border border-border p-2 bg-secondary/20">
+        <p className="text-xs font-medium text-muted-foreground mb-1.5">
+          {idx === 0 ? 'Principal ★' : `Imagen ${idx + 1}`}
+        </p>
+        <CloudinaryUpload
+          value={slotValue}
+          onChange={handleSlotChange}
+          previewClassName="h-16 w-full object-cover rounded border"
+          accept="image/*,image/gif"
+        />
+      </div>
+    )
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[95vw] max-w-2xl max-h-[92vh] overflow-y-auto p-4 sm:p-6">
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
+      {/* Modal ancho: 95vw con máximo 1200px en desktop */}
+      <DialogContent className="!w-[min(1200px,95vw)] !max-w-none max-h-[92vh] flex flex-col p-0 gap-0">
+        {/* Header fijo */}
+        <DialogHeader className="px-5 pt-5 pb-3 border-b border-border shrink-0">
+          <DialogTitle className="text-base">{title}</DialogTitle>
+          <DialogDescription className="text-xs">{description}</DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit}>
-          <div className="grid gap-4 py-3">
 
-            {/* ── Tipo de Producto ── */}
-            <div className="space-y-2">
-              <Label>Tipo de Producto</Label>
-              <div className="grid grid-cols-5 gap-1.5">
+        {/* Contenido scrollable */}
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <div className="overflow-y-auto flex-1 px-5 py-4">
+
+            {/* ══ Tipo de producto — compacto ══ */}
+            <div className="mb-4">
+              <Label className="text-xs text-muted-foreground uppercase tracking-wide mb-2 block">Tipo de Producto</Label>
+              <div className="flex flex-wrap gap-1.5">
                 {Object.values(PRODUCT_TYPES).map((type) => (
                   <button
                     key={type.id}
                     type="button"
                     onClick={() => updateField('productType', type.id)}
-                    title={type.name}
-                    className={`flex flex-col items-center gap-0.5 px-1 py-2 rounded-lg border text-center transition-colors ${
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border text-xs font-medium transition-colors ${
                       productType === type.id
                         ? 'border-primary bg-primary/10 text-primary'
-                        : 'border-border hover:border-muted-foreground/50'
+                        : 'border-border text-muted-foreground hover:border-muted-foreground/50 hover:text-foreground'
                     }`}
                   >
-                    <span className="text-xl leading-none">{type.icon}</span>
-                    <span className="text-[10px] leading-tight mt-0.5 line-clamp-2 w-full">{type.name}</span>
+                    <span>{type.icon}</span>
+                    <span>{type.name}</span>
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* ── Nombre ── */}
-            <div className="space-y-2">
-              <Label htmlFor="name">Nombre en tienda *</Label>
-              <Input
-                id="name"
-                value={formData.name || ''}
-                onChange={(e) => updateField('name', e.target.value)}
-                placeholder="Nombre visible para clientes"
-                required
-              />
-            </div>
+            {/* ══ Grid 2 columnas (desktop) ══ */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
-            {/* ── Artículo + Categoría ── */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="articulo">Artículo (inventario)</Label>
-                <Input
-                  id="articulo"
-                  value={formData.articulo || ''}
-                  onChange={(e) => updateField('articulo', e.target.value)}
-                  placeholder="Nombre interno de inventario"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="category">Categoría *</Label>
-                <Select
-                  value={formData.category || ''}
-                  onValueChange={(value) => updateField('category', value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories.map((cat) => (
-                      <SelectItem key={cat.id} value={cat.id}>
-                        {cat.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+              {/* ── Columna izquierda: Información básica ── */}
+              <div className="rounded-lg border border-border p-4 space-y-3 bg-card">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Información básica</p>
 
-            {/* ── SKU + Código de Barras ── */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="sku">SKU / Codigo *</Label>
-                  {!initialData && (
-                    <span className="text-[10px] text-muted-foreground">Auto-generado · editable</span>
-                  )}
+                <div className="space-y-1.5">
+                  <Label htmlFor="name" className="text-xs">Nombre en tienda *</Label>
+                  <Input id="name" value={formData.name || ''} onChange={e => updateField('name', e.target.value)} placeholder="Nombre visible para clientes" required className="h-9" />
                 </div>
-                <Input
-                  id="sku"
-                  value={formData.sku || ''}
-                  onChange={(e) => updateField('sku', e.target.value)}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="barcode">Codigo de Barras</Label>
-                <div className="flex gap-2">
-                  <div className="flex-1 relative">
-                    <Input
-                      id="barcode"
-                      value={formData.barcode || ''}
-                      onChange={(e) => updateField('barcode', e.target.value)}
-                      placeholder="Escanea o ingresa"
-                      className={formData.barcode ? 'border-green-500' : ''}
-                    />
-                    {formData.barcode && (
-                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                        <svg className="h-4 w-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                        </svg>
-                      </div>
-                    )}
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="articulo" className="text-xs">Artículo (inventario)</Label>
+                    <Input id="articulo" value={formData.articulo || ''} onChange={e => updateField('articulo', e.target.value)} placeholder="Nombre interno" className="h-9" />
                   </div>
-                  <div className="flex gap-1">
-                    <Button type="button" variant="outline" size="icon" onClick={() => setShowScanner(true)} title="Cámara local">
-                      <ScanLine className="h-4 w-4" />
-                    </Button>
-                    <Button type="button" variant="outline" size="icon" onClick={() => setShowRemoteScanner(true)} title="Cámara remota (QR)">
-                      <Smartphone className="h-4 w-4" />
-                    </Button>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="category" className="text-xs">Categoría *</Label>
+                    <Select value={formData.category || ''} onValueChange={v => updateField('category', v)}>
+                      <SelectTrigger className="h-9"><SelectValue placeholder="Seleccionar" /></SelectTrigger>
+                      <SelectContent>
+                        {categories.map(cat => <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
-              </div>
-            </div>
 
             {/* ── Precios ── */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1547,49 +2800,210 @@ function ProductFormDialog({
                         previewClassName="h-20 w-full object-cover rounded border"
                         accept="image/*,image/gif"
                       />
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="sku" className="text-xs">SKU *</Label>
+                      {!initialData && <span className="text-[10px] text-muted-foreground">Auto · editable</span>}
                     </div>
-                  )
-                })}
-              </div>
-            </div>
-
-            {/* ── Campos específicos del tipo ── */}
-            {typeFields.length > 0 && (
-              <>
-                <div className="border-t border-border pt-4 mt-2">
-                  <p className="text-sm font-medium text-muted-foreground mb-3">
-                    {PRODUCT_TYPES[productType]?.icon} Campos de {PRODUCT_TYPES[productType]?.name}
-                  </p>
+                    <Input id="sku" value={formData.sku || ''} onChange={e => updateField('sku', e.target.value)} required className="h-9" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="barcode" className="text-xs">Código de barras</Label>
+                    <div className="flex gap-1">
+                      <div className="flex-1 relative">
+                        <Input id="barcode" value={formData.barcode || ''} onChange={e => updateField('barcode', e.target.value)} placeholder="Escanea o ingresa" className={`h-9 ${formData.barcode ? 'border-green-500' : ''}`} />
+                        {formData.barcode && <div className="absolute right-2 top-1/2 -translate-y-1/2"><svg className="h-3.5 w-3.5 text-green-500" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg></div>}
+                      </div>
+                      <Button type="button" variant="outline" size="icon" className="h-9 w-9 shrink-0" onClick={() => setShowScanner(true)} title="Cámara local"><ScanLine className="h-3.5 w-3.5" /></Button>
+                      <Button type="button" variant="outline" size="icon" className="h-9 w-9 shrink-0" onClick={() => setShowRemoteScanner(true)} title="Cámara remota"><Smartphone className="h-3.5 w-3.5" /></Button>
+                    </div>
+                  </div>
                 </div>
-                {productType === 'ferreteria' && (
-                  <div className="flex items-start gap-2 rounded-md bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800 px-3 py-2">
-                    <span className="text-orange-500 text-base leading-none mt-0.5">🚛</span>
-                    <p className="text-xs text-orange-700 dark:text-orange-300">
-                      Los campos <strong>Peso</strong> y <strong>Unidad de Peso</strong> se usan para asignar automáticamente el vehículo de despacho al crear un pedido.
-                    </p>
+              </div>
+
+              {/* ── Columna derecha: Inventario ── */}
+              <div className="rounded-lg border border-border p-4 space-y-3 bg-card">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Inventario</p>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="purchasePrice" className="text-xs">Precio compra (COP) *</Label>
+                    <div className="relative">
+                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+                      <Input id="purchasePrice" type="number" min="0" step="0.01" placeholder="50000" value={formData.purchasePrice || ''} onChange={e => updateField('purchasePrice', parseFloat(e.target.value) || 0)} className="pl-6 h-9" required />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="salePrice" className="text-xs">Precio venta (COP) {formData.category !== 'insumos' && '*'}</Label>
+                    <div className="relative">
+                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+                      <Input id="salePrice" type="number" min="0" step="0.01" placeholder="249999" value={formData.salePrice || ''} onChange={e => updateField('salePrice', parseFloat(e.target.value) || 0)} className="pl-6 h-9" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="stock" className="text-xs">Stock *</Label>
+                    <Input id="stock" type="number" min="0" placeholder="10" value={formData.stock ?? ''} onChange={e => updateField('stock', parseInt(e.target.value) || 0)} required className="h-9" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="reorderPoint" className="text-xs">Punto reorden *</Label>
+                    <Input id="reorderPoint" type="number" min="0" placeholder="5" value={formData.reorderPoint ?? ''} onChange={e => updateField('reorderPoint', parseInt(e.target.value) || 0)} required className="h-9" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="entryDate" className="text-xs">Fecha ingreso *</Label>
+                    <Input id="entryDate" type="date" value={formData.entryDate || ''} onChange={e => updateField('entryDate', e.target.value)} required className="h-9" />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="supplier" className="text-xs">Proveedor</Label>
+                  <Input id="supplier" value={formData.supplier || ''} onChange={e => updateField('supplier', e.target.value)} placeholder="Nombre del proveedor" className="h-9" />
+                </div>
+
+                {sedes.length >= 1 && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="sedeId" className="text-xs">Sede / Sucursal</Label>
+                    <Select value={formData.sedeId || 'all'} onValueChange={val => updateField('sedeId', val === 'all' ? '' : val)}>
+                      <SelectTrigger className="h-9">
+                        <MapPin className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+                        <SelectValue placeholder="Todas las sedes" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todas las sedes</SelectItem>
+                        {sedes.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
                   </div>
                 )}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {typeFields.map((field) => (
-                    <DynamicField
-                      key={field.name}
-                      field={field}
-                      value={formData[field.name]}
-                      onChange={(value) => updateField(field.name, value)}
-                    />
-                  ))}
+              </div>
+
+              {/* ── Características (campos dinámicos del tipo) ── */}
+              {visibleTypeFields.length > 0 && (
+                <div className="rounded-lg border border-border p-4 space-y-3 bg-card">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {PRODUCT_TYPES[productType]?.icon} Características · {PRODUCT_TYPES[productType]?.name}
+                  </p>
+                  {productType === 'ferreteria' && (
+                    <div className="flex items-start gap-2 rounded-md bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800 px-3 py-2">
+                      <span className="text-orange-500 text-sm leading-none mt-0.5">🚛</span>
+                      <p className="text-xs text-orange-700 dark:text-orange-300">
+                        <strong>Peso</strong> y <strong>Unidad de Peso</strong> asignan el vehículo de despacho automáticamente.
+                      </p>
+                    </div>
+                  )}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {visibleTypeFields.map(field => (
+                      <DynamicField key={field.name} field={field} value={formData[field.name]} onChange={v => updateField(field.name, v)} />
+                    ))}
+                  </div>
                 </div>
-              </>
+              )}
+
+              {/* ── Galería de imágenes ── */}
+              <div className="rounded-lg border border-border p-4 space-y-3 bg-card">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Imágenes del producto</p>
+                <p className="text-xs text-muted-foreground -mt-1">La primera es la imagen principal en listas y tienda.</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {[0, 1, 2, 3].map(renderImageSlot)}
+                </div>
+              </div>
+
+            </div>{/* fin grid 2 cols */}
+
+            {/* ══ Variantes por Horma — ancho completo ══ */}
+            {productType === 'ropa' && (
+              <div className="rounded-lg border border-border p-4 space-y-3 bg-card mt-4">
+                <div className="flex items-center gap-2">
+                  <Layers className="h-4 w-4 text-primary" />
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Variantes · Horma / Color / Talla</p>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <div className="w-64">
+                    <Select value={formData.hormaId || 'none'} onValueChange={v => updateField('hormaId', v === 'none' ? '' : v)}>
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="Seleccionar horma" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Sin horma</SelectItem>
+                        {hormasList.length === 0 && (
+                          <SelectItem value="__empty__" disabled>Sin hormas — crear en Inventario → Hormas</SelectItem>
+                        )}
+                        {hormasList.map((h: any) => (
+                          <SelectItem key={h.id} value={h.id}>{h.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {!formData.hormaId && (
+                    <p className="text-xs text-muted-foreground">Selecciona una horma para ingresar stock por color y talla.</p>
+                  )}
+                </div>
+
+                {/* Tabla stock Color × Talla */}
+                {formData.hormaId && Object.keys(hormaMatrix).length > 0 && (() => {
+                  const h = hormasList.find((x: any) => x.id === formData.hormaId)
+                  const sizes: string[] = h?.sizeChart ? Object.keys(h.sizeChart) : []
+                  const colors: { color: string; hex?: string }[] = h?.colors || []
+                  if (!sizes.length || !colors.length) return (
+                    <p className="text-xs text-muted-foreground">Esta horma no tiene colores o tallas configurados.</p>
+                  )
+                  return (
+                    <div className="overflow-x-auto rounded-md border border-border">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="bg-muted/50">
+                            <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">Color</th>
+                            {sizes.map(sz => (
+                              <th key={sz} className="px-2 py-2 text-center font-medium text-muted-foreground min-w-[64px]">{sz}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {colors.map(c => (
+                            <tr key={c.color} className="border-t border-border hover:bg-muted/20 transition-colors">
+                              <td className="px-3 py-1.5">
+                                <div className="flex items-center gap-2 whitespace-nowrap">
+                                  <span className="h-3.5 w-3.5 rounded-full border border-border shrink-0" style={{ background: c.hex || resolveColorHex(c.color) || '#ccc' }} />
+                                  <span className="font-medium">{c.color}</span>
+                                </div>
+                              </td>
+                              {sizes.map(sz => (
+                                <td key={sz} className="px-1.5 py-1">
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    placeholder="0"
+                                    value={hormaMatrix[c.color]?.[sz] ?? ''}
+                                    onChange={e => setMatrixCell(c.color, sz, e.target.value)}
+                                    className="h-8 w-16 text-center px-1 text-xs"
+                                  />
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )
+                })()}
+              </div>
             )}
-          </div>
-          <DialogFooter className="gap-2">
+
+          </div>{/* fin scrollable */}
+
+          {/* Footer fijo */}
+          <div className="shrink-0 border-t border-border px-5 py-3 flex items-center justify-end gap-2 bg-background">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
             <Button type="submit">
               {initialData ? 'Guardar Cambios' : 'Agregar Producto'}
             </Button>
-          </DialogFooter>
+          </div>
         </form>
       </DialogContent>
 
@@ -1618,7 +3032,7 @@ function DynamicField({ field, value, onChange }: {
   value: any
   onChange: (value: any) => void
 }) {
-  const isFullWidth = field.type === 'textarea'
+  const isFullWidth = field.type === 'textarea' || field.type === 'location'
 
   const wrapper = (children: React.ReactNode) => (
     <div className={`space-y-2 ${isFullWidth ? 'col-span-2' : ''}`}>
@@ -1627,6 +3041,20 @@ function DynamicField({ field, value, onChange }: {
       {field.description && <p className="text-xs text-muted-foreground">{field.description}</p>}
     </div>
   )
+
+  // ── Tipo location: 3 selects encadenados País → Departamento → Municipio ──
+  if (field.type === 'location') {
+    const loc = typeof value === 'object' && value !== null ? value : {}
+    return (
+      <div className="col-span-2">
+        <LocationPicker
+          value={loc}
+          onChange={onChange}
+          showCity={true}
+        />
+      </div>
+    )
+  }
 
   if (field.type === 'select' && field.options) {
     return wrapper(

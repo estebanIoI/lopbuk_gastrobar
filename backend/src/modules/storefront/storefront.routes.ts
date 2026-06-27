@@ -10,6 +10,20 @@ const router: ReturnType<typeof Router> = Router();
 
 const THEME_COLORS_KEY = (tenantId: string) => `store_theme_colors:${tenantId}`;
 
+/**
+ * Visibilidad de stock (SQL): producto con stock propio, en preventa, o con AL MENOS una
+ * variante con stock disponible. Los productos con sistema de variantes guardan
+ * products.stock = 0 — su stock real vive en product_variants — así que cualquier
+ * endpoint público que filtre por "stock > 0" sin esto esconde esos productos aunque
+ * estén publicados. `alias` es el alias de la tabla products en la query (normalmente "p").
+ */
+function stockVisibleSql(alias: string = 'p'): string {
+  return `(${alias}.stock > 0 OR ${alias}.is_preorder = 1 OR EXISTS (
+        SELECT 1 FROM product_variants pv
+        WHERE pv.product_id = ${alias}.id AND pv.is_active = 1 AND (pv.stock - pv.reserved_stock) > 0
+      ))`;
+}
+
 async function readThemeColors(tenantId: string): Promise<any | null> {
   try {
     const [rows] = await pool.query(
@@ -62,6 +76,7 @@ async function attachVariants<T extends { id: any }>(
       `SELECT pv.id, pv.product_id, pv.sku, pv.color, pv.color_hex AS colorHex, pv.size, pv.material,
               pv.stock, pv.reserved_stock, pv.cost_price, pv.price_override,
               pv.images, pv.sort_order, pv.preorder_limit AS preorderLimit, pv.preorder_count AS preorderCount,
+              pv.horma_id AS hormaId, h.name AS hormaName,
               (SELECT MIN(vpt.price) FROM variant_price_tiers vpt
                WHERE vpt.variant_id = pv.id AND vpt.is_active = 1) AS min_price,
               (SELECT JSON_ARRAYAGG(
@@ -69,6 +84,7 @@ async function attachVariants<T extends { id: any }>(
                ) FROM variant_price_tiers vpt
                WHERE vpt.variant_id = pv.id AND vpt.is_active = 1) AS price_tiers
        FROM product_variants pv
+       LEFT JOIN hormas h ON h.id = pv.horma_id
        WHERE pv.product_id IN (${placeholders})
          AND pv.is_active = 1
        ORDER BY pv.sort_order ASC`,
@@ -131,13 +147,7 @@ router.get(
       let whereClause: string;
       const params: any[] = [];
 
-      // Visibilidad de stock: producto con stock propio, en preventa, o con AL MENOS una
-      // variante con stock disponible (los productos con variantes tienen products.stock = 0,
-      // su stock real vive en product_variants — sin esto no aparecerían en la tienda).
-      const STOCK_VISIBLE = `(p.stock > 0 OR p.is_preorder = 1 OR EXISTS (
-        SELECT 1 FROM product_variants pv
-        WHERE pv.product_id = p.id AND pv.is_active = 1 AND (pv.stock - pv.reserved_stock) > 0
-      ))`;
+      const STOCK_VISIBLE = stockVisibleSql('p');
 
       if (showAll || !tenantId) {
         // Show products from all active tenants (preorder products bypass stock check)
@@ -306,7 +316,7 @@ router.get('/categories', async (req: Request, res: Response) => {
       const [rows] = await pool.query(
         `SELECT DISTINCT p.category FROM products p
          INNER JOIN tenants t ON p.tenant_id = t.id
-         WHERE t.status = 'activo' AND p.stock > 0 AND p.published_in_store = 1
+         WHERE t.status = 'activo' AND ${stockVisibleSql('p')} AND p.published_in_store = 1
          ORDER BY p.category`
       ) as any;
 
@@ -315,7 +325,7 @@ router.get('/categories', async (req: Request, res: Response) => {
     }
 
     const [rows] = await pool.query(
-      'SELECT DISTINCT category FROM products WHERE tenant_id = ? AND stock > 0 AND published_in_store = 1 ORDER BY category',
+      `SELECT DISTINCT category FROM products p WHERE tenant_id = ? AND ${stockVisibleSql('p')} AND published_in_store = 1 ORDER BY category`,
       [tenantId]
     ) as any;
 
@@ -362,7 +372,7 @@ router.get('/stores', async (req: Request, res: Response) => {
       // Show: stores in same municipality, OR stores with envio/ambos products, OR stores with no location set
       municipalityFilter = `AND (si.municipality IS NULL OR si.municipality = ? OR EXISTS (
         SELECT 1 FROM products p2
-        WHERE p2.tenant_id = t.id AND p2.stock > 0 AND p2.published_in_store = 1
+        WHERE p2.tenant_id = t.id AND ${stockVisibleSql('p2')} AND p2.published_in_store = 1
           AND p2.delivery_type IN ('envio', 'ambos')
       ))`;
       params.push(municipality);
@@ -380,7 +390,7 @@ router.get('/stores', async (req: Request, res: Response) => {
               si.business_hours as businessHours,
               COALESCE(si.open_state, 'open') as openStateFallback,
               (SELECT COUNT(*) FROM sedes s WHERE s.tenant_id = t.id) as sedeCount,
-              (SELECT COUNT(*) FROM products p WHERE p.tenant_id = t.id AND p.stock > 0 AND p.published_in_store = 1) as productCount
+              (SELECT COUNT(*) FROM products p WHERE p.tenant_id = t.id AND ${stockVisibleSql('p')} AND p.published_in_store = 1) as productCount
        FROM tenants t
        LEFT JOIN store_info si ON si.tenant_id = t.id
        WHERE t.status = 'activo'
@@ -730,7 +740,7 @@ router.get('/offers', async (req: Request, res: Response) => {
       LEFT JOIN tenants t ON t.id = p.tenant_id
       WHERE p.is_on_offer = 1
         AND p.published_in_store = 1
-        AND p.stock > 0
+        AND ${stockVisibleSql('p')}
         AND p.tenant_id IN (SELECT id FROM tenants WHERE status = 'activo')
         AND (p.offer_end IS NULL OR p.offer_end > NOW())
         ${tenantFilter}
@@ -787,7 +797,7 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
         `SELECT DISTINCT p.category as name, COALESCE(c.name, p.category) as displayName, c.image_url as imageUrl
          FROM products p
          LEFT JOIN categories c ON c.tenant_id = p.tenant_id AND c.id = p.category
-         WHERE p.tenant_id = ? AND p.stock > 0 AND p.published_in_store = 1
+         WHERE p.tenant_id = ? AND ${stockVisibleSql('p')} AND p.published_in_store = 1
            AND COALESCE(c.hidden_in_store, 0) = 0
          ORDER BY p.category`,
         [tenantId]
@@ -799,7 +809,7 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
         const [rows] = await pool.query(
           `SELECT DISTINCT p.category as name, p.category as displayName, NULL as imageUrl
            FROM products p
-           WHERE p.tenant_id = ? AND p.stock > 0 AND p.published_in_store = 1
+           WHERE p.tenant_id = ? AND ${stockVisibleSql('p')} AND p.published_in_store = 1
            ORDER BY p.category`,
           [tenantId]
         ) as any;
@@ -822,7 +832,7 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
          FROM store_featured_products sfp
          INNER JOIN products p ON p.id = sfp.product_id
          LEFT JOIN tenants t ON t.id = p.tenant_id
-         WHERE sfp.tenant_id = ? AND p.stock > 0 AND p.published_in_store = 1
+         WHERE sfp.tenant_id = ? AND ${stockVisibleSql('p')} AND p.published_in_store = 1
          ORDER BY sfp.sort_order ASC
          LIMIT 8`,
         [tenantId]
@@ -842,7 +852,7 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
               p.tenant_id as tenantId, t.name as storeName, t.slug as storeSlug
        FROM products p
        LEFT JOIN tenants t ON t.id = p.tenant_id
-       WHERE p.tenant_id = ? AND p.stock > 0 AND p.published_in_store = 1
+       WHERE p.tenant_id = ? AND ${stockVisibleSql('p')} AND p.published_in_store = 1
        ORDER BY p.is_on_offer DESC, p.updated_at DESC
        LIMIT 8`,
       [tenantId]
@@ -960,7 +970,7 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
            FROM store_drop_products sdp
            INNER JOIN products p ON p.id = sdp.product_id
            LEFT JOIN tenants t ON t.id = p.tenant_id
-           WHERE sdp.drop_id = ? AND p.stock > 0 AND p.published_in_store = 1
+           WHERE sdp.drop_id = ? AND ${stockVisibleSql('p')} AND p.published_in_store = 1
            ORDER BY p.name`,
           [drop.globalDiscount, drop.id]
         ) as any;
@@ -982,7 +992,7 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
                 p.tenant_id as tenantId, t.name as storeName, t.slug as storeSlug
          FROM products p
          LEFT JOIN tenants t ON t.id = p.tenant_id
-         WHERE p.tenant_id = ? AND p.is_new_launch = 1 AND p.stock > 0 AND p.published_in_store = 1
+         WHERE p.tenant_id = ? AND p.is_new_launch = 1 AND ${stockVisibleSql('p')} AND p.published_in_store = 1
          ORDER BY p.launch_date DESC, p.updated_at DESC
          LIMIT 12`,
         [tenantId]
@@ -2228,7 +2238,7 @@ router.get('/drop/:dropId', async (req: Request, res: Response) => {
               ROUND(p.sale_price * (1 - COALESCE(sdp.custom_discount, ?) / 100)) as finalPrice
        FROM store_drop_products sdp
        INNER JOIN products p ON p.id = sdp.product_id
-       WHERE sdp.drop_id = ? AND p.stock > 0 AND p.published_in_store = 1
+       WHERE sdp.drop_id = ? AND ${stockVisibleSql('p')} AND p.published_in_store = 1
        ORDER BY p.name`,
       [drop.globalDiscount, dropId]
     ) as any;
@@ -2338,7 +2348,7 @@ router.get('/order-bump-config', authenticate, requirePlan('empresarial'), async
     // Also return published products for manual selection
     const [publishedProducts] = await pool.query(
       `SELECT id, name, category, brand, image_url as imageUrl, sale_price as salePrice, stock
-       FROM products WHERE tenant_id = ? AND published_in_store = 1 AND stock > 0
+       FROM products p WHERE tenant_id = ? AND published_in_store = 1 AND ${stockVisibleSql('p')}
        ORDER BY name ASC`,
       [tenantId]
     ) as any;
@@ -2455,7 +2465,7 @@ router.get('/order-bump', async (req: Request, res: Response) => {
                   p.sale_price as salePrice, p.image_url as imageUrl, p.stock,
                   p.is_on_offer as isOnOffer, p.offer_price as offerPrice, p.offer_label as offerLabel
            FROM products p
-           WHERE p.id IN (${placeholders}) AND p.tenant_id = ? AND p.published_in_store = 1 AND p.stock > 0
+           WHERE p.id IN (${placeholders}) AND p.tenant_id = ? AND p.published_in_store = 1 AND ${stockVisibleSql('p')}
            LIMIT ?`,
           [...manualIds.slice(0, maxItems), tenantId, maxItems]
         ) as any;
@@ -2464,7 +2474,7 @@ router.get('/order-bump', async (req: Request, res: Response) => {
     } else {
       // Auto mode: same category as cart items
       const categories: string[] = categoriesParam ? categoriesParam.split(',').filter(Boolean) : [];
-      let whereClause = 'p.tenant_id = ? AND p.published_in_store = 1 AND p.stock > 0';
+      let whereClause = `p.tenant_id = ? AND p.published_in_store = 1 AND ${stockVisibleSql('p')}`;
       const params: any[] = [tenantId];
 
       if (categories.length > 0) {
@@ -2495,7 +2505,7 @@ router.get('/order-bump', async (req: Request, res: Response) => {
 
       // If no products from same category, fallback to any published products
       if (products.length === 0 && categories.length > 0) {
-        let fallbackWhere = 'p.tenant_id = ? AND p.published_in_store = 1 AND p.stock > 0';
+        let fallbackWhere = `p.tenant_id = ? AND p.published_in_store = 1 AND ${stockVisibleSql('p')}`;
         const fallbackParams: any[] = [tenantId];
         if (excludeIds.length > 0) {
           const excP = excludeIds.map(() => '?').join(',');
@@ -2593,7 +2603,7 @@ router.get('/new-launches', async (req: Request, res: Response) => {
       LEFT JOIN tenants t ON t.id = p.tenant_id
       WHERE p.is_new_launch = 1
         AND p.published_in_store = 1
-        AND p.stock > 0
+        AND ${stockVisibleSql('p')}
         AND p.tenant_id IN (SELECT id FROM tenants WHERE status = 'activo')
         ${tenantFilter}
       ORDER BY p.launch_date DESC, p.updated_at DESC
@@ -2818,7 +2828,7 @@ router.get('/platform-featured', async (req: Request, res: Response) => {
       LEFT JOIN tenants t ON t.id = p.tenant_id
       WHERE p.id IN (${placeholders})
         AND p.published_in_store = 1
-        AND p.stock > 0
+        AND ${stockVisibleSql('p')}
         AND p.tenant_id IN (SELECT id FROM tenants WHERE status = 'activo')`,
       ids
     ) as any;

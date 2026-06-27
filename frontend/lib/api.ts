@@ -3175,6 +3175,7 @@ class ApiService {
   async gymCheckOut(asistenciaId: string) { return this.request<any>(`/gym/asistencia/${asistenciaId}/checkout`, { method: 'PATCH' }) }
 
   // ── Variantes ──────────────────────────────────────────────────────────────
+  async getVariantsSummary() { return this.request<any[]>('/variants/summary') }
   async getVariantsByProduct(productId: string) { return this.request<any[]>(`/products/${productId}/variants`) }
   async getVariant(id: string) { return this.request<any>(`/variants/${id}`) }
   async createVariant(productId: string, data: any) { return this.request<any>(`/products/${productId}/variants`, { method: 'POST', body: JSON.stringify(data) }) }
@@ -3184,6 +3185,13 @@ class ApiService {
     return this.request<any>(`/variants/${id}/stock`, { method: 'PATCH', body: JSON.stringify(data) })
   }
   async getVariantMovements(id: string) { return this.request<any[]>(`/variants/${id}/movements`) }
+  async bulkUpdateVariants(data: {
+    variantIds: string[]
+    stock?: { type: 'entrada' | 'salida' | 'ajuste' | 'merma'; quantity: number; reason: string }
+    priceOverride?: number | null
+    costPrice?: number | null
+    minStock?: number
+  }) { return this.request<{ updated: number; failed: { id: string; error: string }[] }>('/variants/bulk-update', { method: 'POST', body: JSON.stringify(data) }) }
   async getVariantTiers(variantId: string) { return this.request<any[]>(`/variants/${variantId}/price-tiers`) }
   async createVariantTier(variantId: string, data: { minQty: number; price: number; tenantMarginPct?: number }) {
     return this.request<any>(`/variants/${variantId}/price-tiers`, { method: 'POST', body: JSON.stringify(data) })
@@ -3204,6 +3212,26 @@ class ApiService {
   async createSupplier(data: any) { return this.request<any>('/suppliers', { method: 'POST', body: JSON.stringify(data) }) }
   async updateSupplier(id: string, data: any) { return this.request<any>(`/suppliers/${id}`, { method: 'PUT', body: JSON.stringify(data) }) }
   async deleteSupplier(id: string) { return this.request<any>(`/suppliers/${id}`, { method: 'DELETE' }) }
+
+  // ── Hormas (siluetas / plantillas) ─────────────────────────────────
+  async getHormas() { return this.request<any[]>('/hormas') }
+  async getHorma(id: string) { return this.request<any>(`/hormas/${id}`) }
+  async createHorma(data: any) { return this.request<any>('/hormas', { method: 'POST', body: JSON.stringify(data) }) }
+  async updateHorma(id: string, data: any) { return this.request<any>(`/hormas/${id}`, { method: 'PUT', body: JSON.stringify(data) }) }
+  async deleteHorma(id: string) { return this.request<any>(`/hormas/${id}`, { method: 'DELETE' }) }
+  async getHormaColors(id: string) { return this.request<any[]>(`/hormas/${id}/colors`) }
+  async addHormaColor(id: string, data: { color: string; hex?: string; sortOrder?: number }) {
+    return this.request<any>(`/hormas/${id}/colors`, { method: 'POST', body: JSON.stringify(data) })
+  }
+  async updateHormaColor(colorId: string, data: { shelf?: string[] | null; hex?: string | null }) {
+    return this.request<any>(`/hormas/colors/${colorId}`, { method: 'PATCH', body: JSON.stringify(data) })
+  }
+  async removeHormaColor(colorId: string) { return this.request<any>(`/hormas/colors/${colorId}`, { method: 'DELETE' }) }
+
+  // ─── Locations (CountriesNow proxy) ───────────────────────────────────────
+  async getCountries() { return this.request<{ name: string; iso2: string }[]>('/locations/countries') }
+  async getStates(country: string) { return this.request<string[]>('/locations/states', { method: 'POST', body: JSON.stringify({ country }) }) }
+  async getCities(country: string, state: string) { return this.request<string[]>('/locations/cities', { method: 'POST', body: JSON.stringify({ country, state }) }) }
 
   // ─── Superadmin — Gestión de tenants ──────────────────────────────────────
 
