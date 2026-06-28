@@ -6,8 +6,8 @@ const router: ReturnType<typeof Router> = Router()
 router.use(authenticate)
 router.use(authorize('superadmin'))
 
-// DDL congelado: la columna storefront_orders.assigned_to y la tabla order_status_history
-// viven en el baseline Drizzle (src/db/migrations/0000_*). Prohibido DDL en runtime — ver CLAUDE.md.
+// DDL congelado: order_status_history vive en el baseline (0000) y
+// storefront_orders.assigned_to en la migración 0002. Prohibido DDL en runtime — ver CLAUDE.md.
 
 // Valid status transitions (state machine)
 const VALID_TRANSITIONS: Record<string, string[]> = {

@@ -3690,6 +3690,7 @@ export const storefrontOrders = mysqlTable("storefront_orders", {
 	dispatchNotes: text("dispatch_notes"),
 	dispatchedAt: timestamp("dispatched_at", { mode: 'string' }),
 	clientUserId: varchar("client_user_id", { length: 36 }).references(() => users.id, { onDelete: "set null" } ),
+	assignedTo: varchar("assigned_to", { length: 36 }).references((): AnyMySqlColumn => users.id, { onDelete: "set null" } ),
 	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 	dataEncrypted: tinyint("data_encrypted").default(0).notNull(),
@@ -3699,6 +3700,7 @@ export const storefrontOrders = mysqlTable("storefront_orders", {
 (table) => {
 	return {
 		idxOrderClient: index("idx_order_client").on(table.clientUserId),
+		idxOrderAssigned: index("idx_order_assigned").on(table.assignedTo),
 		idxOrderCreated: index("idx_order_created").on(table.createdAt),
 		idxOrderDispatchStatus: index("idx_order_dispatch_status").on(table.dispatchStatus),
 		idxOrderDriver: index("idx_order_driver").on(table.deliveryDriverId),

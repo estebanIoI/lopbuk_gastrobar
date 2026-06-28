@@ -77,4 +77,8 @@ CALL _catchup_add_col('products', 'base_price', "DECIMAL(12,2) NULL");
 CALL _catchup_add_col('sales', 'dispatch_notes', "TEXT NULL");
 CALL _catchup_add_col('sales', 'dispatched_at', "TIMESTAMP NULL");
 
+-- ── storefront_orders.assigned_to (la creaba ensureTable, congelado) ─────────
+-- El panel superadmin de pedidos hace JOIN sobre esta columna → sin ella da 500.
+CALL _catchup_add_col('storefront_orders', 'assigned_to', "VARCHAR(36) NULL");
+
 DROP PROCEDURE IF EXISTS _catchup_add_col;
