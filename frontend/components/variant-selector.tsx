@@ -40,6 +40,17 @@ export interface RawVariant {
   /** Horma (silueta/fit) de ESTA variante — un producto puede ofrecerse en varias. */
   hormaId?: string | number | null
   hormaName?: string | null
+  /** Precio base de la horma */
+  hormaBasePrice?: number | null
+  /** Peso y composición heredados de la horma */
+  hormaWeightGrams?: number | null
+  hormaComposition?: string | null
+  /** Precompra — esta variante se vende antes de tener stock físico */
+  presale?: boolean | number
+  presaleDate?: string | null
+  presaleLimit?: number | null
+  presaleSold?: number
+  presaleDepositPct?: number
 }
 
 // ── Variante seleccionada que se reporta al padre ──
@@ -62,8 +73,11 @@ interface NormVariant {
   horma?: string
   available: number
   priceOverride?: number
+  hormaBasePrice?: number | null
   tiers: { minQty: number; price: number }[]
   image: string | null
+  weightGrams?: number | null
+  composition?: string | null
 }
 
 // "horma" va primero a propósito: es la elección más amplia (ej. "Oversize Fit" vs
@@ -99,14 +113,18 @@ function normalize(v: RawVariant): NormVariant {
     horma: v.hormaName?.trim() || undefined,
     available: Math.max(0, stock - reserved),
     priceOverride: num(v.price_override ?? v.priceOverride),
+    hormaBasePrice: num(v.hormaBasePrice) ?? null,
     tiers,
     image: images[0] || null,
+    weightGrams: v.hormaWeightGrams ?? null,
+    composition: v.hormaComposition ?? null,
   }
 }
 
 function variantUnitPrice(v: NormVariant, basePrice: number): number {
   if (v.priceOverride != null) return v.priceOverride
   if (v.tiers.length > 0) return v.tiers[0].price
+  if (v.hormaBasePrice != null && v.hormaBasePrice > 0) return v.hormaBasePrice
   return basePrice
 }
 
@@ -144,19 +162,71 @@ export function VariantSelector({
     return m
   }, [norm])
 
-  // Ejes presentes (con al menos un valor no vacío)
+  const [sel, setSel] = useState<Record<string, string>>({})
+
+  // Ejes presentes — color y talla filtrados por la horma activa
   const axes = useMemo(() => {
+    const activeHorma = sel['horma']
     return AXES.map(a => {
-      const values = Array.from(new Set(norm.map(v => v[a.key]).filter(Boolean) as string[]))
+      const scopedNorm = (a.key === 'color' || a.key === 'size') && activeHorma
+        ? norm.filter(v => v.horma === activeHorma)
+        : norm
+      const values = Array.from(new Set(scopedNorm.map(v => v[a.key]).filter(Boolean) as string[]))
       const label = a.key === 'size' ? sizeAxisLabel(values) : a.defaultLabel
       return { ...a, values, label }
     }).filter(a => a.values.length > 0)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [norm, sel['horma']])
+
+  // ── Composición ── mapa bidireccional hormaName ↔ { composition, weightGrams }
+  const { compositionToHorma, hormaToComposition, compositionToWeight, hormaToWeight, uniqueCompositions } = useMemo(() => {
+    const c2h: Record<string, string> = {}
+    const h2c: Record<string, string> = {}
+    const c2w: Record<string, number | null> = {}
+    const h2w: Record<string, number | null> = {}
+    for (const v of norm) {
+      if (v.composition) {
+        if (v.horma) { c2h[v.composition] = v.horma; h2c[v.horma] = v.composition }
+        if (!(v.composition in c2w)) c2w[v.composition] = v.weightGrams ?? null
+      }
+      if (v.horma) h2w[v.horma] = v.weightGrams ?? null
+    }
+    const unique = Array.from(new Set(Object.keys(c2h)))
+    return { compositionToHorma: c2h, hormaToComposition: h2c, compositionToWeight: c2w, hormaToWeight: h2w, uniqueCompositions: unique }
   }, [norm])
 
-  const [sel, setSel] = useState<Record<string, string>>({})
+  // Hormas únicas ordenadas (por orden en que aparecen)
+  const allHormas = useMemo(
+    () => Array.from(new Set(norm.map(v => v.horma).filter(Boolean) as string[])),
+    [norm]
+  )
 
-  // Reinicia la selección si cambia el set de variantes
-  useEffect(() => { setSel({}) }, [variants])
+  // Reinicia selección cuando cambian variantes, auto-seleccionando la primera horma + color + talla
+  useEffect(() => {
+    if (norm.length === 0) { setSel({}); return }
+    const firstHorma = allHormas[0]
+    if (!firstHorma) { setSel({}); return }
+    const scoped = norm.filter(v => v.horma === firstHorma)
+    const firstColor = Array.from(new Set(scoped.map(v => v.color).filter(Boolean) as string[]))[0]
+    const firstSize = Array.from(new Set(scoped.map(v => v.size).filter(Boolean) as string[]))[0]
+    setSel({ horma: firstHorma, ...(firstColor ? { color: firstColor } : {}), ...(firstSize ? { size: firstSize } : {}) })
+  }, [variants]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // La composición activa se deriva de la horma seleccionada (sin estado propio).
+  const activeComposition = sel['horma'] ? (hormaToComposition[sel['horma']] ?? null) : null
+
+  // Seleccionar una composición = seleccionar su horma correspondiente.
+  const selectComposition = (comp: string) => {
+    const hormaName = compositionToHorma[comp]
+    if (!hormaName) return
+    setSel(prev => {
+      if (prev['horma'] === hormaName) return prev
+      const scoped = norm.filter(v => v.horma === hormaName)
+      const firstColor = Array.from(new Set(scoped.map(v => v.color).filter(Boolean) as string[]))[0]
+      const firstSize = Array.from(new Set(scoped.map(v => v.size).filter(Boolean) as string[]))[0]
+      return { horma: hormaName, ...(firstColor ? { color: firstColor } : {}), ...(firstSize ? { size: firstSize } : {}) }
+    })
+  }
 
   // ¿Existe alguna variante en stock consistente con `partial`?
   const hasStockFor = (partial: Record<string, string>): boolean =>
@@ -204,7 +274,21 @@ export function VariantSelector({
     : 'border-dashed border-white/25 text-white/45 hover:border-white/50 cursor-pointer'
 
   const toggle = (key: string, value: string) => {
-    setSel(prev => (prev[key] === value ? (() => { const c = { ...prev }; delete c[key]; return c })() : { ...prev, [key]: value }))
+    setSel(prev => {
+      if (key === 'horma') {
+        if (prev[key] === value) return prev // no deseleccionar la horma activa
+        // Al cambiar horma, auto-seleccionar primer color y talla de la nueva horma
+        const scoped = norm.filter(v => v.horma === value)
+        const firstColor = Array.from(new Set(scoped.map(v => v.color).filter(Boolean) as string[]))[0]
+        const firstSize = Array.from(new Set(scoped.map(v => v.size).filter(Boolean) as string[]))[0]
+        return { horma: value, ...(firstColor ? { color: firstColor } : {}), ...(firstSize ? { size: firstSize } : {}) }
+      }
+      // Color y talla son obligatorios — no se pueden desmarcar, solo cambiar
+      if ((key === 'color' || key === 'size') && prev[key] === value) return prev
+      return prev[key] === value
+        ? (() => { const c = { ...prev }; delete c[key]; return c })()
+        : { ...prev, [key]: value }
+    })
   }
 
   // Precio a mostrar: variante elegida, o "Desde X" del rango
@@ -214,6 +298,49 @@ export function VariantSelector({
 
   return (
     <div className="space-y-4">
+      {/* Composición / Calidad — aparece solo si hay composiciones registradas */}
+      {uniqueCompositions.length > 0 && (
+        <div>
+          <p className={`text-[11px] uppercase tracking-widest mb-2.5 ${muted}`}>
+            Composición / Calidad
+          </p>
+          {uniqueCompositions.length === 1 ? (
+            // Solo hay una composición → se muestra como dato estático, pero el peso refleja la horma activa
+            <div className="space-y-0.5">
+              {(sel['horma'] ? hormaToWeight[sel['horma']] : compositionToWeight[uniqueCompositions[0]]) != null && (
+                <p className={`text-sm font-semibold ${strong}`}>
+                  {sel['horma'] ? hormaToWeight[sel['horma']] : compositionToWeight[uniqueCompositions[0]]} g
+                </p>
+              )}
+              <p className={`text-sm ${strong}`}>
+                {sel['horma'] ? (hormaToComposition[sel['horma']] ?? uniqueCompositions[0]) : uniqueCompositions[0]}
+              </p>
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {uniqueCompositions.map(comp => {
+                const active = activeComposition === comp
+                const hormaName = compositionToHorma[comp]
+                const available = hasStockFor({ horma: hormaName })
+                const blocked = !available && !allowOutOfStock
+                const weight = hormaName ? (hormaToWeight[hormaName] ?? compositionToWeight[comp]) : compositionToWeight[comp]
+                return (
+                  <button
+                    key={comp}
+                    type="button"
+                    disabled={blocked}
+                    onClick={() => selectComposition(comp)}
+                    className={`px-4 py-2 rounded-full border-2 text-sm font-medium transition-all ${active ? chipActive : available ? chipIdle : allowOutOfStock ? chipPreorder : chipDisabled}`}
+                  >
+                    {weight != null && <span className="block text-[10px] font-semibold leading-tight">{weight} g</span>}
+                    {comp}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
       {axes.map(axis => (
         <div key={axis.key}>
           <p className={`text-[11px] uppercase tracking-widest mb-2.5 ${muted}`}>
@@ -280,6 +407,8 @@ export function VariantSelector({
       <div className={`pt-1 ${muted}`}>
         {selectedVariant ? (
           <div className="space-y-2">
+            {/* Precio de la variante seleccionada */}
+            <p className={`text-xl font-bold ${strong}`}>{fmt(selPrice!)}</p>
             <p className="text-sm">
               {selectedVariant.available > 0 ? (
                 <span className={selectedVariant.available <= 5 ? 'text-amber-500 font-medium' : strong}>
@@ -291,6 +420,9 @@ export function VariantSelector({
                 <span className="text-red-500 font-medium">Agotado</span>
               )}
             </p>
+            {selectedVariant.weightGrams != null && (
+              <p className={`text-xs ${muted}`}>⚖ {selectedVariant.weightGrams} g</p>
+            )}
             {selectedVariant.tiers.length > 1 && (
               <div className={`rounded-lg border ${isLightBg ? 'border-black/10' : 'border-white/15'} overflow-hidden text-xs`}>
                 <p className={`px-3 py-1.5 ${isLightBg ? 'bg-black/[0.03]' : 'bg-white/[0.05]'} ${strong} font-medium`}>Precio por cantidad</p>

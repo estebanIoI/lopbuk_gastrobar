@@ -35,6 +35,10 @@ router.get(
   productsController.findAll.bind(productsController)
 );
 
+// GET /api/products/image-urls — devuelve { imageUrl, name, id } de todos los productos con imagen
+// Usado por el picker de Cloudinary para marcar qué imágenes ya están en inventario
+router.get('/image-urls', productsController.getImageUrls.bind(productsController));
+
 // GET /api/products/low-stock
 router.get('/low-stock', productsController.getLowStock.bind(productsController));
 
@@ -63,6 +67,26 @@ router.get(
   '/:id',
   [param('id').notEmpty().withMessage('ID requerido'), validateRequest],
   productsController.findById.bind(productsController)
+);
+
+// POST /api/products/bulk-with-variants — crea productos + variantes en una sola transacción
+// IMPORTANTE: antes de /bulk para que Express no confunda el path
+router.post(
+  '/bulk-with-variants',
+  [
+    body('items').isArray({ min: 1, max: 100 }).withMessage('Se requiere array de 1-100 items'),
+    body('items.*.product.name').notEmpty().withMessage('name requerido'),
+    body('items.*.product.category').notEmpty().withMessage('category requerida'),
+    body('items.*.product.sku').notEmpty().withMessage('sku requerido'),
+    body('items.*.product.purchasePrice').isFloat({ min: 0 }).withMessage('purchasePrice inválido'),
+    body('items.*.product.salePrice').isFloat({ min: 0 }).withMessage('salePrice inválido'),
+    body('items.*.product.stock').isInt({ min: 0 }).withMessage('stock inválido'),
+    body('items.*.product.reorderPoint').isInt({ min: 0 }).withMessage('reorderPoint inválido'),
+    body('items.*.product.entryDate').isISO8601().withMessage('entryDate inválida'),
+    body('items.*.variants').isArray().withMessage('variants debe ser array'),
+    validateRequest,
+  ],
+  productsController.bulkCreateWithVariants.bind(productsController)
 );
 
 // POST /api/products/bulk

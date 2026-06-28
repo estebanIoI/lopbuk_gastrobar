@@ -8,6 +8,13 @@ import { clearCloudinaryCache } from '@/components/ui/cloudinary-upload'
 export interface IntegrationsState {
   cloudinaryCloudName: string
   cloudinaryUploadPreset: string
+  // Campos de solo lectura (vienen del backend enmascarados)
+  cloudinaryApiKey: string
+  cloudinaryApiKeySet: boolean
+  cloudinaryApiSecretSet: boolean
+  // Campos de entrada para editar (los campos "Input" son los que el usuario tipea)
+  cloudinaryApiKeyInput: string
+  cloudinaryApiSecretInput: string
   geminiApiKey: string
   openaiApiKey: string
   groqApiKey: string
@@ -25,6 +32,11 @@ export interface IntegrationsState {
 const INITIAL_INTEGRATIONS: IntegrationsState = {
   cloudinaryCloudName: '',
   cloudinaryUploadPreset: '',
+  cloudinaryApiKey: '',
+  cloudinaryApiKeySet: false,
+  cloudinaryApiSecretSet: false,
+  cloudinaryApiKeyInput: '',
+  cloudinaryApiSecretInput: '',
   geminiApiKey: '',
   openaiApiKey: '',
   groqApiKey: '',
@@ -64,6 +76,11 @@ export function useIntegrations() {
       setIntegrations({
         cloudinaryCloudName: result.data.cloudinaryCloudName || '',
         cloudinaryUploadPreset: result.data.cloudinaryUploadPreset || '',
+        cloudinaryApiKey: result.data.cloudinaryApiKey || '',
+        cloudinaryApiKeySet: !!result.data.cloudinaryApiKeySet,
+        cloudinaryApiSecretSet: !!result.data.cloudinaryApiSecretSet,
+        cloudinaryApiKeyInput: '',
+        cloudinaryApiSecretInput: '',
         geminiApiKey: result.data.geminiApiKey || '',
         openaiApiKey: result.data.openaiApiKey || '',
         groqApiKey: result.data.groqApiKey || '',
@@ -96,7 +113,13 @@ export function useIntegrations() {
 
   const handleSaveIntegrations = async () => {
     setIsSavingIntegrations(true)
-    const result = await api.updateSuperadminIntegrations(integrations)
+    // Mapear campos "Input" a los nombres que espera el backend
+    const payload = {
+      ...integrations,
+      cloudinaryApiKey: integrations.cloudinaryApiKeyInput || undefined,
+      cloudinaryApiSecret: integrations.cloudinaryApiSecretInput || undefined,
+    }
+    const result = await api.updateSuperadminIntegrations(payload)
     if (result.success) {
       clearCloudinaryCache()
       setIntegrationsMsg({ type: 'ok', text: 'Integraciones guardadas correctamente' })

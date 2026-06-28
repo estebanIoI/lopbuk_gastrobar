@@ -351,7 +351,7 @@ router.get('/superadmin/integrations', authenticate, async (req: Request, res: R
     }
 
     const [rows] = await pool.query(
-      "SELECT setting_key, setting_value FROM platform_settings WHERE setting_key IN ('cloudinary_cloud_name','cloudinary_upload_preset','ai_gemini_key','ai_openai_key','ai_groq_key','ai_opencode_go_key','ai_opencode_go_model','ai_text_model_main','ai_text_model_small','ai_default_provider','ai_openai_base_url','ai_openai_model','ai_vision_provider','ai_vision_model')"
+      "SELECT setting_key, setting_value FROM platform_settings WHERE setting_key IN ('cloudinary_cloud_name','cloudinary_upload_preset','cloudinary_api_key','cloudinary_api_secret','ai_gemini_key','ai_openai_key','ai_groq_key','ai_opencode_go_key','ai_opencode_go_model','ai_text_model_main','ai_text_model_small','ai_default_provider','ai_openai_base_url','ai_openai_model','ai_vision_provider','ai_vision_model')"
     ) as any;
 
     const settings: Record<string, string> = {};
@@ -371,6 +371,10 @@ router.get('/superadmin/integrations', authenticate, async (req: Request, res: R
       data: {
         cloudinaryCloudName:    settings['cloudinary_cloud_name']      || '',
         cloudinaryUploadPreset: settings['cloudinary_upload_preset']   || '',
+        // Api Key se muestra enmascarada; Api Secret NUNCA sale (solo flag de si existe)
+        cloudinaryApiKey:       settings['cloudinary_api_key'] ? '••••••' + settings['cloudinary_api_key'].slice(-4) : '',
+        cloudinaryApiKeySet:    !!settings['cloudinary_api_key'],
+        cloudinaryApiSecretSet: !!settings['cloudinary_api_secret'],
         // Las AI keys se devuelven ENMASCARADAS (nunca el secreto completo al navegador).
         // El front muestra la máscara para el toggle show/hide; los flags *Set indican si hay key.
         geminiApiKey:           settings['ai_gemini_key'] ? '••••••' + settings['ai_gemini_key'].slice(-4) : '',
@@ -477,12 +481,18 @@ router.put('/superadmin/integrations', authenticate, async (req: Request, res: R
       return;
     }
 
-    const { cloudinaryCloudName, cloudinaryUploadPreset, geminiApiKey, openaiApiKey, groqApiKey, opencodeGoApiKey, opencodeGoModel, textModelMain, textModelSmall, defaultAiProvider, openaiBaseUrl, openaiModel, visionProvider, visionModel } = req.body;
+    const { cloudinaryCloudName, cloudinaryUploadPreset, cloudinaryApiKey, cloudinaryApiSecret, geminiApiKey, openaiApiKey, groqApiKey, opencodeGoApiKey, opencodeGoModel, textModelMain, textModelSmall, defaultAiProvider, openaiBaseUrl, openaiModel, visionProvider, visionModel } = req.body;
 
     const updates: [string, string][] = [
       ['cloudinary_cloud_name',    cloudinaryCloudName    || ''],
       ['cloudinary_upload_preset', cloudinaryUploadPreset || ''],
     ];
+    // Api Key y Api Secret: misma lógica que las AI keys (no pisar con máscara •, __CLEAR__ borra)
+    const realKey = (v: any) => typeof v === 'string' && v.length > 0 && !v.includes('•');
+    if (cloudinaryApiKey === '__CLEAR__') updates.push(['cloudinary_api_key', '']);
+    else if (realKey(cloudinaryApiKey)) updates.push(['cloudinary_api_key', cloudinaryApiKey]);
+    if (cloudinaryApiSecret === '__CLEAR__') updates.push(['cloudinary_api_secret', '']);
+    else if (realKey(cloudinaryApiSecret)) updates.push(['cloudinary_api_secret', cloudinaryApiSecret]);
     if (defaultAiProvider !== undefined) updates.push(['ai_default_provider', String(defaultAiProvider || 'opencode_go')]);
     if (openaiBaseUrl !== undefined) updates.push(['ai_openai_base_url', String(openaiBaseUrl || '')]);
     if (openaiModel !== undefined)   updates.push(['ai_openai_model',    String(openaiModel || '')]);
@@ -500,7 +510,6 @@ router.put('/superadmin/integrations', authenticate, async (req: Request, res: R
     // Solo se actualiza una AI key si llega un valor REAL (no el enmascarado con •).
     // Así el GET puede devolver las keys ofuscadas sin que un guardado las pise con la máscara.
     // Para borrar una key se envía la cadena exacta "__CLEAR__".
-    const realKey = (v: any) => typeof v === 'string' && v.length > 0 && !v.includes('•');
     const pushKey = (k: string, v: any) => {
       if (v === '__CLEAR__') updates.push([k, '']);
       else if (realKey(v)) updates.push([k, encrypt(v)]);

@@ -69,12 +69,15 @@ import {
   CheckSquare,
   CheckCircle2,
   X,
+  Check,
+  Cloud,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { BarcodeScanner } from '@/components/barcode-scanner'
 import { RemoteScanner } from '@/components/remote-scanner'
 import { BulkUploadDialog } from '@/components/bulk-upload-dialog'
 import { HormaManager } from '@/components/horma-manager'
+import { CloudinaryPickerModal } from '@/components/cloudinary-bulk-wizard/CloudinaryPickerModal'
 
 // Orden estándar de confección — se usa en todos lados donde se muestran tallas
 // (picker rápido, fila expandida, resumen) para que el orden sea siempre el mismo,
@@ -101,14 +104,26 @@ function useVariantPicker(
   onHormaChange?: (hormaId: string | null) => void,
   onSizeChange?: (size: string | null) => void,
   onColorChange?: (color: string | null) => void,
+  hormaById?: Record<string, any>,
 ) {
-  const hormaIds = useMemo(
-    () => Array.from(new Set(variants.map(v => v.hormaId).filter(Boolean))) as string[],
-    [variants]
-  )
+  const hormaIds = useMemo(() => {
+    const ids = Array.from(new Set(variants.map(v => v.hormaId).filter(Boolean))) as string[]
+    // Orden estable: sort_order de la horma → garantiza que siempre aparecen en el mismo orden
+    if (hormaById) ids.sort((a, b) => (hormaById[a]?.sortOrder ?? 999) - (hormaById[b]?.sortOrder ?? 999))
+    return ids
+  }, [variants, hormaById])
   const [selHorma, setSelHormaState] = useState<string | null>(hormaIds[0] ?? null)
   const [selSize, setSelSizeState] = useState<string | null>(null)
   const [selColor, setSelColorState] = useState<string | null>(null)
+
+  // Siempre tener la primera horma seleccionada cuando cambia la lista
+  useEffect(() => {
+    setSelHormaState(prev => {
+      if (hormaIds.length === 0) return null
+      if (prev && hormaIds.includes(prev)) return prev // mantener si sigue existiendo
+      return hormaIds[0] // default: primera horma en orden
+    })
+  }, [hormaIds])
 
   // Elegir horma acá también sincroniza el filtro de la fila expandida ("Ver variantes"),
   // para no tener que elegirla dos veces si después abrís el detalle completo.
@@ -165,7 +180,7 @@ function VariantQuickPicker({
   onSizeChange?: (size: string | null) => void
   onColorChange?: (color: string | null) => void
 }) {
-  const p = useVariantPicker(variants, onHormaChange, onSizeChange, onColorChange)
+  const p = useVariantPicker(variants, onHormaChange, onSizeChange, onColorChange, hormaById)
 
   if (variants.length === 0) {
     return <span className="text-xs text-muted-foreground">Sin variantes</span>
@@ -251,7 +266,7 @@ function VariantQuickPicker({
 // stock de la variante exacta (solo lectura) en cuanto se elige talla + color.
 function VariantPickerColumns({
   variants, hormaById, getVariantStockStatus,
-  fallbackStock, fallbackStatus, onHormaChange, onSizeChange, onColorChange,
+  fallbackStock, fallbackStatus, onHormaChange, onSizeChange, onColorChange, onMatchedVariant,
 }: {
   variants: ProductVariant[]
   hormaById: Record<string, any>
@@ -261,8 +276,12 @@ function VariantPickerColumns({
   onHormaChange?: (hormaId: string | null) => void
   onSizeChange?: (size: string | null) => void
   onColorChange?: (color: string | null) => void
+  onMatchedVariant?: (v: ProductVariant | null) => void
 }) {
-  const p = useVariantPicker(variants, onHormaChange, onSizeChange, onColorChange)
+  const p = useVariantPicker(variants, onHormaChange, onSizeChange, onColorChange, hormaById)
+
+  // Notificar al padre cuando cambia la variante matched (para actualizar precio en columna externa)
+  useEffect(() => { onMatchedVariant?.(p.matched) }, [p.matched]) // eslint-disable-line react-hooks/exhaustive-deps
   const dot = (st: string) => st === 'suficiente' ? 'bg-primary' : st === 'bajo' ? 'bg-warning' : 'bg-destructive'
   const text = (st: string) => st === 'suficiente' ? 'text-primary' : st === 'bajo' ? 'text-warning' : 'text-destructive'
 
@@ -278,6 +297,7 @@ function VariantPickerColumns({
             <span className={`font-medium text-sm lg:text-base ${text(fallbackStatus)}`}>{fallbackStock}</span>
           </div>
         </TableCell>
+        <TableCell><span className="text-xs text-muted-foreground">—</span></TableCell>
       </>
     )
   }
@@ -365,6 +385,30 @@ function VariantPickerColumns({
           <p className="text-[10px] text-muted-foreground mt-0.5">de esta variante</p>
         )}
       </TableCell>
+      {(() => {
+        // Muestra peso/composición de la horma activa (seleccionada o única).
+        const activeHormaId = p.selHorma ?? (p.hormaIds.length === 1 ? p.hormaIds[0] : null)
+        const h = activeHormaId ? hormaById[activeHormaId] : null
+        return (
+          <TableCell>
+            {h ? (
+              <div className="space-y-0.5">
+                {h.weightGrams != null && (
+                  <p className="text-xs font-medium text-foreground">{h.weightGrams} g</p>
+                )}
+                {h.composition && (
+                  <p className="text-[10px] text-muted-foreground leading-tight">{h.composition}</p>
+                )}
+                {h.weightGrams == null && !h.composition && (
+                  <span className="text-xs text-muted-foreground">—</span>
+                )}
+              </div>
+            ) : (
+              <span className="text-xs text-muted-foreground">—</span>
+            )}
+          </TableCell>
+        )
+      })()}
     </>
   )
 }
@@ -410,6 +454,7 @@ export function InventoryList() {
   const [expandedHormaFilter, setExpandedHormaFilter] = useState<Record<string, string | null>>({})
   const [expandedSizeFilter, setExpandedSizeFilter] = useState<Record<string, string | null>>({})
   const [expandedColorFilter, setExpandedColorFilter] = useState<Record<string, string | null>>({})
+  const [expandedMatchedVariant, setExpandedMatchedVariant] = useState<Record<string, ProductVariant | null>>({})
 
   // ── Edición en grupo (bulk) de variantes ──
   // Selección global de variant IDs (no por producto) — permite, por ejemplo,
@@ -712,8 +757,8 @@ export function InventoryList() {
     }
   }
 
-  // Producto, Horma, Talla, Color, Stock, SKU, Tipo, Categoria, [Sede], Precio, Acciones
-  const inventoryColSpan = (sedes.length >= 2 ? 11 : 10) + (selectMode ? 1 : 0)
+  // Producto, Horma, Talla, Color, Stock, Peso/Comp, SKU, Tipo, Categoria, [Sede], Precio, Acciones
+  const inventoryColSpan = (sedes.length >= 2 ? 12 : 11) + (selectMode ? 1 : 0)
 
   const handleExportCsv = async () => {
     setIsExporting(true)
@@ -745,6 +790,7 @@ export function InventoryList() {
   const [sedeForm, setSedeForm] = useState({ name: '', address: '' })
   const [editingSede, setEditingSede] = useState<Sede | null>(null)
   const [highlightedProduct, setHighlightedProduct] = useState<string | null>(null)
+  const [isCloudinaryPickerOpen, setIsCloudinaryPickerOpen] = useState(false)
 
   useEffect(() => {
     fetchProducts()
@@ -986,6 +1032,10 @@ export function InventoryList() {
           >
             <Layers className="h-4 w-4 lg:h-5 lg:w-5" />
             {bulkVariantMode ? 'Cancelar edición' : 'Editar variantes'}
+          </Button>
+          <Button variant="outline" onClick={() => setIsCloudinaryPickerOpen(true)} className="gap-2 h-10 lg:h-11 text-sm lg:text-base">
+            <Cloud className="h-4 w-4 lg:h-5 lg:w-5" />
+            Importar Cloudinary
           </Button>
           <Button data-tour="inv-new" onClick={() => setIsAddDialogOpen(true)} className="gap-2 h-10 lg:h-11 text-sm lg:text-base">
             <Plus className="h-4 w-4 lg:h-5 lg:w-5" />
@@ -1320,6 +1370,7 @@ export function InventoryList() {
                 <TableHead className="text-muted-foreground text-sm lg:text-base">Talla</TableHead>
                 <TableHead className="text-muted-foreground text-sm lg:text-base">Color</TableHead>
                 <TableHead className="text-muted-foreground text-sm lg:text-base text-center">Stock</TableHead>
+                <TableHead className="text-muted-foreground text-sm lg:text-base">Peso / Composición</TableHead>
                 <TableHead className="text-muted-foreground text-sm lg:text-base">SKU</TableHead>
                 <TableHead className="text-muted-foreground text-sm lg:text-base">Tipo</TableHead>
                 <TableHead className="text-muted-foreground text-sm lg:text-base">Categoria</TableHead>
@@ -1419,10 +1470,12 @@ export function InventoryList() {
                         onHormaChange={(hid) => setHormaFilterFor(product.id, hid)}
                         onSizeChange={(sz) => setSizeFilterFor(product.id, sz)}
                         onColorChange={(c) => setColorFilterFor(product.id, c)}
+                        onMatchedVariant={(v) => setExpandedMatchedVariant(prev => ({ ...prev, [product.id]: v }))}
                       />
                       <TableCell>
                         <code className="text-muted-foreground text-xs lg:text-sm bg-muted rounded px-1.5 py-0.5">{product.sku}</code>
                       </TableCell>
+                      {/* Peso / Composición ya viene dentro de VariantPickerColumns */}
                       <TableCell>
                         <Badge variant="secondary" className="bg-secondary text-muted-foreground text-xs">
                           {typeInfo.icon} {typeInfo.name}
@@ -1446,14 +1499,50 @@ export function InventoryList() {
                         </TableCell>
                       )}
                       <TableCell className="text-right">
-                        <div>
-                          <p className="font-medium text-sm lg:text-base text-foreground">
-                            {formatCOP(product.salePrice)}
-                          </p>
-                          <p className="text-xs lg:text-sm text-muted-foreground">
-                            Costo: {formatCOP(product.purchasePrice)}
-                          </p>
-                        </div>
+                        {(() => {
+                          const isRopa = product.productType === 'ropa'
+                          // 1. Variante exacta seleccionada (talla + color)
+                          const matchedV = expandedMatchedVariant[product.id] ?? null
+                          if (isRopa && matchedV) {
+                            return (
+                              <div>
+                                <p className="font-medium text-sm lg:text-base text-foreground">
+                                  {matchedV.priceOverride != null ? formatCOP(matchedV.priceOverride) : <span className="text-muted-foreground text-xs">Sin precio</span>}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  Costo: {matchedV.costPrice != null ? formatCOP(matchedV.costPrice) : '—'}
+                                </p>
+                                <p className="text-[10px] text-primary/70 mt-0.5">variante exacta</p>
+                              </div>
+                            )
+                          }
+                          // 2. Horma seleccionada (precio de la horma)
+                          if (isRopa && productVariants?.length) {
+                            const activeHormaId = expandedHormaFilter[product.id] ?? (() => {
+                              const ids = Array.from(new Set(productVariants.map(v => v.hormaId).filter(Boolean))) as string[]
+                              ids.sort((a, b) => (hormaById[a]?.sortOrder ?? 999) - (hormaById[b]?.sortOrder ?? 999))
+                              return ids[0] ?? null
+                            })()
+                            const hv = activeHormaId ? productVariants.filter(v => v.hormaId === activeHormaId) : productVariants
+                            const hp = hv.find(v => v.priceOverride != null)?.priceOverride ?? null
+                            const hc = hv.find(v => v.costPrice != null)?.costPrice ?? null
+                            return (
+                              <div>
+                                <p className="font-medium text-sm lg:text-base text-foreground">
+                                  {hp != null ? formatCOP(hp) : <span className="text-muted-foreground text-xs">Sin precio</span>}
+                                </p>
+                                <p className="text-xs text-muted-foreground">Costo: {hc != null ? formatCOP(hc) : '—'}</p>
+                              </div>
+                            )
+                          }
+                          // 3. Producto sin variantes / no ropa
+                          return (
+                            <div>
+                              <p className="font-medium text-sm lg:text-base text-foreground">{formatCOP(product.salePrice)}</p>
+                              <p className="text-xs text-muted-foreground">Costo: {formatCOP(product.purchasePrice)}</p>
+                            </div>
+                          )
+                        })()}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-2">
@@ -1574,6 +1663,7 @@ export function InventoryList() {
                                         </TableHead>
                                       )}
                                       {displayHormas.length > 1 && <TableHead className="text-muted-foreground text-xs lg:text-sm">Horma</TableHead>}
+                                      <TableHead className="text-muted-foreground text-xs lg:text-sm w-12">Img</TableHead>
                                       <TableHead className="text-muted-foreground text-xs lg:text-sm">Color</TableHead>
                                       <TableHead className="text-muted-foreground text-xs lg:text-sm">Talla</TableHead>
                                       <TableHead className="text-muted-foreground text-xs lg:text-sm">SKU</TableHead>
@@ -1602,6 +1692,27 @@ export function InventoryList() {
                                               {v.hormaName || (v.hormaId ? hormaById[v.hormaId]?.name : null) || '—'}
                                             </TableCell>
                                           )}
+                                          {/* Imagen: variante → producto → placeholder */}
+                                          <TableCell className="w-12">
+                                            {(() => {
+                                              const variantImg = Array.isArray(v.images) ? v.images[0] : (v as any).imageUrl
+                                              const productImg = product.imageUrl || (Array.isArray(product.images) ? product.images[0] : '')
+                                              const imgSrc = variantImg || productImg || ''
+                                              return imgSrc ? (
+                                                // eslint-disable-next-line @next/next/no-img-element
+                                                <img
+                                                  src={imgSrc.replace('/upload/', '/upload/w_48,h_48,c_fill,q_auto,f_auto/')}
+                                                  alt={v.sku || ''}
+                                                  loading="lazy"
+                                                  className="w-9 h-9 rounded object-cover border border-border"
+                                                />
+                                              ) : (
+                                                <div className="w-9 h-9 rounded bg-muted border border-border flex items-center justify-center">
+                                                  <ImageIcon className="h-3.5 w-3.5 text-muted-foreground/40" />
+                                                </div>
+                                              )
+                                            })()}
+                                          </TableCell>
                                           <TableCell>
                                             {v.color ? (
                                               <span
@@ -1687,21 +1798,13 @@ export function InventoryList() {
           if (result.success) {
             const newId = (result as any).data?.id
             if (newId && variants && variants.length) {
-              let okc = 0
-              const failures: { sku: string; error: string }[] = []
-              for (const v of variants) {
-                const r = await api.createVariant(newId, v)
-                if (r.success) okc++
-                else failures.push({ sku: v.sku, error: r.error || 'Error desconocido' })
+              const r = await api.bulkCreateVariants(newId, variants)
+              if (r.success) {
+                const { created, skipped } = r.data || {}
+                toast.success(`Producto creado con ${created} variante(s)${skipped ? ` (${skipped} SKUs duplicados omitidos)` : ''}`)
+              } else {
+                toast.error(`Producto creado pero error en variantes: ${r.error}`)
               }
-              if (failures.length) {
-                console.error('Variantes que fallaron al crear:', failures)
-                toast.error(
-                  `Producto creado, pero ${failures.length} variante(s) fallaron: ${failures[0].error}` +
-                  (failures.length > 1 ? ` (+${failures.length - 1} más, ver consola)` : '')
-                )
-              }
-              if (okc) toast.success(`Producto creado con ${okc} variante(s)`)
               await fetchProducts()
               await loadVariantsSummary()
             } else {
@@ -2157,6 +2260,13 @@ export function InventoryList() {
       {/* Horma Manager */}
       <HormaManager open={isHormaManagerOpen} onClose={() => setIsHormaManagerOpen(false)} />
 
+      {/* Cloudinary Picker — importar imágenes y crear productos masivamente */}
+      <CloudinaryPickerModal
+        open={isCloudinaryPickerOpen}
+        onClose={() => setIsCloudinaryPickerOpen(false)}
+        onProductsCreated={(_count) => { fetchProducts(); setIsCloudinaryPickerOpen(false) }}
+      />
+
       {/* Variant Manager */}
       {variantProduct && (
         <VariantManager
@@ -2391,6 +2501,153 @@ export function InventoryList() {
   )
 }
 
+// ── Tabla de stock Color × Talla con precios y relleno rápido ─────────────────
+function HormaStockTable({
+  hormaId, hormaName, colors, sizes, matrix,
+  purchasePrice, salePrice,
+  onCellChange, onFillRow, onFillCol, onFillAll,
+  onPurchasePriceChange, onSalePriceChange,
+}: {
+  hormaId: string
+  hormaName: string
+  colors: { color: string; hex?: string }[]
+  sizes: string[]
+  matrix: Record<string, Record<string, string>>
+  purchasePrice: string
+  salePrice: string
+  onCellChange: (color: string, size: string, val: string) => void
+  onFillRow: (color: string, val: string) => void
+  onFillCol: (size: string, val: string) => void
+  onFillAll: (val: string) => void
+  onPurchasePriceChange: (val: string) => void
+  onSalePriceChange: (val: string) => void
+}) {
+  const [bulkVal, setBulkVal] = useState('0')
+
+  // Total stock de esta horma
+  const totalStock = Object.values(matrix).reduce((sum, row) =>
+    sum + Object.values(row).reduce((s, v) => s + (Number(v) || 0), 0), 0)
+
+  return (
+    <div className="rounded-lg border border-border bg-card overflow-hidden">
+      {/* Header: nombre + precios */}
+      <div className="px-4 py-3 border-b border-border bg-muted/30 space-y-2.5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Layers className="h-3.5 w-3.5 text-primary" />
+            <p className="text-xs font-semibold">{hormaName}</p>
+            <span className="text-[10px] text-muted-foreground">({colors.length} colores · {sizes.length} tallas)</span>
+          </div>
+          <span className="text-[10px] text-muted-foreground">
+            Total unidades: <strong className="text-foreground">{totalStock}</strong>
+          </span>
+        </div>
+
+        {/* Precios de la horma */}
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <Label className="text-[10px] text-muted-foreground uppercase tracking-wide">Precio compra (COP)</Label>
+            <div className="relative">
+              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">$</span>
+              <Input
+                type="number" min="0" placeholder="50000"
+                value={purchasePrice}
+                onChange={e => onPurchasePriceChange(e.target.value)}
+                className="pl-6 h-8 text-xs"
+              />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px] text-muted-foreground uppercase tracking-wide">Precio venta (COP)</Label>
+            <div className="relative">
+              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">$</span>
+              <Input
+                type="number" min="0" placeholder="249999"
+                value={salePrice}
+                onChange={e => onSalePriceChange(e.target.value)}
+                className="pl-6 h-8 text-xs"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Relleno rápido */}
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] text-muted-foreground">Llenar stock con</span>
+          <Input
+            type="number" min="0"
+            value={bulkVal}
+            onChange={e => setBulkVal(e.target.value)}
+            className="h-6 w-14 text-xs text-center px-1"
+          />
+          <button
+            type="button"
+            onClick={() => onFillAll(bulkVal)}
+            className="text-[10px] px-2 py-1 rounded border border-primary/40 text-primary hover:bg-primary/10 transition-colors font-medium whitespace-nowrap"
+          >
+            Toda la tabla
+          </button>
+        </div>
+      </div>
+
+      {/* Tabla */}
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="bg-muted/20">
+              <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">Color</th>
+              {sizes.map(sz => (
+                <th key={sz} className="px-1 py-2 text-center font-medium text-muted-foreground min-w-[64px]">
+                  <div className="flex flex-col items-center gap-0.5">
+                    <span>{sz}</span>
+                    <button
+                      type="button"
+                      onClick={() => onFillCol(sz, bulkVal)}
+                      className="text-[9px] text-primary/60 hover:text-primary leading-none"
+                      title={`Llenar columna ${sz} con ${bulkVal}`}
+                    >↓ col</button>
+                  </div>
+                </th>
+              ))}
+              <th className="px-2 py-2 text-center text-muted-foreground/50 text-[10px] font-normal">→ fila</th>
+            </tr>
+          </thead>
+          <tbody>
+            {colors.map(c => (
+              <tr key={c.color} className="border-t border-border hover:bg-muted/10 transition-colors">
+                <td className="px-3 py-1.5">
+                  <div className="flex items-center gap-2 whitespace-nowrap">
+                    <span className="h-3.5 w-3.5 rounded-full border border-border shrink-0" style={{ background: c.hex || resolveColorHex(c.color) || '#ccc' }} />
+                    <span className="font-medium">{c.color}</span>
+                  </div>
+                </td>
+                {sizes.map(sz => (
+                  <td key={sz} className="px-1 py-1">
+                    <Input
+                      type="number" min="0" placeholder="0"
+                      value={matrix[c.color]?.[sz] ?? ''}
+                      onChange={e => onCellChange(c.color, sz, e.target.value)}
+                      className="h-8 w-16 text-center px-1 text-xs"
+                    />
+                  </td>
+                ))}
+                <td className="px-2 py-1 text-center">
+                  <button
+                    type="button"
+                    onClick={() => onFillRow(c.color, bulkVal)}
+                    className="text-[10px] px-1.5 py-0.5 rounded border border-primary/30 text-primary/60 hover:text-primary hover:border-primary/60 transition-colors"
+                    title={`Llenar fila con ${bulkVal}`}
+                  >llenar</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
 interface ProductFormDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -2456,30 +2713,89 @@ function ProductFormDialog({
     updateField('qtyPromo', Object.keys(obj).length ? JSON.stringify(obj) : '')
   }
 
-  // ── Matriz horma (color × talla) inline — solo para productType === 'ropa' ──
-  const [hormaMatrix, setHormaMatrix] = useState<Record<string, Record<string, string>>>({})
+  // ── Multi-horma (ropa) ──
+  const [selectedHormaIds, setSelectedHormaIds] = useState<string[]>([])
+  // hormaMatrix: { [hormaId]: { [color]: { [size]: stockValue } } }
+  const [hormaMatrix, setHormaMatrix] = useState<Record<string, Record<string, Record<string, string>>>>({})
+  // Precios por horma: { [hormaId]: { purchasePrice: string, salePrice: string } }
+  const [hormaPrices, setHormaPrices] = useState<Record<string, { purchasePrice: string; salePrice: string }>>({})
 
-  // Cuando cambia la horma seleccionada, inicializar/limpiar la matriz
+  const toggleHorma = (hid: string) => {
+    setSelectedHormaIds(prev => {
+      const next = prev.includes(hid) ? prev.filter(x => x !== hid) : [...prev, hid]
+      const h = hormasList.find((x: any) => String(x.id) === String(hid))
+      // Inicializar matriz
+      setHormaMatrix(prevM => {
+        const m = { ...prevM }
+        for (const id of next) {
+          if (!m[id]) {
+            const horma = hormasList.find((x: any) => String(x.id) === String(id))
+            if (horma) {
+              const sizes: string[] = horma.sizeChart ? Object.keys(horma.sizeChart) : []
+              const colors: { color: string }[] = horma.colors || []
+              m[id] = {}
+              for (const c of colors) { m[id][c.color] = {}; for (const sz of sizes) m[id][c.color][sz] = '' }
+            }
+          }
+        }
+        for (const id of Object.keys(m)) { if (!next.includes(id)) delete m[id] }
+        return m
+      })
+      // Inicializar precios con los de la horma (baseCost / basePrice)
+      setHormaPrices(prevP => {
+        const p = { ...prevP }
+        if (!p[hid] && h) {
+          p[hid] = {
+            purchasePrice: h.baseCost ? String(h.baseCost) : '',
+            salePrice: h.basePrice ? String(h.basePrice) : '',
+          }
+        }
+        for (const id of Object.keys(p)) { if (!next.includes(id)) delete p[id] }
+        return p
+      })
+      return next
+    })
+  }
+
+  const setHormaPrice = (hid: string, field: 'purchasePrice' | 'salePrice', val: string) => {
+    setHormaPrices(prev => ({ ...prev, [hid]: { ...(prev[hid] || { purchasePrice: '', salePrice: '' }), [field]: val } }))
+  }
+
+  // Reset al abrir/cerrar dialog
   useEffect(() => {
-    const hid = formData.hormaId
-    if (!hid) { setHormaMatrix({}); return }
-    const h = hormasList.find((x: any) => x.id === hid)
-    if (!h) { setHormaMatrix({}); return }
-    const sizes: string[] = h.sizeChart ? Object.keys(h.sizeChart) : []
-    const colors: { color: string; hex?: string }[] = h.colors || []
-    const matrix: Record<string, Record<string, string>> = {}
-    for (const c of colors) {
-      matrix[c.color] = {}
-      for (const sz of sizes) matrix[c.color][sz] = ''
-    }
-    setHormaMatrix(matrix)
-  }, [formData.hormaId, hormasList])
+    if (!open) { setSelectedHormaIds([]); setHormaMatrix({}); setHormaPrices({}) }
+  }, [open])
 
-  const setMatrixCell = (color: string, size: string, val: string) => {
+  const setMatrixCell = (hormaId: string, color: string, size: string, val: string) => {
     setHormaMatrix(prev => ({
       ...prev,
-      [color]: { ...(prev[color] || {}), [size]: val },
+      [hormaId]: { ...(prev[hormaId] || {}), [color]: { ...(prev[hormaId]?.[color] || {}), [size]: val } },
     }))
+  }
+
+  const fillRow = (hormaId: string, color: string, sizes: string[], val: string) => {
+    setHormaMatrix(prev => {
+      const m = { ...prev, [hormaId]: { ...(prev[hormaId] || {}) } }
+      m[hormaId][color] = {}
+      for (const sz of sizes) m[hormaId][color][sz] = val
+      return m
+    })
+  }
+
+  const fillCol = (hormaId: string, colors: string[], size: string, val: string) => {
+    setHormaMatrix(prev => {
+      const m = { ...prev, [hormaId]: { ...(prev[hormaId] || {}) } }
+      for (const c of colors) m[hormaId][c] = { ...(m[hormaId][c] || {}), [size]: val }
+      return m
+    })
+  }
+
+  const fillAll = (hormaId: string, colors: string[], sizes: string[], val: string) => {
+    setHormaMatrix(prev => {
+      const m = { ...prev, [hormaId]: {} }
+      for (const c of colors) { m[hormaId][c] = {}; for (const sz of sizes) m[hormaId][c][sz] = val }
+      return m
+    })
   }
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -2500,28 +2816,38 @@ function ProductFormDialog({
       cleaned[key] = typeof value === 'string' ? value.trim() : value
     }
 
-    // Construir variantes desde la matriz si hay horma seleccionada
+    // Construir variantes desde la matriz multi-horma
     let variants: any[] | undefined
-    const hid = formData.hormaId
-    if (hid && Object.keys(hormaMatrix).length > 0) {
-      const h = hormasList.find((x: any) => x.id === hid)
+    if (selectedHormaIds.length > 0 && Object.keys(hormaMatrix).length > 0) {
       const skuBase = (cleaned.sku || 'VAR').toUpperCase().replace(/[^A-Z0-9]/g, '')
       const slug = (s: string) => s.trim().toUpperCase().replace(/\s+/g, '-').replace(/[^A-Z0-9-]/g, '')
       variants = []
-      for (const [color, sizes] of Object.entries(hormaMatrix)) {
-        const colorEntry = (h?.colors || []).find((c: any) => c.color === color)
-        for (const [size, stockVal] of Object.entries(sizes as Record<string, string>)) {
-          variants!.push({
-            sku: `${skuBase}-${slug(color)}-${slug(size)}`,
-            color,
-            colorHex: colorEntry?.hex || '',
-            size,
-            hormaId: hid,
-            stock: Number(stockVal) || 0,
-            minStock: 0,
-          })
+      for (const hid of selectedHormaIds) {
+        const h = hormasList.find((x: any) => String(x.id) === String(hid))
+        const prices = hormaPrices[hid] || { purchasePrice: '', salePrice: '' }
+        const colorMap = hormaMatrix[hid] || {}
+        for (const [color, sizes] of Object.entries(colorMap)) {
+          const colorEntry = (h?.colors || []).find((c: any) => c.color === color)
+          for (const [size, stockVal] of Object.entries(sizes as Record<string, string>)) {
+            variants!.push({
+              sku: `${skuBase}-${slug(h?.name || hid)}-${slug(color)}-${slug(size)}`,
+              color,
+              colorHex: colorEntry?.hex || '',
+              size,
+              hormaId: hid,
+              stock: Number(stockVal) || 0,
+              minStock: 0,
+              costPrice: prices.purchasePrice !== '' ? Number(prices.purchasePrice) : null,
+              priceOverride: prices.salePrice !== '' ? Number(prices.salePrice) : null,
+            })
+          }
         }
       }
+      // Para ropa: stock/precio a nivel producto son 0 — los reales viven en variantes
+      cleaned.stock = 0
+      cleaned.reorderPoint = cleaned.reorderPoint ?? 0
+      cleaned.purchasePrice = cleaned.purchasePrice ?? 0
+      cleaned.salePrice = cleaned.salePrice ?? 0
     }
 
     onSubmit(cleaned, variants)
@@ -2606,6 +2932,38 @@ function ProductFormDialog({
                   <Label htmlFor="name" className="text-xs">Nombre en tienda *</Label>
                   <Input id="name" value={formData.name || ''} onChange={e => updateField('name', e.target.value)} placeholder="Nombre visible para clientes" required className="h-9" />
                 </div>
+
+                {/* ── Hormas (solo ropa) — aparece como 2do campo ── */}
+                {productType === 'ropa' && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold">Hormas disponibles *</Label>
+                    <p className="text-[10px] text-muted-foreground -mt-0.5">Selecciona todas las hormas en las que viene este producto</p>
+                    {hormasList.length === 0 ? (
+                      <p className="text-xs text-muted-foreground italic">Sin hormas — crea una primero en Inventario → Hormas</p>
+                    ) : (
+                      <div className="flex flex-wrap gap-1.5 pt-0.5">
+                        {hormasList.map((h: any) => {
+                          const active = selectedHormaIds.includes(String(h.id))
+                          return (
+                            <button
+                              key={h.id}
+                              type="button"
+                              onClick={() => toggleHorma(String(h.id))}
+                              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-medium transition-colors ${
+                                active
+                                  ? 'border-primary bg-primary text-primary-foreground'
+                                  : 'border-border text-muted-foreground hover:border-primary/50 hover:text-foreground'
+                              }`}
+                            >
+                              {active && <Check className="h-3 w-3" />}
+                              {h.name}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
@@ -2800,6 +3158,12 @@ function ProductFormDialog({
                         previewClassName="h-20 w-full object-cover rounded border"
                         accept="image/*,image/gif"
                       />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
@@ -2826,37 +3190,49 @@ function ProductFormDialog({
               <div className="rounded-lg border border-border p-4 space-y-3 bg-card">
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Inventario</p>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="purchasePrice" className="text-xs">Precio compra (COP) *</Label>
-                    <div className="relative">
-                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
-                      <Input id="purchasePrice" type="number" min="0" step="0.01" placeholder="50000" value={formData.purchasePrice || ''} onChange={e => updateField('purchasePrice', parseFloat(e.target.value) || 0)} className="pl-6 h-9" required />
+                {productType !== 'ropa' && (
+                  <>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="purchasePrice" className="text-xs">Precio compra (COP) *</Label>
+                        <div className="relative">
+                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+                          <Input id="purchasePrice" type="number" min="0" step="0.01" placeholder="50000" value={formData.purchasePrice || ''} onChange={e => updateField('purchasePrice', parseFloat(e.target.value) || 0)} className="pl-6 h-9" required />
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="salePrice" className="text-xs">Precio venta (COP) {formData.category !== 'insumos' && '*'}</Label>
+                        <div className="relative">
+                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+                          <Input id="salePrice" type="number" min="0" step="0.01" placeholder="249999" value={formData.salePrice || ''} onChange={e => updateField('salePrice', parseFloat(e.target.value) || 0)} className="pl-6 h-9" />
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="salePrice" className="text-xs">Precio venta (COP) {formData.category !== 'insumos' && '*'}</Label>
-                    <div className="relative">
-                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
-                      <Input id="salePrice" type="number" min="0" step="0.01" placeholder="249999" value={formData.salePrice || ''} onChange={e => updateField('salePrice', parseFloat(e.target.value) || 0)} className="pl-6 h-9" />
-                    </div>
-                  </div>
-                </div>
 
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="stock" className="text-xs">Stock *</Label>
-                    <Input id="stock" type="number" min="0" placeholder="10" value={formData.stock ?? ''} onChange={e => updateField('stock', parseInt(e.target.value) || 0)} required className="h-9" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="reorderPoint" className="text-xs">Punto reorden *</Label>
-                    <Input id="reorderPoint" type="number" min="0" placeholder="5" value={formData.reorderPoint ?? ''} onChange={e => updateField('reorderPoint', parseInt(e.target.value) || 0)} required className="h-9" />
-                  </div>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="stock" className="text-xs">Stock *</Label>
+                        <Input id="stock" type="number" min="0" placeholder="10" value={formData.stock ?? ''} onChange={e => updateField('stock', parseInt(e.target.value) || 0)} required className="h-9" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="reorderPoint" className="text-xs">Punto reorden *</Label>
+                        <Input id="reorderPoint" type="number" min="0" placeholder="5" value={formData.reorderPoint ?? ''} onChange={e => updateField('reorderPoint', parseInt(e.target.value) || 0)} required className="h-9" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="entryDate" className="text-xs">Fecha ingreso *</Label>
+                        <Input id="entryDate" type="date" value={formData.entryDate || ''} onChange={e => updateField('entryDate', e.target.value)} required className="h-9" />
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {productType === 'ropa' && (
                   <div className="space-y-1.5">
                     <Label htmlFor="entryDate" className="text-xs">Fecha ingreso *</Label>
                     <Input id="entryDate" type="date" value={formData.entryDate || ''} onChange={e => updateField('entryDate', e.target.value)} required className="h-9" />
+                    <p className="text-[10px] text-muted-foreground">Precios y stock se configuran por horma abajo ↓</p>
                   </div>
-                </div>
+                )}
 
                 <div className="space-y-1.5">
                   <Label htmlFor="supplier" className="text-xs">Proveedor</Label>
@@ -2913,83 +3289,38 @@ function ProductFormDialog({
 
             </div>{/* fin grid 2 cols */}
 
-            {/* ══ Variantes por Horma — ancho completo ══ */}
-            {productType === 'ropa' && (
-              <div className="rounded-lg border border-border p-4 space-y-3 bg-card mt-4">
-                <div className="flex items-center gap-2">
-                  <Layers className="h-4 w-4 text-primary" />
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Variantes · Horma / Color / Talla</p>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <div className="w-64">
-                    <Select value={formData.hormaId || 'none'} onValueChange={v => updateField('hormaId', v === 'none' ? '' : v)}>
-                      <SelectTrigger className="h-9">
-                        <SelectValue placeholder="Seleccionar horma" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">Sin horma</SelectItem>
-                        {hormasList.length === 0 && (
-                          <SelectItem value="__empty__" disabled>Sin hormas — crear en Inventario → Hormas</SelectItem>
-                        )}
-                        {hormasList.map((h: any) => (
-                          <SelectItem key={h.id} value={h.id}>{h.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  {!formData.hormaId && (
-                    <p className="text-xs text-muted-foreground">Selecciona una horma para ingresar stock por color y talla.</p>
-                  )}
-                </div>
-
-                {/* Tabla stock Color × Talla */}
-                {formData.hormaId && Object.keys(hormaMatrix).length > 0 && (() => {
-                  const h = hormasList.find((x: any) => x.id === formData.hormaId)
-                  const sizes: string[] = h?.sizeChart ? Object.keys(h.sizeChart) : []
-                  const colors: { color: string; hex?: string }[] = h?.colors || []
+            {/* ══ Matrices de stock por horma — ancho completo ══ */}
+            {productType === 'ropa' && selectedHormaIds.length > 0 && (
+              <div className="space-y-4 mt-4">
+                {selectedHormaIds.map(hid => {
+                  const h = hormasList.find((x: any) => String(x.id) === hid)
+                  if (!h) return null
+                  const sizes: string[] = h.sizeChart ? Object.keys(h.sizeChart) : []
+                  const colors: { color: string; hex?: string }[] = h.colors || []
                   if (!sizes.length || !colors.length) return (
-                    <p className="text-xs text-muted-foreground">Esta horma no tiene colores o tallas configurados.</p>
-                  )
-                  return (
-                    <div className="overflow-x-auto rounded-md border border-border">
-                      <table className="w-full text-xs">
-                        <thead>
-                          <tr className="bg-muted/50">
-                            <th className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">Color</th>
-                            {sizes.map(sz => (
-                              <th key={sz} className="px-2 py-2 text-center font-medium text-muted-foreground min-w-[64px]">{sz}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {colors.map(c => (
-                            <tr key={c.color} className="border-t border-border hover:bg-muted/20 transition-colors">
-                              <td className="px-3 py-1.5">
-                                <div className="flex items-center gap-2 whitespace-nowrap">
-                                  <span className="h-3.5 w-3.5 rounded-full border border-border shrink-0" style={{ background: c.hex || resolveColorHex(c.color) || '#ccc' }} />
-                                  <span className="font-medium">{c.color}</span>
-                                </div>
-                              </td>
-                              {sizes.map(sz => (
-                                <td key={sz} className="px-1.5 py-1">
-                                  <Input
-                                    type="number"
-                                    min="0"
-                                    placeholder="0"
-                                    value={hormaMatrix[c.color]?.[sz] ?? ''}
-                                    onChange={e => setMatrixCell(c.color, sz, e.target.value)}
-                                    className="h-8 w-16 text-center px-1 text-xs"
-                                  />
-                                </td>
-                              ))}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                    <div key={hid} className="rounded-lg border border-border p-4 bg-card">
+                      <p className="text-xs font-semibold text-muted-foreground">{h.name} — sin colores o tallas configurados</p>
                     </div>
                   )
-                })()}
+                  return (
+                    <HormaStockTable
+                      key={hid}
+                      hormaId={hid}
+                      hormaName={h.name}
+                      colors={colors}
+                      sizes={sizes}
+                      matrix={hormaMatrix[hid] || {}}
+                      purchasePrice={hormaPrices[hid]?.purchasePrice ?? ''}
+                      salePrice={hormaPrices[hid]?.salePrice ?? ''}
+                      onCellChange={(color, size, val) => setMatrixCell(hid, color, size, val)}
+                      onFillRow={(color, val) => fillRow(hid, color, sizes, val)}
+                      onFillCol={(size, val) => fillCol(hid, colors.map(c => c.color), size, val)}
+                      onFillAll={(val) => fillAll(hid, colors.map(c => c.color), sizes, val)}
+                      onPurchasePriceChange={val => setHormaPrice(hid, 'purchasePrice', val)}
+                      onSalePriceChange={val => setHormaPrice(hid, 'salePrice', val)}
+                    />
+                  )
+                })}
               </div>
             )}
 

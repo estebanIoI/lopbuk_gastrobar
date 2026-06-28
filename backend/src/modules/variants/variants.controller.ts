@@ -39,6 +39,19 @@ export class VariantsController {
     } catch (err) { next(err); }
   }
 
+  async bulkCreate(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const tenantId = req.user!.tenantId!;
+      const { variants } = req.body;
+      if (!Array.isArray(variants) || variants.length === 0) {
+        res.status(400).json({ success: false, error: 'variants debe ser un array no vacío' });
+        return;
+      }
+      const result = await variantsService.bulkCreate(req.params.productId, tenantId, variants);
+      res.status(201).json({ success: true, data: result });
+    } catch (err) { next(err); }
+  }
+
   async update(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const tenantId = req.user!.tenantId!;

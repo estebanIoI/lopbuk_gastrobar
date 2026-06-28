@@ -15,6 +15,55 @@ import { variantsService } from '../variants/variants.service';
 const router: ReturnType<typeof Router> = Router();
 
 // =============================================
+// ONE-TIME SCHEMA MIGRATION — corre una sola vez al arrancar el módulo,
+// no en cada request (evita deadlocks por ALTER TABLE concurrentes)
+// =============================================
+let schemaMigrationDone = false;
+async function ensureOrdersSchema(): Promise<void> {
+  if (schemaMigrationDone) return;
+  const addCol = async (sql: string) => {
+    try { await pool.query(sql); } catch (e: any) { if (e?.errno !== 1060 && e?.errno !== 1061) throw e; }
+  };
+  try {
+    // storefront_orders — columnas opcionales
+    await addCol(`ALTER TABLE storefront_orders ADD COLUMN idempotency_key VARCHAR(64) NULL`);
+    try { await pool.query(`ALTER TABLE storefront_orders ADD UNIQUE INDEX idx_so_idempotency (idempotency_key)`); } catch { /* ya existe */ }
+    await addCol(`ALTER TABLE storefront_orders ADD COLUMN total_weight_kg DECIMAL(10,3) NULL`);
+    await addCol(`ALTER TABLE storefront_orders ADD COLUMN vehicle_id VARCHAR(36) NULL`);
+
+    // storefront_order_items — columnas opcionales
+    await addCol(`ALTER TABLE storefront_order_items ADD COLUMN variant_id VARCHAR(36) NULL`);
+    await addCol(`ALTER TABLE storefront_order_items ADD COLUMN original_price DECIMAL(15,2) NULL`);
+    await addCol(`ALTER TABLE storefront_order_items ADD COLUMN discount_percent DECIMAL(5,2) NULL DEFAULT 0`);
+    await addCol(`ALTER TABLE storefront_order_items ADD COLUMN size VARCHAR(50) NULL`);
+    await addCol(`ALTER TABLE storefront_order_items ADD COLUMN color VARCHAR(50) NULL`);
+    await addCol(`ALTER TABLE storefront_order_items ADD COLUMN is_presale TINYINT(1) NOT NULL DEFAULT 0`);
+    await addCol(`ALTER TABLE storefront_order_items ADD COLUMN presale_ship_start DATE NULL`);
+    await addCol(`ALTER TABLE storefront_order_items ADD COLUMN presale_ship_end DATE NULL`);
+
+    schemaMigrationDone = true;
+    console.log('[orders] Schema migration OK');
+  } catch (e: any) {
+    console.error('[orders] Schema migration FAILED:', e?.message || e);
+    // No bloqueamos el servidor, pero schemaMigrationDone queda false → reintento siguiente request
+  }
+}
+
+// Ejecutar al cargar el módulo (async fire-and-forget; los requests esperan si llegan antes)
+ensureOrdersSchema().catch(() => {});
+
+/** Normaliza una fecha ISO o YYYY-MM-DD a 'YYYY-MM-DD' para columnas DATE de MySQL. */
+function toMysqlDate(value: string | null | undefined): string | null {
+  if (!value) return null;
+  // Si ya viene como YYYY-MM-DD puro, úsalo directo
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  // Si viene como ISO datetime (2026-07-01T00:00:00.000Z), tomar solo la parte de fecha
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return null;
+  return d.toISOString().slice(0, 10); // 'YYYY-MM-DD'
+}
+
+// =============================================
 // INVENTORY HOLDS — reserva de stock durante checkout
 // =============================================
 async function checkStockAvailability(
@@ -165,8 +214,26 @@ router.post(
         customerName, customerPhone, customerEmail, customerCedula,
         department, municipality, address, neighborhood, notes,
         items, tenantId: requestedTenantId, paymentMethod, shippingCost = 0, discount = 0,
-        deliveryLatitude, deliveryLongitude, clientUserId
+        deliveryLatitude, deliveryLongitude, clientUserId,
+        idempotencyKey,   // clave única del cliente para detectar dobles envíos
       } = req.body;
+
+      // ── Protección contra pedidos duplicados (multiclic / doble envío) ──
+      if (idempotencyKey) {
+        const [existing] = await pool.query(
+          `SELECT id, order_number FROM storefront_orders
+           WHERE idempotency_key = ? LIMIT 1`,
+          [idempotencyKey]
+        ) as any;
+        if (existing && existing.length > 0) {
+          // Devuelve el pedido ya creado como si fuera nuevo (idempotente)
+          res.status(201).json({
+            success: true,
+            data: { orderId: existing[0].id, orderNumber: existing[0].order_number, status: 'pendiente', message: 'Pedido ya registrado' }
+          });
+          return;
+        }
+      }
 
       // Find tenant
       let tenantId = requestedTenantId;
@@ -202,20 +269,21 @@ router.post(
       const orderId = uuidv4();
       createdOrderId = orderId;
 
-      // Reservar variantes (atómico, race-safe). Normal → reserved_stock; preventa → cupo (preorder_count).
+      // Reservar variantes (atómico, race-safe). Normal → reserved_stock; precompra → presale_sold.
       // Si una no alcanza stock o cupo → 409 sin crear el pedido.
       if (variantItems.length > 0) {
         const reserve = await variantsService.reserveForPublicOrder({
           tenantId, orderId, orderNumber,
           items: variantItems.map(i => ({
             variantId: i.variantId, productId: i.productId, quantity: i.quantity,
-            productName: i.productName, isPreorder: !!i.isPreorder,
+            productName: i.productName,
+            isPresale: !!(i.isPresale || i.isPreorder), // acepta ambos nombres
           })),
         });
         if (!reserve.ok) {
           res.status(409).json({
             success: false,
-            error: `Sin disponibilidad para "${reserve.conflict}" (stock o cupo de preventa agotado). Intenta con menos unidades.`,
+            error: `Sin disponibilidad para "${reserve.conflict}" (stock o cupo de precompra agotado). Intenta con menos unidades.`,
           });
           return;
         }
@@ -232,27 +300,31 @@ router.post(
         : '';
       const finalNotes = (notes || '') + couponNote;
 
-      // Calcular peso total del pedido y auto-asignar vehículo
-      const totalWeightKg = await calcOrderWeight(
-        items.map((i: any) => ({ productId: i.productId, quantity: i.quantity }))
-      );
-      const assignedVehicleId = totalWeightKg > 0
-        ? await autoAssignVehicle(tenantId, totalWeightKg)
-        : null;
+      // Calcular peso total del pedido y auto-asignar vehículo (no crítico — no bloquea el pedido)
+      let totalWeightKg = 0;
+      let assignedVehicleId: string | null = null;
+      try {
+        totalWeightKg = await calcOrderWeight(
+          items.map((i: any) => ({ productId: i.productId, quantity: i.quantity }))
+        );
+        if (totalWeightKg > 0) assignedVehicleId = await autoAssignVehicle(tenantId, totalWeightKg);
+      } catch (_) { /* columnas de peso/flota aún no migradas — continuar sin peso */ }
 
-      // Insert order
+      // Asegurar schema (no-op si ya corrió)
+      if (!schemaMigrationDone) await ensureOrdersSchema();
+
       await pool.query(
         `INSERT INTO storefront_orders
           (id, tenant_id, order_number, customer_name, customer_phone, customer_email, customer_cedula,
            department, municipality, address, neighborhood, delivery_latitude, delivery_longitude,
            notes, subtotal, shipping_cost, discount, total, payment_method, client_user_id,
-           total_weight_kg, vehicle_id, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendiente')`,
+           total_weight_kg, vehicle_id, idempotency_key, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendiente')`,
         [orderId, tenantId, orderNumber, customerName, customerPhone, customerEmail || null, customerCedula || null,
           department || null, municipality || null, address || null, neighborhood || null,
           deliveryLatitude || null, deliveryLongitude || null, finalNotes,
           subtotal, shippingCost, discount, total, paymentMethod || null, clientUserId || null,
-          totalWeightKg || null, assignedVehicleId]
+          totalWeightKg || null, assignedVehicleId, idempotencyKey || null]
       );
 
       // Insert order items (con descuento por item para reportes DIAN)
@@ -260,13 +332,15 @@ router.post(
         await pool.query(
           `INSERT INTO storefront_order_items
             (order_id, product_id, variant_id, product_name, product_image, quantity, unit_price, original_price, discount_percent, total_price, size, color,
-             is_preorder, preorder_ship_start, preorder_ship_end)
+             is_presale, presale_ship_start, presale_ship_end)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [orderId, item.productId, item.variantId || null, item.productName, item.productImage || null,
             item.quantity, item.unitPrice, item.originalPrice || item.unitPrice, item.discountPercent || 0,
             item.unitPrice * item.quantity,
             item.size || null, item.color || null,
-            item.isPreorder ? 1 : 0, item.preorderShipStart || null, item.preorderShipEnd || null]
+            (item.isPresale || item.isPreorder) ? 1 : 0,
+            toMysqlDate(item.presaleShipStart || item.preorderShipStart),
+            toMysqlDate(item.presaleShipEnd || item.preorderShipEnd)]
         );
       }
 
@@ -301,13 +375,14 @@ router.post(
           message: 'Pedido creado exitosamente'
         }
       });
-    } catch (error) {
-      console.error('Create order error:', error);
+    } catch (error: any) {
+      const errMsg = error?.message || String(error) || 'Error desconocido';
+      console.error('Create order error:', errMsg, error);
       // Si ya se había reservado stock de variante pero algo falló después, libéralo
       if (variantReserved && createdOrderId && cleanupTenantId) {
         await variantsService.releaseForOrder(createdOrderId, cleanupTenantId).catch(() => {});
       }
-      res.status(500).json({ success: false, error: 'Error al crear el pedido' });
+      res.status(500).json({ success: false, error: `Error al crear el pedido: ${errMsg}` });
     }
   }
 );
@@ -451,7 +526,7 @@ router.post(
         await pool.query(
           `INSERT INTO storefront_order_items
             (order_id, product_id, variant_id, product_name, product_image, quantity, unit_price, original_price, discount_percent, total_price,
-             is_preorder, preorder_ship_start, preorder_ship_end)
+             is_presale, presale_ship_start, presale_ship_end)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [orderId, item.productId, item.variantId || null, item.productName, item.productImage || null,
             item.quantity, item.unitPrice, item.originalUnitPrice || item.unitPrice, itemDiscountPct,
@@ -610,7 +685,7 @@ router.post(
         await pool.query(
           `INSERT INTO storefront_order_items
             (order_id, product_id, variant_id, product_name, product_image, quantity, unit_price, original_price, discount_percent, total_price,
-             is_preorder, preorder_ship_start, preorder_ship_end)
+             is_presale, presale_ship_start, presale_ship_end)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)`,
           [orderId, item.productId, item.variantId || null, item.productName, item.productImage || null,
             item.quantity, item.unitPrice, item.originalUnitPrice || item.unitPrice,
@@ -942,7 +1017,7 @@ router.post(
         await pool.query(
           `INSERT INTO storefront_order_items
             (order_id, product_id, variant_id, product_name, product_image, quantity, unit_price, original_price, discount_percent, total_price,
-             is_preorder, preorder_ship_start, preorder_ship_end)
+             is_presale, presale_ship_start, presale_ship_end)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)`,
           [orderId, item.productId, item.variantId || null, item.productName, item.productImage || null,
             item.quantity, item.unitPrice, item.originalUnitPrice || item.unitPrice,
@@ -1562,7 +1637,7 @@ router.put(
           `SELECT oi.product_id as productId, oi.variant_id as variantId, oi.product_name as productName,
                   oi.quantity, oi.unit_price as unitPrice, oi.original_price as originalPrice,
                   oi.discount_percent as discountPercent, oi.total_price as totalPrice,
-                  oi.is_preorder as isPreorder
+                  oi.is_presale as isPresale
            FROM storefront_order_items oi
            WHERE oi.order_id = ?`,
           [orderId]

@@ -90,16 +90,16 @@ export function BoxLoader() {
   return (
     <>
       <style>{CSS}</style>
-      <div className="dz-loader">
-        <div className="box box0"><div /></div>
-        <div className="box box1"><div /></div>
-        <div className="box box2"><div /></div>
-        <div className="box box3"><div /></div>
-        <div className="box box4"><div /></div>
-        <div className="box box5"><div /></div>
-        <div className="box box6"><div /></div>
-        <div className="box box7"><div /></div>
-        <div className="ground"><div /></div>
+      <div className="dz-loader" suppressHydrationWarning>
+        <div className="box box0" suppressHydrationWarning><div suppressHydrationWarning /></div>
+        <div className="box box1" suppressHydrationWarning><div suppressHydrationWarning /></div>
+        <div className="box box2" suppressHydrationWarning><div suppressHydrationWarning /></div>
+        <div className="box box3" suppressHydrationWarning><div suppressHydrationWarning /></div>
+        <div className="box box4" suppressHydrationWarning><div suppressHydrationWarning /></div>
+        <div className="box box5" suppressHydrationWarning><div suppressHydrationWarning /></div>
+        <div className="box box6" suppressHydrationWarning><div suppressHydrationWarning /></div>
+        <div className="box box7" suppressHydrationWarning><div suppressHydrationWarning /></div>
+        <div className="ground" suppressHydrationWarning><div suppressHydrationWarning /></div>
       </div>
     </>
   )
@@ -107,7 +107,7 @@ export function BoxLoader() {
 
 export function FullPageLoader() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background" style={{ ['--dz-bg' as any]: 'hsl(var(--background))' }}>
+    <div className="min-h-screen flex items-center justify-center bg-background" style={{ ['--dz-bg' as any]: 'hsl(var(--background))' }} suppressHydrationWarning>
       <BoxLoader />
     </div>
   )

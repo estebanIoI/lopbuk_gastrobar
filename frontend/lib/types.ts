@@ -29,8 +29,14 @@ export interface ProductVariant {
   images?: string[]
   sortOrder: number
   isActive: boolean
-  preorderLimit?: number | null   // cupo máximo de preventa (null = ilimitado)
-  preorderCount?: number          // unidades ya vendidas/reservadas en preventa
+  presale?: boolean               // esta variante está en precompra
+  presaleDate?: string | null     // fecha estimada de entrega (interna)
+  presaleLimit?: number | null    // cupo máximo (null = ilimitado)
+  presaleSold?: number            // unidades ya vendidas en precompra
+  presaleDepositPct?: number      // % de anticipo (default 50)
+  // legacy aliases — mantener para backward compat
+  preorderLimit?: number | null
+  preorderCount?: number
   hormaId?: string | null         // horma (silueta) de ESTA variante — un producto puede tener variantes en distintas hormas
   priceTiers?: VariantPriceTier[]
   productName?: string

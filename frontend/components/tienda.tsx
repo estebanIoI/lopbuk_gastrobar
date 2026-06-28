@@ -80,12 +80,18 @@ interface StoreProduct {
   deliveryType: 'domicilio' | 'envio' | 'ambos' | null
   isNewLaunch: boolean
   launchDate: string | null
-  // Pre-orden
-  isPreorder: boolean
+  // Precompra (presale)
+  isPreorder: boolean   // legacy — se mantiene para compat. backend
+  isPresale?: boolean
   preorderWindowEnd: string | null
   preorderShipStart: string | null
   preorderShipEnd: string | null
   preorderBadgeText: string | null
+  presaleBadgeText?: string | null
+  // Variantes (para filtros)
+  variantColors: string[]
+  variantSizes: string[]
+  variantHormas: string[]
 }
 
 type ActiveTab = 'catalog' | 'new-launches' | 'order-bump' | 'share' | 'contact' | 'age-gate' | 'html-sections' | 'card'
@@ -125,6 +131,9 @@ export function Tienda() {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
   const [filterPublished, setFilterPublished] = useState<'all' | 'published' | 'unpublished' | 'offers' | 'delivery'>('all')
+  const [filterHorma, setFilterHorma] = useState<string>('all')
+  const [filterColor, setFilterColor] = useState<string>('all')
+  const [filterSize, setFilterSize] = useState<string>('all')
   const [togglingIds, setTogglingIds] = useState<Set<string>>(new Set())
   const [selectMode, setSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -217,6 +226,9 @@ export function Tienda() {
           availableForDelivery: p.availableForDelivery === true || p.availableForDelivery === 1 || Number(p.availableForDelivery) === 1,
           deliveryType: p.deliveryType || null,
           isNewLaunch: p.isNewLaunch === true || p.isNewLaunch === 1 || Number(p.isNewLaunch) === 1,
+          variantColors: p.variantColors ? p.variantColors.split(',').map((s: string) => s.trim()).filter(Boolean) : [],
+          variantSizes: p.variantSizes ? p.variantSizes.split(',').map((s: string) => s.trim()).filter(Boolean) : [],
+          variantHormas: p.variantHormas ? p.variantHormas.split(',').map((s: string) => s.trim()).filter(Boolean) : [],
         }))
         setProducts(prods)
         const published = prods.filter((p: StoreProduct) => p.publishedInStore).length
@@ -549,7 +561,7 @@ export function Tienda() {
     setPreorderWindowEnd(product.preorderWindowEnd ? product.preorderWindowEnd.slice(0, 16) : '')
     setPreorderShipStart(product.preorderShipStart || '')
     setPreorderShipEnd(product.preorderShipEnd || '')
-    setPreorderBadgeText(product.preorderBadgeText || 'Pre-orden')
+    setPreorderBadgeText(product.presaleBadgeText || product.preorderBadgeText || 'Pre-orden')
   }
 
   const handleSavePreorder = async () => {
@@ -683,6 +695,9 @@ export function Tienda() {
   }
 
   const categories = Array.from(new Set(products.map(p => p.category))).sort()
+  const allHormas = Array.from(new Set(products.flatMap(p => p.variantHormas))).sort()
+  const allColors = Array.from(new Set(products.flatMap(p => p.variantColors))).sort()
+  const allSizes = Array.from(new Set(products.flatMap(p => p.variantSizes))).sort()
 
   const filteredProducts = products.filter(p => {
     if (selectedCategory !== 'all' && p.category !== selectedCategory) return false
@@ -690,13 +705,17 @@ export function Tienda() {
     if (filterPublished === 'unpublished' && p.publishedInStore) return false
     if (filterPublished === 'offers' && !p.isOnOffer) return false
     if (filterPublished === 'delivery' && !p.availableForDelivery) return false
+    if (filterHorma !== 'all' && !p.variantHormas.includes(filterHorma)) return false
+    if (filterColor !== 'all' && !p.variantColors.includes(filterColor)) return false
+    if (filterSize !== 'all' && !p.variantSizes.includes(filterSize)) return false
     if (searchQuery) {
       const q = searchQuery.toLowerCase()
-      return (
-        p.name.toLowerCase().includes(q) ||
-        (p.brand && p.brand.toLowerCase().includes(q)) ||
-        p.category.toLowerCase().includes(q)
-      )
+      if (
+        !p.name.toLowerCase().includes(q) &&
+        !(p.brand && p.brand.toLowerCase().includes(q)) &&
+        !p.category.toLowerCase().includes(q) &&
+        !(p.sku && (p as any).sku.toLowerCase().includes(q))
+      ) return false
     }
     return true
   })
@@ -1230,6 +1249,45 @@ export function Tienda() {
                     <option key={cat} value={cat}>{cat}</option>
                   ))}
                 </select>
+
+                {allHormas.length > 0 && (
+                  <select
+                    value={filterHorma}
+                    onChange={e => setFilterHorma(e.target.value)}
+                    className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="all">Todas las hormas</option>
+                    {allHormas.map(h => (
+                      <option key={h} value={h}>{h}</option>
+                    ))}
+                  </select>
+                )}
+
+                {allColors.length > 0 && (
+                  <select
+                    value={filterColor}
+                    onChange={e => setFilterColor(e.target.value)}
+                    className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="all">Todos los colores</option>
+                    {allColors.map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                )}
+
+                {allSizes.length > 0 && (
+                  <select
+                    value={filterSize}
+                    onChange={e => setFilterSize(e.target.value)}
+                    className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="all">Todas las tallas</option>
+                    {allSizes.map(s => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                )}
 
                 <div className="flex gap-1 flex-wrap">
                   {(['all', 'published', 'offers', 'delivery', 'unpublished'] as const).map(f => (

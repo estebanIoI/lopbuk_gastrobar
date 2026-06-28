@@ -17,7 +17,12 @@ interface VariantRow extends RowDataPacket {
   cost_price: number | null; price_override: number | null;
   supplier_id: string | null; images: string | null;
   sort_order: number; is_active: number;
-  preorder_limit: number | null; preorder_count: number | null;
+  // Precompra (columnas nuevas; fallback a alias por si la migración aún no corrió)
+  presale: number;                  // 0/1 — esta variante está en modo precompra
+  presale_date: string | null;      // fecha estimada de llegada
+  presale_limit: number | null;     // cupo máximo de precompra (NULL = ilimitado)
+  presale_sold: number;             // unidades ya vendidas como precompra
+  presale_deposit_pct: number;      // % de anticipo (default 50)
   horma_id: string | null;
   created_at: Date; updated_at: Date;
   // joined
@@ -64,8 +69,14 @@ function mapVariant(row: VariantRow): ProductVariant {
       : undefined,
     sortOrder: row.sort_order,
     isActive: Boolean(row.is_active),
-    preorderLimit: row.preorder_limit != null ? Number(row.preorder_limit) : null,
-    preorderCount: row.preorder_count != null ? Number(row.preorder_count) : 0,
+    presale: Boolean(row.presale),
+    presaleDate: row.presale_date ?? null,
+    presaleLimit: row.presale_limit != null ? Number(row.presale_limit) : null,
+    presaleSold: Number(row.presale_sold ?? 0),
+    presaleDepositPct: Number(row.presale_deposit_pct ?? 50),
+    // legacy aliases (retrocompatibilidad — eliminar cuando no haya clientes en la versión anterior)
+    preorderLimit: row.presale_limit != null ? Number(row.presale_limit) : null,
+    preorderCount: Number(row.presale_sold ?? 0),
     hormaId: row.horma_id ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -172,8 +183,11 @@ export class VariantsService {
       images          JSON,
       sort_order      INT          DEFAULT 0,
       is_active       TINYINT(1)   DEFAULT 1,
-      preorder_limit  INT NULL COMMENT 'Cupo máximo de preventa (NULL = ilimitado)',
-      preorder_count  INT NOT NULL DEFAULT 0 COMMENT 'Unidades vendidas/reservadas en preventa',
+      presale         TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Variante en modo precompra',
+      presale_date    DATE NULL COMMENT 'Fecha estimada de llegada del stock',
+      presale_limit   INT NULL COMMENT 'Cupo máximo de precompra (NULL = ilimitado)',
+      presale_sold    INT NOT NULL DEFAULT 0 COMMENT 'Unidades vendidas como precompra',
+      presale_deposit_pct DECIMAL(5,2) NOT NULL DEFAULT 50.00 COMMENT '% anticipo requerido',
       horma_id        VARCHAR(36) NULL COMMENT 'Horma de ESTA variante — un producto puede tener variantes en distintas hormas',
       created_at      TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
       updated_at      TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -257,6 +271,27 @@ export class VariantsService {
     } catch (e: any) {
       if (e?.errno !== 1060) { /* 1060 = columna/índice ya existe */ }
     }
+
+    // ── Migración preorden → precompra ──────────────────────────────────────
+    // Renombra las columnas legacy (preorder_*) a presale_* y agrega las nuevas.
+    // Cada bloque try/catch es idempotente: falla silenciosamente si ya existe.
+    try { await db.query("ALTER TABLE product_variants RENAME COLUMN preorder_limit TO presale_limit"); } catch (_) {}
+    try { await db.query("ALTER TABLE product_variants RENAME COLUMN preorder_count TO presale_sold"); } catch (_) {}
+    try { await db.query("ALTER TABLE product_variants ADD COLUMN presale TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Variante en modo precompra'"); } catch (_) {}
+    try { await db.query("ALTER TABLE product_variants ADD COLUMN presale_date DATE NULL COMMENT 'Fecha estimada de llegada'"); } catch (_) {}
+    try { await db.query("ALTER TABLE product_variants ADD COLUMN presale_deposit_pct DECIMAL(5,2) NOT NULL DEFAULT 50.00 COMMENT '% anticipo requerido'"); } catch (_) {}
+    // storefront_order_items: renombrar columnas is_preorder → is_presale, preorder_ship_* → presale_ship_*
+    try { await db.query("ALTER TABLE storefront_order_items RENAME COLUMN is_preorder TO is_presale"); } catch (_) {}
+    try { await db.query("ALTER TABLE storefront_order_items RENAME COLUMN preorder_ship_start TO presale_ship_start"); } catch (_) {}
+    try { await db.query("ALTER TABLE storefront_order_items RENAME COLUMN preorder_ship_end TO presale_ship_end"); } catch (_) {}
+    // products: renombrar is_preorder → is_presale y demás campos de preorden
+    try { await db.query("ALTER TABLE products RENAME COLUMN is_preorder TO is_presale"); } catch (_) {}
+    try { await db.query("ALTER TABLE products RENAME COLUMN preorder_window_end TO presale_window_end"); } catch (_) {}
+    try { await db.query("ALTER TABLE products RENAME COLUMN preorder_ship_start TO presale_ship_start"); } catch (_) {}
+    try { await db.query("ALTER TABLE products RENAME COLUMN preorder_ship_end TO presale_ship_end"); } catch (_) {}
+    try { await db.query("ALTER TABLE products RENAME COLUMN preorder_badge_text TO presale_badge_text"); } catch (_) {}
+    try { await db.query("ALTER TABLE products RENAME COLUMN preorder_policy_text TO presale_policy_text"); } catch (_) {}
+    try { await db.query("ALTER TABLE products ADD COLUMN presale_deposit_pct DECIMAL(5,2) NOT NULL DEFAULT 50.00 COMMENT '% anticipo requerido'"); } catch (_) {}
 
     // ── Limpieza única de SKUs bloqueados ───────────────────────────────────
     // 1) Variantes huérfanas: su producto ya no existe (porque products.delete()
@@ -359,7 +394,9 @@ export class VariantsService {
   async create(productId: string, tenantId: string, data: {
     sku: string; barcode?: string; color?: string; colorHex?: string; size?: string; material?: string;
     stock?: number; minStock?: number; costPrice?: number; priceOverride?: number;
-    supplierId?: string; images?: string[]; sortOrder?: number; preorderLimit?: number | null;
+    supplierId?: string; images?: string[]; sortOrder?: number;
+    presale?: boolean; presaleDate?: string | null; presaleLimit?: number | null; presaleDepositPct?: number;
+    /** @deprecated usa presaleLimit */ preorderLimit?: number | null;
     hormaId?: string | null;
   }): Promise<ProductVariant> {
     await this.ensureTables();
@@ -386,8 +423,9 @@ export class VariantsService {
       `INSERT INTO product_variants
          (id, tenant_id, product_id, sku, barcode, color, color_hex, size, material,
           stock, reserved_stock, min_stock, cost_price, price_override,
-          supplier_id, images, sort_order, preorder_limit, horma_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          supplier_id, images, sort_order,
+          presale, presale_date, presale_limit, presale_deposit_pct, horma_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id, tenantId, productId,
         data.sku, data.barcode ?? null, data.color ?? null, data.colorHex ?? null, data.size ?? null, data.material ?? null,
@@ -396,7 +434,10 @@ export class VariantsService {
         data.supplierId ?? null,
         data.images ? JSON.stringify(data.images) : null,
         data.sortOrder ?? 0,
-        data.preorderLimit ?? null,
+        data.presale ? 1 : 0,
+        data.presaleDate ?? null,
+        data.presaleLimit ?? data.preorderLimit ?? null,
+        data.presaleDepositPct ?? 50,
         data.hormaId ?? null,
       ]
     );
@@ -413,10 +454,73 @@ export class VariantsService {
     return this.findById(id, tenantId);
   }
 
+  /** Inserta múltiples variantes en una sola transacción. Más rápido que llamar create() N veces. */
+  async bulkCreate(productId: string, tenantId: string, items: Array<{
+    sku: string; color?: string; colorHex?: string; size?: string; material?: string;
+    stock?: number; minStock?: number; costPrice?: number; priceOverride?: number;
+    hormaId?: string | null; sortOrder?: number;
+  }>): Promise<{ created: number; skipped: number; errors: string[] }> {
+    await this.ensureTables();
+    await this.ensureColorHex();
+
+    // Obtener SKUs existentes del tenant en una sola query
+    const [existingRows] = await db.execute<RowDataPacket[]>(
+      'SELECT sku FROM product_variants WHERE tenant_id = ? AND is_active = 1',
+      [tenantId]
+    );
+    const existingSkus = new Set(existingRows.map((r: any) => r.sku));
+
+    const toInsert = items.filter(v => !existingSkus.has(v.sku));
+    const skipped = items.length - toInsert.length;
+    const errors: string[] = [];
+
+    if (toInsert.length === 0) return { created: 0, skipped, errors };
+
+    // INSERT multi-row en una sola query
+    const placeholders = toInsert.map(() => '(?,?,?,?,?,?,?,?,?,0,?,?,?,?,?)').join(',')
+    const values: any[] = []
+    const movements: { variantId: string; stock: number }[] = []
+
+    for (const v of toInsert) {
+      const id = uuidv4()
+      values.push(
+        id, tenantId, productId,
+        v.sku, v.color ?? null, v.colorHex ?? null, v.size ?? null, v.material ?? null,
+        v.stock ?? 0,
+        v.minStock ?? 0,
+        v.costPrice ?? null, v.priceOverride ?? null,
+        v.sortOrder ?? 0,
+        v.hormaId ?? null,
+      )
+      if (v.stock && v.stock > 0) movements.push({ variantId: id, stock: v.stock })
+    }
+
+    await db.execute(
+      `INSERT INTO product_variants
+         (id, tenant_id, product_id, sku, color, color_hex, size, material,
+          stock, reserved_stock, min_stock, cost_price, price_override, sort_order, horma_id)
+       VALUES ${placeholders}`,
+      values
+    );
+
+    // Registrar movimientos de inventario inicial
+    for (const m of movements) {
+      await this._recordMovement({
+        tenantId, variantId: m.variantId, productId,
+        type: 'entrada', quantity: m.stock,
+        reason: 'Stock inicial al crear variante (bulk)',
+      }).catch(() => { /* no bloquear si falla el log */ });
+    }
+
+    return { created: toInsert.length, skipped, errors };
+  }
+
   async update(id: string, tenantId: string, data: Partial<{
     sku: string; barcode: string; color: string; colorHex: string; size: string; material: string;
     minStock: number; costPrice: number; priceOverride: number;
-    supplierId: string; images: string[]; sortOrder: number; isActive: boolean; preorderLimit: number | null;
+    supplierId: string; images: string[]; sortOrder: number; isActive: boolean;
+    presale: boolean; presaleDate: string | null; presaleLimit: number | null; presaleDepositPct: number;
+    /** @deprecated usa presaleLimit */ preorderLimit: number | null;
     hormaId: string | null;
   }>): Promise<ProductVariant> {
     await this.ensureColorHex();
@@ -437,7 +541,10 @@ export class VariantsService {
       sku: 'sku', barcode: 'barcode', color: 'color', colorHex: 'color_hex', size: 'size', material: 'material',
       minStock: 'min_stock', costPrice: 'cost_price', priceOverride: 'price_override',
       supplierId: 'supplier_id', sortOrder: 'sort_order', isActive: 'is_active',
-      preorderLimit: 'preorder_limit', hormaId: 'horma_id',
+      presale: 'presale', presaleDate: 'presale_date',
+      presaleLimit: 'presale_limit', presaleDepositPct: 'presale_deposit_pct',
+      preorderLimit: 'presale_limit', // alias legacy
+      hormaId: 'horma_id',
     };
 
     const sets: string[] = [];
@@ -531,7 +638,7 @@ export class VariantsService {
    */
   async reserveForPublicOrder(params: {
     tenantId: string; orderId: string; orderNumber: string;
-    items: { variantId?: string; productId: string; quantity: number; productName?: string; isPreorder?: boolean }[];
+    items: { variantId?: string; productId: string; quantity: number; productName?: string; isPresale?: boolean; /** @deprecated */ isPreorder?: boolean }[];
   }): Promise<{ ok: boolean; conflict?: string }> {
     const variantItems = params.items.filter(i => i.variantId);
     if (variantItems.length === 0) return { ok: true };
@@ -541,12 +648,13 @@ export class VariantsService {
     try {
       await conn.beginTransaction();
       for (const it of variantItems) {
-        if (it.isPreorder) {
-          // PREVENTA (backorder): no toca stock; cuenta contra el cupo de preventa (si lo hay).
+        const isPresale = it.isPresale || it.isPreorder; // alias retrocompat
+        if (isPresale) {
+          // PRECOMPRA: no descuenta stock físico; cuenta contra presale_sold (si hay cupo).
           const [r] = await conn.execute(
-            `UPDATE product_variants SET preorder_count = preorder_count + ?
+            `UPDATE product_variants SET presale_sold = presale_sold + ?
              WHERE id = ? AND tenant_id = ? AND is_active = 1
-               AND (preorder_limit IS NULL OR preorder_count + ? <= preorder_limit)`,
+               AND (presale_limit IS NULL OR presale_sold + ? <= presale_limit)`,
             [it.quantity, it.variantId, params.tenantId, it.quantity]
           ) as [ResultSetHeader, any];
           if (r.affectedRows === 0) {
@@ -556,9 +664,9 @@ export class VariantsService {
           await conn.execute(
             `INSERT INTO inventory_movements
                (id, tenant_id, variant_id, product_id, type, quantity, reason, reference_type, reference_id)
-             VALUES (?, ?, ?, ?, 'reserva', ?, ?, 'storefront_order_preorder', ?)`,
+             VALUES (?, ?, ?, ?, 'reserva', ?, ?, 'storefront_order_presale', ?)`,
             [uuidv4(), params.tenantId, it.variantId, it.productId, it.quantity,
-             `Preventa por pedido ${params.orderNumber}`, params.orderId]
+             `Precompra por pedido ${params.orderNumber}`, params.orderId]
           );
         } else {
           // Reserva normal: incrementa reserved_stock verificando disponibilidad real.
@@ -600,16 +708,16 @@ export class VariantsService {
       `SELECT variant_id, product_id, reference_type, SUM(quantity) AS qty
        FROM inventory_movements
        WHERE reference_id = ? AND tenant_id = ? AND type = 'reserva'
-         AND reference_type IN ('storefront_order', 'storefront_order_preorder')
+         AND reference_type IN ('storefront_order', 'storefront_order_presale', 'storefront_order_preorder')
        GROUP BY variant_id, product_id, reference_type`,
       [orderId, tenantId]
     );
     for (const m of movs as any[]) {
       if (!m.variant_id) continue;
       const qty = Number(m.qty);
-      if (m.reference_type === 'storefront_order_preorder') {
+      if (m.reference_type === 'storefront_order_presale' || m.reference_type === 'storefront_order_preorder') {
         await db.execute(
-          `UPDATE product_variants SET preorder_count = GREATEST(0, preorder_count - ?)
+          `UPDATE product_variants SET presale_sold = GREATEST(0, presale_sold - ?)
            WHERE id = ? AND tenant_id = ?`,
           [qty, m.variant_id, tenantId]
         );
@@ -638,7 +746,7 @@ export class VariantsService {
    */
   async settleVariantForSale(conn: any, params: {
     variantId: string; productId: string; tenantId: string; quantity: number;
-    isPreorder?: boolean; reason: string; referenceId: string;
+    isPresale?: boolean; /** @deprecated */ isPreorder?: boolean; reason: string; referenceId: string;
   }): Promise<{ sku: string; costPrice: number }> {
     await this.ensureTables();
     const [rows] = await conn.execute(
@@ -649,7 +757,7 @@ export class VariantsService {
     const sku = v?.sku ?? 'VAR';
     const costPrice = v?.cost_price != null ? Number(v.cost_price) : 0;
 
-    if (params.isPreorder) {
+    if (params.isPresale || params.isPreorder) {
       await conn.execute(
         'UPDATE product_variants SET stock = stock - ? WHERE id = ? AND tenant_id = ?',
         [params.quantity, params.variantId, params.tenantId]

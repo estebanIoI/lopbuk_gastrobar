@@ -26,6 +26,13 @@ router.post(
   variantsController.create.bind(variantsController)
 );
 
+// POST /api/products/:productId/variants/bulk — crea múltiples variantes en una sola query
+router.post(
+  '/products/:productId/variants/bulk',
+  [param('productId').notEmpty(), body('variants').isArray({ min: 1 }), validateRequest],
+  variantsController.bulkCreate.bind(variantsController)
+);
+
 // ── Resumen (todas las variantes del tenant, para la tabla de inventario) ─────
 // GET /api/variants/summary
 // IMPORTANTE: declarada ANTES de '/variants/:id' — si no, Express la matchearía

@@ -1,5 +1,18 @@
 import type { DailyReportData } from './types'
 
+export interface CloudinaryImage {
+  public_id: string
+  secure_url: string
+  display_name: string
+  original_filename: string
+  folder: string
+  format: string
+  width: number
+  height: number
+  bytes: number
+  created_at: string
+}
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'
 
 class ApiService {
@@ -2080,6 +2093,8 @@ class ApiService {
   async updateSuperadminIntegrations(data: {
     cloudinaryCloudName?: string;
     cloudinaryUploadPreset?: string;
+    cloudinaryApiKey?: string;
+    cloudinaryApiSecret?: string;
     geminiApiKey?: string;
     openaiApiKey?: string;
     groqApiKey?: string;
@@ -2092,11 +2107,43 @@ class ApiService {
     openaiModel?: string;
     visionProvider?: string;
     visionModel?: string;
+    [key: string]: any;
   }) {
     return this.request<any>('/chatbot/superadmin/integrations', {
       method: 'PUT',
       body: JSON.stringify(data),
     })
+  }
+
+  // ─── Cloudinary Browser (Admin API) ──────────────────────────────────────────
+
+  async getCloudinaryFolders() {
+    return this.request<{ folders: { path: string; name: string }[] }>('/cloudinary/folders')
+  }
+
+  async getCloudinaryImages(params: {
+    folder: string
+    next_cursor?: string
+    max_results?: number
+    sort_by?: string
+    direction?: string
+  }) {
+    const q = new URLSearchParams({ folder: params.folder })
+    if (params.next_cursor)  q.set('next_cursor',  params.next_cursor)
+    if (params.max_results)  q.set('max_results',  String(params.max_results))
+    if (params.sort_by)      q.set('sort_by',      params.sort_by)
+    if (params.direction)    q.set('direction',     params.direction)
+    return this.request<{
+      images: CloudinaryImage[]
+      next_cursor: string | null
+      total_count: number
+    }>(`/cloudinary/images?${q}`)
+  }
+
+  async getCloudinaryFolderStats(folder: string) {
+    return this.request<{ folder: string; total_count: number }>(
+      `/cloudinary/folder-stats?folder=${encodeURIComponent(folder)}`
+    )
   }
 
   async getSuperadminChatbotTenants() {
@@ -3179,6 +3226,15 @@ class ApiService {
   async getVariantsByProduct(productId: string) { return this.request<any[]>(`/products/${productId}/variants`) }
   async getVariant(id: string) { return this.request<any>(`/variants/${id}`) }
   async createVariant(productId: string, data: any) { return this.request<any>(`/products/${productId}/variants`, { method: 'POST', body: JSON.stringify(data) }) }
+  async bulkCreateVariants(productId: string, variants: any[]) { return this.request<any>(`/products/${productId}/variants/bulk`, { method: 'POST', body: JSON.stringify({ variants }) }) }
+  /** Crea N productos + sus variantes en una sola transacción. Máx 100 items por llamada. */
+  async bulkCreateProductsWithVariants(items: Array<{ product: any; variants: any[] }>) {
+    return this.request<any>('/products/bulk-with-variants', { method: 'POST', body: JSON.stringify({ items }) })
+  }
+  /** Devuelve { id, name, imageUrl } de todos los productos con imagen. Usado por el picker de Cloudinary. */
+  async getProductImageUrls() {
+    return this.request<Array<{ id: string; name: string; imageUrl: string }>>('/products/image-urls')
+  }
   async updateVariant(id: string, data: any) { return this.request<any>(`/variants/${id}`, { method: 'PUT', body: JSON.stringify(data) }) }
   async deleteVariant(id: string) { return this.request<any>(`/variants/${id}`, { method: 'DELETE' }) }
   async adjustVariantStock(id: string, data: { quantity: number; type: string; reason: string }) {

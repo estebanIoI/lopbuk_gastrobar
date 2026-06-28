@@ -22,7 +22,9 @@ export interface ProductoCarrito {
   // Peso del producto (ferretería) en kg para cálculo de flota
   weightKg?: number | null;
   productType?: string;
-  // Pre-orden
+  // Precompra (presale) — se mantienen aliases legacy para compat.
+  isPresale?: boolean;
+  presaleBadgeText?: string;
   isPreorder?: boolean;
   preorderShipStart?: string | null;
   preorderShipEnd?: string | null;

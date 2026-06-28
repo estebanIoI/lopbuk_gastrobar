@@ -170,13 +170,37 @@ export function IntegrationsTab() {
                 </button>
               </div>
             </div>
+            <div className="space-y-1.5">
+              <Label>API Key <span className="text-xs text-muted-foreground ml-1">(para importar desde Cloudinary)</span></Label>
+              <Input
+                placeholder={integrations.cloudinaryApiKeySet ? integrations.cloudinaryApiKey : 'ej: 123456789012345'}
+                value={integrations.cloudinaryApiKeyInput ?? ''}
+                onChange={e => set('cloudinaryApiKeyInput', e.target.value)}
+                className="font-mono text-sm"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>API Secret <span className="text-xs text-muted-foreground ml-1">(nunca se muestra)</span></Label>
+              <div className="relative">
+                <Input
+                  type="password"
+                  placeholder={integrations.cloudinaryApiSecretSet ? '••••••••••••••••' : 'ej: AbCdEfGhIjKlMnOp...'}
+                  value={integrations.cloudinaryApiSecretInput ?? ''}
+                  onChange={e => set('cloudinaryApiSecretInput', e.target.value)}
+                  className="font-mono text-sm"
+                />
+              </div>
+              {integrations.cloudinaryApiSecretSet && (
+                <p className="text-xs text-green-600 dark:text-green-400">✓ Configurado — deja vacío para mantener el actual</p>
+              )}
+            </div>
           </div>
 
           <div className="flex items-center gap-2 p-2.5 rounded-lg bg-secondary/40 text-sm">
             <div className={`w-2 h-2 rounded-full flex-shrink-0 ${integrations.cloudinaryCloudName && integrations.cloudinaryUploadPreset ? 'bg-green-500' : 'bg-amber-400'}`} />
             <span className="text-muted-foreground text-xs">
               {integrations.cloudinaryCloudName && integrations.cloudinaryUploadPreset
-                ? `Activo — Cloud: ${integrations.cloudinaryCloudName}`
+                ? `Activo — Cloud: ${integrations.cloudinaryCloudName}${integrations.cloudinaryApiSecretSet ? ' · Admin API configurado ✓' : ' · Admin API no configurado'}`
                 : 'Sin configurar'}
             </span>
           </div>
