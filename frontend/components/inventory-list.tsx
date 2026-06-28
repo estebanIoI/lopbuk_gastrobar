@@ -2765,6 +2765,7 @@ function ProductFormDialog({
                 <p className="text-xs text-muted-foreground">Dejar en &quot;Todas&quot; para que aparezca en todas las sedes</p>
               </div>
             )}
+            </div>
 
             {/* ── Galería de imágenes (hasta 4) ── */}
             <div className="space-y-3">
@@ -2800,7 +2801,10 @@ function ProductFormDialog({
                         previewClassName="h-20 w-full object-cover rounded border"
                         accept="image/*,image/gif"
                       />
-                <div className="grid grid-cols-2 gap-3">
+                    </div>
+                  )
+                })}
+                  <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
                       <Label htmlFor="sku" className="text-xs">SKU *</Label>
@@ -2821,6 +2825,7 @@ function ProductFormDialog({
                   </div>
                 </div>
               </div>
+            </div>
 
               {/* ── Columna derecha: Inventario ── */}
               <div className="rounded-lg border border-border p-4 space-y-3 bg-card">
