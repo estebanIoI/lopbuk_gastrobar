@@ -2,6 +2,23 @@
 
 > Actualiza este archivo después de cada sesión de trabajo significativa.
 
+## 🆕 [2026-06-25] Workout Engine — Progression + Runtime + Workout Mode UI
+
+> Construido pero **NO deployado**. Verificar `pnpm exec tsc --noEmit` (front+back) antes de push + Komodo. Migraciones al boot. Detalle en `changelog.md` y `current-sprint.md`.
+
+El botón "Iniciar rutina" ahora SÍ lleva a un modo entrenamiento real con progresión inteligente, construido como sistema **determinístico por capas** (la IA interpreta, el motor ejecuta).
+
+**Listo (código en disco, verificado tsc 0 errores + 31 tests):**
+- ✅ **Progression Engine** (`backend/src/modules/progression/`) — núcleo puro, sin deps, hipertrofia + double progression. RuleEngine centralizado (única fuente de reglas fitness), strategies desacopladas, contratos validados, decisiones auditables (`reasons`). 19 tests. `strength`/`endurance` lanzan a propósito (V2/V3).
+- ✅ **Workout Runtime** (`backend/src/modules/workout/`) — scope consumidor (user, NO tenant). State machine, persistencia (sessions/exercises/sets + `exercise_progressions` snapshot), repository transaccional, services lifecycle/set-tracking, **progression-bridge** (conecta runtime↔motor al completar), eventos. 12 tests. Endpoints `/api/workouts/*`.
+- ✅ **Workout Mode UI** (`frontend/`) — `lib/workout-api.ts`, `components/workout/*` (sesión inmersiva, set tracker, rest timer, summary con progresión), ruta `/workout/session/[id]`, botón "Iniciar rutina" cableado. Front NO calcula: renderiza decisiones del backend.
+
+**⏳ PENDIENTE (próxima sesión / próximo agente):**
+1. **Deploy:** `pnpm exec tsc --noEmit` front+back → push → Komodo. Migraciones al boot: `workout_sessions`, `workout_exercises`, `workout_sets`, `exercise_progressions`.
+2. **Probar loop en vivo:** "Iniciar rutina" → `/workout/session/:id` → completar sets → rest timer → completar → ver progresión (+2.5kg) + PRs.
+3. **Decisión de producto pendiente:** hoy `start-today` usa **templates** de ejercicios (Tren superior/inferior/Full body por keyword del título) porque `rutina_actividades` no tiene ejercicios estructurados con cargas. Evaluar si los ejercicios deben salir de la rutina real del usuario (requeriría estructurar la rutina con sets/reps/peso).
+4. **Siguientes capas del plan (NO hechas):** RestTimer/volumen ya están en UI; faltan fatigue engine, PR system avanzado, gamificación XP enganchada a los eventos workout (el publisher ya existe, falta suscriptor), IA coach (presentational), objetivos fuerza/resistencia (nuevas strategies en el engine).
+
 ## 🆕 [2026-06-22] DAIMUZ Fitness Lifestyle OS — Fases 2, 3 y 4.1
 
 > Construido pero **NO deployado** (push + Komodo Deploy pendientes del usuario). Verificar `pnpm exec tsc --noEmit` en front y back antes. Las migraciones corren al boot del backend. Detalle en `context/current-sprint.md` y `changelog.md`.

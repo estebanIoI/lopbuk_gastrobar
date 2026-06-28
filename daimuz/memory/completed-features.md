@@ -1,5 +1,13 @@
 # ✅ Features Completados
 
+## Workout Engine — Progression + Runtime + Workout Mode UI (2026-06-25)
+
+> Construido, NO deployado. Detalle en `context/current-sprint.md` + `changelog.md`. Arquitectura determinística por capas (la IA interpreta, el motor ejecuta). 31 tests verdes (19+12), tsc 0 errores.
+
+- **Progression Engine** (`backend/src/modules/progression/`): núcleo determinístico PURO, sin dependencias nuevas (validación estilo zod sin instalar zod). Hipertrofia + double progression (rango 8-12). **RuleEngine centralizado** = única fuente de reglas fitness; strategies desacopladas (extensible: fuerza/resistencia = nuevas clases sin tocar el core); calculators puros (volumen, completion-rate, 1RM Epley); decisiones auditables (`action`, `nextWeight`, `confidence`, `reasons`, `metrics`). `strength`/`endurance` y `linear`/`rir_based` LANZAN a propósito. Evento `progression_computed`. 19 tests node:test. README en el módulo.
+- **Workout Runtime** (`backend/src/modules/workout/`): scope consumidor (`users.id`, como `rutina`, NO tenant). State machine explícita (`pending→active→paused→completed/cancelled`, sin "boolean hell"). Persistencia idempotente: `workout_sessions`, `workout_exercises`, `workout_sets`, `exercise_progressions` (**snapshot por user+ejercicio = source of truth**, no se recalcula la historia). Repository único user-scoped + transaccional. Services: lifecycle, set-tracking, **progression-bridge** (al completar la sesión corre el engine por ejercicio → upsert snapshot → publica eventos). Event publisher no-op extensible (suscriptores futuros sin tocar services). 12 tests. Endpoints `/api/workouts/*` (start, start-today, :id, sets/:setId/complete, pause/resume/cancel, complete) + `ensureWorkoutSchema()` al boot.
+- **Workout Mode UI** (`frontend/`): glue `today-plan.service.ts` + `POST /workouts/start-today` (template por tipo de sesión + peso sugerido = `nextWeight` del snapshot). `lib/workout-api.ts` (módulo aparte, sin tocar `api.ts`), `components/workout/` (WorkoutSessionScreen inmersivo, ExerciseCard, SetTracker, RestTimer 90s, WorkoutSummary con progresión + PRs), ruta `app/workout/session/[id]/page.tsx`, botón "Iniciar rutina" cableado. **Regla clave:** el frontend NO calcula nada de fitness; solo renderiza las decisiones del backend.
+
 ## DAIMUZ Fitness Lifestyle OS — Coach Economy + Vault/Access + Adaptive (2026-06-22)
 
 > Construido, NO deployado. Detalle en `context/current-sprint.md` + `changelog.md`.

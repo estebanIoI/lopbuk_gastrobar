@@ -5,6 +5,16 @@
 ---
 
 
+## [2026-06-25] — Workout Engine: Progression Engine + Runtime + Workout Mode UI (Fitness OS)
+
+Construido el corazón del "Iniciar rutina" como sistema determinístico por capas. **NO deployado** (pendiente `pnpm exec tsc --noEmit` front+back + push + Komodo). Migraciones corren al boot.
+
+- **Progression Engine (determinístico, sin deps)** — `backend/src/modules/progression/`. Núcleo puro hipertrofia + double progression (rango 8-12). Capas: `shared` (enums/constants/`schema.ts` validación estilo zod sin instalar zod), `domain` (entities, `rules/goal-rules.ts` = **único RuleEngine**, calculators volume/completion-rate/1RM, evaluator, strategies + factory), `application` (ProgressionService + evento `progression_computed`). Decisión: todas las series al tope → `increase` (+2.5 upper / +5 lower); dentro de rango → `maintain`; bajo mínimo o rate<0.8 → `decrease`. `strength`/`endurance` y `linear`/`rir_based` LANZAN a propósito (anti-alucinación). **19 tests** node:test verdes, tsc 0 errores.
+- **Workout Runtime (Fase 5)** — `backend/src/modules/workout/` (scope consumidor = `users.id`, como `rutina`; NO tenant). State machine explícita (`pending→active→paused→completed/cancelled`). Tablas idempotentes: `workout_sessions`, `workout_exercises`, `workout_sets`, `exercise_progressions` (snapshot por user+ejercicio = source of truth). Repository único user-scoped+transaccional. Services: lifecycle + set-tracking + **progression-bridge** (al completar la sesión corre el engine por ejercicio → upsert snapshot → eventos). Event publisher no-op extensible. **12 tests** verdes. Montado en `index.ts`: `/api/workouts` + `ensureWorkoutSchema()` al boot.
+- **Workout Mode UI (Fase 6, slice vertical)** — Backend glue `today-plan.service.ts` + `POST /workouts/start-today` (arma template por tipo de sesión + **peso sugerido = `nextWeight` del snapshot**). Frontend: `lib/workout-api.ts` (módulo aparte, NO se tocó el `api.ts` gigante), `components/workout/` (WorkoutSessionScreen, ExerciseCard, SetTracker, RestTimer 90s, WorkoutSummary), ruta `app/workout/session/[id]/page.tsx`, y botón "Iniciar rutina" de `MissionControl.tsx` cableado → `startToday` → `router.push`. **Regla:** el front NO calcula nada; solo renderiza `action`/`nextWeight` del backend. tsc 0 errores en archivos nuevos.
+- **Verificación:** el mount del sandbox quedó stale otra vez (glitch conocido: trunca archivos grandes y no refleja sobreescrituras vía bash). Se verificó reconstruyendo el contenido correcto en `/tmp` y leyendo el workspace con file-tools. Correr `pnpm exec tsc --noEmit` en Windows.
+
+
 ## [2026-06-24] — Chatbot: limpiar llamados de herramienta filtrados como texto
 
 - **Síntoma:** el modelo escribía el tool-call COMO TEXTO en el chat (`<function=registrar_pedido>{...}</function>`), visible para el usuario, además de hacer varias preguntas juntas. Pasa cuando el tool-calling nativo del proveedor no engancha y el modelo improvisa el llamado en texto.

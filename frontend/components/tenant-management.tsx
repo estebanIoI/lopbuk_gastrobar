@@ -71,6 +71,7 @@ import {
   Trash2,
   MoreVertical,
   CalendarDays,
+  Ban,
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -294,6 +295,30 @@ export function TenantManagement() {
       toast.error(result.error || 'Error al eliminar usuario')
     }
     setIsDeletingUser(false)
+  }
+
+  // Cambiar el rol de un usuario (superadmin). Al pasar a cliente se le quita el comercio.
+  const handleChangeRole = async (user: any, role: string) => {
+    if (!role || role === user.role) return
+    const r = await api.superadminSetUserRole(user.id, role)
+    if (r.success) {
+      toast.success(`Rol actualizado a ${role}`)
+      setUsers(prev => prev.map(u => u.id === user.id ? { ...u, role, tenantId: role === 'cliente' ? null : u.tenantId, tenantName: role === 'cliente' ? null : u.tenantName } : u))
+    } else {
+      toast.error(r.error || 'No se pudo cambiar el rol')
+    }
+  }
+
+  // Suspender / activar una cuenta (superadmin).
+  const handleToggleActive = async (user: any) => {
+    const next = !user.isActive
+    const r = await api.superadminSetUserActive(user.id, next)
+    if (r.success) {
+      toast.success(next ? 'Cuenta activada' : 'Cuenta suspendida')
+      setUsers(prev => prev.map(u => u.id === user.id ? { ...u, isActive: next } : u))
+    } else {
+      toast.error(r.error || 'No se pudo cambiar el estado')
+    }
   }
 
   const handleResetPassword = async () => {
@@ -973,7 +998,10 @@ export function TenantManagement() {
                                 <User className="h-4 w-4 text-muted-foreground" />
                               </div>
                               <div>
-                                <p className="text-sm font-medium text-foreground">{user.name}</p>
+                                <p className="text-sm font-medium text-foreground flex items-center gap-1.5">
+                                  {user.name}
+                                  {user.isActive === false && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-600 font-semibold">Suspendido</span>}
+                                </p>
                                 {user.phone && <p className="text-xs text-muted-foreground">{user.phone}</p>}
                               </div>
                             </div>
@@ -989,6 +1017,36 @@ export function TenantManagement() {
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center justify-center gap-1">
+                              {/* Cambiar rol (no aplica a superadmin) */}
+                              {user.role !== 'superadmin' && (
+                                <select
+                                  value={user.role}
+                                  onChange={(e) => handleChangeRole(user, e.target.value)}
+                                  title="Cambiar rol"
+                                  className="h-8 rounded-md border border-border bg-background text-xs px-1.5 text-foreground"
+                                >
+                                  <option value="cliente">Cliente</option>
+                                  <option value="comerciante">Comerciante</option>
+                                  <option value="vendedor">Vendedor</option>
+                                  <option value="repartidor">Repartidor</option>
+                                  <option value="auxiliar_bodega">Aux. bodega</option>
+                                  {!['cliente', 'comerciante', 'vendedor', 'repartidor', 'auxiliar_bodega'].includes(user.role) && (
+                                    <option value={user.role}>{user.role}</option>
+                                  )}
+                                </select>
+                              )}
+                              {/* Suspender / activar */}
+                              {user.role !== 'superadmin' && (
+                                <Button
+                                  variant="ghost" size="icon" className="h-8 w-8"
+                                  title={user.isActive ? 'Suspender cuenta' : 'Activar cuenta'}
+                                  onClick={() => handleToggleActive(user)}
+                                >
+                                  {user.isActive
+                                    ? <Ban className="h-4 w-4 text-amber-500" />
+                                    : <Power className="h-4 w-4 text-green-500" />}
+                                </Button>
+                              )}
                               <Button
                                 variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground"
                                 title="Resetear contraseña"

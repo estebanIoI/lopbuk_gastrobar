@@ -12,6 +12,7 @@
  *  - Las tarjetas de presentación de los comercios se renderizan TAL CUAL
  *    (mismo markup que la landing original).
  *  - El carrusel reutiliza los slides gestionados en superadmin.
+ *  - Fase 1 rediseño móvil: branch mobile-first (ver if (isMobile)).
  * ============================================================================
  */
 
@@ -19,12 +20,13 @@ import { useEffect, useMemo, useRef, useState, type ReactNode, type CSSPropertie
 import { BRAND } from '@/lib/brand'
 import { DaimuzWelcomeFrame } from '@/components/daimuz-welcome-frame'
 import { FlameButton } from '@/components/ui/flame-button'
+import { useIsDesktop } from '@/components/consumer/hooks/useIsDesktop'
 import {
   ChevronLeft, ChevronRight, Store, UtensilsCrossed, Zap, Tag, Package,
   Sparkles, ShoppingBag, Pill, Apple, Wrench, Scissors, Dog, Wine,
   Croissant, Coffee, Shirt, Gem, Flower2, ArrowRight, Search,
   ChevronDown, MapPin, Flame, Bell, Facebook, Instagram, Phone,
-  Mail, TrendingUp, X, Menu,
+  Mail, TrendingUp, X, Menu, Compass, User as UserIcon, Home as HomeIcon,
 } from 'lucide-react'
 
 // ── Paleta institucional ────────────────────────────────────────────────────
@@ -557,6 +559,17 @@ export function MarketplaceHomeGovCo({
   const gridRef = useRef<HTMLDivElement>(null)
   const accesosRef = useRef<HTMLDivElement>(null)
 
+  // ── Branch responsive (Fase 1 rediseño móvil) ──────────────────────────────
+  // useIsDesktop devuelve null hasta montar → SSR/primer render = desktop (sin
+  // mismatch de hidratación); tras montar, si es móvil, se renderiza el shell
+  // mobile-first. Mismo componente, mismos datos y handlers (sin doble fetch).
+  const isDesktop = useIsDesktop()
+  const isMobile = isDesktop === false
+  const [mobileNav, setMobileNavTab] = useState<'inicio' | 'explorar' | 'tiendas' | 'ofertas'>('inicio')
+  const mTopRef = useRef<HTMLDivElement>(null)
+  const mOffersRef = useRef<HTMLDivElement>(null)
+  const mNewRef = useRef<HTMLDivElement>(null)
+
   // Producto destacado para el panel derecho del hero (60/40)
   const topFeatured: MarketProduct | undefined = featured[0] || offers[0] || products[0]
 
@@ -657,6 +670,144 @@ export function MarketplaceHomeGovCo({
         ['--brand-gold-text' as string]: readableOn(goldAccent),
       } as CSSProperties)
     : undefined
+
+  // ════════════════════════════════════════════════════════════════════════════
+  //  RENDER MÓVIL (Fase 1 rediseño) — mobile-first, sin tabs/navbar redundantes.
+  //  Reusa los mismos datos, handlers y tarjetas (StoreCard/ProductCard) que el
+  //  desktop. Desktop queda intacto debajo.
+  // ════════════════════════════════════════════════════════════════════════════
+  if (isMobile) {
+    const goTop = () => { setMobileNavTab('inicio'); mTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
+    const goStores = () => { setMobileNavTab('tiendas'); gridRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
+    const goOffers = () => { setMobileNavTab('ofertas'); mOffersRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
+    const goExplore = () => { setMobileNavTab('explorar'); mNewRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
+    const heroHasSlides = heroSlides.filter(s => s.url).length > 0
+    const navItemsM: { key: typeof mobileNav | 'cuenta'; label: string; icon: ReactNode; onClick: () => void }[] = [
+      { key: 'inicio', label: 'Inicio', icon: <HomeIcon className="w-5 h-5" />, onClick: goTop },
+      { key: 'explorar', label: 'Explorar', icon: <Compass className="w-5 h-5" />, onClick: goExplore },
+      { key: 'tiendas', label: 'Tiendas', icon: <Store className="w-5 h-5" />, onClick: goStores },
+      { key: 'ofertas', label: 'Ofertas', icon: <Tag className="w-5 h-5" />, onClick: goOffers },
+      { key: 'cuenta', label: 'Cuenta', icon: <UserIcon className="w-5 h-5" />, onClick: onGoToLogin },
+    ]
+    const chipStyle = (selected: boolean): CSSProperties =>
+      selected ? { background: GREEN, color: '#fff', borderColor: GREEN } : { color: '#4b5563', borderColor: '#d7dbe0', background: '#fff' }
+    return (
+      <div ref={mTopRef} className="min-h-screen bg-gray-50 text-gray-800 flex flex-col pb-24" style={brandVars}>
+        {/* ── TopBar: logo + búsqueda + acceder ── */}
+        <header className="bg-white/95 backdrop-blur sticky top-0 z-40 border-b border-gray-200">
+          <div className="px-4 py-2.5 flex items-center gap-2.5">
+            <button onClick={goTop} className="shrink-0" aria-label="Inicio">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={brandLogo} alt={BRAND.name} className="w-8 h-8 object-contain rounded-lg" />
+            </button>
+            <div className="relative flex-1 min-w-0">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Buscar productos o tiendas"
+                className="w-full pl-9 pr-3 py-2 rounded-xl bg-gray-100 text-sm focus:outline-none focus:ring-2 focus:bg-white"
+                style={{ ['--tw-ring-color' as any]: GREEN }}
+              />
+            </div>
+            <button onClick={onGoToLogin} className="text-sm font-semibold shrink-0" style={{ color: GREEN_DARK }}>Acceder</button>
+          </div>
+          {/* ── Chips de categoría: única capa de filtro ── */}
+          {rubros.length > 0 && (
+            <div className="flex gap-2 overflow-x-auto scrollbar-hide px-4 pb-2.5">
+              <button onClick={() => onSelectBusinessType('all')} className="shrink-0 px-3.5 py-1.5 rounded-full text-sm font-medium border whitespace-nowrap transition-colors" style={chipStyle(businessTypeFilter === 'all')}>Todos</button>
+              {rubros.slice(0, 8).map(({ type }) => (
+                <button key={type} onClick={() => onSelectBusinessType(type)} className="shrink-0 px-3.5 py-1.5 rounded-full text-sm font-medium border whitespace-nowrap capitalize transition-colors" style={chipStyle(businessTypeFilter === type)}>{type}</button>
+              ))}
+            </div>
+          )}
+        </header>
+
+        <main className="flex-1 px-4 py-4 space-y-8">
+          {/* ── Hero único ── */}
+          <section>
+            {heroHasSlides ? (
+              <div className="rounded-2xl overflow-hidden"><HomeHeroCarousel slides={heroSlides} isMobile intervalMs={5000} /></div>
+            ) : (
+              <div className="relative rounded-2xl overflow-hidden p-6 min-h-[200px] flex flex-col justify-end text-white" style={{ background: `linear-gradient(135deg, ${GREEN_DARK}, ${GREEN})` }}>
+                <h1 className="text-xl font-extrabold leading-tight max-w-[220px]">{heroTitle || 'Tu marketplace local'}</h1>
+                <p className="text-white/80 text-sm mt-1.5 max-w-[240px]">{heroSubtitle || 'Tiendas, ofertas y novedades en un solo lugar.'}</p>
+                <button onClick={goStores} className="mt-4 self-start text-sm font-semibold px-5 py-2 rounded-full" style={{ background: GOLD, color: GOLD_TEXT }}>Explorar</button>
+              </div>
+            )}
+          </section>
+
+          {/* ── Comercios (1 columna, cards grandes) ── */}
+          <section ref={gridRef}>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-[15px] font-bold" style={{ color: GREEN_DARK }}>Comercios</h2>
+              {!loadingStores && <span className="text-xs text-gray-400">{visibleStores.length}</span>}
+            </div>
+            {loadingStores ? (
+              <div className="grid grid-cols-1 gap-3">
+                {[0, 1, 2].map(i => (
+                  <div key={i} className="bg-white rounded-2xl overflow-hidden animate-pulse border border-gray-100">
+                    <div className="bg-gray-100" style={{ aspectRatio: '16/9' }} />
+                    <div className="p-3 space-y-2"><div className="h-3 bg-gray-200 rounded w-2/3" /><div className="h-2 bg-gray-100 rounded w-1/3" /></div>
+                  </div>
+                ))}
+              </div>
+            ) : visibleStores.length === 0 ? (
+              <div className="text-center py-12 space-y-2"><Store className="w-10 h-10 text-gray-300 mx-auto" /><p className="text-gray-500 text-sm">No hay comercios para esta búsqueda</p></div>
+            ) : (
+              <div className="grid grid-cols-1 gap-3">
+                {visibleStores.map(store => (
+                  <StoreCard key={store.id} store={store} onOpenStore={onOpenStore} hasServices={storesWithServices.has(store.slug)} ensureAbsoluteUrl={ensureAbsoluteUrl} />
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* ── Ofertas ── */}
+          {visibleOffers.length > 0 && (
+            <section ref={mOffersRef}>
+              <h2 className="text-[15px] font-bold mb-3" style={{ color: GREEN_DARK }}>Ofertas</h2>
+              <div className="grid grid-cols-2 gap-3">
+                {visibleOffers.slice(0, 12).map(p => <ProductCard key={p.id} product={p} onOpen={onOpenProduct} />)}
+              </div>
+            </section>
+          )}
+
+          {/* ── Novedades ── */}
+          {visibleFeatured.length > 0 && (
+            <section ref={mNewRef}>
+              <h2 className="text-[15px] font-bold mb-3" style={{ color: GREEN_DARK }}>Novedades</h2>
+              <div className="grid grid-cols-2 gap-3">
+                {visibleFeatured.slice(0, 12).map(p => <ProductCard key={p.id} product={p} onOpen={onOpenProduct} />)}
+              </div>
+            </section>
+          )}
+
+          {/* ── Únete (banner simple, no 3 cards) ── */}
+          <section className="rounded-2xl p-5 text-white" style={{ background: `linear-gradient(135deg, ${GREEN_DARK}, ${GREEN})` }}>
+            <h3 className="font-bold text-base">¿Tienes un comercio?</h3>
+            <p className="text-white/80 text-sm mt-1">Publica tu tienda y recibe pedidos online desde un solo panel.</p>
+            <button onClick={onGoToLogin} className="mt-4 inline-flex items-center gap-1.5 text-sm font-bold px-4 py-2.5 rounded-xl" style={{ background: GOLD, color: GOLD_TEXT }}>Registrar mi comercio <ArrowRight className="w-4 h-4" /></button>
+          </section>
+        </main>
+
+        {/* ── Bottom nav flotante ── */}
+        <nav className="fixed bottom-0 inset-x-0 z-50 bg-white/95 backdrop-blur border-t border-gray-200" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+          <div className="grid grid-cols-5">
+            {navItemsM.map(it => {
+              const active = mobileNav === it.key
+              return (
+                <button key={it.key} onClick={it.onClick} className="flex flex-col items-center gap-0.5 py-2 transition-colors" style={{ color: active ? GREEN : '#9aa0a8' }}>
+                  {it.icon}
+                  <span className="text-[10px] font-medium">{it.label}</span>
+                </button>
+              )
+            })}
+          </div>
+        </nav>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-800 flex flex-col" style={brandVars}>
@@ -1010,6 +1161,7 @@ export function MarketplaceHomeGovCo({
                             {p.imageUrl ? (
                               // eslint-disable-next-line @next/next/no-img-element
                               <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover" />
+            
                             ) : <Package className="w-5 h-5 text-gray-300" />}
                           </div>
                           <div className="min-w-0 flex-1">

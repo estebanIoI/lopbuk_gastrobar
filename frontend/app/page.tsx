@@ -7,12 +7,18 @@ import { AuthForm } from '@/components/auth-form'
 import { LandingPage } from '@/components/landing-page'
 import { MerchantPanel } from '@/components/merchant-panel'
 import ConsumerOS from '@/components/consumer/ConsumerOS'
+import { WorkspaceSelector } from '@/components/workspace-selector'
 import { FullPageLoader } from '@/components/box-loader'
 
 export default function Home() {
   const { activeSection, setActiveSection } = useStore()
   const { isAuthenticated, checkAuth, user, isCheckingAuth } = useAuthStore()
   const [showLogin, setShowLogin] = useState(false)
+  // Espacio elegido por cuentas con doble acceso (comerciante + OS): 'merchant' | 'os'.
+  const [workspace, setWorkspace] = useState<string | null>(null)
+  useEffect(() => { try { setWorkspace(localStorage.getItem('dz_workspace')) } catch { /* noop */ } }, [])
+  const chooseWorkspace = (w: 'merchant' | 'os') => { try { localStorage.setItem('dz_workspace', w) } catch { /* noop */ } ; setWorkspace(w) }
+  const clearWorkspace = () => { try { localStorage.removeItem('dz_workspace') } catch { /* noop */ } ; setWorkspace(null) }
   // Detecta si la URL pide la vista pública de la tienda (?store=slug),
   // p.ej. el iframe de preview del Editor Visual. En ese caso renderizamos
   // siempre la tienda pública aunque el admin esté autenticado.
@@ -98,7 +104,49 @@ export default function Home() {
     return <AuthForm onGoBack={() => setShowLogin(false)} />
   }
 
-  // Autenticado (comerciante, vendedor, staff de restaurante, etc.):
+  // Comerciante: tiene DOBLE espacio (su panel + el OS personal). Si no ha elegido,
+  // mostramos el selector split-screen; recordamos su elección y dejamos cambiar.
+  // (El acceso real al OS LEGEND se gobernará por el plan empresarial / entitlement.)
+  if (user?.role === 'comerciante') {
+    if (workspace === 'os') {
+      return (
+        <>
+          <ConsumerOS />
+          <SwitchSpaceButton onClick={clearWorkspace} />
+        </>
+      )
+    }
+    if (workspace === 'merchant') {
+      return (
+        <>
+          <MerchantPanel />
+          <SwitchSpaceButton onClick={clearWorkspace} />
+        </>
+      )
+    }
+    return (
+      <WorkspaceSelector
+        userName={user?.name}
+        onSelectMerchant={() => chooseWorkspace('merchant')}
+        onSelectOS={() => chooseWorkspace('os')}
+      />
+    )
+  }
+
+  // Autenticado (vendedor, staff de restaurante, etc.):
   // el panel del comerciante decide qué mostrar según el rol y la sección activa.
   return <MerchantPanel />
+}
+
+// Botón discreto para volver al selector de espacio (solo cuentas con doble acceso).
+function SwitchSpaceButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      title="Cambiar de espacio"
+      className="fixed bottom-4 left-4 z-[60] flex items-center gap-1.5 rounded-full bg-black/70 backdrop-blur border border-white/15 text-white text-xs font-medium px-3 py-2 shadow-lg hover:bg-black/85 transition-colors"
+    >
+      ⇄ Cambiar espacio
+    </button>
+  )
 }

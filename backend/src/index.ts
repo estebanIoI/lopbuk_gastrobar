@@ -45,6 +45,7 @@ import loyaltyRoutes from './modules/loyalty/loyalty.routes';
 import daimuzChatRoutes from './modules/daimuz-chat/daimuz-chat.routes';
 import { financesRoutes } from './modules/finances';
 import { portfolioRoutes } from './modules/portfolio';
+import { lopbukLandingRoutes } from './modules/lopbuk-landing';
 import devRequestsRoutes from './modules/dev-requests/dev-requests.routes';
 import { fleetRoutes } from './modules/fleet';
 import { realEstateRoutes } from './modules/realestate';
@@ -53,6 +54,7 @@ import whatsappRoutes from './modules/whatsapp/whatsapp.routes';
 import { mermaRoutes } from './modules/merma';
 import { gastrobarRoutes } from './modules/gastrobar-ops';
 import { rutinaRoutes } from './modules/rutina';
+import { workoutRoutes } from './modules/workout';
 import variantsRoutes from './modules/variants/variants.routes';
 import affiliatesRoutes from './modules/affiliates/affiliates.routes';
 import consumerPlansRoutes from './modules/consumer-plans/consumer-plans.routes';
@@ -198,6 +200,7 @@ app.use(`${apiPrefix}/payments`, paymentsRoutes);
 app.use(`${apiPrefix}/daimuz-chat`, daimuzChatRoutes);
 app.use(`${apiPrefix}/finances`, financesRoutes);
 app.use(`${apiPrefix}/portfolio`, portfolioRoutes);
+app.use(`${apiPrefix}/lopbuk-landing`, lopbukLandingRoutes);
 app.use(`${apiPrefix}/dev-requests`, devRequestsRoutes);
 app.use(`${apiPrefix}/fleet`, fleetRoutes);
 app.use(`${apiPrefix}/realestate`, realEstateRoutes);
@@ -206,6 +209,7 @@ app.use(`${apiPrefix}/whatsapp`, whatsappRoutes);
 app.use(`${apiPrefix}/merma`, mermaRoutes);
 app.use(`${apiPrefix}/gastrobar-ops`, gastrobarRoutes);
 app.use(`${apiPrefix}/rutina`, rutinaRoutes);
+app.use(`${apiPrefix}/workouts`, workoutRoutes);
 app.use(`${apiPrefix}/gym`, gymRoutes);
 app.use(`${apiPrefix}/assistant`, assistantRoutes);
 app.use(`${apiPrefix}/modifiers`, modifiersRoutes)
@@ -1235,6 +1239,14 @@ const startServer = async () => {
         INDEX idx_dc_user (user_id, day)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
     } catch (e: any) { console.warn('[migration onboarding]', e?.message); }
+
+    // ── Workout Runtime (Fase 5): sesiones, ejercicios, sets, progresión ─────
+    // Runtime del consumidor (scope user). Conecta "Iniciar rutina" con el
+    // progression engine determinístico. Idempotente (CREATE TABLE IF NOT EXISTS).
+    try {
+      const { ensureWorkoutSchema } = await import('./modules/workout');
+      await ensureWorkoutSchema();
+    } catch (e: any) { console.warn('[migration workout]', e?.message); }
 
     // ── Coach Economy / Marketplace de Entrenadores (T1) ─────────────────────
     // Nivel plataforma (como afiliados): auth propia del coach, ofertas (programas),

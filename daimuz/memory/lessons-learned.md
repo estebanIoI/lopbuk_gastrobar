@@ -4,6 +4,17 @@
 
 ## Tooling
 
+### ⚠️ Cowork/sandbox: el mount de bash queda STALE; verifica reconstruyendo en /tmp (2026-06-25)
+- En el entorno Cowork (file-tools sobre Windows + sandbox Linux montado): **la edición incremental (Edit) y las sobreescrituras (Write de archivos existentes) NO siempre se reflejan en el mount de bash**, y **archivos grandes (p.ej. `lib/api.ts`, ~3400 líneas) aparecen TRUNCADOS al leerlos por bash/`tsc`** aunque en disco (file-tools) estén íntegros.
+- Síntoma típico: `tsc` en el sandbox reporta `TS1005 '}' expected` / `JSX no closing tag` al final de archivos que SÍ están completos. Es la vista del mount, no el archivo real.
+- **El archivo autoritativo es el de file-tools (Read/Write) = workspace del usuario.** Se confirmó leyendo con Read que los archivos quedaron completos (incluido `index.ts` editado 3× con Edit, intacto).
+- **Cómo verificar tsc de forma confiable:** copiar el árbol a `/tmp` (`cp -r`, symlink `node_modules`), **sobrescribir en /tmp los archivos editados con su contenido correcto** (heredoc), y correr `tsc` ahí. Para archivos gigantes que el mount trunca (api.ts), usar un **stub** y filtrar la salida de `tsc` a solo tus archivos.
+- Archivos nuevos (creados, no sobrescritos) SÍ se sincronizan bien al mount.
+- Coincide con la lección previa de `sed -i`: confiar en file-tools, no en la vista de bash; verificar contenido completo en disco.
+
+### ✅ Patrón anti-alucinación para features de dominio (fitness): motor determinístico + contratos (2026-06-25)
+- Para el Workout Engine se aplicó "la IA interpreta, el motor ejecuta": reglas centralizadas en UN RuleEngine, strategies desacopladas, contratos validados en los bordes, decisiones con `reasons` auditables, y **el frontend NO calcula nada** (solo renderiza `action`/`nextWeight` del backend). Snapshots persistidos (no recálculo de la historia). Objetivos/estrategias no soportados LANZAN en vez de improvisar. Resultado: extensible (fuerza/resistencia = nuevas strategies) sin reescribir el core.
+
 ### ⚠️ Line endings: el repo es LF; cuidado con CRLF en Windows (2026-06-18)
 - Editar en Windows convirtió el working tree a **CRLF** mientras HEAD está en **LF** → `git status` mostró **444 archivos "modificados"** pero solo ~12 con cambios reales.
 - Para ver los reales: `git diff --ignore-cr-at-eol --numstat | awk '($1+0)||($2+0)'`.
