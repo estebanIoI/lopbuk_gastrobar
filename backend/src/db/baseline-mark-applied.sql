@@ -13,7 +13,7 @@
 --        mysql -u <user> -p <DATABASE> < src/db/baseline-mark-applied.sql
 --
 --  El hash y el created_at provienen de src/db/migrations/meta/_journal.json y
---  del .sql del baseline (tag 0000_nervous_norman_osborn). Si se regenera el
+--  del .sql del baseline (tag 0000_dizzy_mongoose). Si se regenera el
 --  baseline, actualizar estos dos valores.
 -- ============================================================================
 
@@ -29,8 +29,8 @@ CREATE TABLE IF NOT EXISTS `__drizzle_migrations` (
 -- El migrador decide saltar una migración cuando created_at registrado >= el
 -- folderMillis de esa migración; por eso basta con esta fila.
 INSERT INTO `__drizzle_migrations` (`hash`, `created_at`)
-SELECT '2d6234c6c56ab5ce208f970492df691191950897f69be0815b6a494851149d9f', 1782588720972
+SELECT 'f07c8909a1b8dfd5907b95df024b43f29bccaf1860ed18b3b04634e3d91a5b6c', 1782617458045
 WHERE NOT EXISTS (
   SELECT 1 FROM `__drizzle_migrations`
-  WHERE `hash` = '2d6234c6c56ab5ce208f970492df691191950897f69be0815b6a494851149d9f'
+  WHERE `hash` = 'f07c8909a1b8dfd5907b95df024b43f29bccaf1860ed18b3b04634e3d91a5b6c'
 );

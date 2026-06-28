@@ -5,6 +5,16 @@
 ---
 
 
+## [2026-06-28] — Merge de main (feature hormas) integrado al baseline Drizzle
+
+Se mergeó `origin/main` en `esteban` para unir el trabajo de Drizzle con la feature **hormas** (siluetas de calzado) que vivía solo en main.
+
+- **Merge:** trae módulo `backend/src/modules/hormas/` + frontend + migraciones v40-v46 (archivadas en `db-legacy/migrations-root-legacy/`). Conflicto de `package-lock.json` resuelto eliminándolo (el proyecto usa pnpm). `index.ts` conserva la excisión de DDL **y** monta `/api/hormas`.
+- **Hormas en el baseline:** se aplicó el DDL de hormas (tablas `hormas`/`horma_colors` + `horma_id` en `products`/`product_variants` + `weight_grams`/`shelf`) y se **regeneró el baseline** por introspección → `0000_dizzy_mongoose.sql` = **203 tablas + 6 vistas + 196 FKs**. Se agregó `tablesFilter: ['!__drizzle_migrations']` al config.
+- **DDL de runtime de hormas congelado:** `hormas.service.ts` y `variants.service.ts` `ensureTables()` → no-op.
+- **Verificado:** `tsc` sin errores nuevos (5 preexistentes de main); BD fresca crea hormas; backend bootea (migrate salta); `GET /api/hormas` → 200. Hash baseline `f07c8909…`.
+
+
 ## [2026-06-27] — Drizzle Kit FASE 2: baseline completo (201 tablas) + DDL de runtime congelado
 
 Continuación de FASE 1. Dos logros: (a) **completar el baseline** con TODO el esquema real, (b) **eliminar el DDL de runtime**.

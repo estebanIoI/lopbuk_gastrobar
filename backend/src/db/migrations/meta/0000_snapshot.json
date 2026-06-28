@@ -1,7 +1,7 @@
 {
   "version": "5",
   "dialect": "mysql",
-  "id": "ca9adc29-cfe7-4ec7-811c-abbea700cd17",
+  "id": "f2800879-b00d-42a6-8e0c-61f217269662",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "affiliate_campaigns": {
@@ -9084,6 +9084,277 @@
       },
       "checkConstraint": {}
     },
+    "horma_colors": {
+      "name": "horma_colors",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "horma_id": {
+          "name": "horma_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "color": {
+          "name": "color",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "hex": {
+          "name": "hex",
+          "type": "varchar(9)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "shelf": {
+          "name": "shelf",
+          "type": "json",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "tinyint",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false,
+          "default": "(now())"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false,
+          "onUpdate": true,
+          "default": "(now())"
+        }
+      },
+      "indexes": {
+        "idx_hc_tenant": {
+          "name": "idx_hc_tenant",
+          "columns": [
+            "tenant_id"
+          ],
+          "isUnique": false
+        },
+        "idx_hc_horma": {
+          "name": "idx_hc_horma",
+          "columns": [
+            "horma_id",
+            "tenant_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "horma_colors_id": {
+          "name": "horma_colors_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "uk_horma_color": {
+          "name": "uk_horma_color",
+          "columns": [
+            "horma_id",
+            "color"
+          ]
+        }
+      },
+      "checkConstraint": {}
+    },
+    "hormas": {
+      "name": "hormas",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(150)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "slug": {
+          "name": "slug",
+          "type": "varchar(150)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "base_cost": {
+          "name": "base_cost",
+          "type": "decimal(12,2)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'0.00'"
+        },
+        "base_price": {
+          "name": "base_price",
+          "type": "decimal(12,2)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'0.00'"
+        },
+        "size_chart": {
+          "name": "size_chart",
+          "type": "json",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "has_sleeves": {
+          "name": "has_sleeves",
+          "type": "tinyint",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "sexo": {
+          "name": "sexo",
+          "type": "enum('unisex','hombre','mujer')",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'unisex'"
+        },
+        "composition": {
+          "name": "composition",
+          "type": "varchar(150)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "weight_grams": {
+          "name": "weight_grams",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "shelf": {
+          "name": "shelf",
+          "type": "json",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "tinyint",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false,
+          "default": "(now())"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false,
+          "onUpdate": true,
+          "default": "(now())"
+        }
+      },
+      "indexes": {
+        "idx_hormas_tenant": {
+          "name": "idx_hormas_tenant",
+          "columns": [
+            "tenant_id",
+            "is_active"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "hormas_id": {
+          "name": "hormas_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "uk_horma_slug_tenant": {
+          "name": "uk_horma_slug_tenant",
+          "columns": [
+            "tenant_id",
+            "slug"
+          ]
+        }
+      },
+      "checkConstraint": {}
+    },
     "inventory_holds": {
       "name": "inventory_holds",
       "columns": {
@@ -9136,7 +9407,7 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(CURRENT_TIMESTAMP)"
+          "default": "(now())"
         }
       },
       "indexes": {
@@ -11955,7 +12226,7 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(CURRENT_TIMESTAMP)"
+          "default": "(now())"
         },
         "updated_at": {
           "name": "updated_at",
@@ -11963,7 +12234,7 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(CURRENT_TIMESTAMP)"
+          "default": "(now())"
         }
       },
       "indexes": {
@@ -12833,6 +13104,13 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "horma_id": {
+          "name": "horma_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {
@@ -12863,6 +13141,13 @@
           "columns": [
             "tenant_id",
             "sku"
+          ],
+          "isUnique": false
+        },
+        "idx_pv_horma": {
+          "name": "idx_pv_horma",
+          "columns": [
+            "horma_id"
           ],
           "isUnique": false
         }
@@ -13657,6 +13942,13 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "horma_id": {
+          "name": "horma_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {
@@ -13735,6 +14027,13 @@
           "columns": [
             "tenant_id",
             "preparation_area"
+          ],
+          "isUnique": false
+        },
+        "idx_products_horma": {
+          "name": "idx_products_horma",
+          "columns": [
+            "horma_id"
           ],
           "isUnique": false
         }
@@ -26916,7 +27215,7 @@
       },
       "name": "v_customer_balances",
       "isExisting": false,
-      "definition": "select `c`.`id` AS `customer_id`,`c`.`tenant_id` AS `tenant_id`,`c`.`cedula` AS `cedula`,`c`.`name` AS `customer_name`,`c`.`phone` AS `phone`,`c`.`email` AS `email`,`c`.`address` AS `address`,`c`.`credit_limit` AS `credit_limit`,`c`.`notes` AS `notes`,coalesce(`s_agg`.`total_credit`,0) AS `total_credit`,coalesce(`cp_agg`.`total_paid`,0) AS `total_paid`,(coalesce(`s_agg`.`total_credit`,0) - coalesce(`cp_agg`.`total_paid`,0)) AS `balance`,`c`.`created_at` AS `created_at`,`c`.`updated_at` AS `updated_at` from ((`stockpro_truth`.`customers` `c` left join (select `stockpro_truth`.`sales`.`customer_id` AS `customer_id`,sum(`stockpro_truth`.`sales`.`total`) AS `total_credit` from `stockpro_truth`.`sales` where ((`stockpro_truth`.`sales`.`payment_method` = 'fiado') and (`stockpro_truth`.`sales`.`status` = 'completada')) group by `stockpro_truth`.`sales`.`customer_id`) `s_agg` on((`s_agg`.`customer_id` = `c`.`id`))) left join (select `stockpro_truth`.`credit_payments`.`customer_id` AS `customer_id`,sum(`stockpro_truth`.`credit_payments`.`amount`) AS `total_paid` from `stockpro_truth`.`credit_payments` group by `stockpro_truth`.`credit_payments`.`customer_id`) `cp_agg` on((`cp_agg`.`customer_id` = `c`.`id`)))",
+      "definition": "select `c`.`id` AS `customer_id`,`c`.`tenant_id` AS `tenant_id`,`c`.`cedula` AS `cedula`,`c`.`name` AS `customer_name`,`c`.`phone` AS `phone`,`c`.`email` AS `email`,`c`.`address` AS `address`,`c`.`credit_limit` AS `credit_limit`,`c`.`notes` AS `notes`,coalesce(`s_agg`.`total_credit`,0) AS `total_credit`,coalesce(`cp_agg`.`total_paid`,0) AS `total_paid`,(coalesce(`s_agg`.`total_credit`,0) - coalesce(`cp_agg`.`total_paid`,0)) AS `balance`,`c`.`created_at` AS `created_at`,`c`.`updated_at` AS `updated_at` from ((`lopbuk`.`customers` `c` left join (select `lopbuk`.`sales`.`customer_id` AS `customer_id`,sum(`lopbuk`.`sales`.`total`) AS `total_credit` from `lopbuk`.`sales` where ((`lopbuk`.`sales`.`payment_method` = 'fiado') and (`lopbuk`.`sales`.`status` = 'completada')) group by `lopbuk`.`sales`.`customer_id`) `s_agg` on((`s_agg`.`customer_id` = `c`.`id`))) left join (select `lopbuk`.`credit_payments`.`customer_id` AS `customer_id`,sum(`lopbuk`.`credit_payments`.`amount`) AS `total_paid` from `lopbuk`.`credit_payments` group by `lopbuk`.`credit_payments`.`customer_id`) `cp_agg` on((`cp_agg`.`customer_id` = `c`.`id`)))",
       "algorithm": "undefined",
       "sqlSecurity": "definer"
     },
@@ -27655,7 +27954,7 @@
       },
       "name": "v_products_expiring_soon",
       "isExisting": false,
-      "definition": "select `p`.`id` AS `id`,`p`.`tenant_id` AS `tenant_id`,`p`.`name` AS `name`,`p`.`articulo` AS `articulo`,`p`.`category` AS `category`,`p`.`product_type` AS `product_type`,`p`.`brand` AS `brand`,`p`.`model` AS `model`,`p`.`description` AS `description`,`p`.`purchase_price` AS `purchase_price`,`p`.`sale_price` AS `sale_price`,`p`.`sku` AS `sku`,`p`.`barcode` AS `barcode`,`p`.`stock` AS `stock`,`p`.`reorder_point` AS `reorder_point`,`p`.`supplier` AS `supplier`,`p`.`supplier_id` AS `supplier_id`,`p`.`entry_date` AS `entry_date`,`p`.`image_url` AS `image_url`,`p`.`image_urls` AS `image_urls`,`p`.`location_in_store` AS `location_in_store`,`p`.`notes` AS `notes`,`p`.`tags` AS `tags`,`p`.`expiry_date` AS `expiry_date`,`p`.`batch_number` AS `batch_number`,`p`.`net_weight` AS `net_weight`,`p`.`weight_unit` AS `weight_unit`,`p`.`sanitary_registration` AS `sanitary_registration`,`p`.`storage_temperature` AS `storage_temperature`,`p`.`ingredients` AS `ingredients`,`p`.`nutritional_info` AS `nutritional_info`,`p`.`alcohol_content` AS `alcohol_content`,`p`.`allergens` AS `allergens`,`p`.`size` AS `size`,`p`.`color` AS `color`,`p`.`material` AS `material`,`p`.`gender` AS `gender`,`p`.`season` AS `season`,`p`.`garment_type` AS `garment_type`,`p`.`washing_instructions` AS `washing_instructions`,`p`.`country_of_origin` AS `country_of_origin`,`p`.`serial_number` AS `serial_number`,`p`.`warranty_months` AS `warranty_months`,`p`.`technical_specs` AS `technical_specs`,`p`.`voltage` AS `voltage`,`p`.`power_watts` AS `power_watts`,`p`.`compatibility` AS `compatibility`,`p`.`includes_accessories` AS `includes_accessories`,`p`.`product_condition` AS `product_condition`,`p`.`active_ingredient` AS `active_ingredient`,`p`.`concentration` AS `concentration`,`p`.`requires_prescription` AS `requires_prescription`,`p`.`administration_route` AS `administration_route`,`p`.`presentation` AS `presentation`,`p`.`units_per_package` AS `units_per_package`,`p`.`laboratory` AS `laboratory`,`p`.`contraindications` AS `contraindications`,`p`.`dimensions` AS `dimensions`,`p`.`weight` AS `weight`,`p`.`hardware_weight_unit` AS `hardware_weight_unit`,`p`.`caliber` AS `caliber`,`p`.`resistance` AS `resistance`,`p`.`finish` AS `finish`,`p`.`recommended_use` AS `recommended_use`,`p`.`author` AS `author`,`p`.`publisher` AS `publisher`,`p`.`isbn` AS `isbn`,`p`.`pages` AS `pages`,`p`.`language` AS `language`,`p`.`publication_year` AS `publication_year`,`p`.`edition` AS `edition`,`p`.`book_format` AS `book_format`,`p`.`recommended_age` AS `recommended_age`,`p`.`number_of_players` AS `number_of_players`,`p`.`game_type` AS `game_type`,`p`.`requires_batteries` AS `requires_batteries`,`p`.`package_dimensions` AS `package_dimensions`,`p`.`package_contents` AS `package_contents`,`p`.`safety_warnings` AS `safety_warnings`,`p`.`published_in_store` AS `published_in_store`,`p`.`available_for_delivery` AS `available_for_delivery`,`p`.`delivery_type` AS `delivery_type`,`p`.`is_new_launch` AS `is_new_launch`,`p`.`launch_date` AS `launch_date`,`p`.`is_preorder` AS `is_preorder`,`p`.`preorder_window_end` AS `preorder_window_end`,`p`.`preorder_ship_start` AS `preorder_ship_start`,`p`.`preorder_ship_end` AS `preorder_ship_end`,`p`.`preorder_badge_text` AS `preorder_badge_text`,`p`.`preorder_policy_text` AS `preorder_policy_text`,`p`.`is_on_offer` AS `is_on_offer`,`p`.`offer_price` AS `offer_price`,`p`.`offer_label` AS `offer_label`,`p`.`offer_start` AS `offer_start`,`p`.`offer_end` AS `offer_end`,`p`.`sede_id` AS `sede_id`,`p`.`created_at` AS `created_at`,`p`.`updated_at` AS `updated_at`,`p`.`created_by` AS `created_by`,`p`.`updated_by` AS `updated_by`,`c`.`name` AS `category_name`,(to_days(`p`.`expiry_date`) - to_days(curdate())) AS `days_until_expiry` from (`stockpro_truth`.`products` `p` left join `stockpro_truth`.`categories` `c` on(((`p`.`category` = `c`.`id`) and (`p`.`tenant_id` = `c`.`tenant_id`)))) where ((`p`.`expiry_date` is not null) and (`p`.`expiry_date` <= (curdate() + interval 30 day)) and (`p`.`expiry_date` >= curdate())) order by `p`.`expiry_date`",
+      "definition": "select `p`.`id` AS `id`,`p`.`tenant_id` AS `tenant_id`,`p`.`name` AS `name`,`p`.`articulo` AS `articulo`,`p`.`category` AS `category`,`p`.`product_type` AS `product_type`,`p`.`brand` AS `brand`,`p`.`model` AS `model`,`p`.`description` AS `description`,`p`.`purchase_price` AS `purchase_price`,`p`.`sale_price` AS `sale_price`,`p`.`sku` AS `sku`,`p`.`barcode` AS `barcode`,`p`.`stock` AS `stock`,`p`.`reorder_point` AS `reorder_point`,`p`.`supplier` AS `supplier`,`p`.`supplier_id` AS `supplier_id`,`p`.`entry_date` AS `entry_date`,`p`.`image_url` AS `image_url`,`p`.`image_urls` AS `image_urls`,`p`.`location_in_store` AS `location_in_store`,`p`.`notes` AS `notes`,`p`.`tags` AS `tags`,`p`.`expiry_date` AS `expiry_date`,`p`.`batch_number` AS `batch_number`,`p`.`net_weight` AS `net_weight`,`p`.`weight_unit` AS `weight_unit`,`p`.`sanitary_registration` AS `sanitary_registration`,`p`.`storage_temperature` AS `storage_temperature`,`p`.`ingredients` AS `ingredients`,`p`.`nutritional_info` AS `nutritional_info`,`p`.`alcohol_content` AS `alcohol_content`,`p`.`allergens` AS `allergens`,`p`.`size` AS `size`,`p`.`color` AS `color`,`p`.`material` AS `material`,`p`.`gender` AS `gender`,`p`.`season` AS `season`,`p`.`garment_type` AS `garment_type`,`p`.`washing_instructions` AS `washing_instructions`,`p`.`country_of_origin` AS `country_of_origin`,`p`.`serial_number` AS `serial_number`,`p`.`warranty_months` AS `warranty_months`,`p`.`technical_specs` AS `technical_specs`,`p`.`voltage` AS `voltage`,`p`.`power_watts` AS `power_watts`,`p`.`compatibility` AS `compatibility`,`p`.`includes_accessories` AS `includes_accessories`,`p`.`product_condition` AS `product_condition`,`p`.`active_ingredient` AS `active_ingredient`,`p`.`concentration` AS `concentration`,`p`.`requires_prescription` AS `requires_prescription`,`p`.`administration_route` AS `administration_route`,`p`.`presentation` AS `presentation`,`p`.`units_per_package` AS `units_per_package`,`p`.`laboratory` AS `laboratory`,`p`.`contraindications` AS `contraindications`,`p`.`dimensions` AS `dimensions`,`p`.`weight` AS `weight`,`p`.`hardware_weight_unit` AS `hardware_weight_unit`,`p`.`caliber` AS `caliber`,`p`.`resistance` AS `resistance`,`p`.`finish` AS `finish`,`p`.`recommended_use` AS `recommended_use`,`p`.`author` AS `author`,`p`.`publisher` AS `publisher`,`p`.`isbn` AS `isbn`,`p`.`pages` AS `pages`,`p`.`language` AS `language`,`p`.`publication_year` AS `publication_year`,`p`.`edition` AS `edition`,`p`.`book_format` AS `book_format`,`p`.`recommended_age` AS `recommended_age`,`p`.`number_of_players` AS `number_of_players`,`p`.`game_type` AS `game_type`,`p`.`requires_batteries` AS `requires_batteries`,`p`.`package_dimensions` AS `package_dimensions`,`p`.`package_contents` AS `package_contents`,`p`.`safety_warnings` AS `safety_warnings`,`p`.`published_in_store` AS `published_in_store`,`p`.`available_for_delivery` AS `available_for_delivery`,`p`.`delivery_type` AS `delivery_type`,`p`.`is_new_launch` AS `is_new_launch`,`p`.`launch_date` AS `launch_date`,`p`.`is_preorder` AS `is_preorder`,`p`.`preorder_window_end` AS `preorder_window_end`,`p`.`preorder_ship_start` AS `preorder_ship_start`,`p`.`preorder_ship_end` AS `preorder_ship_end`,`p`.`preorder_badge_text` AS `preorder_badge_text`,`p`.`preorder_policy_text` AS `preorder_policy_text`,`p`.`is_on_offer` AS `is_on_offer`,`p`.`offer_price` AS `offer_price`,`p`.`offer_label` AS `offer_label`,`p`.`offer_start` AS `offer_start`,`p`.`offer_end` AS `offer_end`,`p`.`sede_id` AS `sede_id`,`p`.`created_at` AS `created_at`,`p`.`updated_at` AS `updated_at`,`p`.`created_by` AS `created_by`,`p`.`updated_by` AS `updated_by`,`c`.`name` AS `category_name`,(to_days(`p`.`expiry_date`) - to_days(curdate())) AS `days_until_expiry` from (`lopbuk`.`products` `p` left join `lopbuk`.`categories` `c` on(((`p`.`category` = `c`.`id`) and (`p`.`tenant_id` = `c`.`tenant_id`)))) where ((`p`.`expiry_date` is not null) and (`p`.`expiry_date` <= (curdate() + interval 30 day)) and (`p`.`expiry_date` >= curdate())) order by `p`.`expiry_date`",
       "algorithm": "undefined",
       "sqlSecurity": "definer"
     },
@@ -28387,7 +28686,7 @@
       },
       "name": "v_products_low_stock",
       "isExisting": false,
-      "definition": "select `p`.`id` AS `id`,`p`.`tenant_id` AS `tenant_id`,`p`.`name` AS `name`,`p`.`articulo` AS `articulo`,`p`.`category` AS `category`,`p`.`product_type` AS `product_type`,`p`.`brand` AS `brand`,`p`.`model` AS `model`,`p`.`description` AS `description`,`p`.`purchase_price` AS `purchase_price`,`p`.`sale_price` AS `sale_price`,`p`.`sku` AS `sku`,`p`.`barcode` AS `barcode`,`p`.`stock` AS `stock`,`p`.`reorder_point` AS `reorder_point`,`p`.`supplier` AS `supplier`,`p`.`supplier_id` AS `supplier_id`,`p`.`entry_date` AS `entry_date`,`p`.`image_url` AS `image_url`,`p`.`image_urls` AS `image_urls`,`p`.`location_in_store` AS `location_in_store`,`p`.`notes` AS `notes`,`p`.`tags` AS `tags`,`p`.`expiry_date` AS `expiry_date`,`p`.`batch_number` AS `batch_number`,`p`.`net_weight` AS `net_weight`,`p`.`weight_unit` AS `weight_unit`,`p`.`sanitary_registration` AS `sanitary_registration`,`p`.`storage_temperature` AS `storage_temperature`,`p`.`ingredients` AS `ingredients`,`p`.`nutritional_info` AS `nutritional_info`,`p`.`alcohol_content` AS `alcohol_content`,`p`.`allergens` AS `allergens`,`p`.`size` AS `size`,`p`.`color` AS `color`,`p`.`material` AS `material`,`p`.`gender` AS `gender`,`p`.`season` AS `season`,`p`.`garment_type` AS `garment_type`,`p`.`washing_instructions` AS `washing_instructions`,`p`.`country_of_origin` AS `country_of_origin`,`p`.`serial_number` AS `serial_number`,`p`.`warranty_months` AS `warranty_months`,`p`.`technical_specs` AS `technical_specs`,`p`.`voltage` AS `voltage`,`p`.`power_watts` AS `power_watts`,`p`.`compatibility` AS `compatibility`,`p`.`includes_accessories` AS `includes_accessories`,`p`.`product_condition` AS `product_condition`,`p`.`active_ingredient` AS `active_ingredient`,`p`.`concentration` AS `concentration`,`p`.`requires_prescription` AS `requires_prescription`,`p`.`administration_route` AS `administration_route`,`p`.`presentation` AS `presentation`,`p`.`units_per_package` AS `units_per_package`,`p`.`laboratory` AS `laboratory`,`p`.`contraindications` AS `contraindications`,`p`.`dimensions` AS `dimensions`,`p`.`weight` AS `weight`,`p`.`hardware_weight_unit` AS `hardware_weight_unit`,`p`.`caliber` AS `caliber`,`p`.`resistance` AS `resistance`,`p`.`finish` AS `finish`,`p`.`recommended_use` AS `recommended_use`,`p`.`author` AS `author`,`p`.`publisher` AS `publisher`,`p`.`isbn` AS `isbn`,`p`.`pages` AS `pages`,`p`.`language` AS `language`,`p`.`publication_year` AS `publication_year`,`p`.`edition` AS `edition`,`p`.`book_format` AS `book_format`,`p`.`recommended_age` AS `recommended_age`,`p`.`number_of_players` AS `number_of_players`,`p`.`game_type` AS `game_type`,`p`.`requires_batteries` AS `requires_batteries`,`p`.`package_dimensions` AS `package_dimensions`,`p`.`package_contents` AS `package_contents`,`p`.`safety_warnings` AS `safety_warnings`,`p`.`published_in_store` AS `published_in_store`,`p`.`available_for_delivery` AS `available_for_delivery`,`p`.`delivery_type` AS `delivery_type`,`p`.`is_new_launch` AS `is_new_launch`,`p`.`launch_date` AS `launch_date`,`p`.`is_preorder` AS `is_preorder`,`p`.`preorder_window_end` AS `preorder_window_end`,`p`.`preorder_ship_start` AS `preorder_ship_start`,`p`.`preorder_ship_end` AS `preorder_ship_end`,`p`.`preorder_badge_text` AS `preorder_badge_text`,`p`.`preorder_policy_text` AS `preorder_policy_text`,`p`.`is_on_offer` AS `is_on_offer`,`p`.`offer_price` AS `offer_price`,`p`.`offer_label` AS `offer_label`,`p`.`offer_start` AS `offer_start`,`p`.`offer_end` AS `offer_end`,`p`.`sede_id` AS `sede_id`,`p`.`created_at` AS `created_at`,`p`.`updated_at` AS `updated_at`,`p`.`created_by` AS `created_by`,`p`.`updated_by` AS `updated_by`,`c`.`name` AS `category_name` from (`stockpro_truth`.`products` `p` left join `stockpro_truth`.`categories` `c` on(((`p`.`category` = `c`.`id`) and (`p`.`tenant_id` = `c`.`tenant_id`)))) where ((`p`.`stock` <= `p`.`reorder_point`) and (`p`.`stock` >= 0)) order by (`p`.`stock` - `p`.`reorder_point`)",
+      "definition": "select `p`.`id` AS `id`,`p`.`tenant_id` AS `tenant_id`,`p`.`name` AS `name`,`p`.`articulo` AS `articulo`,`p`.`category` AS `category`,`p`.`product_type` AS `product_type`,`p`.`brand` AS `brand`,`p`.`model` AS `model`,`p`.`description` AS `description`,`p`.`purchase_price` AS `purchase_price`,`p`.`sale_price` AS `sale_price`,`p`.`sku` AS `sku`,`p`.`barcode` AS `barcode`,`p`.`stock` AS `stock`,`p`.`reorder_point` AS `reorder_point`,`p`.`supplier` AS `supplier`,`p`.`supplier_id` AS `supplier_id`,`p`.`entry_date` AS `entry_date`,`p`.`image_url` AS `image_url`,`p`.`image_urls` AS `image_urls`,`p`.`location_in_store` AS `location_in_store`,`p`.`notes` AS `notes`,`p`.`tags` AS `tags`,`p`.`expiry_date` AS `expiry_date`,`p`.`batch_number` AS `batch_number`,`p`.`net_weight` AS `net_weight`,`p`.`weight_unit` AS `weight_unit`,`p`.`sanitary_registration` AS `sanitary_registration`,`p`.`storage_temperature` AS `storage_temperature`,`p`.`ingredients` AS `ingredients`,`p`.`nutritional_info` AS `nutritional_info`,`p`.`alcohol_content` AS `alcohol_content`,`p`.`allergens` AS `allergens`,`p`.`size` AS `size`,`p`.`color` AS `color`,`p`.`material` AS `material`,`p`.`gender` AS `gender`,`p`.`season` AS `season`,`p`.`garment_type` AS `garment_type`,`p`.`washing_instructions` AS `washing_instructions`,`p`.`country_of_origin` AS `country_of_origin`,`p`.`serial_number` AS `serial_number`,`p`.`warranty_months` AS `warranty_months`,`p`.`technical_specs` AS `technical_specs`,`p`.`voltage` AS `voltage`,`p`.`power_watts` AS `power_watts`,`p`.`compatibility` AS `compatibility`,`p`.`includes_accessories` AS `includes_accessories`,`p`.`product_condition` AS `product_condition`,`p`.`active_ingredient` AS `active_ingredient`,`p`.`concentration` AS `concentration`,`p`.`requires_prescription` AS `requires_prescription`,`p`.`administration_route` AS `administration_route`,`p`.`presentation` AS `presentation`,`p`.`units_per_package` AS `units_per_package`,`p`.`laboratory` AS `laboratory`,`p`.`contraindications` AS `contraindications`,`p`.`dimensions` AS `dimensions`,`p`.`weight` AS `weight`,`p`.`hardware_weight_unit` AS `hardware_weight_unit`,`p`.`caliber` AS `caliber`,`p`.`resistance` AS `resistance`,`p`.`finish` AS `finish`,`p`.`recommended_use` AS `recommended_use`,`p`.`author` AS `author`,`p`.`publisher` AS `publisher`,`p`.`isbn` AS `isbn`,`p`.`pages` AS `pages`,`p`.`language` AS `language`,`p`.`publication_year` AS `publication_year`,`p`.`edition` AS `edition`,`p`.`book_format` AS `book_format`,`p`.`recommended_age` AS `recommended_age`,`p`.`number_of_players` AS `number_of_players`,`p`.`game_type` AS `game_type`,`p`.`requires_batteries` AS `requires_batteries`,`p`.`package_dimensions` AS `package_dimensions`,`p`.`package_contents` AS `package_contents`,`p`.`safety_warnings` AS `safety_warnings`,`p`.`published_in_store` AS `published_in_store`,`p`.`available_for_delivery` AS `available_for_delivery`,`p`.`delivery_type` AS `delivery_type`,`p`.`is_new_launch` AS `is_new_launch`,`p`.`launch_date` AS `launch_date`,`p`.`is_preorder` AS `is_preorder`,`p`.`preorder_window_end` AS `preorder_window_end`,`p`.`preorder_ship_start` AS `preorder_ship_start`,`p`.`preorder_ship_end` AS `preorder_ship_end`,`p`.`preorder_badge_text` AS `preorder_badge_text`,`p`.`preorder_policy_text` AS `preorder_policy_text`,`p`.`is_on_offer` AS `is_on_offer`,`p`.`offer_price` AS `offer_price`,`p`.`offer_label` AS `offer_label`,`p`.`offer_start` AS `offer_start`,`p`.`offer_end` AS `offer_end`,`p`.`sede_id` AS `sede_id`,`p`.`created_at` AS `created_at`,`p`.`updated_at` AS `updated_at`,`p`.`created_by` AS `created_by`,`p`.`updated_by` AS `updated_by`,`c`.`name` AS `category_name` from (`lopbuk`.`products` `p` left join `lopbuk`.`categories` `c` on(((`p`.`category` = `c`.`id`) and (`p`.`tenant_id` = `c`.`tenant_id`)))) where ((`p`.`stock` <= `p`.`reorder_point`) and (`p`.`stock` >= 0)) order by (`p`.`stock` - `p`.`reorder_point`)",
       "algorithm": "undefined",
       "sqlSecurity": "definer"
     },
@@ -29119,7 +29418,7 @@
       },
       "name": "v_products_stock_status",
       "isExisting": false,
-      "definition": "select `p`.`id` AS `id`,`p`.`tenant_id` AS `tenant_id`,`p`.`name` AS `name`,`p`.`articulo` AS `articulo`,`p`.`category` AS `category`,`p`.`product_type` AS `product_type`,`p`.`brand` AS `brand`,`p`.`model` AS `model`,`p`.`description` AS `description`,`p`.`purchase_price` AS `purchase_price`,`p`.`sale_price` AS `sale_price`,`p`.`sku` AS `sku`,`p`.`barcode` AS `barcode`,`p`.`stock` AS `stock`,`p`.`reorder_point` AS `reorder_point`,`p`.`supplier` AS `supplier`,`p`.`supplier_id` AS `supplier_id`,`p`.`entry_date` AS `entry_date`,`p`.`image_url` AS `image_url`,`p`.`image_urls` AS `image_urls`,`p`.`location_in_store` AS `location_in_store`,`p`.`notes` AS `notes`,`p`.`tags` AS `tags`,`p`.`expiry_date` AS `expiry_date`,`p`.`batch_number` AS `batch_number`,`p`.`net_weight` AS `net_weight`,`p`.`weight_unit` AS `weight_unit`,`p`.`sanitary_registration` AS `sanitary_registration`,`p`.`storage_temperature` AS `storage_temperature`,`p`.`ingredients` AS `ingredients`,`p`.`nutritional_info` AS `nutritional_info`,`p`.`alcohol_content` AS `alcohol_content`,`p`.`allergens` AS `allergens`,`p`.`size` AS `size`,`p`.`color` AS `color`,`p`.`material` AS `material`,`p`.`gender` AS `gender`,`p`.`season` AS `season`,`p`.`garment_type` AS `garment_type`,`p`.`washing_instructions` AS `washing_instructions`,`p`.`country_of_origin` AS `country_of_origin`,`p`.`serial_number` AS `serial_number`,`p`.`warranty_months` AS `warranty_months`,`p`.`technical_specs` AS `technical_specs`,`p`.`voltage` AS `voltage`,`p`.`power_watts` AS `power_watts`,`p`.`compatibility` AS `compatibility`,`p`.`includes_accessories` AS `includes_accessories`,`p`.`product_condition` AS `product_condition`,`p`.`active_ingredient` AS `active_ingredient`,`p`.`concentration` AS `concentration`,`p`.`requires_prescription` AS `requires_prescription`,`p`.`administration_route` AS `administration_route`,`p`.`presentation` AS `presentation`,`p`.`units_per_package` AS `units_per_package`,`p`.`laboratory` AS `laboratory`,`p`.`contraindications` AS `contraindications`,`p`.`dimensions` AS `dimensions`,`p`.`weight` AS `weight`,`p`.`hardware_weight_unit` AS `hardware_weight_unit`,`p`.`caliber` AS `caliber`,`p`.`resistance` AS `resistance`,`p`.`finish` AS `finish`,`p`.`recommended_use` AS `recommended_use`,`p`.`author` AS `author`,`p`.`publisher` AS `publisher`,`p`.`isbn` AS `isbn`,`p`.`pages` AS `pages`,`p`.`language` AS `language`,`p`.`publication_year` AS `publication_year`,`p`.`edition` AS `edition`,`p`.`book_format` AS `book_format`,`p`.`recommended_age` AS `recommended_age`,`p`.`number_of_players` AS `number_of_players`,`p`.`game_type` AS `game_type`,`p`.`requires_batteries` AS `requires_batteries`,`p`.`package_dimensions` AS `package_dimensions`,`p`.`package_contents` AS `package_contents`,`p`.`safety_warnings` AS `safety_warnings`,`p`.`published_in_store` AS `published_in_store`,`p`.`available_for_delivery` AS `available_for_delivery`,`p`.`delivery_type` AS `delivery_type`,`p`.`is_new_launch` AS `is_new_launch`,`p`.`launch_date` AS `launch_date`,`p`.`is_preorder` AS `is_preorder`,`p`.`preorder_window_end` AS `preorder_window_end`,`p`.`preorder_ship_start` AS `preorder_ship_start`,`p`.`preorder_ship_end` AS `preorder_ship_end`,`p`.`preorder_badge_text` AS `preorder_badge_text`,`p`.`preorder_policy_text` AS `preorder_policy_text`,`p`.`is_on_offer` AS `is_on_offer`,`p`.`offer_price` AS `offer_price`,`p`.`offer_label` AS `offer_label`,`p`.`offer_start` AS `offer_start`,`p`.`offer_end` AS `offer_end`,`p`.`sede_id` AS `sede_id`,`p`.`created_at` AS `created_at`,`p`.`updated_at` AS `updated_at`,`p`.`created_by` AS `created_by`,`p`.`updated_by` AS `updated_by`,(case when (`p`.`stock` = 0) then 'agotado' when (`p`.`stock` <= `p`.`reorder_point`) then 'bajo' else 'suficiente' end) AS `stock_status` from `stockpro_truth`.`products` `p`",
+      "definition": "select `p`.`id` AS `id`,`p`.`tenant_id` AS `tenant_id`,`p`.`name` AS `name`,`p`.`articulo` AS `articulo`,`p`.`category` AS `category`,`p`.`product_type` AS `product_type`,`p`.`brand` AS `brand`,`p`.`model` AS `model`,`p`.`description` AS `description`,`p`.`purchase_price` AS `purchase_price`,`p`.`sale_price` AS `sale_price`,`p`.`sku` AS `sku`,`p`.`barcode` AS `barcode`,`p`.`stock` AS `stock`,`p`.`reorder_point` AS `reorder_point`,`p`.`supplier` AS `supplier`,`p`.`supplier_id` AS `supplier_id`,`p`.`entry_date` AS `entry_date`,`p`.`image_url` AS `image_url`,`p`.`image_urls` AS `image_urls`,`p`.`location_in_store` AS `location_in_store`,`p`.`notes` AS `notes`,`p`.`tags` AS `tags`,`p`.`expiry_date` AS `expiry_date`,`p`.`batch_number` AS `batch_number`,`p`.`net_weight` AS `net_weight`,`p`.`weight_unit` AS `weight_unit`,`p`.`sanitary_registration` AS `sanitary_registration`,`p`.`storage_temperature` AS `storage_temperature`,`p`.`ingredients` AS `ingredients`,`p`.`nutritional_info` AS `nutritional_info`,`p`.`alcohol_content` AS `alcohol_content`,`p`.`allergens` AS `allergens`,`p`.`size` AS `size`,`p`.`color` AS `color`,`p`.`material` AS `material`,`p`.`gender` AS `gender`,`p`.`season` AS `season`,`p`.`garment_type` AS `garment_type`,`p`.`washing_instructions` AS `washing_instructions`,`p`.`country_of_origin` AS `country_of_origin`,`p`.`serial_number` AS `serial_number`,`p`.`warranty_months` AS `warranty_months`,`p`.`technical_specs` AS `technical_specs`,`p`.`voltage` AS `voltage`,`p`.`power_watts` AS `power_watts`,`p`.`compatibility` AS `compatibility`,`p`.`includes_accessories` AS `includes_accessories`,`p`.`product_condition` AS `product_condition`,`p`.`active_ingredient` AS `active_ingredient`,`p`.`concentration` AS `concentration`,`p`.`requires_prescription` AS `requires_prescription`,`p`.`administration_route` AS `administration_route`,`p`.`presentation` AS `presentation`,`p`.`units_per_package` AS `units_per_package`,`p`.`laboratory` AS `laboratory`,`p`.`contraindications` AS `contraindications`,`p`.`dimensions` AS `dimensions`,`p`.`weight` AS `weight`,`p`.`hardware_weight_unit` AS `hardware_weight_unit`,`p`.`caliber` AS `caliber`,`p`.`resistance` AS `resistance`,`p`.`finish` AS `finish`,`p`.`recommended_use` AS `recommended_use`,`p`.`author` AS `author`,`p`.`publisher` AS `publisher`,`p`.`isbn` AS `isbn`,`p`.`pages` AS `pages`,`p`.`language` AS `language`,`p`.`publication_year` AS `publication_year`,`p`.`edition` AS `edition`,`p`.`book_format` AS `book_format`,`p`.`recommended_age` AS `recommended_age`,`p`.`number_of_players` AS `number_of_players`,`p`.`game_type` AS `game_type`,`p`.`requires_batteries` AS `requires_batteries`,`p`.`package_dimensions` AS `package_dimensions`,`p`.`package_contents` AS `package_contents`,`p`.`safety_warnings` AS `safety_warnings`,`p`.`published_in_store` AS `published_in_store`,`p`.`available_for_delivery` AS `available_for_delivery`,`p`.`delivery_type` AS `delivery_type`,`p`.`is_new_launch` AS `is_new_launch`,`p`.`launch_date` AS `launch_date`,`p`.`is_preorder` AS `is_preorder`,`p`.`preorder_window_end` AS `preorder_window_end`,`p`.`preorder_ship_start` AS `preorder_ship_start`,`p`.`preorder_ship_end` AS `preorder_ship_end`,`p`.`preorder_badge_text` AS `preorder_badge_text`,`p`.`preorder_policy_text` AS `preorder_policy_text`,`p`.`is_on_offer` AS `is_on_offer`,`p`.`offer_price` AS `offer_price`,`p`.`offer_label` AS `offer_label`,`p`.`offer_start` AS `offer_start`,`p`.`offer_end` AS `offer_end`,`p`.`sede_id` AS `sede_id`,`p`.`created_at` AS `created_at`,`p`.`updated_at` AS `updated_at`,`p`.`created_by` AS `created_by`,`p`.`updated_by` AS `updated_by`,(case when (`p`.`stock` = 0) then 'agotado' when (`p`.`stock` <= `p`.`reorder_point`) then 'bajo' else 'suficiente' end) AS `stock_status` from `lopbuk`.`products` `p`",
       "algorithm": "undefined",
       "sqlSecurity": "definer"
     },
@@ -29383,7 +29682,7 @@
       },
       "name": "v_sales_detail",
       "isExisting": false,
-      "definition": "select `s`.`id` AS `id`,`s`.`tenant_id` AS `tenant_id`,`s`.`invoice_number` AS `invoice_number`,`s`.`customer_id` AS `customer_id`,`s`.`customer_name` AS `customer_name`,`s`.`customer_phone` AS `customer_phone`,`s`.`customer_email` AS `customer_email`,`s`.`subtotal` AS `subtotal`,`s`.`tax` AS `tax`,`s`.`discount` AS `discount`,`s`.`total` AS `total`,`s`.`payment_method` AS `payment_method`,`s`.`amount_paid` AS `amount_paid`,`s`.`change_amount` AS `change_amount`,`s`.`seller_id` AS `seller_id`,`s`.`seller_name` AS `seller_name`,`s`.`cash_session_id` AS `cash_session_id`,`s`.`status` AS `status`,`s`.`credit_status` AS `credit_status`,`s`.`due_date` AS `due_date`,`s`.`notes` AS `notes`,`s`.`mixed_efectivo_amount` AS `mixed_efectivo_amount`,`s`.`mixed_second_method` AS `mixed_second_method`,`s`.`mixed_second_amount` AS `mixed_second_amount`,`s`.`sede_id` AS `sede_id`,`s`.`vehicle_id` AS `vehicle_id`,`s`.`dispatch_status` AS `dispatch_status`,`s`.`total_weight_kg` AS `total_weight_kg`,`s`.`synced` AS `synced`,`s`.`synced_at` AS `synced_at`,`s`.`origin` AS `origin`,`s`.`created_at` AS `created_at`,`s`.`updated_at` AS `updated_at`,count(`si`.`id`) AS `total_items`,sum(`si`.`quantity`) AS `total_quantity` from (`stockpro_truth`.`sales` `s` left join `stockpro_truth`.`sale_items` `si` on((`s`.`id` = `si`.`sale_id`))) group by `s`.`id`",
+      "definition": "select `s`.`id` AS `id`,`s`.`tenant_id` AS `tenant_id`,`s`.`invoice_number` AS `invoice_number`,`s`.`customer_id` AS `customer_id`,`s`.`customer_name` AS `customer_name`,`s`.`customer_phone` AS `customer_phone`,`s`.`customer_email` AS `customer_email`,`s`.`subtotal` AS `subtotal`,`s`.`tax` AS `tax`,`s`.`discount` AS `discount`,`s`.`total` AS `total`,`s`.`payment_method` AS `payment_method`,`s`.`amount_paid` AS `amount_paid`,`s`.`change_amount` AS `change_amount`,`s`.`seller_id` AS `seller_id`,`s`.`seller_name` AS `seller_name`,`s`.`cash_session_id` AS `cash_session_id`,`s`.`status` AS `status`,`s`.`credit_status` AS `credit_status`,`s`.`due_date` AS `due_date`,`s`.`notes` AS `notes`,`s`.`mixed_efectivo_amount` AS `mixed_efectivo_amount`,`s`.`mixed_second_method` AS `mixed_second_method`,`s`.`mixed_second_amount` AS `mixed_second_amount`,`s`.`sede_id` AS `sede_id`,`s`.`vehicle_id` AS `vehicle_id`,`s`.`dispatch_status` AS `dispatch_status`,`s`.`total_weight_kg` AS `total_weight_kg`,`s`.`synced` AS `synced`,`s`.`synced_at` AS `synced_at`,`s`.`origin` AS `origin`,`s`.`created_at` AS `created_at`,`s`.`updated_at` AS `updated_at`,count(`si`.`id`) AS `total_items`,sum(`si`.`quantity`) AS `total_quantity` from (`lopbuk`.`sales` `s` left join `lopbuk`.`sale_items` `si` on((`s`.`id` = `si`.`sale_id`))) group by `s`.`id`",
       "algorithm": "undefined",
       "sqlSecurity": "definer"
     },
@@ -29502,7 +29801,7 @@
       },
       "name": "v_tenants_summary",
       "isExisting": false,
-      "definition": "select `t`.`id` AS `tenant_id`,`t`.`name` AS `tenant_name`,`t`.`slug` AS `slug`,`t`.`business_type` AS `business_type`,`t`.`status` AS `status`,`t`.`plan` AS `plan`,`t`.`created_at` AS `created_at`,`u`.`name` AS `owner_name`,`u`.`email` AS `owner_email`,coalesce(`usr_agg`.`total_users`,0) AS `total_users`,coalesce(`prod_agg`.`total_products`,0) AS `total_products`,coalesce(`prod_agg`.`inventory_value`,0) AS `inventory_value`,coalesce(`cust_agg`.`total_customers`,0) AS `total_customers`,coalesce(`sale_agg`.`total_sales_count`,0) AS `total_sales_count`,coalesce(`sale_agg`.`total_sales_amount`,0) AS `total_sales_amount` from (((((`stockpro_truth`.`tenants` `t` left join `stockpro_truth`.`users` `u` on((`t`.`owner_id` = `u`.`id`))) left join (select `stockpro_truth`.`users`.`tenant_id` AS `tenant_id`,count(0) AS `total_users` from `stockpro_truth`.`users` group by `stockpro_truth`.`users`.`tenant_id`) `usr_agg` on((`usr_agg`.`tenant_id` = `t`.`id`))) left join (select `stockpro_truth`.`products`.`tenant_id` AS `tenant_id`,count(0) AS `total_products`,sum((`stockpro_truth`.`products`.`stock` * `stockpro_truth`.`products`.`sale_price`)) AS `inventory_value` from `stockpro_truth`.`products` group by `stockpro_truth`.`products`.`tenant_id`) `prod_agg` on((`prod_agg`.`tenant_id` = `t`.`id`))) left join (select `stockpro_truth`.`customers`.`tenant_id` AS `tenant_id`,count(0) AS `total_customers` from `stockpro_truth`.`customers` group by `stockpro_truth`.`customers`.`tenant_id`) `cust_agg` on((`cust_agg`.`tenant_id` = `t`.`id`))) left join (select `stockpro_truth`.`sales`.`tenant_id` AS `tenant_id`,count(0) AS `total_sales_count`,sum(`stockpro_truth`.`sales`.`total`) AS `total_sales_amount` from `stockpro_truth`.`sales` where (`stockpro_truth`.`sales`.`status` = 'completada') group by `stockpro_truth`.`sales`.`tenant_id`) `sale_agg` on((`sale_agg`.`tenant_id` = `t`.`id`)))",
+      "definition": "select `t`.`id` AS `tenant_id`,`t`.`name` AS `tenant_name`,`t`.`slug` AS `slug`,`t`.`business_type` AS `business_type`,`t`.`status` AS `status`,`t`.`plan` AS `plan`,`t`.`created_at` AS `created_at`,`u`.`name` AS `owner_name`,`u`.`email` AS `owner_email`,coalesce(`usr_agg`.`total_users`,0) AS `total_users`,coalesce(`prod_agg`.`total_products`,0) AS `total_products`,coalesce(`prod_agg`.`inventory_value`,0) AS `inventory_value`,coalesce(`cust_agg`.`total_customers`,0) AS `total_customers`,coalesce(`sale_agg`.`total_sales_count`,0) AS `total_sales_count`,coalesce(`sale_agg`.`total_sales_amount`,0) AS `total_sales_amount` from (((((`lopbuk`.`tenants` `t` left join `lopbuk`.`users` `u` on((`t`.`owner_id` = `u`.`id`))) left join (select `lopbuk`.`users`.`tenant_id` AS `tenant_id`,count(0) AS `total_users` from `lopbuk`.`users` group by `lopbuk`.`users`.`tenant_id`) `usr_agg` on((`usr_agg`.`tenant_id` = `t`.`id`))) left join (select `lopbuk`.`products`.`tenant_id` AS `tenant_id`,count(0) AS `total_products`,sum((`lopbuk`.`products`.`stock` * `lopbuk`.`products`.`sale_price`)) AS `inventory_value` from `lopbuk`.`products` group by `lopbuk`.`products`.`tenant_id`) `prod_agg` on((`prod_agg`.`tenant_id` = `t`.`id`))) left join (select `lopbuk`.`customers`.`tenant_id` AS `tenant_id`,count(0) AS `total_customers` from `lopbuk`.`customers` group by `lopbuk`.`customers`.`tenant_id`) `cust_agg` on((`cust_agg`.`tenant_id` = `t`.`id`))) left join (select `lopbuk`.`sales`.`tenant_id` AS `tenant_id`,count(0) AS `total_sales_count`,sum(`lopbuk`.`sales`.`total`) AS `total_sales_amount` from `lopbuk`.`sales` where (`lopbuk`.`sales`.`status` = 'completada') group by `lopbuk`.`sales`.`tenant_id`) `sale_agg` on((`sale_agg`.`tenant_id` = `t`.`id`)))",
       "algorithm": "undefined",
       "sqlSecurity": "definer"
     }

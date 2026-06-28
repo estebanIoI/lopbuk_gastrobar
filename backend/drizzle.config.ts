@@ -17,5 +17,7 @@ export default defineConfig({
   // index.ts —que reexporta schema/relations— y cuente las vistas por duplicado.
   schema: ['./src/db/schema/schema.ts', './src/db/schema/relations.ts'],
   out: './src/db/migrations',
+  // Nunca introspectar la tabla de control de migraciones de Drizzle.
+  tablesFilter: ['!__drizzle_migrations'],
   dbCredentials: { url },
 })

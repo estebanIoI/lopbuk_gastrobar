@@ -13,8 +13,8 @@ export const affiliateCampaigns = mysqlTable("affiliate_campaigns", {
 	commissionPct: decimal("commission_pct", { precision: 5, scale: 2 }).notNull(),
 	cookieDays: tinyint("cookie_days").default(7).notNull(),
 	isActive: tinyint("is_active").default(1).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -34,7 +34,7 @@ export const affiliateCommissions = mysqlTable("affiliate_commissions", {
 	amountCop: decimal("amount_cop", { precision: 14, scale: 2 }).notNull(),
 	status: mysqlEnum(['pending','approved','paid']).default('pending').notNull(),
 	note: text(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -56,7 +56,7 @@ export const affiliateConversions = mysqlTable("affiliate_conversions", {
 	status: mysqlEnum(['pending','approved','paid','rejected']).default('pending').notNull(),
 	approvedAt: timestamp("approved_at", { mode: 'string' }),
 	paidAt: timestamp("paid_at", { mode: 'string' }),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -78,7 +78,7 @@ export const affiliateMissionSubmissions = mysqlTable("affiliate_mission_submiss
 	reviewedBy: varchar("reviewed_by", { length: 36 }),
 	reviewNote: text("review_note"),
 	reviewedAt: timestamp("reviewed_at", { mode: 'string' }),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -97,7 +97,7 @@ export const affiliateMissions = mysqlTable("affiliate_missions", {
 	minTier: mysqlEnum("min_tier", ['bronze','silver','gold']).default('bronze').notNull(),
 	expiresAt: timestamp("expires_at", { mode: 'string' }),
 	isActive: tinyint("is_active").default(1).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -120,8 +120,8 @@ export const affiliatePackageOrders = mysqlTable("affiliate_package_orders", {
 	paidAt: timestamp("paid_at", { mode: 'string' }),
 	contentDeadline: timestamp("content_deadline", { mode: 'string' }),
 	contentDelivered: json("content_delivered"),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -141,8 +141,8 @@ export const affiliatePackages = mysqlTable("affiliate_packages", {
 	affiliatePct: decimal("affiliate_pct", { precision: 5, scale: 2 }).notNull(),
 	platformPct: decimal("platform_pct", { precision: 5, scale: 2 }).notNull(),
 	isActive: tinyint("is_active").default(1).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -159,8 +159,8 @@ export const affiliateWithdrawals = mysqlTable("affiliate_withdrawals", {
 	status: mysqlEnum(['requested','processing','paid','rejected']).default('requested').notNull(),
 	processedBy: varchar("processed_by", { length: 36 }),
 	note: text(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -182,8 +182,8 @@ export const affiliates = mysqlTable("affiliates", {
 	monthlySales: int("monthly_sales").default(0).notNull(),
 	status: mysqlEnum(['active','suspended']).default('active').notNull(),
 	passwordHash: varchar("password_hash", { length: 255 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -203,8 +203,8 @@ export const agentActions = mysqlTable("agent_actions", {
 	toolInput: json("tool_input"),
 	toolOutput: json("tool_output"),
 	success: tinyint().default(1).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -227,7 +227,7 @@ export const aiUsageLog = mysqlTable("ai_usage_log", {
 	totalTokens: int("total_tokens").default(0).notNull(),
 	estCost: decimal("est_cost", { precision: 12, scale: 6 }).default('0.000000').notNull(),
 	ok: tinyint().default(1).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -241,7 +241,7 @@ export const aiVisionCache = mysqlTable("ai_vision_cache", {
 	hash: varchar({ length: 64 }).notNull(),
 	text: mediumtext().notNull(),
 	provider: varchar({ length: 20 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -257,7 +257,7 @@ export const arenaFeed = mysqlTable("arena_feed", {
 	photoUrl: varchar("photo_url", { length: 800 }),
 	metadata: json(),
 	likes: int().default(0).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 	commentsCount: int("comments_count").default(0).notNull(),
 },
 (table) => {
@@ -273,7 +273,7 @@ export const arenaFeedComments = mysqlTable("arena_feed_comments", {
 	feedId: varchar("feed_id", { length: 36 }).notNull().references(() => arenaFeed.id, { onDelete: "cascade" } ),
 	userId: varchar("user_id", { length: 36 }).notNull(),
 	body: varchar({ length: 400 }).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -286,7 +286,7 @@ export const arenaFeedLikes = mysqlTable("arena_feed_likes", {
 	id: varchar({ length: 36 }).notNull(),
 	feedId: varchar("feed_id", { length: 36 }).notNull().references(() => arenaFeed.id, { onDelete: "cascade" } ),
 	userId: varchar("user_id", { length: 36 }).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -307,7 +307,7 @@ export const auditLog = mysqlTable("audit_log", {
 	details: json(),
 	ipAddress: varchar("ip_address", { length: 45 }),
 	userAgent: varchar("user_agent", { length: 500 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -397,7 +397,7 @@ export const cartillaComentarios = mysqlTable("cartilla_comentarios", {
 	publicacionId: varchar("publicacion_id", { length: 36 }).notNull().references(() => cartillaPublicaciones.id, { onDelete: "cascade" } ),
 	usuarioId: varchar("usuario_id", { length: 36 }).notNull(),
 	contenido: text().notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -417,8 +417,8 @@ export const cartillaCompras = mysqlTable("cartilla_compras", {
 	metodo: mysqlEnum(['gratis','stripe','credito','efectivo','manual']).default('manual').notNull(),
 	referencia: varchar({ length: 255 }),
 	pagadoEn: timestamp("pagado_en", { mode: 'string' }),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -436,7 +436,7 @@ export const cartillaModuloAudios = mysqlTable("cartilla_modulo_audios", {
 	url: varchar({ length: 500 }).notNull(),
 	descripcion: text(),
 	orden: int().default(0),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -452,7 +452,7 @@ export const cartillaModuloImagenes = mysqlTable("cartilla_modulo_imagenes", {
 	alt: varchar({ length: 255 }),
 	caption: text(),
 	orden: int().default(0),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -468,7 +468,7 @@ export const cartillaModuloSecciones = mysqlTable("cartilla_modulo_secciones", {
 	contenido: text(),
 	tipo: mysqlEnum(['texto','vocabulario','cultural','pronunciacion','gramatica']).default('texto'),
 	orden: int().default(0),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -491,7 +491,7 @@ export const cartillaModulos = mysqlTable("cartilla_modulos", {
 	traduccion: varchar({ length: 255 }),
 	orden: int().default(0),
 	isActive: tinyint("is_active").default(1).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -512,8 +512,8 @@ export const cartillaProgreso = mysqlTable("cartilla_progreso", {
 	palabrasAprendidas: int("palabras_aprendidas").default(0),
 	// you can use { mode: 'date' }, if you want to have Date as type for this column
 	ultimoAcceso: date("ultimo_acceso", { mode: 'string' }),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -527,7 +527,7 @@ export const cartillaPublicacionLikes = mysqlTable("cartilla_publicacion_likes",
 	id: varchar({ length: 36 }).notNull(),
 	publicacionId: varchar("publicacion_id", { length: 36 }).notNull().references(() => cartillaPublicaciones.id, { onDelete: "cascade" } ),
 	usuarioId: varchar("usuario_id", { length: 36 }).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -544,7 +544,7 @@ export const cartillaPublicaciones = mysqlTable("cartilla_publicaciones", {
 	contenido: text().notNull(),
 	likes: int().default(0),
 	isActive: tinyint("is_active").default(1).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -565,7 +565,7 @@ export const cartillaRetos = mysqlTable("cartilla_retos", {
 	categoria: mysqlEnum(['vocabulario','conversacion','modulo','comunidad']).notNull(),
 	meta: int().default(1),
 	activo: tinyint().default(1),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -598,7 +598,7 @@ export const cartillaUsuarioRespuestas = mysqlTable("cartilla_usuario_respuestas
 	respuesta: varchar({ length: 255 }).notNull(),
 	esCorrecta: tinyint("es_correcta").notNull(),
 	puntosObtenidos: int("puntos_obtenidos").default(0),
-	respondidoEn: timestamp("respondido_en", { mode: 'string' }).defaultNow(),
+	respondidoEn: timestamp("respondido_en", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -635,7 +635,7 @@ export const cartillaVocabulario = mysqlTable("cartilla_vocabulario", {
 	inga: varchar({ length: 200 }).notNull(),
 	categoria: varchar({ length: 50 }).default('general'),
 	notas: text(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -665,8 +665,8 @@ export const cartillas = mysqlTable("cartillas", {
 	publicado: tinyint().default(0).notNull(),
 	destacado: tinyint().default(0).notNull(),
 	isActive: tinyint("is_active").default(1).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -687,7 +687,7 @@ export const cashMovements = mysqlTable("cash_movements", {
 	notes: text(),
 	createdBy: varchar("created_by", { length: 36 }).notNull().references(() => users.id, { onDelete: "restrict" } ),
 	createdByName: varchar("created_by_name", { length: 255 }).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -704,7 +704,7 @@ export const cashSessions = mysqlTable("cash_sessions", {
 	openedBy: varchar("opened_by", { length: 36 }).notNull().references(() => users.id, { onDelete: "restrict" } ),
 	openedByName: varchar("opened_by_name", { length: 255 }).notNull(),
 	openingAmount: decimal("opening_amount", { precision: 12, scale: 2 }).default('0.00').notNull(),
-	openedAt: timestamp("opened_at", { mode: 'string' }).defaultNow().notNull(),
+	openedAt: timestamp("opened_at", { mode: 'string' }).default(sql`(now())`).notNull(),
 	closedBy: varchar("closed_by", { length: 36 }).references(() => users.id, { onDelete: "set null" } ),
 	closedByName: varchar("closed_by_name", { length: 255 }),
 	closedAt: timestamp("closed_at", { mode: 'string' }),
@@ -725,8 +725,8 @@ export const cashSessions = mysqlTable("cash_sessions", {
 	status: mysqlEnum(['abierta','cerrada']).default('abierta').notNull(),
 	closingStatus: mysqlEnum("closing_status", ['cuadrado','sobrante','faltante']),
 	observations: text(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 	shiftType: mysqlEnum("shift_type", ['ma??ana','tarde','unico']).default('unico').notNull(),
 	shiftLabel: varchar("shift_label", { length: 50 }),
 },
@@ -764,7 +764,7 @@ export const challengeParticipants = mysqlTable("challenge_participants", {
 	id: varchar({ length: 36 }).notNull(),
 	challengeId: varchar("challenge_id", { length: 36 }).notNull().references(() => seasonalChallenges.id, { onDelete: "cascade" } ),
 	userId: varchar("user_id", { length: 36 }).notNull(),
-	joinedAt: timestamp("joined_at", { mode: 'string' }).defaultNow(),
+	joinedAt: timestamp("joined_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -786,8 +786,8 @@ export const chatbotConfig = mysqlTable("chatbot_config", {
 	tone: mysqlEnum(['profesional','amigable','formal','casual']).default('amigable').notNull(),
 	notifyEmail: tinyint("notify_email").default(1).notNull(),
 	notifyWhatsapp: tinyint("notify_whatsapp").default(1).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 	whatsappEnabled: tinyint("whatsapp_enabled").default(0).notNull(),
 	whatsappNumber: varchar("whatsapp_number", { length: 50 }),
 	evolutionInstance: varchar("evolution_instance", { length: 100 }),
@@ -809,7 +809,7 @@ export const chatbotMessages = mysqlTable("chatbot_messages", {
 	tenantId: varchar("tenant_id", { length: 36 }).notNull(),
 	role: mysqlEnum(['user','assistant']).notNull(),
 	content: text().notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -825,8 +825,8 @@ export const chatbotSessions = mysqlTable("chatbot_sessions", {
 	sessionToken: varchar("session_token", { length: 100 }).notNull(),
 	customerName: varchar("customer_name", { length: 255 }),
 	customerPhone: varchar("customer_phone", { length: 50 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	lastActivity: timestamp("last_activity", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	lastActivity: timestamp("last_activity", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 	humanTakeover: tinyint("human_takeover").default(0).notNull(),
 	channel: mysqlEnum(['web','whatsapp','voice','api']).default('web').notNull(),
 },
@@ -847,7 +847,7 @@ export const coachFeedEntries = mysqlTable("coach_feed_entries", {
 	mediaUrl: varchar("media_url", { length: 800 }),
 	metadata: json(),
 	isRead: tinyint("is_read").default(0).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -863,7 +863,7 @@ export const communityComments = mysqlTable("community_comments", {
 	body: text().notNull(),
 	parentId: varchar("parent_id", { length: 36 }),
 	isActive: tinyint("is_active").default(1).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 	authorName: varchar("author_name", { length: 160 }),
 },
 (table) => {
@@ -916,9 +916,9 @@ export const communityPosts = mysqlTable("community_posts", {
 	commentsCount: int("comments_count").default(0).notNull(),
 	sharesCount: int("shares_count").default(0).notNull(),
 	isActive: tinyint("is_active").default(1).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 	publishedAt: timestamp("published_at", { mode: 'string' }),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -935,7 +935,7 @@ export const communityReactions = mysqlTable("community_reactions", {
 	userId: varchar("user_id", { length: 36 }),
 	deviceId: varchar("device_id", { length: 64 }),
 	type: mysqlEnum(['like','save']).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -950,7 +950,7 @@ export const communityReactions = mysqlTable("community_reactions", {
 export const communitySettings = mysqlTable("community_settings", {
 	settingKey: varchar("setting_key", { length: 100 }).notNull(),
 	settingValue: text("setting_value"),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -975,8 +975,8 @@ export const consumerAccessCodes = mysqlTable("consumer_access_codes", {
 	metadata: json(),
 	isActive: tinyint("is_active").default(1).notNull(),
 	createdBy: varchar("created_by", { length: 36 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -995,7 +995,7 @@ export const consumerAccessLedger = mysqlTable("consumer_access_ledger", {
 	oldExpiresAt: datetime("old_expires_at", { mode: 'string'}),
 	newExpiresAt: datetime("new_expires_at", { mode: 'string'}),
 	metadata: json(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -1010,7 +1010,7 @@ export const consumerAchievements = mysqlTable("consumer_achievements", {
 	userId: varchar("user_id", { length: 36 }).notNull(),
 	achievementCode: varchar("achievement_code", { length: 60 }).notNull(),
 	source: varchar({ length: 40 }),
-	unlockedAt: timestamp("unlocked_at", { mode: 'string' }).defaultNow(),
+	unlockedAt: timestamp("unlocked_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -1030,7 +1030,7 @@ export const consumerBodyLogs = mysqlTable("consumer_body_logs", {
 	measurements: json(),
 	photoUrl: varchar("photo_url", { length: 800 }),
 	note: varchar({ length: 300 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -1047,7 +1047,7 @@ export const consumerDailyChecks = mysqlTable("consumer_daily_checks", {
 	day: date({ mode: 'string' }).notNull(),
 	itemKey: varchar("item_key", { length: 30 }).notNull(),
 	done: tinyint().default(1).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -1065,7 +1065,7 @@ export const consumerDiscountRules = mysqlTable("consumer_discount_rules", {
 	scope: mysqlEnum(['all','category']).default('all').notNull(),
 	category: varchar({ length: 120 }),
 	isActive: tinyint("is_active").default(1).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -1078,7 +1078,7 @@ export const consumerEntitlements = mysqlTable("consumer_entitlements", {
 	id: varchar({ length: 36 }).notNull(),
 	tier: varchar({ length: 50 }).notNull(),
 	entitlementKey: varchar("entitlement_key", { length: 100 }).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -1092,7 +1092,7 @@ export const consumerEvents = mysqlTable("consumer_events", {
 	userId: varchar("user_id", { length: 36 }),
 	event: varchar({ length: 80 }).notNull(),
 	metadata: json(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -1112,8 +1112,8 @@ export const consumerPlanGrants = mysqlTable("consumer_plan_grants", {
 	sourceLedgerId: varchar("source_ledger_id", { length: 36 }),
 	lastCheckedAt: datetime("last_checked_at", { mode: 'string'}),
 	metadata: json(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -1138,7 +1138,7 @@ export const consumerVaultUnlocks = mysqlTable("consumer_vault_unlocks", {
 	userId: varchar("user_id", { length: 36 }).notNull(),
 	unlockKey: varchar("unlock_key", { length: 80 }).notNull(),
 	vaultKeyId: varchar("vault_key_id", { length: 36 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -1153,7 +1153,7 @@ export const consumerXpLog = mysqlTable("consumer_xp_log", {
 	userId: varchar("user_id", { length: 36 }).notNull(),
 	amount: int().notNull(),
 	reason: varchar({ length: 40 }).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -1172,7 +1172,7 @@ export const creditPayments = mysqlTable("credit_payments", {
 	receiptNumber: varchar("receipt_number", { length: 20 }),
 	notes: text(),
 	receivedBy: varchar("received_by", { length: 36 }).references(() => users.id, { onDelete: "set null" } ),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -1195,8 +1195,8 @@ export const customers = mysqlTable("customers", {
 	address: varchar({ length: 500 }),
 	creditLimit: decimal("credit_limit", { precision: 12, scale: 2 }).default('0.00').notNull(),
 	notes: text(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -1225,8 +1225,8 @@ export const devRequests = mysqlTable("dev_requests", {
 	rejectionReason: varchar("rejection_reason", { length: 500 }),
 	paidAt: timestamp("paid_at", { mode: 'string' }),
 	completedAt: timestamp("completed_at", { mode: 'string' }),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -1250,8 +1250,8 @@ export const discountCoupons = mysqlTable("discount_coupons", {
 	timesUsed: int("times_used").default(0).notNull(),
 	isActive: tinyint("is_active").default(1).notNull(),
 	expiresAt: timestamp("expires_at", { mode: 'string' }),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -1267,7 +1267,7 @@ export const dropClaims = mysqlTable("drop_claims", {
 	dropId: varchar("drop_id", { length: 36 }).notNull().references(() => drops.id, { onDelete: "cascade" } ),
 	userId: varchar("user_id", { length: 36 }).notNull(),
 	status: mysqlEnum(['reserved','converted']).default('reserved').notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -1291,7 +1291,7 @@ export const drops = mysqlTable("drops", {
 	productRef: json("product_ref"),
 	status: mysqlEnum(['scheduled','cancelled']).default('scheduled').notNull(),
 	createdBy: varchar("created_by", { length: 36 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -1306,7 +1306,7 @@ export const employeeCargos = mysqlTable("employee_cargos", {
 	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" } ),
 	name: varchar({ length: 100 }).notNull(),
 	description: varchar({ length: 255 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 	permissions: json(),
 },
 (table) => {
@@ -1335,8 +1335,8 @@ export const employeeNovelties = mysqlTable("employee_novelties", {
 	status: mysqlEnum(['pendiente','aprobado','rechazado']).default('pendiente').notNull(),
 	rejectionReason: varchar("rejection_reason", { length: 500 }),
 	createdBy: varchar("created_by", { length: 36 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -1357,8 +1357,8 @@ export const employeeVacationBalances = mysqlTable("employee_vacation_balances",
 	daysGranted: int("days_granted").default(15).notNull(),
 	daysUsed: int("days_used").default(0).notNull(),
 	notes: text(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -1379,7 +1379,7 @@ export const exerciseProgressions = mysqlTable("exercise_progressions", {
 	lastAction: varchar("last_action", { length: 12 }),
 	completionRate: decimal("completion_rate", { precision: 5, scale: 3 }),
 	estimated1Rm: decimal("estimated_1rm", { precision: 8, scale: 2 }),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -1396,8 +1396,8 @@ export const financeBudgets = mysqlTable("finance_budgets", {
 	month: tinyint().notNull(),
 	budgetedAmount: decimal("budgeted_amount", { precision: 12, scale: 2 }).default('0.00').notNull(),
 	notes: text(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -1418,7 +1418,7 @@ export const financeCategories = mysqlTable("finance_categories", {
 	isSystem: tinyint("is_system").default(0).notNull(),
 	isActive: tinyint("is_active").default(1).notNull(),
 	sortOrder: int("sort_order").default(0).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -1450,8 +1450,8 @@ export const financeTransactions = mysqlTable("finance_transactions", {
 	tags: json(),
 	createdBy: varchar("created_by", { length: 36 }).references(() => users.id, { onDelete: "set null" } ),
 	createdByName: varchar("created_by_name", { length: 255 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -1481,8 +1481,8 @@ export const fleetMaintenance = mysqlTable("fleet_maintenance", {
 	status: mysqlEnum(['pendiente','en_proceso','completado','cancelado']).default('pendiente').notNull(),
 	notes: text(),
 	createdBy: varchar("created_by", { length: 36 }).references(() => users.id, { onDelete: "set null" } ),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -1507,8 +1507,8 @@ export const fleetVehicles = mysqlTable("fleet_vehicles", {
 	brand: varchar({ length: 50 }),
 	model: varchar({ length: 50 }),
 	notes: text(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -1523,7 +1523,7 @@ export const guildMembers = mysqlTable("guild_members", {
 	id: varchar({ length: 36 }).notNull(),
 	guildId: varchar("guild_id", { length: 36 }).notNull().references(() => guilds.id, { onDelete: "cascade" } ),
 	userId: varchar("user_id", { length: 36 }).notNull(),
-	joinedAt: timestamp("joined_at", { mode: 'string' }).defaultNow(),
+	joinedAt: timestamp("joined_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -1540,12 +1540,59 @@ export const guilds = mysqlTable("guilds", {
 	emoji: varchar({ length: 12 }),
 	ownerUserId: varchar("owner_user_id", { length: 36 }),
 	membersCount: int("members_count").default(0).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
 		guildsId: primaryKey({ columns: [table.id], name: "guilds_id"}),
 		idxGuildName: unique("idx_guild_name").on(table.name),
+	}
+});
+
+export const hormaColors = mysqlTable("horma_colors", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+	hormaId: varchar("horma_id", { length: 36 }).notNull(),
+	color: varchar({ length: 100 }).notNull(),
+	hex: varchar({ length: 9 }),
+	shelf: json(),
+	sortOrder: int("sort_order").default(0).notNull(),
+	isActive: tinyint("is_active").default(1).notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+},
+(table) => {
+	return {
+		idxHcTenant: index("idx_hc_tenant").on(table.tenantId),
+		idxHcHorma: index("idx_hc_horma").on(table.hormaId, table.tenantId),
+		hormaColorsId: primaryKey({ columns: [table.id], name: "horma_colors_id"}),
+		ukHormaColor: unique("uk_horma_color").on(table.hormaId, table.color),
+	}
+});
+
+export const hormas = mysqlTable("hormas", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+	name: varchar({ length: 150 }).notNull(),
+	slug: varchar({ length: 150 }).notNull(),
+	baseCost: decimal("base_cost", { precision: 12, scale: 2 }).default('0.00').notNull(),
+	basePrice: decimal("base_price", { precision: 12, scale: 2 }).default('0.00').notNull(),
+	sizeChart: json("size_chart"),
+	hasSleeves: tinyint("has_sleeves").default(1).notNull(),
+	sexo: mysqlEnum(['unisex','hombre','mujer']).default('unisex').notNull(),
+	composition: varchar({ length: 150 }),
+	weightGrams: int("weight_grams"),
+	shelf: json(),
+	sortOrder: int("sort_order").default(0).notNull(),
+	isActive: tinyint("is_active").default(1).notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+},
+(table) => {
+	return {
+		idxHormasTenant: index("idx_hormas_tenant").on(table.tenantId, table.isActive),
+		hormasId: primaryKey({ columns: [table.id], name: "hormas_id"}),
+		ukHormaSlugTenant: unique("uk_horma_slug_tenant").on(table.tenantId, table.slug),
 	}
 });
 
@@ -1556,7 +1603,7 @@ export const inventoryHolds = mysqlTable("inventory_holds", {
 	productId: varchar("product_id", { length: 36 }).notNull(),
 	quantity: int().default(1).notNull(),
 	expiresAt: datetime("expires_at", { mode: 'string'}).notNull(),
-	createdAt: datetime("created_at", { mode: 'string'}).default(sql`(CURRENT_TIMESTAMP)`).notNull(),
+	createdAt: datetime("created_at", { mode: 'string'}).default(sql`(now())`).notNull(),
 },
 (table) => {
 	return {
@@ -1579,7 +1626,7 @@ export const inventoryMovements = mysqlTable("inventory_movements", {
 	referenceType: varchar("reference_type", { length: 50 }),
 	referenceId: varchar("reference_id", { length: 36 }),
 	createdBy: varchar("created_by", { length: 36 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -1612,7 +1659,7 @@ export const legendPurchases = mysqlTable("legend_purchases", {
 	amountCop: decimal("amount_cop", { precision: 14, scale: 2 }).notNull(),
 	status: mysqlEnum(['pending','paid','cancelled']).default('pending').notNull(),
 	gatewayPaymentId: varchar("gateway_payment_id", { length: 120 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -1627,7 +1674,7 @@ export const loginAttempts = mysqlTable("login_attempts", {
 	ipAddress: varchar("ip_address", { length: 45 }).notNull(),
 	success: tinyint().default(0).notNull(),
 	failureReason: varchar("failure_reason", { length: 100 }),
-	attemptedAt: timestamp("attempted_at", { mode: 'string' }).defaultNow(),
+	attemptedAt: timestamp("attempted_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -1641,8 +1688,8 @@ export const lopbukLanding = mysqlTable("lopbuk_landing", {
 	id: int().default(1).notNull(),
 	config: json(),
 	updatedBy: varchar("updated_by", { length: 120 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -1657,8 +1704,8 @@ export const loyaltyAccounts = mysqlTable("loyalty_accounts", {
 	customerPhone: varchar("customer_phone", { length: 40 }).notNull(),
 	pointsBalance: int("points_balance").default(0).notNull(),
 	totalEarned: int("total_earned").default(0).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -1671,7 +1718,7 @@ export const loyaltyConfig = mysqlTable("loyalty_config", {
 	tenantId: varchar("tenant_id", { length: 36 }).notNull(),
 	enabled: tinyint().default(1).notNull(),
 	pointsPerThousand: decimal("points_per_thousand", { precision: 8, scale: 2 }).default('1.00').notNull(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -1686,7 +1733,7 @@ export const loyaltyRewards = mysqlTable("loyalty_rewards", {
 	description: varchar({ length: 300 }),
 	pointsCost: int("points_cost").notNull(),
 	isActive: tinyint("is_active").default(1).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -1703,7 +1750,7 @@ export const loyaltyTransactions = mysqlTable("loyalty_transactions", {
 	points: int().notNull(),
 	reason: varchar({ length: 200 }),
 	orderId: varchar("order_id", { length: 36 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -1724,8 +1771,8 @@ export const marketplaceExternalCards = mysqlTable("marketplace_external_cards",
 	isVerified: tinyint("is_verified").default(0).notNull(),
 	isVisible: tinyint("is_visible").default(1).notNull(),
 	sortOrder: int("sort_order").default(0).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -1739,7 +1786,7 @@ export const menuLikes = mysqlTable("menu_likes", {
 	productId: int("product_id").notNull(),
 	tenantId: varchar("tenant_id", { length: 36 }).notNull(),
 	deviceId: varchar("device_id", { length: 64 }).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -1761,8 +1808,8 @@ export const merchantEvents = mysqlTable("merchant_events", {
 	ticketPrice: decimal("ticket_price", { precision: 14, scale: 2 }),
 	capacity: int(),
 	isActive: tinyint("is_active").default(1).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -1779,7 +1826,7 @@ export const merchantNotifications = mysqlTable("merchant_notifications", {
 	message: text().notNull(),
 	data: json(),
 	isRead: tinyint("is_read").default(0).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -1797,7 +1844,7 @@ export const notifications = mysqlTable("notifications", {
 	body: varchar({ length: 500 }),
 	link: varchar({ length: 500 }),
 	isRead: tinyint("is_read").default(0).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -1814,7 +1861,7 @@ export const orderStatusHistory = mysqlTable("order_status_history", {
 	toStatus: varchar("to_status", { length: 30 }).notNull(),
 	changedBy: varchar("changed_by", { length: 36 }).notNull(),
 	note: text(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -1833,8 +1880,8 @@ export const parLevels = mysqlTable("par_levels", {
 	safetyStock: decimal("safety_stock", { precision: 10, scale: 3 }).default('0.000').notNull(),
 	area: mysqlEnum(['cocina','bar','general']).default('cocina').notNull(),
 	notes: text(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow().notNull(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`).notNull(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow().notNull(),
 },
 (table) => {
 	return {
@@ -1870,7 +1917,7 @@ export const payrollAdjustments = mysqlTable("payroll_adjustments", {
 	concept: varchar({ length: 255 }).notNull(),
 	amount: decimal({ precision: 12, scale: 2 }).notNull(),
 	createdBy: varchar("created_by", { length: 36 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -1905,7 +1952,7 @@ export const payrollRecords = mysqlTable("payroll_records", {
 	status: mysqlEnum(['borrador','pagado']).default('borrador').notNull(),
 	notes: text(),
 	generatedBy: varchar("generated_by", { length: 36 }),
-	generatedAt: timestamp("generated_at", { mode: 'string' }).defaultNow(),
+	generatedAt: timestamp("generated_at", { mode: 'string' }).default(sql`(now())`),
 	paidAt: timestamp("paid_at", { mode: 'string' }),
 },
 (table) => {
@@ -1926,7 +1973,7 @@ export const platformPaymentGateways = mysqlTable("platform_payment_gateways", {
 	integritySecret: text("integrity_secret"),
 	eventsSecret: text("events_secret"),
 	isActive: tinyint("is_active").default(0).notNull(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -1937,7 +1984,7 @@ export const platformPaymentGateways = mysqlTable("platform_payment_gateways", {
 export const platformSettings = mysqlTable("platform_settings", {
 	settingKey: varchar("setting_key", { length: 100 }).notNull(),
 	settingValue: text("setting_value"),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -1959,8 +2006,8 @@ export const portfolioConfig = mysqlTable("portfolio_config", {
 	contactInstagram: varchar("contact_instagram", { length: 255 }),
 	accentColor: varchar("accent_color", { length: 30 }).default('#6366f1').notNull(),
 	isPublished: tinyint("is_published").default(1).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 	robotSplineUrl: text("robot_spline_url"),
 	lanyardOffsetX: int("lanyard_offset_x").default(0).notNull(),
 	lanyardOffsetY: int("lanyard_offset_y").default(0).notNull(),
@@ -1979,8 +2026,8 @@ export const portfolioFeatureCards = mysqlTable("portfolio_feature_cards", {
 	description: text(),
 	sortOrder: int("sort_order").default(0).notNull(),
 	isActive: tinyint("is_active").default(1).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -1995,8 +2042,8 @@ export const portfolioServiceCategories = mysqlTable("portfolio_service_categori
 	type: mysqlEnum(['package','subscription','addon']).default('package').notNull(),
 	sortOrder: int("sort_order").default(0).notNull(),
 	isActive: tinyint("is_active").default(1).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -2014,8 +2061,8 @@ export const portfolioServiceOptions = mysqlTable("portfolio_service_options", {
 	isPopular: tinyint("is_popular").default(0).notNull(),
 	sortOrder: int("sort_order").default(0).notNull(),
 	isActive: tinyint("is_active").default(1).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -2035,8 +2082,8 @@ export const portfolioTeamCards = mysqlTable("portfolio_team_cards", {
 	isActive: tinyint("is_active").default(1).notNull(),
 	githubUrl: varchar("github_url", { length: 255 }),
 	linkedinUrl: varchar("linkedin_url", { length: 255 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 	bandImageUrl: text("band_image_url"),
 },
 (table) => {
@@ -2055,7 +2102,7 @@ export const priceHistory = mysqlTable("price_history", {
 	newSalePrice: decimal("new_sale_price", { precision: 10, scale: 2 }),
 	reason: varchar({ length: 200 }),
 	changedBy: varchar("changed_by", { length: 50 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -2075,8 +2122,8 @@ export const printers = mysqlTable("printers", {
 	paperWidth: tinyint("paper_width").default(80).notNull(),
 	isActive: tinyint("is_active").default(1).notNull(),
 	assignedModule: mysqlEnum("assigned_module", ['caja','cocina','bar','factura']),
-	createdAt: datetime("created_at", { mode: 'string'}).default(sql`(CURRENT_TIMESTAMP)`).notNull(),
-	updatedAt: datetime("updated_at", { mode: 'string'}).default(sql`(CURRENT_TIMESTAMP)`).notNull(),
+	createdAt: datetime("created_at", { mode: 'string'}).default(sql`(now())`).notNull(),
+	updatedAt: datetime("updated_at", { mode: 'string'}).default(sql`(now())`).notNull(),
 },
 (table) => {
 	return {
@@ -2099,7 +2146,7 @@ export const productAlerts = mysqlTable("product_alerts", {
 	resolvedAt: timestamp("resolved_at", { mode: 'string' }),
 	resolvedBy: varchar("resolved_by", { length: 50 }),
 	notes: text(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -2122,7 +2169,7 @@ export const productModifierGroups = mysqlTable("product_modifier_groups", {
 	minSelect: int("min_select").default(0).notNull(),
 	maxSelect: int("max_select"),
 	sortOrder: int("sort_order").default(0).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -2156,7 +2203,7 @@ export const productRecipes = mysqlTable("product_recipes", {
 	productId: varchar("product_id", { length: 36 }).notNull().references(() => products.id, { onDelete: "cascade" } ),
 	ingredientId: varchar("ingredient_id", { length: 36 }).notNull().references(() => products.id, { onDelete: "restrict" } ),
 	quantity: decimal({ precision: 10, scale: 3 }).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 	includeInCost: tinyint("include_in_cost").default(1).notNull(),
 },
 (table) => {
@@ -2181,8 +2228,8 @@ export const productReviews = mysqlTable("product_reviews", {
 	imageUrl2: varchar("image_url_2", { length: 500 }),
 	status: mysqlEnum(['pendiente','aprobado','rechazado']).default('pendiente').notNull(),
 	reply: text(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -2212,11 +2259,12 @@ export const productVariants = mysqlTable("product_variants", {
 	images: json(),
 	sortOrder: int("sort_order").default(0),
 	isActive: tinyint("is_active").default(1),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 	preorderLimit: int("preorder_limit"),
 	preorderCount: int("preorder_count").default(0).notNull(),
 	colorHex: varchar("color_hex", { length: 9 }),
+	hormaId: varchar("horma_id", { length: 36 }),
 },
 (table) => {
 	return {
@@ -2224,6 +2272,7 @@ export const productVariants = mysqlTable("product_variants", {
 		idxPvTenantProduct: index("idx_pv_tenant_product").on(table.tenantId, table.productId),
 		idxPvSupplier: index("idx_pv_supplier").on(table.supplierId),
 		idxPvSku: index("idx_pv_sku").on(table.tenantId, table.sku),
+		idxPvHorma: index("idx_pv_horma").on(table.hormaId),
 		productVariantsId: primaryKey({ columns: [table.id], name: "product_variants_id"}),
 		ukPvSkuTenant: unique("uk_pv_sku_tenant").on(table.sku, table.tenantId),
 	}
@@ -2331,8 +2380,8 @@ export const products = mysqlTable("products", {
 	offerStart: datetime("offer_start", { mode: 'string'}),
 	offerEnd: datetime("offer_end", { mode: 'string'}),
 	sedeId: varchar("sede_id", { length: 36 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 	createdBy: varchar("created_by", { length: 50 }),
 	updatedBy: varchar("updated_by", { length: 50 }),
 	isMenuItem: tinyint("is_menu_item").default(0).notNull(),
@@ -2342,6 +2391,7 @@ export const products = mysqlTable("products", {
 	availableInMenu: tinyint("available_in_menu").default(1).notNull(),
 	qtyPromo: text("qty_promo"),
 	images: text(),
+	hormaId: varchar("horma_id", { length: 36 }),
 },
 (table) => {
 	return {
@@ -2355,6 +2405,7 @@ export const products = mysqlTable("products", {
 		idxProductsPreorder: index("idx_products_preorder").on(table.tenantId, table.isPreorder),
 		idxMenuItem: index("idx_menu_item").on(table.tenantId, table.isMenuItem, table.availableInMenu),
 		idxPrepArea: index("idx_prep_area").on(table.tenantId, table.preparationArea),
+		idxProductsHorma: index("idx_products_horma").on(table.hormaId),
 		productsId: primaryKey({ columns: [table.id], name: "products_id"}),
 		idxProductTenantSku: unique("idx_product_tenant_sku").on(table.tenantId, table.sku),
 		idxProductTenantBarcode: unique("idx_product_tenant_barcode").on(table.tenantId, table.barcode),
@@ -2368,8 +2419,8 @@ export const profileSections = mysqlTable("profile_sections", {
 	orderIndex: int("order_index").default(0).notNull(),
 	content: json(),
 	isActive: tinyint("is_active").default(1).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -2425,8 +2476,8 @@ export const purchaseInvoices = mysqlTable("purchase_invoices", {
 	synced: tinyint().default(1).notNull(),
 	syncedAt: timestamp("synced_at", { mode: 'string' }),
 	origin: mysqlEnum(['local','cloud']).default('cloud').notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -2446,7 +2497,7 @@ export const pushSubscriptions = mysqlTable("push_subscriptions", {
 	endpoint: varchar({ length: 500 }).notNull(),
 	p256Dh: varchar({ length: 200 }).notNull(),
 	auth: varchar({ length: 100 }).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -2465,7 +2516,7 @@ export const rbGastos = mysqlTable("rb_gastos", {
 	valorUnitario: decimal("valor_unitario", { precision: 12, scale: 2 }).notNull(),
 	total: decimal({ precision: 12, scale: 2 }).notNull(),
 	notas: text(),
-	registeredAt: timestamp("registered_at", { mode: 'string' }).defaultNow().notNull(),
+	registeredAt: timestamp("registered_at", { mode: 'string' }).default(sql`(now())`).notNull(),
 	createdBy: varchar("created_by", { length: 36 }),
 },
 (table) => {
@@ -2482,8 +2533,8 @@ export const rbGastosFijos = mysqlTable("rb_gastos_fijos", {
 	valor: decimal({ precision: 12, scale: 2 }).notNull(),
 	periodo: mysqlEnum(['quincenal','semanal','mensual']).default('quincenal').notNull(),
 	isActive: tinyint("is_active").default(1).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -2501,8 +2552,8 @@ export const rbIngresosDiarios = mysqlTable("rb_ingresos_diarios", {
 	valorVentas: decimal("valor_ventas", { precision: 12, scale: 2 }).default('0.00').notNull(),
 	ganancia: decimal({ precision: 12, scale: 2 }).default('0.00').notNull(),
 	notas: text(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -2530,7 +2581,7 @@ export const rbJukeboxQueue = mysqlTable("rb_jukebox_queue", {
 	url: varchar({ length: 500 }),
 	requestedBy: varchar("requested_by", { length: 120 }),
 	status: mysqlEnum(['queued','playing','played','skipped']).default('queued').notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -2556,8 +2607,8 @@ export const rbOrderItems = mysqlTable("rb_order_items", {
 	sentToKitchenAt: timestamp("sent_to_kitchen_at", { mode: 'string' }),
 	readyAt: timestamp("ready_at", { mode: 'string' }),
 	deliveredAt: timestamp("delivered_at", { mode: 'string' }),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -2597,10 +2648,10 @@ export const rbOrders = mysqlTable("rb_orders", {
 	discount: decimal({ precision: 12, scale: 2 }).default('0.00').notNull(),
 	total: decimal({ precision: 12, scale: 2 }).default('0.00').notNull(),
 	saleId: varchar("sale_id", { length: 36 }).references(() => sales.id, { onDelete: "set null" } ),
-	openedAt: timestamp("opened_at", { mode: 'string' }).defaultNow().notNull(),
+	openedAt: timestamp("opened_at", { mode: 'string' }).default(sql`(now())`).notNull(),
 	closedAt: timestamp("closed_at", { mode: 'string' }),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 	priority: mysqlEnum(['normal','urgente']).default('normal').notNull(),
 },
 (table) => {
@@ -2628,7 +2679,7 @@ export const rbPayments = mysqlTable("rb_payments", {
 	cashierName: varchar("cashier_name", { length: 255 }).notNull(),
 	cashSessionId: varchar("cash_session_id", { length: 36 }).references(() => cashSessions.id, { onDelete: "set null" } ),
 	notes: text(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -2674,8 +2725,8 @@ export const rbReservations = mysqlTable("rb_reservations", {
 	notifiedWhatsapp: tinyint("notified_whatsapp").default(0).notNull(),
 	confirmedAt: timestamp("confirmed_at", { mode: 'string' }),
 	cancelledAt: timestamp("cancelled_at", { mode: 'string' }),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -2691,7 +2742,7 @@ export const rbTableGuests = mysqlTable("rb_table_guests", {
 	id: varchar({ length: 36 }).notNull(),
 	sessionId: varchar("session_id", { length: 36 }).notNull(),
 	name: varchar({ length: 120 }).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -2710,7 +2761,7 @@ export const rbTableSessions = mysqlTable("rb_table_sessions", {
 	orderId: varchar("order_id", { length: 36 }),
 	status: mysqlEnum(['active','closed']).default('active').notNull(),
 	expiresAt: timestamp("expires_at", { mode: 'string' }),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -2730,8 +2781,8 @@ export const rbTables = mysqlTable("rb_tables", {
 	qrCode: varchar("qr_code", { length: 500 }),
 	notes: text(),
 	isActive: tinyint("is_active").default(1).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 	mergeGroup: varchar("merge_group", { length: 36 }),
 },
 (table) => {
@@ -2754,8 +2805,8 @@ export const reClients = mysqlTable("re_clients", {
 	source: varchar({ length: 100 }),
 	assignedAgentId: varchar("assigned_agent_id", { length: 36 }),
 	notes: text(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -2786,8 +2837,8 @@ export const reContracts = mysqlTable("re_contracts", {
 	status: mysqlEnum(['borrador','activo','vencido','renovado','terminado','cancelado']).default('borrador').notNull(),
 	notes: text(),
 	createdBy: varchar("created_by", { length: 36 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -2811,7 +2862,7 @@ export const reLeadActivities = mysqlTable("re_lead_activities", {
 	createdBy: varchar("created_by", { length: 36 }),
 	scheduledAt: datetime("scheduled_at", { mode: 'string'}),
 	completed: tinyint().default(1).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -2840,8 +2891,8 @@ export const reLeads = mysqlTable("re_leads", {
 	propertyId: varchar("property_id", { length: 36 }),
 	notes: text(),
 	lastContactAt: timestamp("last_contact_at", { mode: 'string' }),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -2871,8 +2922,8 @@ export const reMaintenances = mysqlTable("re_maintenances", {
 	completedAt: datetime("completed_at", { mode: 'string'}),
 	evidenceUrls: json("evidence_urls"),
 	notes: text(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -2898,8 +2949,8 @@ export const reOwners = mysqlTable("re_owners", {
 	bankAccount: varchar("bank_account", { length: 50 }),
 	bankAccountType: mysqlEnum("bank_account_type", ['ahorros','corriente']),
 	notes: text(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -2942,8 +2993,8 @@ export const reProperties = mysqlTable("re_properties", {
 	coverImageUrl: text("cover_image_url"),
 	tags: json(),
 	seoSlug: varchar("seo_slug", { length: 255 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -2980,7 +3031,7 @@ export const rePropertyMedia = mysqlTable("re_property_media", {
 	caption: varchar({ length: 255 }),
 	sortOrder: smallint("sort_order").notNull(),
 	isCover: tinyint("is_cover").default(0).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -3007,8 +3058,8 @@ export const reRentPayments = mysqlTable("re_rent_payments", {
 	status: mysqlEnum(['pendiente','pagado','parcial','vencido']).default('pendiente').notNull(),
 	receiptUrl: text("receipt_url"),
 	notes: text(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -3034,8 +3085,8 @@ export const reVisits = mysqlTable("re_visits", {
 	feedback: text(),
 	rating: tinyint(),
 	notes: text(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -3058,7 +3109,7 @@ export const refreshTokens = mysqlTable("refresh_tokens", {
 	revokeReason: mysqlEnum("revoke_reason", ['logout','password_change','admin_revoke','rotation','suspicious']),
 	ipAddress: varchar("ip_address", { length: 45 }),
 	userAgent: varchar("user_agent", { length: 500 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -3083,7 +3134,7 @@ export const saleItems = mysqlTable("sale_items", {
 	unitPrice: decimal("unit_price", { precision: 12, scale: 2 }).notNull(),
 	discount: decimal({ precision: 5, scale: 2 }).default('0.00').notNull(),
 	subtotal: decimal({ precision: 12, scale: 2 }).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 	costPrice: decimal("cost_price", { precision: 12, scale: 2 }),
 	marginPct: decimal("margin_pct", { precision: 5, scale: 2 }),
 	marginAmount: decimal("margin_amount", { precision: 12, scale: 2 }),
@@ -3132,8 +3183,8 @@ export const sales = mysqlTable("sales", {
 	synced: tinyint().default(1).notNull(),
 	syncedAt: timestamp("synced_at", { mode: 'string' }),
 	origin: mysqlEnum(['local','cloud']).default('cloud').notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -3168,7 +3219,7 @@ export const seasonalChallenges = mysqlTable("seasonal_challenges", {
 	endsAt: datetime("ends_at", { mode: 'string'}).notNull(),
 	status: mysqlEnum(['active','cancelled']).default('active').notNull(),
 	createdBy: varchar("created_by", { length: 36 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 	rewardUnlock: varchar("reward_unlock", { length: 80 }),
 	settledAt: datetime("settled_at", { mode: 'string'}),
 	scope: varchar({ length: 12 }).default('individual').notNull(),
@@ -3185,8 +3236,8 @@ export const sedes = mysqlTable("sedes", {
 	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" } ),
 	name: varchar({ length: 100 }).notNull(),
 	address: varchar({ length: 500 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -3224,7 +3275,7 @@ export const serviceBlockedPeriods = mysqlTable("service_blocked_periods", {
 	startTime: time("start_time"),
 	endTime: time("end_time"),
 	reason: varchar({ length: 200 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -3255,8 +3306,8 @@ export const serviceBookings = mysqlTable("service_bookings", {
 	paymentStatus: mysqlEnum("payment_status", ['sin_pago','pendiente','pagado']).default('sin_pago').notNull(),
 	amountPaid: decimal("amount_paid", { precision: 12, scale: 2 }).default('0.00').notNull(),
 	merchantNotes: text("merchant_notes"),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -3285,8 +3336,8 @@ export const services = mysqlTable("services", {
 	isActive: tinyint("is_active").default(1).notNull(),
 	isPublished: tinyint("is_published").default(0).notNull(),
 	sortOrder: int("sort_order").default(0).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -3305,7 +3356,7 @@ export const shiftEmployeeBonuses = mysqlTable("shift_employee_bonuses", {
 	type: mysqlEnum(['bono','descuento']).notNull(),
 	amount: decimal({ precision: 10, scale: 2 }).default('0.00').notNull(),
 	concept: varchar({ length: 255 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -3324,7 +3375,7 @@ export const shiftEmployees = mysqlTable("shift_employees", {
 	roleLabel: varchar("role_label", { length: 50 }),
 	status: mysqlEnum(['activo','baja']).default('activo').notNull(),
 	bajaReason: varchar("baja_reason", { length: 255 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -3345,7 +3396,7 @@ export const stockMovements = mysqlTable("stock_movements", {
 	reason: varchar({ length: 255 }),
 	referenceId: varchar("reference_id", { length: 36 }),
 	userId: varchar("user_id", { length: 36 }).references(() => users.id, { onDelete: "set null" } ),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -3367,8 +3418,8 @@ export const storeAnnouncementBar = mysqlTable("store_announcement_bar", {
 	bgColor: varchar("bg_color", { length: 20 }).default('#f59e0b'),
 	textColor: varchar("text_color", { length: 20 }).default('#000000'),
 	isActive: tinyint("is_active").default(0),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 	scrollSpeed: tinyint("scroll_speed").default(3).notNull(),
 },
 (table) => {
@@ -3389,8 +3440,8 @@ export const storeBanners = mysqlTable("store_banners", {
 	linkUrl: varchar("link_url", { length: 500 }),
 	isActive: tinyint("is_active").default(1),
 	sortOrder: int("sort_order").default(0),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -3407,8 +3458,8 @@ export const storeCustomSections = mysqlTable("store_custom_sections", {
 	htmlContent: longtext("html_content"),
 	isActive: tinyint("is_active").default(1).notNull(),
 	sortOrder: int("sort_order").default(0).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -3442,8 +3493,8 @@ export const storeDrops = mysqlTable("store_drops", {
 	startsAt: datetime("starts_at", { mode: 'string'}).notNull(),
 	endsAt: datetime("ends_at", { mode: 'string'}).notNull(),
 	isActive: tinyint("is_active").default(1),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -3457,7 +3508,7 @@ export const storeFeaturedProducts = mysqlTable("store_featured_products", {
 	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" } ),
 	productId: varchar("product_id", { length: 50 }).notNull().references(() => products.id, { onDelete: "cascade" } ),
 	sortOrder: int("sort_order").default(0),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -3508,7 +3559,7 @@ export const storeInfo = mysqlTable("store_info", {
 	showInfoModule: tinyint("show_info_module").default(0).notNull(),
 	infoModuleDescription: text("info_module_description"),
 	cartMinPurchase: int("cart_min_purchase").default(0).notNull(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 	contactPageLinkTheme: varchar("contact_page_link_theme", { length: 20 }).default('theme1'),
 	enableIva: tinyint("enable_iva").default(0).notNull(),
 	metaPixelId: varchar("meta_pixel_id", { length: 100 }),
@@ -3542,7 +3593,7 @@ export const storeLocations = mysqlTable("store_locations", {
 	zone: varchar({ length: 50 }),
 	description: text(),
 	isActive: tinyint("is_active").default(1),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -3561,8 +3612,8 @@ export const storeOrderBump = mysqlTable("store_order_bump", {
 	title: varchar({ length: 255 }).default('??Tambi??n te puede interesar?').notNull(),
 	maxItems: int("max_items").default(3).notNull(),
 	productIds: json("product_ids"),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -3635,8 +3686,8 @@ export const storefrontOrders = mysqlTable("storefront_orders", {
 	dispatchNotes: text("dispatch_notes"),
 	dispatchedAt: timestamp("dispatched_at", { mode: 'string' }),
 	clientUserId: varchar("client_user_id", { length: 36 }).references(() => users.id, { onDelete: "set null" } ),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 	dataEncrypted: tinyint("data_encrypted").default(0).notNull(),
 	gatewayPaymentId: varchar("gateway_payment_id", { length: 100 }),
 	refundStatus: varchar("refund_status", { length: 30 }),
@@ -3665,8 +3716,8 @@ export const supplierProducts = mysqlTable("supplier_products", {
 	leadTimeDays: int("lead_time_days").default(0),
 	isPreferred: tinyint("is_preferred").default(0),
 	isActive: tinyint("is_active").default(1),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -3691,8 +3742,8 @@ export const suppliers = mysqlTable("suppliers", {
 	paymentTerms: varchar("payment_terms", { length: 100 }),
 	notes: text(),
 	isActive: tinyint("is_active").default(1),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -3716,8 +3767,8 @@ export const tenantProfile = mysqlTable("tenant_profile", {
 	website: varchar({ length: 255 }),
 	accentColor: varchar("accent_color", { length: 16 }),
 	isPublished: tinyint("is_published").default(0).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -3747,8 +3798,8 @@ export const tenants = mysqlTable("tenants", {
 	reservationsMaxAdvanceDays: int("reservations_max_advance_days").default(30).notNull(),
 	reservationsMinAdvanceHours: int("reservations_min_advance_hours").default(2).notNull(),
 	reservationsOccasions: json("reservations_occasions"),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 	moduleRealestate: tinyint("module_realestate").default(0).notNull(),
 	realestateEnabled: tinyint("realestate_enabled").default(0).notNull(),
 	moduleWorkorders: tinyint("module_workorders").default(0).notNull(),
@@ -3790,8 +3841,8 @@ export const theme4Config = mysqlTable("theme4_config", {
 	likesCount: int("likes_count").default(0).notNull(),
 	savesCount: int("saves_count").default(0).notNull(),
 	isPublished: tinyint("is_published").default(0).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -3844,7 +3895,7 @@ export const theme4Reactions = mysqlTable("theme4_reactions", {
 	tenantId: varchar("tenant_id", { length: 36 }).notNull(),
 	userId: varchar("user_id", { length: 36 }).notNull(),
 	type: mysqlEnum(['like','save']).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -3977,8 +4028,8 @@ export const trainerBookings = mysqlTable("trainer_bookings", {
 	gatewayPaymentId: varchar("gateway_payment_id", { length: 255 }),
 	startedAt: datetime("started_at", { mode: 'string'}),
 	expiresAt: datetime("expires_at", { mode: 'string'}),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -3999,7 +4050,7 @@ export const trainerCommissions = mysqlTable("trainer_commissions", {
 	trainerCop: decimal("trainer_cop", { precision: 14, scale: 2 }).notNull(),
 	gatewayFeeCop: decimal("gateway_fee_cop", { precision: 14, scale: 2 }).default('0.00').notNull(),
 	status: mysqlEnum(['pending','available','paid']).default('pending').notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 	releaseAt: datetime("release_at", { mode: 'string'}),
 },
 (table) => {
@@ -4021,8 +4072,8 @@ export const trainerOffers = mysqlTable("trainer_offers", {
 	deliverables: json(),
 	media: json(),
 	isActive: tinyint("is_active").default(1).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -4038,7 +4089,7 @@ export const trainerReviews = mysqlTable("trainer_reviews", {
 	userId: varchar("user_id", { length: 36 }).notNull(),
 	rating: tinyint().notNull(),
 	comment: text(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -4055,7 +4106,7 @@ export const trainerWithdrawals = mysqlTable("trainer_withdrawals", {
 	status: mysqlEnum(['requested','processing','paid','rejected']).default('requested').notNull(),
 	processedBy: varchar("processed_by", { length: 36 }),
 	note: varchar({ length: 500 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -4081,8 +4132,8 @@ export const trainers = mysqlTable("trainers", {
 	ratingAvg: decimal("rating_avg", { precision: 3, scale: 2 }).default('0.00').notNull(),
 	sessionsCount: int("sessions_count").default(0).notNull(),
 	passwordHash: varchar("password_hash", { length: 255 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -4104,8 +4155,8 @@ export const userAddresses = mysqlTable("user_addresses", {
 	deliveryLatitude: decimal("delivery_latitude", { precision: 10, scale: 7 }),
 	deliveryLongitude: decimal("delivery_longitude", { precision: 10, scale: 7 }),
 	isDefault: tinyint("is_default").default(0).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -4126,8 +4177,8 @@ export const users = mysqlTable("users", {
 	isActive: tinyint("is_active").default(1).notNull(),
 	canLogin: tinyint("can_login").default(1).notNull(),
 	cargoId: varchar("cargo_id", { length: 36 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 	authProvider: mysqlEnum("auth_provider", ['local','google']).default('local').notNull(),
 	googleId: varchar("google_id", { length: 255 }),
 	cedula: varchar({ length: 500 }),
@@ -4164,8 +4215,8 @@ export const variantPriceTiers = mysqlTable("variant_price_tiers", {
 	price: decimal({ precision: 12, scale: 2 }).notNull(),
 	tenantMarginPct: decimal("tenant_margin_pct", { precision: 5, scale: 2 }).default('0.00'),
 	isActive: tinyint("is_active").default(1),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -4181,7 +4232,7 @@ export const vaultKeyRedemptions = mysqlTable("vault_key_redemptions", {
 	vaultKeyId: varchar("vault_key_id", { length: 36 }).notNull().references(() => vaultKeys.id, { onDelete: "cascade" } ),
 	userId: varchar("user_id", { length: 36 }).notNull(),
 	zeroPartyData: json("zero_party_data"),
-	redeemedAt: timestamp("redeemed_at", { mode: 'string' }).defaultNow(),
+	redeemedAt: timestamp("redeemed_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -4205,7 +4256,7 @@ export const vaultKeys = mysqlTable("vault_keys", {
 	status: mysqlEnum(['active','disabled']).default('active').notNull(),
 	createdBy: varchar("created_by", { length: 36 }),
 	createdByAffiliateId: varchar("created_by_affiliate_id", { length: 36 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -4232,7 +4283,7 @@ export const wasteRecords = mysqlTable("waste_records", {
 	photoUrl: varchar("photo_url", { length: 500 }),
 	recordedBy: varchar("recorded_by", { length: 36 }).notNull(),
 	recordedByName: varchar("recorded_by_name", { length: 100 }).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow().notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`).notNull(),
 },
 (table) => {
 	return {
@@ -4255,8 +4306,8 @@ export const wompiTransactions = mysqlTable("wompi_transactions", {
 	wompiId: varchar("wompi_id", { length: 80 }),
 	customerEmail: varchar("customer_email", { length: 255 }),
 	payload: json(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -4278,7 +4329,7 @@ export const workOrderMaterials = mysqlTable("work_order_materials", {
 	unitCost: decimal("unit_cost", { precision: 12, scale: 2 }).default('0.00').notNull(),
 	totalCost: decimal("total_cost", { precision: 12, scale: 2 }).default('0.00').notNull(),
 	notes: text(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -4296,7 +4347,7 @@ export const workOrderPayments = mysqlTable("work_order_payments", {
 	paymentMethod: mysqlEnum("payment_method", ['efectivo','tarjeta','transferencia','nequi','otro']).default('efectivo').notNull(),
 	notes: text(),
 	receivedBy: varchar("received_by", { length: 36 }).references(() => users.id, { onDelete: "set null" } ),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -4333,7 +4384,7 @@ export const workOrders = mysqlTable("work_orders", {
 	fabricDescription: varchar("fabric_description", { length: 300 }),
 	quotedPrice: decimal("quoted_price", { precision: 12, scale: 2 }).default('0.00').notNull(),
 	advancePaid: decimal("advance_paid", { precision: 12, scale: 2 }).default('0.00').notNull(),
-	receivedAt: timestamp("received_at", { mode: 'string' }).defaultNow().notNull(),
+	receivedAt: timestamp("received_at", { mode: 'string' }).default(sql`(now())`).notNull(),
 	// you can use { mode: 'date' }, if you want to have Date as type for this column
 	promisedAt: date("promised_at", { mode: 'string' }),
 	deliveredAt: timestamp("delivered_at", { mode: 'string' }),
@@ -4344,8 +4395,8 @@ export const workOrders = mysqlTable("work_orders", {
 	photosIn: json("photos_in"),
 	photosOut: json("photos_out"),
 	createdBy: varchar("created_by", { length: 36 }).references(() => users.id, { onDelete: "set null" } ),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -4371,7 +4422,7 @@ export const workoutExercises = mysqlTable("workout_exercises", {
 	suggestedWeight: decimal("suggested_weight", { precision: 8, scale: 2 }).default('0.00').notNull(),
 	movementPattern: varchar("movement_pattern", { length: 10 }),
 	completed: tinyint().default(0).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -4392,8 +4443,8 @@ export const workoutSessions = mysqlTable("workout_sessions", {
 	durationSeconds: int("duration_seconds"),
 	totalVolume: decimal("total_volume", { precision: 12, scale: 2 }).default('0.00').notNull(),
 	currentExerciseIndex: int("current_exercise_index").default(0).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
 	return {
@@ -4414,7 +4465,7 @@ export const workoutSets = mysqlTable("workout_sets", {
 	usedWeight: decimal("used_weight", { precision: 8, scale: 2 }),
 	completed: tinyint().default(0).notNull(),
 	completedAt: datetime("completed_at", { mode: 'string'}),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
 (table) => {
 	return {
@@ -4435,9 +4486,9 @@ export const vCustomerBalances = mysqlView("v_customer_balances", {
 	totalCredit: decimal("total_credit", { precision: 34, scale: 2 }).default('0.00').notNull(),
 	totalPaid: decimal("total_paid", { precision: 34, scale: 2 }).default('0.00').notNull(),
 	balance: decimal({ precision: 35, scale: 2 }).default('0.00').notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
-}).algorithm("undefined").sqlSecurity("definer").as(sql`select \`c\`.\`id\` AS \`customer_id\`,\`c\`.\`tenant_id\` AS \`tenant_id\`,\`c\`.\`cedula\` AS \`cedula\`,\`c\`.\`name\` AS \`customer_name\`,\`c\`.\`phone\` AS \`phone\`,\`c\`.\`email\` AS \`email\`,\`c\`.\`address\` AS \`address\`,\`c\`.\`credit_limit\` AS \`credit_limit\`,\`c\`.\`notes\` AS \`notes\`,coalesce(\`s_agg\`.\`total_credit\`,0) AS \`total_credit\`,coalesce(\`cp_agg\`.\`total_paid\`,0) AS \`total_paid\`,(coalesce(\`s_agg\`.\`total_credit\`,0) - coalesce(\`cp_agg\`.\`total_paid\`,0)) AS \`balance\`,\`c\`.\`created_at\` AS \`created_at\`,\`c\`.\`updated_at\` AS \`updated_at\` from ((\`stockpro_truth\`.\`customers\` \`c\` left join (select \`stockpro_truth\`.\`sales\`.\`customer_id\` AS \`customer_id\`,sum(\`stockpro_truth\`.\`sales\`.\`total\`) AS \`total_credit\` from \`stockpro_truth\`.\`sales\` where ((\`stockpro_truth\`.\`sales\`.\`payment_method\` = 'fiado') and (\`stockpro_truth\`.\`sales\`.\`status\` = 'completada')) group by \`stockpro_truth\`.\`sales\`.\`customer_id\`) \`s_agg\` on((\`s_agg\`.\`customer_id\` = \`c\`.\`id\`))) left join (select \`stockpro_truth\`.\`credit_payments\`.\`customer_id\` AS \`customer_id\`,sum(\`stockpro_truth\`.\`credit_payments\`.\`amount\`) AS \`total_paid\` from \`stockpro_truth\`.\`credit_payments\` group by \`stockpro_truth\`.\`credit_payments\`.\`customer_id\`) \`cp_agg\` on((\`cp_agg\`.\`customer_id\` = \`c\`.\`id\`)))`);
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
+}).algorithm("undefined").sqlSecurity("definer").as(sql`select \`c\`.\`id\` AS \`customer_id\`,\`c\`.\`tenant_id\` AS \`tenant_id\`,\`c\`.\`cedula\` AS \`cedula\`,\`c\`.\`name\` AS \`customer_name\`,\`c\`.\`phone\` AS \`phone\`,\`c\`.\`email\` AS \`email\`,\`c\`.\`address\` AS \`address\`,\`c\`.\`credit_limit\` AS \`credit_limit\`,\`c\`.\`notes\` AS \`notes\`,coalesce(\`s_agg\`.\`total_credit\`,0) AS \`total_credit\`,coalesce(\`cp_agg\`.\`total_paid\`,0) AS \`total_paid\`,(coalesce(\`s_agg\`.\`total_credit\`,0) - coalesce(\`cp_agg\`.\`total_paid\`,0)) AS \`balance\`,\`c\`.\`created_at\` AS \`created_at\`,\`c\`.\`updated_at\` AS \`updated_at\` from ((\`lopbuk\`.\`customers\` \`c\` left join (select \`lopbuk\`.\`sales\`.\`customer_id\` AS \`customer_id\`,sum(\`lopbuk\`.\`sales\`.\`total\`) AS \`total_credit\` from \`lopbuk\`.\`sales\` where ((\`lopbuk\`.\`sales\`.\`payment_method\` = 'fiado') and (\`lopbuk\`.\`sales\`.\`status\` = 'completada')) group by \`lopbuk\`.\`sales\`.\`customer_id\`) \`s_agg\` on((\`s_agg\`.\`customer_id\` = \`c\`.\`id\`))) left join (select \`lopbuk\`.\`credit_payments\`.\`customer_id\` AS \`customer_id\`,sum(\`lopbuk\`.\`credit_payments\`.\`amount\`) AS \`total_paid\` from \`lopbuk\`.\`credit_payments\` group by \`lopbuk\`.\`credit_payments\`.\`customer_id\`) \`cp_agg\` on((\`cp_agg\`.\`customer_id\` = \`c\`.\`id\`)))`);
 
 export const vProductsExpiringSoon = mysqlView("v_products_expiring_soon", {
 	id: varchar({ length: 36 }).notNull(),
@@ -4541,13 +4592,13 @@ export const vProductsExpiringSoon = mysqlView("v_products_expiring_soon", {
 	offerStart: datetime("offer_start", { mode: 'string'}),
 	offerEnd: datetime("offer_end", { mode: 'string'}),
 	sedeId: varchar("sede_id", { length: 36 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 	createdBy: varchar("created_by", { length: 50 }),
 	updatedBy: varchar("updated_by", { length: 50 }),
 	categoryName: varchar("category_name", { length: 100 }),
 	daysUntilExpiry: int("days_until_expiry"),
-}).algorithm("undefined").sqlSecurity("definer").as(sql`select \`p\`.\`id\` AS \`id\`,\`p\`.\`tenant_id\` AS \`tenant_id\`,\`p\`.\`name\` AS \`name\`,\`p\`.\`articulo\` AS \`articulo\`,\`p\`.\`category\` AS \`category\`,\`p\`.\`product_type\` AS \`product_type\`,\`p\`.\`brand\` AS \`brand\`,\`p\`.\`model\` AS \`model\`,\`p\`.\`description\` AS \`description\`,\`p\`.\`purchase_price\` AS \`purchase_price\`,\`p\`.\`sale_price\` AS \`sale_price\`,\`p\`.\`sku\` AS \`sku\`,\`p\`.\`barcode\` AS \`barcode\`,\`p\`.\`stock\` AS \`stock\`,\`p\`.\`reorder_point\` AS \`reorder_point\`,\`p\`.\`supplier\` AS \`supplier\`,\`p\`.\`supplier_id\` AS \`supplier_id\`,\`p\`.\`entry_date\` AS \`entry_date\`,\`p\`.\`image_url\` AS \`image_url\`,\`p\`.\`image_urls\` AS \`image_urls\`,\`p\`.\`location_in_store\` AS \`location_in_store\`,\`p\`.\`notes\` AS \`notes\`,\`p\`.\`tags\` AS \`tags\`,\`p\`.\`expiry_date\` AS \`expiry_date\`,\`p\`.\`batch_number\` AS \`batch_number\`,\`p\`.\`net_weight\` AS \`net_weight\`,\`p\`.\`weight_unit\` AS \`weight_unit\`,\`p\`.\`sanitary_registration\` AS \`sanitary_registration\`,\`p\`.\`storage_temperature\` AS \`storage_temperature\`,\`p\`.\`ingredients\` AS \`ingredients\`,\`p\`.\`nutritional_info\` AS \`nutritional_info\`,\`p\`.\`alcohol_content\` AS \`alcohol_content\`,\`p\`.\`allergens\` AS \`allergens\`,\`p\`.\`size\` AS \`size\`,\`p\`.\`color\` AS \`color\`,\`p\`.\`material\` AS \`material\`,\`p\`.\`gender\` AS \`gender\`,\`p\`.\`season\` AS \`season\`,\`p\`.\`garment_type\` AS \`garment_type\`,\`p\`.\`washing_instructions\` AS \`washing_instructions\`,\`p\`.\`country_of_origin\` AS \`country_of_origin\`,\`p\`.\`serial_number\` AS \`serial_number\`,\`p\`.\`warranty_months\` AS \`warranty_months\`,\`p\`.\`technical_specs\` AS \`technical_specs\`,\`p\`.\`voltage\` AS \`voltage\`,\`p\`.\`power_watts\` AS \`power_watts\`,\`p\`.\`compatibility\` AS \`compatibility\`,\`p\`.\`includes_accessories\` AS \`includes_accessories\`,\`p\`.\`product_condition\` AS \`product_condition\`,\`p\`.\`active_ingredient\` AS \`active_ingredient\`,\`p\`.\`concentration\` AS \`concentration\`,\`p\`.\`requires_prescription\` AS \`requires_prescription\`,\`p\`.\`administration_route\` AS \`administration_route\`,\`p\`.\`presentation\` AS \`presentation\`,\`p\`.\`units_per_package\` AS \`units_per_package\`,\`p\`.\`laboratory\` AS \`laboratory\`,\`p\`.\`contraindications\` AS \`contraindications\`,\`p\`.\`dimensions\` AS \`dimensions\`,\`p\`.\`weight\` AS \`weight\`,\`p\`.\`hardware_weight_unit\` AS \`hardware_weight_unit\`,\`p\`.\`caliber\` AS \`caliber\`,\`p\`.\`resistance\` AS \`resistance\`,\`p\`.\`finish\` AS \`finish\`,\`p\`.\`recommended_use\` AS \`recommended_use\`,\`p\`.\`author\` AS \`author\`,\`p\`.\`publisher\` AS \`publisher\`,\`p\`.\`isbn\` AS \`isbn\`,\`p\`.\`pages\` AS \`pages\`,\`p\`.\`language\` AS \`language\`,\`p\`.\`publication_year\` AS \`publication_year\`,\`p\`.\`edition\` AS \`edition\`,\`p\`.\`book_format\` AS \`book_format\`,\`p\`.\`recommended_age\` AS \`recommended_age\`,\`p\`.\`number_of_players\` AS \`number_of_players\`,\`p\`.\`game_type\` AS \`game_type\`,\`p\`.\`requires_batteries\` AS \`requires_batteries\`,\`p\`.\`package_dimensions\` AS \`package_dimensions\`,\`p\`.\`package_contents\` AS \`package_contents\`,\`p\`.\`safety_warnings\` AS \`safety_warnings\`,\`p\`.\`published_in_store\` AS \`published_in_store\`,\`p\`.\`available_for_delivery\` AS \`available_for_delivery\`,\`p\`.\`delivery_type\` AS \`delivery_type\`,\`p\`.\`is_new_launch\` AS \`is_new_launch\`,\`p\`.\`launch_date\` AS \`launch_date\`,\`p\`.\`is_preorder\` AS \`is_preorder\`,\`p\`.\`preorder_window_end\` AS \`preorder_window_end\`,\`p\`.\`preorder_ship_start\` AS \`preorder_ship_start\`,\`p\`.\`preorder_ship_end\` AS \`preorder_ship_end\`,\`p\`.\`preorder_badge_text\` AS \`preorder_badge_text\`,\`p\`.\`preorder_policy_text\` AS \`preorder_policy_text\`,\`p\`.\`is_on_offer\` AS \`is_on_offer\`,\`p\`.\`offer_price\` AS \`offer_price\`,\`p\`.\`offer_label\` AS \`offer_label\`,\`p\`.\`offer_start\` AS \`offer_start\`,\`p\`.\`offer_end\` AS \`offer_end\`,\`p\`.\`sede_id\` AS \`sede_id\`,\`p\`.\`created_at\` AS \`created_at\`,\`p\`.\`updated_at\` AS \`updated_at\`,\`p\`.\`created_by\` AS \`created_by\`,\`p\`.\`updated_by\` AS \`updated_by\`,\`c\`.\`name\` AS \`category_name\`,(to_days(\`p\`.\`expiry_date\`) - to_days(curdate())) AS \`days_until_expiry\` from (\`stockpro_truth\`.\`products\` \`p\` left join \`stockpro_truth\`.\`categories\` \`c\` on(((\`p\`.\`category\` = \`c\`.\`id\`) and (\`p\`.\`tenant_id\` = \`c\`.\`tenant_id\`)))) where ((\`p\`.\`expiry_date\` is not null) and (\`p\`.\`expiry_date\` <= (curdate() + interval 30 day)) and (\`p\`.\`expiry_date\` >= curdate())) order by \`p\`.\`expiry_date\``);
+}).algorithm("undefined").sqlSecurity("definer").as(sql`select \`p\`.\`id\` AS \`id\`,\`p\`.\`tenant_id\` AS \`tenant_id\`,\`p\`.\`name\` AS \`name\`,\`p\`.\`articulo\` AS \`articulo\`,\`p\`.\`category\` AS \`category\`,\`p\`.\`product_type\` AS \`product_type\`,\`p\`.\`brand\` AS \`brand\`,\`p\`.\`model\` AS \`model\`,\`p\`.\`description\` AS \`description\`,\`p\`.\`purchase_price\` AS \`purchase_price\`,\`p\`.\`sale_price\` AS \`sale_price\`,\`p\`.\`sku\` AS \`sku\`,\`p\`.\`barcode\` AS \`barcode\`,\`p\`.\`stock\` AS \`stock\`,\`p\`.\`reorder_point\` AS \`reorder_point\`,\`p\`.\`supplier\` AS \`supplier\`,\`p\`.\`supplier_id\` AS \`supplier_id\`,\`p\`.\`entry_date\` AS \`entry_date\`,\`p\`.\`image_url\` AS \`image_url\`,\`p\`.\`image_urls\` AS \`image_urls\`,\`p\`.\`location_in_store\` AS \`location_in_store\`,\`p\`.\`notes\` AS \`notes\`,\`p\`.\`tags\` AS \`tags\`,\`p\`.\`expiry_date\` AS \`expiry_date\`,\`p\`.\`batch_number\` AS \`batch_number\`,\`p\`.\`net_weight\` AS \`net_weight\`,\`p\`.\`weight_unit\` AS \`weight_unit\`,\`p\`.\`sanitary_registration\` AS \`sanitary_registration\`,\`p\`.\`storage_temperature\` AS \`storage_temperature\`,\`p\`.\`ingredients\` AS \`ingredients\`,\`p\`.\`nutritional_info\` AS \`nutritional_info\`,\`p\`.\`alcohol_content\` AS \`alcohol_content\`,\`p\`.\`allergens\` AS \`allergens\`,\`p\`.\`size\` AS \`size\`,\`p\`.\`color\` AS \`color\`,\`p\`.\`material\` AS \`material\`,\`p\`.\`gender\` AS \`gender\`,\`p\`.\`season\` AS \`season\`,\`p\`.\`garment_type\` AS \`garment_type\`,\`p\`.\`washing_instructions\` AS \`washing_instructions\`,\`p\`.\`country_of_origin\` AS \`country_of_origin\`,\`p\`.\`serial_number\` AS \`serial_number\`,\`p\`.\`warranty_months\` AS \`warranty_months\`,\`p\`.\`technical_specs\` AS \`technical_specs\`,\`p\`.\`voltage\` AS \`voltage\`,\`p\`.\`power_watts\` AS \`power_watts\`,\`p\`.\`compatibility\` AS \`compatibility\`,\`p\`.\`includes_accessories\` AS \`includes_accessories\`,\`p\`.\`product_condition\` AS \`product_condition\`,\`p\`.\`active_ingredient\` AS \`active_ingredient\`,\`p\`.\`concentration\` AS \`concentration\`,\`p\`.\`requires_prescription\` AS \`requires_prescription\`,\`p\`.\`administration_route\` AS \`administration_route\`,\`p\`.\`presentation\` AS \`presentation\`,\`p\`.\`units_per_package\` AS \`units_per_package\`,\`p\`.\`laboratory\` AS \`laboratory\`,\`p\`.\`contraindications\` AS \`contraindications\`,\`p\`.\`dimensions\` AS \`dimensions\`,\`p\`.\`weight\` AS \`weight\`,\`p\`.\`hardware_weight_unit\` AS \`hardware_weight_unit\`,\`p\`.\`caliber\` AS \`caliber\`,\`p\`.\`resistance\` AS \`resistance\`,\`p\`.\`finish\` AS \`finish\`,\`p\`.\`recommended_use\` AS \`recommended_use\`,\`p\`.\`author\` AS \`author\`,\`p\`.\`publisher\` AS \`publisher\`,\`p\`.\`isbn\` AS \`isbn\`,\`p\`.\`pages\` AS \`pages\`,\`p\`.\`language\` AS \`language\`,\`p\`.\`publication_year\` AS \`publication_year\`,\`p\`.\`edition\` AS \`edition\`,\`p\`.\`book_format\` AS \`book_format\`,\`p\`.\`recommended_age\` AS \`recommended_age\`,\`p\`.\`number_of_players\` AS \`number_of_players\`,\`p\`.\`game_type\` AS \`game_type\`,\`p\`.\`requires_batteries\` AS \`requires_batteries\`,\`p\`.\`package_dimensions\` AS \`package_dimensions\`,\`p\`.\`package_contents\` AS \`package_contents\`,\`p\`.\`safety_warnings\` AS \`safety_warnings\`,\`p\`.\`published_in_store\` AS \`published_in_store\`,\`p\`.\`available_for_delivery\` AS \`available_for_delivery\`,\`p\`.\`delivery_type\` AS \`delivery_type\`,\`p\`.\`is_new_launch\` AS \`is_new_launch\`,\`p\`.\`launch_date\` AS \`launch_date\`,\`p\`.\`is_preorder\` AS \`is_preorder\`,\`p\`.\`preorder_window_end\` AS \`preorder_window_end\`,\`p\`.\`preorder_ship_start\` AS \`preorder_ship_start\`,\`p\`.\`preorder_ship_end\` AS \`preorder_ship_end\`,\`p\`.\`preorder_badge_text\` AS \`preorder_badge_text\`,\`p\`.\`preorder_policy_text\` AS \`preorder_policy_text\`,\`p\`.\`is_on_offer\` AS \`is_on_offer\`,\`p\`.\`offer_price\` AS \`offer_price\`,\`p\`.\`offer_label\` AS \`offer_label\`,\`p\`.\`offer_start\` AS \`offer_start\`,\`p\`.\`offer_end\` AS \`offer_end\`,\`p\`.\`sede_id\` AS \`sede_id\`,\`p\`.\`created_at\` AS \`created_at\`,\`p\`.\`updated_at\` AS \`updated_at\`,\`p\`.\`created_by\` AS \`created_by\`,\`p\`.\`updated_by\` AS \`updated_by\`,\`c\`.\`name\` AS \`category_name\`,(to_days(\`p\`.\`expiry_date\`) - to_days(curdate())) AS \`days_until_expiry\` from (\`lopbuk\`.\`products\` \`p\` left join \`lopbuk\`.\`categories\` \`c\` on(((\`p\`.\`category\` = \`c\`.\`id\`) and (\`p\`.\`tenant_id\` = \`c\`.\`tenant_id\`)))) where ((\`p\`.\`expiry_date\` is not null) and (\`p\`.\`expiry_date\` <= (curdate() + interval 30 day)) and (\`p\`.\`expiry_date\` >= curdate())) order by \`p\`.\`expiry_date\``);
 
 export const vProductsLowStock = mysqlView("v_products_low_stock", {
 	id: varchar({ length: 36 }).notNull(),
@@ -4651,12 +4702,12 @@ export const vProductsLowStock = mysqlView("v_products_low_stock", {
 	offerStart: datetime("offer_start", { mode: 'string'}),
 	offerEnd: datetime("offer_end", { mode: 'string'}),
 	sedeId: varchar("sede_id", { length: 36 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 	createdBy: varchar("created_by", { length: 50 }),
 	updatedBy: varchar("updated_by", { length: 50 }),
 	categoryName: varchar("category_name", { length: 100 }),
-}).algorithm("undefined").sqlSecurity("definer").as(sql`select \`p\`.\`id\` AS \`id\`,\`p\`.\`tenant_id\` AS \`tenant_id\`,\`p\`.\`name\` AS \`name\`,\`p\`.\`articulo\` AS \`articulo\`,\`p\`.\`category\` AS \`category\`,\`p\`.\`product_type\` AS \`product_type\`,\`p\`.\`brand\` AS \`brand\`,\`p\`.\`model\` AS \`model\`,\`p\`.\`description\` AS \`description\`,\`p\`.\`purchase_price\` AS \`purchase_price\`,\`p\`.\`sale_price\` AS \`sale_price\`,\`p\`.\`sku\` AS \`sku\`,\`p\`.\`barcode\` AS \`barcode\`,\`p\`.\`stock\` AS \`stock\`,\`p\`.\`reorder_point\` AS \`reorder_point\`,\`p\`.\`supplier\` AS \`supplier\`,\`p\`.\`supplier_id\` AS \`supplier_id\`,\`p\`.\`entry_date\` AS \`entry_date\`,\`p\`.\`image_url\` AS \`image_url\`,\`p\`.\`image_urls\` AS \`image_urls\`,\`p\`.\`location_in_store\` AS \`location_in_store\`,\`p\`.\`notes\` AS \`notes\`,\`p\`.\`tags\` AS \`tags\`,\`p\`.\`expiry_date\` AS \`expiry_date\`,\`p\`.\`batch_number\` AS \`batch_number\`,\`p\`.\`net_weight\` AS \`net_weight\`,\`p\`.\`weight_unit\` AS \`weight_unit\`,\`p\`.\`sanitary_registration\` AS \`sanitary_registration\`,\`p\`.\`storage_temperature\` AS \`storage_temperature\`,\`p\`.\`ingredients\` AS \`ingredients\`,\`p\`.\`nutritional_info\` AS \`nutritional_info\`,\`p\`.\`alcohol_content\` AS \`alcohol_content\`,\`p\`.\`allergens\` AS \`allergens\`,\`p\`.\`size\` AS \`size\`,\`p\`.\`color\` AS \`color\`,\`p\`.\`material\` AS \`material\`,\`p\`.\`gender\` AS \`gender\`,\`p\`.\`season\` AS \`season\`,\`p\`.\`garment_type\` AS \`garment_type\`,\`p\`.\`washing_instructions\` AS \`washing_instructions\`,\`p\`.\`country_of_origin\` AS \`country_of_origin\`,\`p\`.\`serial_number\` AS \`serial_number\`,\`p\`.\`warranty_months\` AS \`warranty_months\`,\`p\`.\`technical_specs\` AS \`technical_specs\`,\`p\`.\`voltage\` AS \`voltage\`,\`p\`.\`power_watts\` AS \`power_watts\`,\`p\`.\`compatibility\` AS \`compatibility\`,\`p\`.\`includes_accessories\` AS \`includes_accessories\`,\`p\`.\`product_condition\` AS \`product_condition\`,\`p\`.\`active_ingredient\` AS \`active_ingredient\`,\`p\`.\`concentration\` AS \`concentration\`,\`p\`.\`requires_prescription\` AS \`requires_prescription\`,\`p\`.\`administration_route\` AS \`administration_route\`,\`p\`.\`presentation\` AS \`presentation\`,\`p\`.\`units_per_package\` AS \`units_per_package\`,\`p\`.\`laboratory\` AS \`laboratory\`,\`p\`.\`contraindications\` AS \`contraindications\`,\`p\`.\`dimensions\` AS \`dimensions\`,\`p\`.\`weight\` AS \`weight\`,\`p\`.\`hardware_weight_unit\` AS \`hardware_weight_unit\`,\`p\`.\`caliber\` AS \`caliber\`,\`p\`.\`resistance\` AS \`resistance\`,\`p\`.\`finish\` AS \`finish\`,\`p\`.\`recommended_use\` AS \`recommended_use\`,\`p\`.\`author\` AS \`author\`,\`p\`.\`publisher\` AS \`publisher\`,\`p\`.\`isbn\` AS \`isbn\`,\`p\`.\`pages\` AS \`pages\`,\`p\`.\`language\` AS \`language\`,\`p\`.\`publication_year\` AS \`publication_year\`,\`p\`.\`edition\` AS \`edition\`,\`p\`.\`book_format\` AS \`book_format\`,\`p\`.\`recommended_age\` AS \`recommended_age\`,\`p\`.\`number_of_players\` AS \`number_of_players\`,\`p\`.\`game_type\` AS \`game_type\`,\`p\`.\`requires_batteries\` AS \`requires_batteries\`,\`p\`.\`package_dimensions\` AS \`package_dimensions\`,\`p\`.\`package_contents\` AS \`package_contents\`,\`p\`.\`safety_warnings\` AS \`safety_warnings\`,\`p\`.\`published_in_store\` AS \`published_in_store\`,\`p\`.\`available_for_delivery\` AS \`available_for_delivery\`,\`p\`.\`delivery_type\` AS \`delivery_type\`,\`p\`.\`is_new_launch\` AS \`is_new_launch\`,\`p\`.\`launch_date\` AS \`launch_date\`,\`p\`.\`is_preorder\` AS \`is_preorder\`,\`p\`.\`preorder_window_end\` AS \`preorder_window_end\`,\`p\`.\`preorder_ship_start\` AS \`preorder_ship_start\`,\`p\`.\`preorder_ship_end\` AS \`preorder_ship_end\`,\`p\`.\`preorder_badge_text\` AS \`preorder_badge_text\`,\`p\`.\`preorder_policy_text\` AS \`preorder_policy_text\`,\`p\`.\`is_on_offer\` AS \`is_on_offer\`,\`p\`.\`offer_price\` AS \`offer_price\`,\`p\`.\`offer_label\` AS \`offer_label\`,\`p\`.\`offer_start\` AS \`offer_start\`,\`p\`.\`offer_end\` AS \`offer_end\`,\`p\`.\`sede_id\` AS \`sede_id\`,\`p\`.\`created_at\` AS \`created_at\`,\`p\`.\`updated_at\` AS \`updated_at\`,\`p\`.\`created_by\` AS \`created_by\`,\`p\`.\`updated_by\` AS \`updated_by\`,\`c\`.\`name\` AS \`category_name\` from (\`stockpro_truth\`.\`products\` \`p\` left join \`stockpro_truth\`.\`categories\` \`c\` on(((\`p\`.\`category\` = \`c\`.\`id\`) and (\`p\`.\`tenant_id\` = \`c\`.\`tenant_id\`)))) where ((\`p\`.\`stock\` <= \`p\`.\`reorder_point\`) and (\`p\`.\`stock\` >= 0)) order by (\`p\`.\`stock\` - \`p\`.\`reorder_point\`)`);
+}).algorithm("undefined").sqlSecurity("definer").as(sql`select \`p\`.\`id\` AS \`id\`,\`p\`.\`tenant_id\` AS \`tenant_id\`,\`p\`.\`name\` AS \`name\`,\`p\`.\`articulo\` AS \`articulo\`,\`p\`.\`category\` AS \`category\`,\`p\`.\`product_type\` AS \`product_type\`,\`p\`.\`brand\` AS \`brand\`,\`p\`.\`model\` AS \`model\`,\`p\`.\`description\` AS \`description\`,\`p\`.\`purchase_price\` AS \`purchase_price\`,\`p\`.\`sale_price\` AS \`sale_price\`,\`p\`.\`sku\` AS \`sku\`,\`p\`.\`barcode\` AS \`barcode\`,\`p\`.\`stock\` AS \`stock\`,\`p\`.\`reorder_point\` AS \`reorder_point\`,\`p\`.\`supplier\` AS \`supplier\`,\`p\`.\`supplier_id\` AS \`supplier_id\`,\`p\`.\`entry_date\` AS \`entry_date\`,\`p\`.\`image_url\` AS \`image_url\`,\`p\`.\`image_urls\` AS \`image_urls\`,\`p\`.\`location_in_store\` AS \`location_in_store\`,\`p\`.\`notes\` AS \`notes\`,\`p\`.\`tags\` AS \`tags\`,\`p\`.\`expiry_date\` AS \`expiry_date\`,\`p\`.\`batch_number\` AS \`batch_number\`,\`p\`.\`net_weight\` AS \`net_weight\`,\`p\`.\`weight_unit\` AS \`weight_unit\`,\`p\`.\`sanitary_registration\` AS \`sanitary_registration\`,\`p\`.\`storage_temperature\` AS \`storage_temperature\`,\`p\`.\`ingredients\` AS \`ingredients\`,\`p\`.\`nutritional_info\` AS \`nutritional_info\`,\`p\`.\`alcohol_content\` AS \`alcohol_content\`,\`p\`.\`allergens\` AS \`allergens\`,\`p\`.\`size\` AS \`size\`,\`p\`.\`color\` AS \`color\`,\`p\`.\`material\` AS \`material\`,\`p\`.\`gender\` AS \`gender\`,\`p\`.\`season\` AS \`season\`,\`p\`.\`garment_type\` AS \`garment_type\`,\`p\`.\`washing_instructions\` AS \`washing_instructions\`,\`p\`.\`country_of_origin\` AS \`country_of_origin\`,\`p\`.\`serial_number\` AS \`serial_number\`,\`p\`.\`warranty_months\` AS \`warranty_months\`,\`p\`.\`technical_specs\` AS \`technical_specs\`,\`p\`.\`voltage\` AS \`voltage\`,\`p\`.\`power_watts\` AS \`power_watts\`,\`p\`.\`compatibility\` AS \`compatibility\`,\`p\`.\`includes_accessories\` AS \`includes_accessories\`,\`p\`.\`product_condition\` AS \`product_condition\`,\`p\`.\`active_ingredient\` AS \`active_ingredient\`,\`p\`.\`concentration\` AS \`concentration\`,\`p\`.\`requires_prescription\` AS \`requires_prescription\`,\`p\`.\`administration_route\` AS \`administration_route\`,\`p\`.\`presentation\` AS \`presentation\`,\`p\`.\`units_per_package\` AS \`units_per_package\`,\`p\`.\`laboratory\` AS \`laboratory\`,\`p\`.\`contraindications\` AS \`contraindications\`,\`p\`.\`dimensions\` AS \`dimensions\`,\`p\`.\`weight\` AS \`weight\`,\`p\`.\`hardware_weight_unit\` AS \`hardware_weight_unit\`,\`p\`.\`caliber\` AS \`caliber\`,\`p\`.\`resistance\` AS \`resistance\`,\`p\`.\`finish\` AS \`finish\`,\`p\`.\`recommended_use\` AS \`recommended_use\`,\`p\`.\`author\` AS \`author\`,\`p\`.\`publisher\` AS \`publisher\`,\`p\`.\`isbn\` AS \`isbn\`,\`p\`.\`pages\` AS \`pages\`,\`p\`.\`language\` AS \`language\`,\`p\`.\`publication_year\` AS \`publication_year\`,\`p\`.\`edition\` AS \`edition\`,\`p\`.\`book_format\` AS \`book_format\`,\`p\`.\`recommended_age\` AS \`recommended_age\`,\`p\`.\`number_of_players\` AS \`number_of_players\`,\`p\`.\`game_type\` AS \`game_type\`,\`p\`.\`requires_batteries\` AS \`requires_batteries\`,\`p\`.\`package_dimensions\` AS \`package_dimensions\`,\`p\`.\`package_contents\` AS \`package_contents\`,\`p\`.\`safety_warnings\` AS \`safety_warnings\`,\`p\`.\`published_in_store\` AS \`published_in_store\`,\`p\`.\`available_for_delivery\` AS \`available_for_delivery\`,\`p\`.\`delivery_type\` AS \`delivery_type\`,\`p\`.\`is_new_launch\` AS \`is_new_launch\`,\`p\`.\`launch_date\` AS \`launch_date\`,\`p\`.\`is_preorder\` AS \`is_preorder\`,\`p\`.\`preorder_window_end\` AS \`preorder_window_end\`,\`p\`.\`preorder_ship_start\` AS \`preorder_ship_start\`,\`p\`.\`preorder_ship_end\` AS \`preorder_ship_end\`,\`p\`.\`preorder_badge_text\` AS \`preorder_badge_text\`,\`p\`.\`preorder_policy_text\` AS \`preorder_policy_text\`,\`p\`.\`is_on_offer\` AS \`is_on_offer\`,\`p\`.\`offer_price\` AS \`offer_price\`,\`p\`.\`offer_label\` AS \`offer_label\`,\`p\`.\`offer_start\` AS \`offer_start\`,\`p\`.\`offer_end\` AS \`offer_end\`,\`p\`.\`sede_id\` AS \`sede_id\`,\`p\`.\`created_at\` AS \`created_at\`,\`p\`.\`updated_at\` AS \`updated_at\`,\`p\`.\`created_by\` AS \`created_by\`,\`p\`.\`updated_by\` AS \`updated_by\`,\`c\`.\`name\` AS \`category_name\` from (\`lopbuk\`.\`products\` \`p\` left join \`lopbuk\`.\`categories\` \`c\` on(((\`p\`.\`category\` = \`c\`.\`id\`) and (\`p\`.\`tenant_id\` = \`c\`.\`tenant_id\`)))) where ((\`p\`.\`stock\` <= \`p\`.\`reorder_point\`) and (\`p\`.\`stock\` >= 0)) order by (\`p\`.\`stock\` - \`p\`.\`reorder_point\`)`);
 
 export const vProductsStockStatus = mysqlView("v_products_stock_status", {
 	id: varchar({ length: 36 }).notNull(),
@@ -4760,12 +4811,12 @@ export const vProductsStockStatus = mysqlView("v_products_stock_status", {
 	offerStart: datetime("offer_start", { mode: 'string'}),
 	offerEnd: datetime("offer_end", { mode: 'string'}),
 	sedeId: varchar("sede_id", { length: 36 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 	createdBy: varchar("created_by", { length: 50 }),
 	updatedBy: varchar("updated_by", { length: 50 }),
 	stockStatus: varchar("stock_status", { length: 10 }).notNull(),
-}).algorithm("undefined").sqlSecurity("definer").as(sql`select \`p\`.\`id\` AS \`id\`,\`p\`.\`tenant_id\` AS \`tenant_id\`,\`p\`.\`name\` AS \`name\`,\`p\`.\`articulo\` AS \`articulo\`,\`p\`.\`category\` AS \`category\`,\`p\`.\`product_type\` AS \`product_type\`,\`p\`.\`brand\` AS \`brand\`,\`p\`.\`model\` AS \`model\`,\`p\`.\`description\` AS \`description\`,\`p\`.\`purchase_price\` AS \`purchase_price\`,\`p\`.\`sale_price\` AS \`sale_price\`,\`p\`.\`sku\` AS \`sku\`,\`p\`.\`barcode\` AS \`barcode\`,\`p\`.\`stock\` AS \`stock\`,\`p\`.\`reorder_point\` AS \`reorder_point\`,\`p\`.\`supplier\` AS \`supplier\`,\`p\`.\`supplier_id\` AS \`supplier_id\`,\`p\`.\`entry_date\` AS \`entry_date\`,\`p\`.\`image_url\` AS \`image_url\`,\`p\`.\`image_urls\` AS \`image_urls\`,\`p\`.\`location_in_store\` AS \`location_in_store\`,\`p\`.\`notes\` AS \`notes\`,\`p\`.\`tags\` AS \`tags\`,\`p\`.\`expiry_date\` AS \`expiry_date\`,\`p\`.\`batch_number\` AS \`batch_number\`,\`p\`.\`net_weight\` AS \`net_weight\`,\`p\`.\`weight_unit\` AS \`weight_unit\`,\`p\`.\`sanitary_registration\` AS \`sanitary_registration\`,\`p\`.\`storage_temperature\` AS \`storage_temperature\`,\`p\`.\`ingredients\` AS \`ingredients\`,\`p\`.\`nutritional_info\` AS \`nutritional_info\`,\`p\`.\`alcohol_content\` AS \`alcohol_content\`,\`p\`.\`allergens\` AS \`allergens\`,\`p\`.\`size\` AS \`size\`,\`p\`.\`color\` AS \`color\`,\`p\`.\`material\` AS \`material\`,\`p\`.\`gender\` AS \`gender\`,\`p\`.\`season\` AS \`season\`,\`p\`.\`garment_type\` AS \`garment_type\`,\`p\`.\`washing_instructions\` AS \`washing_instructions\`,\`p\`.\`country_of_origin\` AS \`country_of_origin\`,\`p\`.\`serial_number\` AS \`serial_number\`,\`p\`.\`warranty_months\` AS \`warranty_months\`,\`p\`.\`technical_specs\` AS \`technical_specs\`,\`p\`.\`voltage\` AS \`voltage\`,\`p\`.\`power_watts\` AS \`power_watts\`,\`p\`.\`compatibility\` AS \`compatibility\`,\`p\`.\`includes_accessories\` AS \`includes_accessories\`,\`p\`.\`product_condition\` AS \`product_condition\`,\`p\`.\`active_ingredient\` AS \`active_ingredient\`,\`p\`.\`concentration\` AS \`concentration\`,\`p\`.\`requires_prescription\` AS \`requires_prescription\`,\`p\`.\`administration_route\` AS \`administration_route\`,\`p\`.\`presentation\` AS \`presentation\`,\`p\`.\`units_per_package\` AS \`units_per_package\`,\`p\`.\`laboratory\` AS \`laboratory\`,\`p\`.\`contraindications\` AS \`contraindications\`,\`p\`.\`dimensions\` AS \`dimensions\`,\`p\`.\`weight\` AS \`weight\`,\`p\`.\`hardware_weight_unit\` AS \`hardware_weight_unit\`,\`p\`.\`caliber\` AS \`caliber\`,\`p\`.\`resistance\` AS \`resistance\`,\`p\`.\`finish\` AS \`finish\`,\`p\`.\`recommended_use\` AS \`recommended_use\`,\`p\`.\`author\` AS \`author\`,\`p\`.\`publisher\` AS \`publisher\`,\`p\`.\`isbn\` AS \`isbn\`,\`p\`.\`pages\` AS \`pages\`,\`p\`.\`language\` AS \`language\`,\`p\`.\`publication_year\` AS \`publication_year\`,\`p\`.\`edition\` AS \`edition\`,\`p\`.\`book_format\` AS \`book_format\`,\`p\`.\`recommended_age\` AS \`recommended_age\`,\`p\`.\`number_of_players\` AS \`number_of_players\`,\`p\`.\`game_type\` AS \`game_type\`,\`p\`.\`requires_batteries\` AS \`requires_batteries\`,\`p\`.\`package_dimensions\` AS \`package_dimensions\`,\`p\`.\`package_contents\` AS \`package_contents\`,\`p\`.\`safety_warnings\` AS \`safety_warnings\`,\`p\`.\`published_in_store\` AS \`published_in_store\`,\`p\`.\`available_for_delivery\` AS \`available_for_delivery\`,\`p\`.\`delivery_type\` AS \`delivery_type\`,\`p\`.\`is_new_launch\` AS \`is_new_launch\`,\`p\`.\`launch_date\` AS \`launch_date\`,\`p\`.\`is_preorder\` AS \`is_preorder\`,\`p\`.\`preorder_window_end\` AS \`preorder_window_end\`,\`p\`.\`preorder_ship_start\` AS \`preorder_ship_start\`,\`p\`.\`preorder_ship_end\` AS \`preorder_ship_end\`,\`p\`.\`preorder_badge_text\` AS \`preorder_badge_text\`,\`p\`.\`preorder_policy_text\` AS \`preorder_policy_text\`,\`p\`.\`is_on_offer\` AS \`is_on_offer\`,\`p\`.\`offer_price\` AS \`offer_price\`,\`p\`.\`offer_label\` AS \`offer_label\`,\`p\`.\`offer_start\` AS \`offer_start\`,\`p\`.\`offer_end\` AS \`offer_end\`,\`p\`.\`sede_id\` AS \`sede_id\`,\`p\`.\`created_at\` AS \`created_at\`,\`p\`.\`updated_at\` AS \`updated_at\`,\`p\`.\`created_by\` AS \`created_by\`,\`p\`.\`updated_by\` AS \`updated_by\`,(case when (\`p\`.\`stock\` = 0) then 'agotado' when (\`p\`.\`stock\` <= \`p\`.\`reorder_point\`) then 'bajo' else 'suficiente' end) AS \`stock_status\` from \`stockpro_truth\`.\`products\` \`p\``);
+}).algorithm("undefined").sqlSecurity("definer").as(sql`select \`p\`.\`id\` AS \`id\`,\`p\`.\`tenant_id\` AS \`tenant_id\`,\`p\`.\`name\` AS \`name\`,\`p\`.\`articulo\` AS \`articulo\`,\`p\`.\`category\` AS \`category\`,\`p\`.\`product_type\` AS \`product_type\`,\`p\`.\`brand\` AS \`brand\`,\`p\`.\`model\` AS \`model\`,\`p\`.\`description\` AS \`description\`,\`p\`.\`purchase_price\` AS \`purchase_price\`,\`p\`.\`sale_price\` AS \`sale_price\`,\`p\`.\`sku\` AS \`sku\`,\`p\`.\`barcode\` AS \`barcode\`,\`p\`.\`stock\` AS \`stock\`,\`p\`.\`reorder_point\` AS \`reorder_point\`,\`p\`.\`supplier\` AS \`supplier\`,\`p\`.\`supplier_id\` AS \`supplier_id\`,\`p\`.\`entry_date\` AS \`entry_date\`,\`p\`.\`image_url\` AS \`image_url\`,\`p\`.\`image_urls\` AS \`image_urls\`,\`p\`.\`location_in_store\` AS \`location_in_store\`,\`p\`.\`notes\` AS \`notes\`,\`p\`.\`tags\` AS \`tags\`,\`p\`.\`expiry_date\` AS \`expiry_date\`,\`p\`.\`batch_number\` AS \`batch_number\`,\`p\`.\`net_weight\` AS \`net_weight\`,\`p\`.\`weight_unit\` AS \`weight_unit\`,\`p\`.\`sanitary_registration\` AS \`sanitary_registration\`,\`p\`.\`storage_temperature\` AS \`storage_temperature\`,\`p\`.\`ingredients\` AS \`ingredients\`,\`p\`.\`nutritional_info\` AS \`nutritional_info\`,\`p\`.\`alcohol_content\` AS \`alcohol_content\`,\`p\`.\`allergens\` AS \`allergens\`,\`p\`.\`size\` AS \`size\`,\`p\`.\`color\` AS \`color\`,\`p\`.\`material\` AS \`material\`,\`p\`.\`gender\` AS \`gender\`,\`p\`.\`season\` AS \`season\`,\`p\`.\`garment_type\` AS \`garment_type\`,\`p\`.\`washing_instructions\` AS \`washing_instructions\`,\`p\`.\`country_of_origin\` AS \`country_of_origin\`,\`p\`.\`serial_number\` AS \`serial_number\`,\`p\`.\`warranty_months\` AS \`warranty_months\`,\`p\`.\`technical_specs\` AS \`technical_specs\`,\`p\`.\`voltage\` AS \`voltage\`,\`p\`.\`power_watts\` AS \`power_watts\`,\`p\`.\`compatibility\` AS \`compatibility\`,\`p\`.\`includes_accessories\` AS \`includes_accessories\`,\`p\`.\`product_condition\` AS \`product_condition\`,\`p\`.\`active_ingredient\` AS \`active_ingredient\`,\`p\`.\`concentration\` AS \`concentration\`,\`p\`.\`requires_prescription\` AS \`requires_prescription\`,\`p\`.\`administration_route\` AS \`administration_route\`,\`p\`.\`presentation\` AS \`presentation\`,\`p\`.\`units_per_package\` AS \`units_per_package\`,\`p\`.\`laboratory\` AS \`laboratory\`,\`p\`.\`contraindications\` AS \`contraindications\`,\`p\`.\`dimensions\` AS \`dimensions\`,\`p\`.\`weight\` AS \`weight\`,\`p\`.\`hardware_weight_unit\` AS \`hardware_weight_unit\`,\`p\`.\`caliber\` AS \`caliber\`,\`p\`.\`resistance\` AS \`resistance\`,\`p\`.\`finish\` AS \`finish\`,\`p\`.\`recommended_use\` AS \`recommended_use\`,\`p\`.\`author\` AS \`author\`,\`p\`.\`publisher\` AS \`publisher\`,\`p\`.\`isbn\` AS \`isbn\`,\`p\`.\`pages\` AS \`pages\`,\`p\`.\`language\` AS \`language\`,\`p\`.\`publication_year\` AS \`publication_year\`,\`p\`.\`edition\` AS \`edition\`,\`p\`.\`book_format\` AS \`book_format\`,\`p\`.\`recommended_age\` AS \`recommended_age\`,\`p\`.\`number_of_players\` AS \`number_of_players\`,\`p\`.\`game_type\` AS \`game_type\`,\`p\`.\`requires_batteries\` AS \`requires_batteries\`,\`p\`.\`package_dimensions\` AS \`package_dimensions\`,\`p\`.\`package_contents\` AS \`package_contents\`,\`p\`.\`safety_warnings\` AS \`safety_warnings\`,\`p\`.\`published_in_store\` AS \`published_in_store\`,\`p\`.\`available_for_delivery\` AS \`available_for_delivery\`,\`p\`.\`delivery_type\` AS \`delivery_type\`,\`p\`.\`is_new_launch\` AS \`is_new_launch\`,\`p\`.\`launch_date\` AS \`launch_date\`,\`p\`.\`is_preorder\` AS \`is_preorder\`,\`p\`.\`preorder_window_end\` AS \`preorder_window_end\`,\`p\`.\`preorder_ship_start\` AS \`preorder_ship_start\`,\`p\`.\`preorder_ship_end\` AS \`preorder_ship_end\`,\`p\`.\`preorder_badge_text\` AS \`preorder_badge_text\`,\`p\`.\`preorder_policy_text\` AS \`preorder_policy_text\`,\`p\`.\`is_on_offer\` AS \`is_on_offer\`,\`p\`.\`offer_price\` AS \`offer_price\`,\`p\`.\`offer_label\` AS \`offer_label\`,\`p\`.\`offer_start\` AS \`offer_start\`,\`p\`.\`offer_end\` AS \`offer_end\`,\`p\`.\`sede_id\` AS \`sede_id\`,\`p\`.\`created_at\` AS \`created_at\`,\`p\`.\`updated_at\` AS \`updated_at\`,\`p\`.\`created_by\` AS \`created_by\`,\`p\`.\`updated_by\` AS \`updated_by\`,(case when (\`p\`.\`stock\` = 0) then 'agotado' when (\`p\`.\`stock\` <= \`p\`.\`reorder_point\`) then 'bajo' else 'suficiente' end) AS \`stock_status\` from \`lopbuk\`.\`products\` \`p\``);
 
 export const vSalesDetail = mysqlView("v_sales_detail", {
 	id: varchar({ length: 36 }).notNull(),
@@ -4800,11 +4851,11 @@ export const vSalesDetail = mysqlView("v_sales_detail", {
 	synced: tinyint().default(1).notNull(),
 	syncedAt: timestamp("synced_at", { mode: 'string' }),
 	origin: mysqlEnum(['local','cloud']).default('cloud').notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 	totalItems: bigint("total_items", { mode: "number" }).notNull(),
 	totalQuantity: decimal("total_quantity", { precision: 32, scale: 0 }),
-}).algorithm("undefined").sqlSecurity("definer").as(sql`select \`s\`.\`id\` AS \`id\`,\`s\`.\`tenant_id\` AS \`tenant_id\`,\`s\`.\`invoice_number\` AS \`invoice_number\`,\`s\`.\`customer_id\` AS \`customer_id\`,\`s\`.\`customer_name\` AS \`customer_name\`,\`s\`.\`customer_phone\` AS \`customer_phone\`,\`s\`.\`customer_email\` AS \`customer_email\`,\`s\`.\`subtotal\` AS \`subtotal\`,\`s\`.\`tax\` AS \`tax\`,\`s\`.\`discount\` AS \`discount\`,\`s\`.\`total\` AS \`total\`,\`s\`.\`payment_method\` AS \`payment_method\`,\`s\`.\`amount_paid\` AS \`amount_paid\`,\`s\`.\`change_amount\` AS \`change_amount\`,\`s\`.\`seller_id\` AS \`seller_id\`,\`s\`.\`seller_name\` AS \`seller_name\`,\`s\`.\`cash_session_id\` AS \`cash_session_id\`,\`s\`.\`status\` AS \`status\`,\`s\`.\`credit_status\` AS \`credit_status\`,\`s\`.\`due_date\` AS \`due_date\`,\`s\`.\`notes\` AS \`notes\`,\`s\`.\`mixed_efectivo_amount\` AS \`mixed_efectivo_amount\`,\`s\`.\`mixed_second_method\` AS \`mixed_second_method\`,\`s\`.\`mixed_second_amount\` AS \`mixed_second_amount\`,\`s\`.\`sede_id\` AS \`sede_id\`,\`s\`.\`vehicle_id\` AS \`vehicle_id\`,\`s\`.\`dispatch_status\` AS \`dispatch_status\`,\`s\`.\`total_weight_kg\` AS \`total_weight_kg\`,\`s\`.\`synced\` AS \`synced\`,\`s\`.\`synced_at\` AS \`synced_at\`,\`s\`.\`origin\` AS \`origin\`,\`s\`.\`created_at\` AS \`created_at\`,\`s\`.\`updated_at\` AS \`updated_at\`,count(\`si\`.\`id\`) AS \`total_items\`,sum(\`si\`.\`quantity\`) AS \`total_quantity\` from (\`stockpro_truth\`.\`sales\` \`s\` left join \`stockpro_truth\`.\`sale_items\` \`si\` on((\`s\`.\`id\` = \`si\`.\`sale_id\`))) group by \`s\`.\`id\``);
+}).algorithm("undefined").sqlSecurity("definer").as(sql`select \`s\`.\`id\` AS \`id\`,\`s\`.\`tenant_id\` AS \`tenant_id\`,\`s\`.\`invoice_number\` AS \`invoice_number\`,\`s\`.\`customer_id\` AS \`customer_id\`,\`s\`.\`customer_name\` AS \`customer_name\`,\`s\`.\`customer_phone\` AS \`customer_phone\`,\`s\`.\`customer_email\` AS \`customer_email\`,\`s\`.\`subtotal\` AS \`subtotal\`,\`s\`.\`tax\` AS \`tax\`,\`s\`.\`discount\` AS \`discount\`,\`s\`.\`total\` AS \`total\`,\`s\`.\`payment_method\` AS \`payment_method\`,\`s\`.\`amount_paid\` AS \`amount_paid\`,\`s\`.\`change_amount\` AS \`change_amount\`,\`s\`.\`seller_id\` AS \`seller_id\`,\`s\`.\`seller_name\` AS \`seller_name\`,\`s\`.\`cash_session_id\` AS \`cash_session_id\`,\`s\`.\`status\` AS \`status\`,\`s\`.\`credit_status\` AS \`credit_status\`,\`s\`.\`due_date\` AS \`due_date\`,\`s\`.\`notes\` AS \`notes\`,\`s\`.\`mixed_efectivo_amount\` AS \`mixed_efectivo_amount\`,\`s\`.\`mixed_second_method\` AS \`mixed_second_method\`,\`s\`.\`mixed_second_amount\` AS \`mixed_second_amount\`,\`s\`.\`sede_id\` AS \`sede_id\`,\`s\`.\`vehicle_id\` AS \`vehicle_id\`,\`s\`.\`dispatch_status\` AS \`dispatch_status\`,\`s\`.\`total_weight_kg\` AS \`total_weight_kg\`,\`s\`.\`synced\` AS \`synced\`,\`s\`.\`synced_at\` AS \`synced_at\`,\`s\`.\`origin\` AS \`origin\`,\`s\`.\`created_at\` AS \`created_at\`,\`s\`.\`updated_at\` AS \`updated_at\`,count(\`si\`.\`id\`) AS \`total_items\`,sum(\`si\`.\`quantity\`) AS \`total_quantity\` from (\`lopbuk\`.\`sales\` \`s\` left join \`lopbuk\`.\`sale_items\` \`si\` on((\`s\`.\`id\` = \`si\`.\`sale_id\`))) group by \`s\`.\`id\``);
 
 export const vTenantsSummary = mysqlView("v_tenants_summary", {
 	tenantId: varchar("tenant_id", { length: 36 }).notNull(),
@@ -4813,7 +4864,7 @@ export const vTenantsSummary = mysqlView("v_tenants_summary", {
 	businessType: varchar("business_type", { length: 100 }),
 	status: mysqlEnum(['activo','suspendido','cancelado']).default('activo').notNull(),
 	plan: mysqlEnum(['basico','profesional','empresarial']).default('basico').notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 	ownerName: varchar("owner_name", { length: 255 }),
 	ownerEmail: varchar("owner_email", { length: 255 }),
 	totalUsers: bigint("total_users", { mode: "number" }).notNull(),
@@ -4822,4 +4873,4 @@ export const vTenantsSummary = mysqlView("v_tenants_summary", {
 	totalCustomers: bigint("total_customers", { mode: "number" }).notNull(),
 	totalSalesCount: bigint("total_sales_count", { mode: "number" }).notNull(),
 	totalSalesAmount: decimal("total_sales_amount", { precision: 34, scale: 2 }).default('0.00').notNull(),
-}).algorithm("undefined").sqlSecurity("definer").as(sql`select \`t\`.\`id\` AS \`tenant_id\`,\`t\`.\`name\` AS \`tenant_name\`,\`t\`.\`slug\` AS \`slug\`,\`t\`.\`business_type\` AS \`business_type\`,\`t\`.\`status\` AS \`status\`,\`t\`.\`plan\` AS \`plan\`,\`t\`.\`created_at\` AS \`created_at\`,\`u\`.\`name\` AS \`owner_name\`,\`u\`.\`email\` AS \`owner_email\`,coalesce(\`usr_agg\`.\`total_users\`,0) AS \`total_users\`,coalesce(\`prod_agg\`.\`total_products\`,0) AS \`total_products\`,coalesce(\`prod_agg\`.\`inventory_value\`,0) AS \`inventory_value\`,coalesce(\`cust_agg\`.\`total_customers\`,0) AS \`total_customers\`,coalesce(\`sale_agg\`.\`total_sales_count\`,0) AS \`total_sales_count\`,coalesce(\`sale_agg\`.\`total_sales_amount\`,0) AS \`total_sales_amount\` from (((((\`stockpro_truth\`.\`tenants\` \`t\` left join \`stockpro_truth\`.\`users\` \`u\` on((\`t\`.\`owner_id\` = \`u\`.\`id\`))) left join (select \`stockpro_truth\`.\`users\`.\`tenant_id\` AS \`tenant_id\`,count(0) AS \`total_users\` from \`stockpro_truth\`.\`users\` group by \`stockpro_truth\`.\`users\`.\`tenant_id\`) \`usr_agg\` on((\`usr_agg\`.\`tenant_id\` = \`t\`.\`id\`))) left join (select \`stockpro_truth\`.\`products\`.\`tenant_id\` AS \`tenant_id\`,count(0) AS \`total_products\`,sum((\`stockpro_truth\`.\`products\`.\`stock\` * \`stockpro_truth\`.\`products\`.\`sale_price\`)) AS \`inventory_value\` from \`stockpro_truth\`.\`products\` group by \`stockpro_truth\`.\`products\`.\`tenant_id\`) \`prod_agg\` on((\`prod_agg\`.\`tenant_id\` = \`t\`.\`id\`))) left join (select \`stockpro_truth\`.\`customers\`.\`tenant_id\` AS \`tenant_id\`,count(0) AS \`total_customers\` from \`stockpro_truth\`.\`customers\` group by \`stockpro_truth\`.\`customers\`.\`tenant_id\`) \`cust_agg\` on((\`cust_agg\`.\`tenant_id\` = \`t\`.\`id\`))) left join (select \`stockpro_truth\`.\`sales\`.\`tenant_id\` AS \`tenant_id\`,count(0) AS \`total_sales_count\`,sum(\`stockpro_truth\`.\`sales\`.\`total\`) AS \`total_sales_amount\` from \`stockpro_truth\`.\`sales\` where (\`stockpro_truth\`.\`sales\`.\`status\` = 'completada') group by \`stockpro_truth\`.\`sales\`.\`tenant_id\`) \`sale_agg\` on((\`sale_agg\`.\`tenant_id\` = \`t\`.\`id\`)))`);
+}).algorithm("undefined").sqlSecurity("definer").as(sql`select \`t\`.\`id\` AS \`tenant_id\`,\`t\`.\`name\` AS \`tenant_name\`,\`t\`.\`slug\` AS \`slug\`,\`t\`.\`business_type\` AS \`business_type\`,\`t\`.\`status\` AS \`status\`,\`t\`.\`plan\` AS \`plan\`,\`t\`.\`created_at\` AS \`created_at\`,\`u\`.\`name\` AS \`owner_name\`,\`u\`.\`email\` AS \`owner_email\`,coalesce(\`usr_agg\`.\`total_users\`,0) AS \`total_users\`,coalesce(\`prod_agg\`.\`total_products\`,0) AS \`total_products\`,coalesce(\`prod_agg\`.\`inventory_value\`,0) AS \`inventory_value\`,coalesce(\`cust_agg\`.\`total_customers\`,0) AS \`total_customers\`,coalesce(\`sale_agg\`.\`total_sales_count\`,0) AS \`total_sales_count\`,coalesce(\`sale_agg\`.\`total_sales_amount\`,0) AS \`total_sales_amount\` from (((((\`lopbuk\`.\`tenants\` \`t\` left join \`lopbuk\`.\`users\` \`u\` on((\`t\`.\`owner_id\` = \`u\`.\`id\`))) left join (select \`lopbuk\`.\`users\`.\`tenant_id\` AS \`tenant_id\`,count(0) AS \`total_users\` from \`lopbuk\`.\`users\` group by \`lopbuk\`.\`users\`.\`tenant_id\`) \`usr_agg\` on((\`usr_agg\`.\`tenant_id\` = \`t\`.\`id\`))) left join (select \`lopbuk\`.\`products\`.\`tenant_id\` AS \`tenant_id\`,count(0) AS \`total_products\`,sum((\`lopbuk\`.\`products\`.\`stock\` * \`lopbuk\`.\`products\`.\`sale_price\`)) AS \`inventory_value\` from \`lopbuk\`.\`products\` group by \`lopbuk\`.\`products\`.\`tenant_id\`) \`prod_agg\` on((\`prod_agg\`.\`tenant_id\` = \`t\`.\`id\`))) left join (select \`lopbuk\`.\`customers\`.\`tenant_id\` AS \`tenant_id\`,count(0) AS \`total_customers\` from \`lopbuk\`.\`customers\` group by \`lopbuk\`.\`customers\`.\`tenant_id\`) \`cust_agg\` on((\`cust_agg\`.\`tenant_id\` = \`t\`.\`id\`))) left join (select \`lopbuk\`.\`sales\`.\`tenant_id\` AS \`tenant_id\`,count(0) AS \`total_sales_count\`,sum(\`lopbuk\`.\`sales\`.\`total\`) AS \`total_sales_amount\` from \`lopbuk\`.\`sales\` where (\`lopbuk\`.\`sales\`.\`status\` = 'completada') group by \`lopbuk\`.\`sales\`.\`tenant_id\`) \`sale_agg\` on((\`sale_agg\`.\`tenant_id\` = \`t\`.\`id\`)))`);

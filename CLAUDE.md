@@ -52,9 +52,9 @@ Flujo para cualquier cambio de esquema (tabla/columna nueva, índice, etc.):
 3. npm run migrate         → aplica las migraciones pendientes
 ```
 
-- **Baseline:** `0000_nervous_norman_osborn.sql` = esquema completo (201 tablas +
-  6 vistas + 196 FKs + 2672 columnas), capturado por introspección de una BD verdad
-  (schema_FULL.sql + TODO el DDL de runtime extraído). Reconstruye la BD 1:1.
+- **Baseline:** `0000_dizzy_mongoose.sql` = esquema completo (203 tablas + 6 vistas +
+  196 FKs), capturado por introspección de una BD verdad. Incluye la feature **hormas**
+  (`hormas`, `horma_colors` + `horma_id`). Reconstruye la BD 1:1.
 - **BD nueva/vacía:** `migrate()` corre el 0000 y crea todo.
 - **BD existente (prod/staging):** correr UNA vez `src/db/baseline-mark-applied.sql`
   para marcar el 0000 como aplicado (no recrea nada). En prod NO se corre `migrate()`

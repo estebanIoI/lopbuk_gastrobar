@@ -119,9 +119,10 @@ export class VariantsService {
   // tocan estas mismas tablas directamente.
   private tablesEnsured = false;
   async ensureTables(): Promise<void> {
+    return; // DDL congelado: suppliers/product_variants/variant_price_tiers/inventory_movements
+            // viven en el baseline Drizzle (src/db/migrations). Ver CLAUDE.md.
+    // eslint-disable-next-line no-unreachable
     if (this.tablesEnsured) return;
-    // Las queries de variantes hacen LEFT JOIN a `hormas` (horma_id por variante) —
-    // hay que asegurar que esa tabla exista antes, sin importar quién pidió primero.
     await hormasService.ensureTables();
     await db.query(`CREATE TABLE IF NOT EXISTS suppliers (
       id            VARCHAR(36)  NOT NULL PRIMARY KEY,

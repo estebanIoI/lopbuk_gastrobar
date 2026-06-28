@@ -10,8 +10,8 @@ CREATE TABLE `affiliate_campaigns` (
 	`commission_pct` decimal(5,2) NOT NULL,
 	`cookie_days` tinyint NOT NULL DEFAULT 7,
 	`is_active` tinyint(1) NOT NULL DEFAULT 1,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `affiliate_campaigns_id` PRIMARY KEY(`id`),
 	CONSTRAINT `idx_campaign_ref` UNIQUE(`ref_token`),
 	CONSTRAINT `idx_campaign_code` UNIQUE(`discount_code`)
@@ -25,7 +25,7 @@ CREATE TABLE `affiliate_commissions` (
 	`amount_cop` decimal(14,2) NOT NULL,
 	`status` enum('pending','approved','paid') NOT NULL DEFAULT 'pending',
 	`note` text,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `affiliate_commissions_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -41,7 +41,7 @@ CREATE TABLE `affiliate_conversions` (
 	`status` enum('pending','approved','paid','rejected') NOT NULL DEFAULT 'pending',
 	`approved_at` timestamp,
 	`paid_at` timestamp,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `affiliate_conversions_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -54,7 +54,7 @@ CREATE TABLE `affiliate_mission_submissions` (
 	`reviewed_by` varchar(36),
 	`review_note` text,
 	`reviewed_at` timestamp,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `affiliate_mission_submissions_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -67,7 +67,7 @@ CREATE TABLE `affiliate_missions` (
 	`min_tier` enum('bronze','silver','gold') NOT NULL DEFAULT 'bronze',
 	`expires_at` timestamp,
 	`is_active` tinyint(1) NOT NULL DEFAULT 1,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `affiliate_missions_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -85,8 +85,8 @@ CREATE TABLE `affiliate_package_orders` (
 	`paid_at` timestamp,
 	`content_deadline` timestamp,
 	`content_delivered` json,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `affiliate_package_orders_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -99,8 +99,8 @@ CREATE TABLE `affiliate_packages` (
 	`affiliate_pct` decimal(5,2) NOT NULL,
 	`platform_pct` decimal(5,2) NOT NULL,
 	`is_active` tinyint(1) NOT NULL DEFAULT 1,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `affiliate_packages_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -112,8 +112,8 @@ CREATE TABLE `affiliate_withdrawals` (
 	`status` enum('requested','processing','paid','rejected') NOT NULL DEFAULT 'requested',
 	`processed_by` varchar(36),
 	`note` text,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `affiliate_withdrawals_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -130,8 +130,8 @@ CREATE TABLE `affiliates` (
 	`monthly_sales` int NOT NULL DEFAULT 0,
 	`status` enum('active','suspended') NOT NULL DEFAULT 'active',
 	`password_hash` varchar(255),
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `affiliates_id` PRIMARY KEY(`id`),
 	CONSTRAINT `idx_aff_email` UNIQUE(`email`),
 	CONSTRAINT `idx_aff_handle` UNIQUE(`handle`)
@@ -146,8 +146,8 @@ CREATE TABLE `agent_actions` (
 	`tool_input` json,
 	`tool_output` json,
 	`success` tinyint(1) NOT NULL DEFAULT 1,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `agent_actions_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -162,7 +162,7 @@ CREATE TABLE `ai_usage_log` (
 	`total_tokens` int NOT NULL DEFAULT 0,
 	`est_cost` decimal(12,6) NOT NULL DEFAULT '0.000000',
 	`ok` tinyint(1) NOT NULL DEFAULT 1,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `ai_usage_log_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -170,7 +170,7 @@ CREATE TABLE `ai_vision_cache` (
 	`hash` varchar(64) NOT NULL,
 	`text` mediumtext NOT NULL,
 	`provider` varchar(20),
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `ai_vision_cache_hash` PRIMARY KEY(`hash`)
 );
 --> statement-breakpoint
@@ -182,7 +182,7 @@ CREATE TABLE `arena_feed` (
 	`photo_url` varchar(800),
 	`metadata` json,
 	`likes` int NOT NULL DEFAULT 0,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	`comments_count` int NOT NULL DEFAULT 0,
 	CONSTRAINT `arena_feed_id` PRIMARY KEY(`id`)
 );
@@ -192,7 +192,7 @@ CREATE TABLE `arena_feed_comments` (
 	`feed_id` varchar(36) NOT NULL,
 	`user_id` varchar(36) NOT NULL,
 	`body` varchar(400) NOT NULL,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `arena_feed_comments_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -200,7 +200,7 @@ CREATE TABLE `arena_feed_likes` (
 	`id` varchar(36) NOT NULL,
 	`feed_id` varchar(36) NOT NULL,
 	`user_id` varchar(36) NOT NULL,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `arena_feed_likes_id` PRIMARY KEY(`id`),
 	CONSTRAINT `idx_afl_unique` UNIQUE(`feed_id`,`user_id`)
 );
@@ -217,7 +217,7 @@ CREATE TABLE `audit_log` (
 	`details` json,
 	`ip_address` varchar(45),
 	`user_agent` varchar(500),
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `audit_log_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -270,7 +270,7 @@ CREATE TABLE `cartilla_comentarios` (
 	`publicacion_id` varchar(36) NOT NULL,
 	`usuario_id` varchar(36) NOT NULL,
 	`contenido` text NOT NULL,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `cartilla_comentarios_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -285,8 +285,8 @@ CREATE TABLE `cartilla_compras` (
 	`metodo` enum('gratis','stripe','credito','efectivo','manual') NOT NULL DEFAULT 'manual',
 	`referencia` varchar(255),
 	`pagado_en` timestamp,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `cartilla_compras_id` PRIMARY KEY(`id`),
 	CONSTRAINT `uq_compra_usuario_cartilla` UNIQUE(`usuario_id`,`cartilla_id`)
 );
@@ -298,7 +298,7 @@ CREATE TABLE `cartilla_modulo_audios` (
 	`url` varchar(500) NOT NULL,
 	`descripcion` text,
 	`orden` int DEFAULT 0,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `cartilla_modulo_audios_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -309,7 +309,7 @@ CREATE TABLE `cartilla_modulo_imagenes` (
 	`alt` varchar(255),
 	`caption` text,
 	`orden` int DEFAULT 0,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `cartilla_modulo_imagenes_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -320,7 +320,7 @@ CREATE TABLE `cartilla_modulo_secciones` (
 	`contenido` text,
 	`tipo` enum('texto','vocabulario','cultural','pronunciacion','gramatica') DEFAULT 'texto',
 	`orden` int DEFAULT 0,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `cartilla_modulo_secciones_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -338,7 +338,7 @@ CREATE TABLE `cartilla_modulos` (
 	`traduccion` varchar(255),
 	`orden` int DEFAULT 0,
 	`is_active` tinyint(1) NOT NULL DEFAULT 1,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `cartilla_modulos_id` PRIMARY KEY(`id`),
 	CONSTRAINT `uq_modulo_cartilla_clave` UNIQUE(`cartilla_id`,`clave`)
 );
@@ -352,8 +352,8 @@ CREATE TABLE `cartilla_progreso` (
 	`dias_seguidos` int DEFAULT 0,
 	`palabras_aprendidas` int DEFAULT 0,
 	`ultimo_acceso` date,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `cartilla_progreso_id` PRIMARY KEY(`id`),
 	CONSTRAINT `uq_progreso_usuario_cartilla` UNIQUE(`usuario_id`,`cartilla_id`)
 );
@@ -362,7 +362,7 @@ CREATE TABLE `cartilla_publicacion_likes` (
 	`id` varchar(36) NOT NULL,
 	`publicacion_id` varchar(36) NOT NULL,
 	`usuario_id` varchar(36) NOT NULL,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `cartilla_publicacion_likes_id` PRIMARY KEY(`id`),
 	CONSTRAINT `uq_pub_like` UNIQUE(`publicacion_id`,`usuario_id`)
 );
@@ -375,7 +375,7 @@ CREATE TABLE `cartilla_publicaciones` (
 	`contenido` text NOT NULL,
 	`likes` int DEFAULT 0,
 	`is_active` tinyint(1) NOT NULL DEFAULT 1,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `cartilla_publicaciones_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -390,7 +390,7 @@ CREATE TABLE `cartilla_retos` (
 	`categoria` enum('vocabulario','conversacion','modulo','comunidad') NOT NULL,
 	`meta` int DEFAULT 1,
 	`activo` tinyint(1) DEFAULT 1,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `cartilla_retos_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -412,7 +412,7 @@ CREATE TABLE `cartilla_usuario_respuestas` (
 	`respuesta` varchar(255) NOT NULL,
 	`es_correcta` tinyint(1) NOT NULL,
 	`puntos_obtenidos` int DEFAULT 0,
-	`respondido_en` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`respondido_en` timestamp DEFAULT (now()),
 	CONSTRAINT `cartilla_usuario_respuestas_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -438,7 +438,7 @@ CREATE TABLE `cartilla_vocabulario` (
 	`inga` varchar(200) NOT NULL,
 	`categoria` varchar(50) DEFAULT 'general',
 	`notas` text,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `cartilla_vocabulario_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -462,8 +462,8 @@ CREATE TABLE `cartillas` (
 	`publicado` tinyint(1) NOT NULL DEFAULT 0,
 	`destacado` tinyint(1) NOT NULL DEFAULT 0,
 	`is_active` tinyint(1) NOT NULL DEFAULT 1,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `cartillas_id` PRIMARY KEY(`id`),
 	CONSTRAINT `uq_cartilla_tenant_slug` UNIQUE(`tenant_id`,`slug`)
 );
@@ -478,7 +478,7 @@ CREATE TABLE `cash_movements` (
 	`notes` text,
 	`created_by` varchar(36) NOT NULL,
 	`created_by_name` varchar(255) NOT NULL,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `cash_movements_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -488,7 +488,7 @@ CREATE TABLE `cash_sessions` (
 	`opened_by` varchar(36) NOT NULL,
 	`opened_by_name` varchar(255) NOT NULL,
 	`opening_amount` decimal(12,2) NOT NULL DEFAULT '0.00',
-	`opened_at` timestamp NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+	`opened_at` timestamp NOT NULL DEFAULT (now()),
 	`closed_by` varchar(36),
 	`closed_by_name` varchar(255),
 	`closed_at` timestamp,
@@ -509,8 +509,8 @@ CREATE TABLE `cash_sessions` (
 	`status` enum('abierta','cerrada') NOT NULL DEFAULT 'abierta',
 	`closing_status` enum('cuadrado','sobrante','faltante'),
 	`observations` text,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	`shift_type` enum('ma??ana','tarde','unico') NOT NULL DEFAULT 'unico',
 	`shift_label` varchar(50),
 	CONSTRAINT `cash_sessions_id` PRIMARY KEY(`id`)
@@ -534,7 +534,7 @@ CREATE TABLE `challenge_participants` (
 	`id` varchar(36) NOT NULL,
 	`challenge_id` varchar(36) NOT NULL,
 	`user_id` varchar(36) NOT NULL,
-	`joined_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`joined_at` timestamp DEFAULT (now()),
 	CONSTRAINT `challenge_participants_id` PRIMARY KEY(`id`),
 	CONSTRAINT `idx_cp_unique` UNIQUE(`challenge_id`,`user_id`)
 );
@@ -551,8 +551,8 @@ CREATE TABLE `chatbot_config` (
 	`tone` enum('profesional','amigable','formal','casual') NOT NULL DEFAULT 'amigable',
 	`notify_email` tinyint(1) NOT NULL DEFAULT 1,
 	`notify_whatsapp` tinyint(1) NOT NULL DEFAULT 1,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	`whatsapp_enabled` tinyint(1) NOT NULL DEFAULT 0,
 	`whatsapp_number` varchar(50),
 	`evolution_instance` varchar(100),
@@ -569,7 +569,7 @@ CREATE TABLE `chatbot_messages` (
 	`tenant_id` varchar(36) NOT NULL,
 	`role` enum('user','assistant') NOT NULL,
 	`content` text NOT NULL,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `chatbot_messages_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -579,8 +579,8 @@ CREATE TABLE `chatbot_sessions` (
 	`session_token` varchar(100) NOT NULL,
 	`customer_name` varchar(255),
 	`customer_phone` varchar(50),
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`last_activity` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`last_activity` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	`human_takeover` tinyint(1) NOT NULL DEFAULT 0,
 	`channel` enum('web','whatsapp','voice','api') NOT NULL DEFAULT 'web',
 	CONSTRAINT `chatbot_sessions_id` PRIMARY KEY(`id`),
@@ -596,7 +596,7 @@ CREATE TABLE `coach_feed_entries` (
 	`media_url` varchar(800),
 	`metadata` json,
 	`is_read` tinyint(1) NOT NULL DEFAULT 0,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `coach_feed_entries_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -607,7 +607,7 @@ CREATE TABLE `community_comments` (
 	`body` text NOT NULL,
 	`parent_id` varchar(36),
 	`is_active` tinyint(1) NOT NULL DEFAULT 1,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	`author_name` varchar(160),
 	CONSTRAINT `community_comments_id` PRIMARY KEY(`id`)
 );
@@ -643,9 +643,9 @@ CREATE TABLE `community_posts` (
 	`comments_count` int NOT NULL DEFAULT 0,
 	`shares_count` int NOT NULL DEFAULT 0,
 	`is_active` tinyint(1) NOT NULL DEFAULT 1,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	`published_at` timestamp,
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `community_posts_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -655,7 +655,7 @@ CREATE TABLE `community_reactions` (
 	`user_id` varchar(36),
 	`device_id` varchar(64),
 	`type` enum('like','save') NOT NULL,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `community_reactions_id` PRIMARY KEY(`id`),
 	CONSTRAINT `uq_reaction` UNIQUE(`post_id`,`user_id`,`type`),
 	CONSTRAINT `uq_react_device` UNIQUE(`post_id`,`device_id`,`type`)
@@ -664,7 +664,7 @@ CREATE TABLE `community_reactions` (
 CREATE TABLE `community_settings` (
 	`setting_key` varchar(100) NOT NULL,
 	`setting_value` text,
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `community_settings_setting_key` PRIMARY KEY(`setting_key`)
 );
 --> statement-breakpoint
@@ -685,8 +685,8 @@ CREATE TABLE `consumer_access_codes` (
 	`metadata` json,
 	`is_active` tinyint(1) NOT NULL DEFAULT 1,
 	`created_by` varchar(36),
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `consumer_access_codes_id` PRIMARY KEY(`id`),
 	CONSTRAINT `idx_cac_hash` UNIQUE(`code_hash`)
 );
@@ -700,7 +700,7 @@ CREATE TABLE `consumer_access_ledger` (
 	`old_expires_at` datetime,
 	`new_expires_at` datetime,
 	`metadata` json,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `consumer_access_ledger_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -709,7 +709,7 @@ CREATE TABLE `consumer_achievements` (
 	`user_id` varchar(36) NOT NULL,
 	`achievement_code` varchar(60) NOT NULL,
 	`source` varchar(40),
-	`unlocked_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`unlocked_at` timestamp DEFAULT (now()),
 	CONSTRAINT `consumer_achievements_id` PRIMARY KEY(`id`),
 	CONSTRAINT `idx_ach_unique` UNIQUE(`user_id`,`achievement_code`)
 );
@@ -723,7 +723,7 @@ CREATE TABLE `consumer_body_logs` (
 	`measurements` json,
 	`photo_url` varchar(800),
 	`note` varchar(300),
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `consumer_body_logs_id` PRIMARY KEY(`id`),
 	CONSTRAINT `idx_bl_unique` UNIQUE(`user_id`,`logged_on`)
 );
@@ -734,7 +734,7 @@ CREATE TABLE `consumer_daily_checks` (
 	`day` date NOT NULL,
 	`item_key` varchar(30) NOT NULL,
 	`done` tinyint(1) NOT NULL DEFAULT 1,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `consumer_daily_checks_id` PRIMARY KEY(`id`),
 	CONSTRAINT `idx_dc_unique` UNIQUE(`user_id`,`day`,`item_key`)
 );
@@ -747,7 +747,7 @@ CREATE TABLE `consumer_discount_rules` (
 	`scope` enum('all','category') NOT NULL DEFAULT 'all',
 	`category` varchar(120),
 	`is_active` tinyint(1) NOT NULL DEFAULT 1,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `consumer_discount_rules_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -755,7 +755,7 @@ CREATE TABLE `consumer_entitlements` (
 	`id` varchar(36) NOT NULL,
 	`tier` varchar(50) NOT NULL,
 	`entitlement_key` varchar(100) NOT NULL,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `consumer_entitlements_id` PRIMARY KEY(`id`),
 	CONSTRAINT `idx_cent_tier_key` UNIQUE(`tier`,`entitlement_key`)
 );
@@ -765,7 +765,7 @@ CREATE TABLE `consumer_events` (
 	`user_id` varchar(36),
 	`event` varchar(80) NOT NULL,
 	`metadata` json,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `consumer_events_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -779,8 +779,8 @@ CREATE TABLE `consumer_plan_grants` (
 	`source_ledger_id` varchar(36),
 	`last_checked_at` datetime,
 	`metadata` json,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `consumer_plan_grants_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -795,7 +795,7 @@ CREATE TABLE `consumer_vault_unlocks` (
 	`user_id` varchar(36) NOT NULL,
 	`unlock_key` varchar(80) NOT NULL,
 	`vault_key_id` varchar(36),
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `consumer_vault_unlocks_id` PRIMARY KEY(`id`),
 	CONSTRAINT `idx_cvu_unique` UNIQUE(`user_id`,`unlock_key`)
 );
@@ -805,7 +805,7 @@ CREATE TABLE `consumer_xp_log` (
 	`user_id` varchar(36) NOT NULL,
 	`amount` int NOT NULL,
 	`reason` varchar(40) NOT NULL,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `consumer_xp_log_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -819,7 +819,7 @@ CREATE TABLE `credit_payments` (
 	`receipt_number` varchar(20),
 	`notes` text,
 	`received_by` varchar(36),
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `credit_payments_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -833,8 +833,8 @@ CREATE TABLE `customers` (
 	`address` varchar(500),
 	`credit_limit` decimal(12,2) NOT NULL DEFAULT '0.00',
 	`notes` text,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `customers_id` PRIMARY KEY(`id`),
 	CONSTRAINT `idx_customer_tenant_cedula` UNIQUE(`tenant_id`,`cedula`)
 );
@@ -857,8 +857,8 @@ CREATE TABLE `dev_requests` (
 	`rejection_reason` varchar(500),
 	`paid_at` timestamp,
 	`completed_at` timestamp,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `dev_requests_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -874,8 +874,8 @@ CREATE TABLE `discount_coupons` (
 	`times_used` int NOT NULL DEFAULT 0,
 	`is_active` tinyint(1) NOT NULL DEFAULT 1,
 	`expires_at` timestamp,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `discount_coupons_id` PRIMARY KEY(`id`),
 	CONSTRAINT `idx_coupon_tenant_code` UNIQUE(`tenant_id`,`code`)
 );
@@ -885,7 +885,7 @@ CREATE TABLE `drop_claims` (
 	`drop_id` varchar(36) NOT NULL,
 	`user_id` varchar(36) NOT NULL,
 	`status` enum('reserved','converted') NOT NULL DEFAULT 'reserved',
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `drop_claims_id` PRIMARY KEY(`id`),
 	CONSTRAINT `idx_dc_unique` UNIQUE(`drop_id`,`user_id`)
 );
@@ -904,7 +904,7 @@ CREATE TABLE `drops` (
 	`product_ref` json,
 	`status` enum('scheduled','cancelled') NOT NULL DEFAULT 'scheduled',
 	`created_by` varchar(36),
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `drops_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -913,7 +913,7 @@ CREATE TABLE `employee_cargos` (
 	`tenant_id` varchar(36) NOT NULL,
 	`name` varchar(100) NOT NULL,
 	`description` varchar(255),
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	`permissions` json,
 	CONSTRAINT `employee_cargos_id` PRIMARY KEY(`id`)
 );
@@ -935,8 +935,8 @@ CREATE TABLE `employee_novelties` (
 	`status` enum('pendiente','aprobado','rechazado') NOT NULL DEFAULT 'pendiente',
 	`rejection_reason` varchar(500),
 	`created_by` varchar(36),
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `employee_novelties_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -948,8 +948,8 @@ CREATE TABLE `employee_vacation_balances` (
 	`days_granted` int NOT NULL DEFAULT 15,
 	`days_used` int NOT NULL DEFAULT 0,
 	`notes` text,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `employee_vacation_balances_id` PRIMARY KEY(`id`),
 	CONSTRAINT `idx_vacation_user_year` UNIQUE(`tenant_id`,`user_id`,`year`)
 );
@@ -964,7 +964,7 @@ CREATE TABLE `exercise_progressions` (
 	`last_action` varchar(12),
 	`completion_rate` decimal(5,3),
 	`estimated_1rm` decimal(8,2),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `exercise_progressions_id` PRIMARY KEY(`id`),
 	CONSTRAINT `idx_ep_user_ex` UNIQUE(`user_id`,`exercise_id`)
 );
@@ -977,8 +977,8 @@ CREATE TABLE `finance_budgets` (
 	`month` tinyint NOT NULL,
 	`budgeted_amount` decimal(12,2) NOT NULL DEFAULT '0.00',
 	`notes` text,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `finance_budgets_id` PRIMARY KEY(`id`),
 	CONSTRAINT `idx_budget_unique` UNIQUE(`tenant_id`,`category_id`,`year`,`month`)
 );
@@ -993,7 +993,7 @@ CREATE TABLE `finance_categories` (
 	`is_system` tinyint(1) NOT NULL DEFAULT 0,
 	`is_active` tinyint(1) NOT NULL DEFAULT 1,
 	`sort_order` int NOT NULL DEFAULT 0,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `finance_categories_id` PRIMARY KEY(`id`),
 	CONSTRAINT `idx_fin_cat_name` UNIQUE(`tenant_id`,`type`,`name`)
 );
@@ -1019,8 +1019,8 @@ CREATE TABLE `finance_transactions` (
 	`tags` json,
 	`created_by` varchar(36),
 	`created_by_name` varchar(255),
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `finance_transactions_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1036,8 +1036,8 @@ CREATE TABLE `fleet_maintenance` (
 	`status` enum('pendiente','en_proceso','completado','cancelado') NOT NULL DEFAULT 'pendiente',
 	`notes` text,
 	`created_by` varchar(36),
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `fleet_maintenance_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1053,8 +1053,8 @@ CREATE TABLE `fleet_vehicles` (
 	`brand` varchar(50),
 	`model` varchar(50),
 	`notes` text,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `fleet_vehicles_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1062,7 +1062,7 @@ CREATE TABLE `guild_members` (
 	`id` varchar(36) NOT NULL,
 	`guild_id` varchar(36) NOT NULL,
 	`user_id` varchar(36) NOT NULL,
-	`joined_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`joined_at` timestamp DEFAULT (now()),
 	CONSTRAINT `guild_members_id` PRIMARY KEY(`id`),
 	CONSTRAINT `idx_gm_user` UNIQUE(`user_id`)
 );
@@ -1074,9 +1074,45 @@ CREATE TABLE `guilds` (
 	`emoji` varchar(12),
 	`owner_user_id` varchar(36),
 	`members_count` int NOT NULL DEFAULT 0,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `guilds_id` PRIMARY KEY(`id`),
 	CONSTRAINT `idx_guild_name` UNIQUE(`name`)
+);
+--> statement-breakpoint
+CREATE TABLE `horma_colors` (
+	`id` varchar(36) NOT NULL,
+	`tenant_id` varchar(36) NOT NULL,
+	`horma_id` varchar(36) NOT NULL,
+	`color` varchar(100) NOT NULL,
+	`hex` varchar(9),
+	`shelf` json,
+	`sort_order` int NOT NULL DEFAULT 0,
+	`is_active` tinyint(1) NOT NULL DEFAULT 1,
+	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT `horma_colors_id` PRIMARY KEY(`id`),
+	CONSTRAINT `uk_horma_color` UNIQUE(`horma_id`,`color`)
+);
+--> statement-breakpoint
+CREATE TABLE `hormas` (
+	`id` varchar(36) NOT NULL,
+	`tenant_id` varchar(36) NOT NULL,
+	`name` varchar(150) NOT NULL,
+	`slug` varchar(150) NOT NULL,
+	`base_cost` decimal(12,2) NOT NULL DEFAULT '0.00',
+	`base_price` decimal(12,2) NOT NULL DEFAULT '0.00',
+	`size_chart` json,
+	`has_sleeves` tinyint(1) NOT NULL DEFAULT 1,
+	`sexo` enum('unisex','hombre','mujer') NOT NULL DEFAULT 'unisex',
+	`composition` varchar(150),
+	`weight_grams` int,
+	`shelf` json,
+	`sort_order` int NOT NULL DEFAULT 0,
+	`is_active` tinyint(1) NOT NULL DEFAULT 1,
+	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT `hormas_id` PRIMARY KEY(`id`),
+	CONSTRAINT `uk_horma_slug_tenant` UNIQUE(`tenant_id`,`slug`)
 );
 --> statement-breakpoint
 CREATE TABLE `inventory_holds` (
@@ -1086,7 +1122,7 @@ CREATE TABLE `inventory_holds` (
 	`product_id` varchar(36) NOT NULL,
 	`quantity` int NOT NULL DEFAULT 1,
 	`expires_at` datetime NOT NULL,
-	`created_at` datetime NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` datetime NOT NULL DEFAULT (now()),
 	CONSTRAINT `inventory_holds_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1101,7 +1137,7 @@ CREATE TABLE `inventory_movements` (
 	`reference_type` varchar(50),
 	`reference_id` varchar(36),
 	`created_by` varchar(36),
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `inventory_movements_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1122,7 +1158,7 @@ CREATE TABLE `legend_purchases` (
 	`amount_cop` decimal(14,2) NOT NULL,
 	`status` enum('pending','paid','cancelled') NOT NULL DEFAULT 'pending',
 	`gateway_payment_id` varchar(120),
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `legend_purchases_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1132,7 +1168,7 @@ CREATE TABLE `login_attempts` (
 	`ip_address` varchar(45) NOT NULL,
 	`success` tinyint(1) NOT NULL DEFAULT 0,
 	`failure_reason` varchar(100),
-	`attempted_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`attempted_at` timestamp DEFAULT (now()),
 	CONSTRAINT `login_attempts_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1140,8 +1176,8 @@ CREATE TABLE `lopbuk_landing` (
 	`id` int NOT NULL DEFAULT 1,
 	`config` json,
 	`updated_by` varchar(120),
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `lopbuk_landing_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1152,8 +1188,8 @@ CREATE TABLE `loyalty_accounts` (
 	`customer_phone` varchar(40) NOT NULL,
 	`points_balance` int NOT NULL DEFAULT 0,
 	`total_earned` int NOT NULL DEFAULT 0,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `loyalty_accounts_id` PRIMARY KEY(`id`),
 	CONSTRAINT `idx_loyalty_acct` UNIQUE(`tenant_id`,`customer_phone`)
 );
@@ -1162,7 +1198,7 @@ CREATE TABLE `loyalty_config` (
 	`tenant_id` varchar(36) NOT NULL,
 	`enabled` tinyint NOT NULL DEFAULT 1,
 	`points_per_thousand` decimal(8,2) NOT NULL DEFAULT '1.00',
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `loyalty_config_tenant_id` PRIMARY KEY(`tenant_id`)
 );
 --> statement-breakpoint
@@ -1173,7 +1209,7 @@ CREATE TABLE `loyalty_rewards` (
 	`description` varchar(300),
 	`points_cost` int NOT NULL,
 	`is_active` tinyint NOT NULL DEFAULT 1,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `loyalty_rewards_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1185,7 +1221,7 @@ CREATE TABLE `loyalty_transactions` (
 	`points` int NOT NULL,
 	`reason` varchar(200),
 	`order_id` varchar(36),
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `loyalty_transactions_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1201,8 +1237,8 @@ CREATE TABLE `marketplace_external_cards` (
 	`is_verified` tinyint(1) NOT NULL DEFAULT 0,
 	`is_visible` tinyint(1) NOT NULL DEFAULT 1,
 	`sort_order` int NOT NULL DEFAULT 0,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `marketplace_external_cards_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1211,7 +1247,7 @@ CREATE TABLE `menu_likes` (
 	`product_id` int NOT NULL,
 	`tenant_id` varchar(36) NOT NULL,
 	`device_id` varchar(64) NOT NULL,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `menu_likes_id` PRIMARY KEY(`id`),
 	CONSTRAINT `uq_device_product` UNIQUE(`device_id`,`product_id`)
 );
@@ -1227,8 +1263,8 @@ CREATE TABLE `merchant_events` (
 	`ticket_price` decimal(14,2),
 	`capacity` int,
 	`is_active` tinyint(1) NOT NULL DEFAULT 1,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `merchant_events_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1240,7 +1276,7 @@ CREATE TABLE `merchant_notifications` (
 	`message` text NOT NULL,
 	`data` json,
 	`is_read` tinyint(1) NOT NULL DEFAULT 0,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `merchant_notifications_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1252,7 +1288,7 @@ CREATE TABLE `notifications` (
 	`body` varchar(500),
 	`link` varchar(500),
 	`is_read` tinyint(1) NOT NULL DEFAULT 0,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `notifications_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1264,7 +1300,7 @@ CREATE TABLE `order_status_history` (
 	`to_status` varchar(30) NOT NULL,
 	`changed_by` varchar(36) NOT NULL,
 	`note` text,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `order_status_history_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1277,8 +1313,8 @@ CREATE TABLE `par_levels` (
 	`safety_stock` decimal(10,3) NOT NULL DEFAULT '0.000',
 	`area` enum('cocina','bar','general') NOT NULL DEFAULT 'cocina',
 	`notes` text,
-	`created_at` timestamp NOT NULL DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp NOT NULL DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp NOT NULL DEFAULT (now()),
+	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `par_levels_id` PRIMARY KEY(`id`),
 	CONSTRAINT `uk_pl_tenant_product` UNIQUE(`tenant_id`,`product_id`)
 );
@@ -1303,7 +1339,7 @@ CREATE TABLE `payroll_adjustments` (
 	`concept` varchar(255) NOT NULL,
 	`amount` decimal(12,2) NOT NULL,
 	`created_by` varchar(36),
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `payroll_adjustments_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1329,7 +1365,7 @@ CREATE TABLE `payroll_records` (
 	`status` enum('borrador','pagado') NOT NULL DEFAULT 'borrador',
 	`notes` text,
 	`generated_by` varchar(36),
-	`generated_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`generated_at` timestamp DEFAULT (now()),
 	`paid_at` timestamp,
 	CONSTRAINT `payroll_records_id` PRIMARY KEY(`id`)
 );
@@ -1342,14 +1378,14 @@ CREATE TABLE `platform_payment_gateways` (
 	`integrity_secret` text,
 	`events_secret` text,
 	`is_active` tinyint(1) NOT NULL DEFAULT 0,
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `platform_payment_gateways_provider` PRIMARY KEY(`provider`)
 );
 --> statement-breakpoint
 CREATE TABLE `platform_settings` (
 	`setting_key` varchar(100) NOT NULL,
 	`setting_value` text,
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `platform_settings_setting_key` PRIMARY KEY(`setting_key`)
 );
 --> statement-breakpoint
@@ -1367,8 +1403,8 @@ CREATE TABLE `portfolio_config` (
 	`contact_instagram` varchar(255),
 	`accent_color` varchar(30) NOT NULL DEFAULT '#6366f1',
 	`is_published` tinyint(1) NOT NULL DEFAULT 1,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	`robot_spline_url` text,
 	`lanyard_offset_x` int NOT NULL DEFAULT 0,
 	`lanyard_offset_y` int NOT NULL DEFAULT 0,
@@ -1383,8 +1419,8 @@ CREATE TABLE `portfolio_feature_cards` (
 	`description` text,
 	`sort_order` int NOT NULL DEFAULT 0,
 	`is_active` tinyint(1) NOT NULL DEFAULT 1,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `portfolio_feature_cards_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1395,8 +1431,8 @@ CREATE TABLE `portfolio_service_categories` (
 	`type` enum('package','subscription','addon') NOT NULL DEFAULT 'package',
 	`sort_order` int NOT NULL DEFAULT 0,
 	`is_active` tinyint(1) NOT NULL DEFAULT 1,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `portfolio_service_categories_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1410,8 +1446,8 @@ CREATE TABLE `portfolio_service_options` (
 	`is_popular` tinyint(1) NOT NULL DEFAULT 0,
 	`sort_order` int NOT NULL DEFAULT 0,
 	`is_active` tinyint(1) NOT NULL DEFAULT 1,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `portfolio_service_options_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1426,8 +1462,8 @@ CREATE TABLE `portfolio_team_cards` (
 	`is_active` tinyint(1) NOT NULL DEFAULT 1,
 	`github_url` varchar(255),
 	`linkedin_url` varchar(255),
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	`band_image_url` text,
 	CONSTRAINT `portfolio_team_cards_id` PRIMARY KEY(`id`)
 );
@@ -1442,7 +1478,7 @@ CREATE TABLE `price_history` (
 	`new_sale_price` decimal(10,2),
 	`reason` varchar(200),
 	`changed_by` varchar(50),
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `price_history_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1456,8 +1492,8 @@ CREATE TABLE `printers` (
 	`paper_width` tinyint NOT NULL DEFAULT 80,
 	`is_active` tinyint(1) NOT NULL DEFAULT 1,
 	`assigned_module` enum('caja','cocina','bar','factura'),
-	`created_at` datetime NOT NULL DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` datetime NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` datetime NOT NULL DEFAULT (now()),
+	`updated_at` datetime NOT NULL DEFAULT (now()),
 	CONSTRAINT `printers_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1473,7 +1509,7 @@ CREATE TABLE `product_alerts` (
 	`resolved_at` timestamp,
 	`resolved_by` varchar(50),
 	`notes` text,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `product_alerts_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1487,7 +1523,7 @@ CREATE TABLE `product_modifier_groups` (
 	`min_select` int NOT NULL DEFAULT 0,
 	`max_select` int,
 	`sort_order` int NOT NULL DEFAULT 0,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `product_modifier_groups_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1509,7 +1545,7 @@ CREATE TABLE `product_recipes` (
 	`product_id` varchar(36) NOT NULL,
 	`ingredient_id` varchar(36) NOT NULL,
 	`quantity` decimal(10,3) NOT NULL,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	`include_in_cost` tinyint(1) NOT NULL DEFAULT 1,
 	CONSTRAINT `product_recipes_id` PRIMARY KEY(`id`)
 );
@@ -1527,8 +1563,8 @@ CREATE TABLE `product_reviews` (
 	`image_url_2` varchar(500),
 	`status` enum('pendiente','aprobado','rechazado') NOT NULL DEFAULT 'pendiente',
 	`reply` text,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `product_reviews_id` PRIMARY KEY(`id`),
 	CONSTRAINT `chk_rating` CHECK(((`rating` >= 1) and (`rating` <= 5)))
 );
@@ -1551,11 +1587,12 @@ CREATE TABLE `product_variants` (
 	`images` json,
 	`sort_order` int DEFAULT 0,
 	`is_active` tinyint(1) DEFAULT 1,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	`preorder_limit` int,
 	`preorder_count` int NOT NULL DEFAULT 0,
 	`color_hex` varchar(9),
+	`horma_id` varchar(36),
 	CONSTRAINT `product_variants_id` PRIMARY KEY(`id`),
 	CONSTRAINT `uk_pv_sku_tenant` UNIQUE(`sku`,`tenant_id`)
 );
@@ -1657,8 +1694,8 @@ CREATE TABLE `products` (
 	`offer_start` datetime,
 	`offer_end` datetime,
 	`sede_id` varchar(36),
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	`created_by` varchar(50),
 	`updated_by` varchar(50),
 	`is_menu_item` tinyint(1) NOT NULL DEFAULT 0,
@@ -1668,6 +1705,7 @@ CREATE TABLE `products` (
 	`available_in_menu` tinyint(1) NOT NULL DEFAULT 1,
 	`qty_promo` text,
 	`images` text,
+	`horma_id` varchar(36),
 	CONSTRAINT `products_id` PRIMARY KEY(`id`),
 	CONSTRAINT `idx_product_tenant_sku` UNIQUE(`tenant_id`,`sku`),
 	CONSTRAINT `idx_product_tenant_barcode` UNIQUE(`tenant_id`,`barcode`)
@@ -1680,8 +1718,8 @@ CREATE TABLE `profile_sections` (
 	`order_index` int NOT NULL DEFAULT 0,
 	`content` json,
 	`is_active` tinyint(1) NOT NULL DEFAULT 1,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `profile_sections_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1722,8 +1760,8 @@ CREATE TABLE `purchase_invoices` (
 	`synced` tinyint(1) NOT NULL DEFAULT 1,
 	`synced_at` timestamp,
 	`origin` enum('local','cloud') NOT NULL DEFAULT 'cloud',
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `purchase_invoices_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1733,7 +1771,7 @@ CREATE TABLE `push_subscriptions` (
 	`endpoint` varchar(500) NOT NULL,
 	`p256dh` varchar(200) NOT NULL,
 	`auth` varchar(100) NOT NULL,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `push_subscriptions_id` PRIMARY KEY(`id`),
 	CONSTRAINT `idx_push_endpoint` UNIQUE(`endpoint`)
 );
@@ -1747,7 +1785,7 @@ CREATE TABLE `rb_gastos` (
 	`valor_unitario` decimal(12,2) NOT NULL,
 	`total` decimal(12,2) NOT NULL,
 	`notas` text,
-	`registered_at` timestamp NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+	`registered_at` timestamp NOT NULL DEFAULT (now()),
 	`created_by` varchar(36),
 	CONSTRAINT `rb_gastos_id` PRIMARY KEY(`id`)
 );
@@ -1759,8 +1797,8 @@ CREATE TABLE `rb_gastos_fijos` (
 	`valor` decimal(12,2) NOT NULL,
 	`periodo` enum('quincenal','semanal','mensual') NOT NULL DEFAULT 'quincenal',
 	`is_active` tinyint(1) NOT NULL DEFAULT 1,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `rb_gastos_fijos_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1772,8 +1810,8 @@ CREATE TABLE `rb_ingresos_diarios` (
 	`valor_ventas` decimal(12,2) NOT NULL DEFAULT '0.00',
 	`ganancia` decimal(12,2) NOT NULL DEFAULT '0.00',
 	`notas` text,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `rb_ingresos_diarios_id` PRIMARY KEY(`id`),
 	CONSTRAINT `idx_rb_ing_tenant_fecha` UNIQUE(`tenant_id`,`fecha`)
 );
@@ -1793,7 +1831,7 @@ CREATE TABLE `rb_jukebox_queue` (
 	`url` varchar(500),
 	`requested_by` varchar(120),
 	`status` enum('queued','playing','played','skipped') NOT NULL DEFAULT 'queued',
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `rb_jukebox_queue_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1814,8 +1852,8 @@ CREATE TABLE `rb_order_items` (
 	`sent_to_kitchen_at` timestamp,
 	`ready_at` timestamp,
 	`delivered_at` timestamp,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `rb_order_items_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1843,10 +1881,10 @@ CREATE TABLE `rb_orders` (
 	`discount` decimal(12,2) NOT NULL DEFAULT '0.00',
 	`total` decimal(12,2) NOT NULL DEFAULT '0.00',
 	`sale_id` varchar(36),
-	`opened_at` timestamp NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+	`opened_at` timestamp NOT NULL DEFAULT (now()),
 	`closed_at` timestamp,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	`priority` enum('normal','urgente') NOT NULL DEFAULT 'normal',
 	CONSTRAINT `rb_orders_id` PRIMARY KEY(`id`),
 	CONSTRAINT `idx_rb_order_number` UNIQUE(`tenant_id`,`order_number`)
@@ -1865,7 +1903,7 @@ CREATE TABLE `rb_payments` (
 	`cashier_name` varchar(255) NOT NULL,
 	`cash_session_id` varchar(36),
 	`notes` text,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `rb_payments_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1898,8 +1936,8 @@ CREATE TABLE `rb_reservations` (
 	`notified_whatsapp` tinyint(1) NOT NULL DEFAULT 0,
 	`confirmed_at` timestamp,
 	`cancelled_at` timestamp,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `rb_reservations_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1907,7 +1945,7 @@ CREATE TABLE `rb_table_guests` (
 	`id` varchar(36) NOT NULL,
 	`session_id` varchar(36) NOT NULL,
 	`name` varchar(120) NOT NULL,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `rb_table_guests_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1921,7 +1959,7 @@ CREATE TABLE `rb_table_sessions` (
 	`order_id` varchar(36),
 	`status` enum('active','closed') NOT NULL DEFAULT 'active',
 	`expires_at` timestamp,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `rb_table_sessions_id` PRIMARY KEY(`id`),
 	CONSTRAINT `idx_rbts_token` UNIQUE(`token`)
 );
@@ -1936,8 +1974,8 @@ CREATE TABLE `rb_tables` (
 	`qr_code` varchar(500),
 	`notes` text,
 	`is_active` tinyint(1) NOT NULL DEFAULT 1,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	`merge_group` varchar(36),
 	CONSTRAINT `rb_tables_id` PRIMARY KEY(`id`),
 	CONSTRAINT `idx_rb_table_number` UNIQUE(`tenant_id`,`number`)
@@ -1955,8 +1993,8 @@ CREATE TABLE `re_clients` (
 	`source` varchar(100),
 	`assigned_agent_id` varchar(36),
 	`notes` text,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `re_clients_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1978,8 +2016,8 @@ CREATE TABLE `re_contracts` (
 	`status` enum('borrador','activo','vencido','renovado','terminado','cancelado') NOT NULL DEFAULT 'borrador',
 	`notes` text,
 	`created_by` varchar(36),
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `re_contracts_id` PRIMARY KEY(`id`),
 	CONSTRAINT `uq_re_contract_num` UNIQUE(`tenant_id`,`contract_number`)
 );
@@ -1993,7 +2031,7 @@ CREATE TABLE `re_lead_activities` (
 	`created_by` varchar(36),
 	`scheduled_at` datetime,
 	`completed` tinyint(1) NOT NULL DEFAULT 1,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `re_lead_activities_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -2015,8 +2053,8 @@ CREATE TABLE `re_leads` (
 	`property_id` varchar(36),
 	`notes` text,
 	`last_contact_at` timestamp,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `re_leads_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -2038,8 +2076,8 @@ CREATE TABLE `re_maintenances` (
 	`completed_at` datetime,
 	`evidence_urls` json,
 	`notes` text,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `re_maintenances_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -2057,8 +2095,8 @@ CREATE TABLE `re_owners` (
 	`bank_account` varchar(50),
 	`bank_account_type` enum('ahorros','corriente'),
 	`notes` text,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `re_owners_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -2096,8 +2134,8 @@ CREATE TABLE `re_properties` (
 	`cover_image_url` text,
 	`tags` json,
 	`seo_slug` varchar(255),
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `re_properties_id` PRIMARY KEY(`id`),
 	CONSTRAINT `uq_re_code` UNIQUE(`tenant_id`,`code`)
 );
@@ -2118,7 +2156,7 @@ CREATE TABLE `re_property_media` (
 	`caption` varchar(255),
 	`sort_order` smallint NOT NULL DEFAULT 0,
 	`is_cover` tinyint(1) NOT NULL DEFAULT 0,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `re_property_media_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -2138,8 +2176,8 @@ CREATE TABLE `re_rent_payments` (
 	`status` enum('pendiente','pagado','parcial','vencido') NOT NULL DEFAULT 'pendiente',
 	`receipt_url` text,
 	`notes` text,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `re_rent_payments_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -2157,8 +2195,8 @@ CREATE TABLE `re_visits` (
 	`feedback` text,
 	`rating` tinyint,
 	`notes` text,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `re_visits_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -2172,7 +2210,7 @@ CREATE TABLE `refresh_tokens` (
 	`revoke_reason` enum('logout','password_change','admin_revoke','rotation','suspicious'),
 	`ip_address` varchar(45),
 	`user_agent` varchar(500),
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `refresh_tokens_id` PRIMARY KEY(`id`),
 	CONSTRAINT `idx_rt_token_hash` UNIQUE(`token_hash`)
 );
@@ -2189,7 +2227,7 @@ CREATE TABLE `sale_items` (
 	`unit_price` decimal(12,2) NOT NULL,
 	`discount` decimal(5,2) NOT NULL DEFAULT '0.00',
 	`subtotal` decimal(12,2) NOT NULL,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	`cost_price` decimal(12,2),
 	`margin_pct` decimal(5,2),
 	`margin_amount` decimal(12,2),
@@ -2228,8 +2266,8 @@ CREATE TABLE `sales` (
 	`synced` tinyint(1) NOT NULL DEFAULT 1,
 	`synced_at` timestamp,
 	`origin` enum('local','cloud') NOT NULL DEFAULT 'cloud',
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `sales_id` PRIMARY KEY(`id`),
 	CONSTRAINT `idx_sale_tenant_invoice` UNIQUE(`tenant_id`,`invoice_number`)
 );
@@ -2245,7 +2283,7 @@ CREATE TABLE `seasonal_challenges` (
 	`ends_at` datetime NOT NULL,
 	`status` enum('active','cancelled') NOT NULL DEFAULT 'active',
 	`created_by` varchar(36),
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	`reward_unlock` varchar(80),
 	`settled_at` datetime,
 	`scope` varchar(12) NOT NULL DEFAULT 'individual',
@@ -2257,8 +2295,8 @@ CREATE TABLE `sedes` (
 	`tenant_id` varchar(36) NOT NULL,
 	`name` varchar(100) NOT NULL,
 	`address` varchar(500),
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `sedes_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -2283,7 +2321,7 @@ CREATE TABLE `service_blocked_periods` (
 	`start_time` time,
 	`end_time` time,
 	`reason` varchar(200),
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `service_blocked_periods_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -2307,8 +2345,8 @@ CREATE TABLE `service_bookings` (
 	`payment_status` enum('sin_pago','pendiente','pagado') NOT NULL DEFAULT 'sin_pago',
 	`amount_paid` decimal(12,2) NOT NULL DEFAULT '0.00',
 	`merchant_notes` text,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `service_bookings_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -2329,8 +2367,8 @@ CREATE TABLE `services` (
 	`is_active` tinyint(1) NOT NULL DEFAULT 1,
 	`is_published` tinyint(1) NOT NULL DEFAULT 0,
 	`sort_order` int NOT NULL DEFAULT 0,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `services_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -2342,7 +2380,7 @@ CREATE TABLE `shift_employee_bonuses` (
 	`type` enum('bono','descuento') NOT NULL,
 	`amount` decimal(10,2) NOT NULL DEFAULT '0.00',
 	`concept` varchar(255),
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `shift_employee_bonuses_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -2355,7 +2393,7 @@ CREATE TABLE `shift_employees` (
 	`role_label` varchar(50),
 	`status` enum('activo','baja') NOT NULL DEFAULT 'activo',
 	`baja_reason` varchar(255),
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `shift_employees_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -2370,7 +2408,7 @@ CREATE TABLE `stock_movements` (
 	`reason` varchar(255),
 	`reference_id` varchar(36),
 	`user_id` varchar(36),
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `stock_movements_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -2382,8 +2420,8 @@ CREATE TABLE `store_announcement_bar` (
 	`bg_color` varchar(20) DEFAULT '#f59e0b',
 	`text_color` varchar(20) DEFAULT '#000000',
 	`is_active` tinyint(1) DEFAULT 0,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	`scroll_speed` tinyint NOT NULL DEFAULT 3,
 	CONSTRAINT `store_announcement_bar_id` PRIMARY KEY(`id`),
 	CONSTRAINT `idx_announcement_tenant` UNIQUE(`tenant_id`)
@@ -2400,8 +2438,8 @@ CREATE TABLE `store_banners` (
 	`link_url` varchar(500),
 	`is_active` tinyint(1) DEFAULT 1,
 	`sort_order` int DEFAULT 0,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `store_banners_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -2413,8 +2451,8 @@ CREATE TABLE `store_custom_sections` (
 	`html_content` longtext,
 	`is_active` tinyint(1) NOT NULL DEFAULT 1,
 	`sort_order` int NOT NULL DEFAULT 0,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `store_custom_sections_id` PRIMARY KEY(`id`),
 	CONSTRAINT `idx_custom_section_slug` UNIQUE(`tenant_id`,`slug`)
 );
@@ -2438,8 +2476,8 @@ CREATE TABLE `store_drops` (
 	`starts_at` datetime NOT NULL,
 	`ends_at` datetime NOT NULL,
 	`is_active` tinyint(1) DEFAULT 1,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `store_drops_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -2448,7 +2486,7 @@ CREATE TABLE `store_featured_products` (
 	`tenant_id` varchar(36) NOT NULL,
 	`product_id` varchar(50) NOT NULL,
 	`sort_order` int DEFAULT 0,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `store_featured_products_id` PRIMARY KEY(`id`),
 	CONSTRAINT `idx_featured_tenant_product` UNIQUE(`tenant_id`,`product_id`)
 );
@@ -2494,7 +2532,7 @@ CREATE TABLE `store_info` (
 	`show_info_module` tinyint(1) NOT NULL DEFAULT 0,
 	`info_module_description` text,
 	`cart_min_purchase` int NOT NULL DEFAULT 0,
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	`contact_page_link_theme` varchar(20) DEFAULT 'theme1',
 	`enable_iva` tinyint(1) NOT NULL DEFAULT 0,
 	`meta_pixel_id` varchar(100),
@@ -2523,7 +2561,7 @@ CREATE TABLE `store_locations` (
 	`zone` varchar(50),
 	`description` text,
 	`is_active` tinyint(1) DEFAULT 1,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `store_locations_id` PRIMARY KEY(`id`),
 	CONSTRAINT `idx_location_tenant_code` UNIQUE(`tenant_id`,`code`)
 );
@@ -2536,8 +2574,8 @@ CREATE TABLE `store_order_bump` (
 	`title` varchar(255) NOT NULL DEFAULT '??Tambi??n te puede interesar?',
 	`max_items` int NOT NULL DEFAULT 3,
 	`product_ids` json,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `store_order_bump_id` PRIMARY KEY(`id`),
 	CONSTRAINT `idx_order_bump_tenant` UNIQUE(`tenant_id`)
 );
@@ -2597,8 +2635,8 @@ CREATE TABLE `storefront_orders` (
 	`dispatch_notes` text,
 	`dispatched_at` timestamp,
 	`client_user_id` varchar(36),
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	`data_encrypted` tinyint(1) NOT NULL DEFAULT 0,
 	`gateway_payment_id` varchar(100),
 	`refund_status` varchar(30),
@@ -2614,8 +2652,8 @@ CREATE TABLE `supplier_products` (
 	`lead_time_days` int DEFAULT 0,
 	`is_preferred` tinyint(1) DEFAULT 0,
 	`is_active` tinyint(1) DEFAULT 1,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `supplier_products_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -2633,8 +2671,8 @@ CREATE TABLE `suppliers` (
 	`payment_terms` varchar(100),
 	`notes` text,
 	`is_active` tinyint(1) DEFAULT 1,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `suppliers_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -2651,8 +2689,8 @@ CREATE TABLE `tenant_profile` (
 	`website` varchar(255),
 	`accent_color` varchar(16),
 	`is_published` tinyint(1) NOT NULL DEFAULT 0,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `tenant_profile_id` PRIMARY KEY(`id`),
 	CONSTRAINT `uq_profile_tenant` UNIQUE(`tenant_id`)
 );
@@ -2678,8 +2716,8 @@ CREATE TABLE `tenants` (
 	`reservations_max_advance_days` int NOT NULL DEFAULT 30,
 	`reservations_min_advance_hours` int NOT NULL DEFAULT 2,
 	`reservations_occasions` json,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	`module_realestate` tinyint(1) NOT NULL DEFAULT 0,
 	`realestate_enabled` tinyint(1) NOT NULL DEFAULT 0,
 	`module_workorders` tinyint(1) NOT NULL DEFAULT 0,
@@ -2715,8 +2753,8 @@ CREATE TABLE `theme4_config` (
 	`likes_count` int NOT NULL DEFAULT 0,
 	`saves_count` int NOT NULL DEFAULT 0,
 	`is_published` tinyint(1) NOT NULL DEFAULT 0,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `theme4_config_id` PRIMARY KEY(`id`),
 	CONSTRAINT `uq_theme4_tenant` UNIQUE(`tenant_id`)
 );
@@ -2755,7 +2793,7 @@ CREATE TABLE `theme4_reactions` (
 	`tenant_id` varchar(36) NOT NULL,
 	`user_id` varchar(36) NOT NULL,
 	`type` enum('like','save') NOT NULL,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `theme4_reactions_id` PRIMARY KEY(`id`),
 	CONSTRAINT `uq_t4react` UNIQUE(`tenant_id`,`user_id`,`type`)
 );
@@ -2854,8 +2892,8 @@ CREATE TABLE `trainer_bookings` (
 	`gateway_payment_id` varchar(255),
 	`started_at` datetime,
 	`expires_at` datetime,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `trainer_bookings_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -2868,7 +2906,7 @@ CREATE TABLE `trainer_commissions` (
 	`trainer_cop` decimal(14,2) NOT NULL,
 	`gateway_fee_cop` decimal(14,2) NOT NULL DEFAULT '0.00',
 	`status` enum('pending','available','paid') NOT NULL DEFAULT 'pending',
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	`release_at` datetime,
 	CONSTRAINT `trainer_commissions_id` PRIMARY KEY(`id`)
 );
@@ -2884,8 +2922,8 @@ CREATE TABLE `trainer_offers` (
 	`deliverables` json,
 	`media` json,
 	`is_active` tinyint(1) NOT NULL DEFAULT 1,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `trainer_offers_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -2896,7 +2934,7 @@ CREATE TABLE `trainer_reviews` (
 	`user_id` varchar(36) NOT NULL,
 	`rating` tinyint NOT NULL,
 	`comment` text,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `trainer_reviews_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -2908,7 +2946,7 @@ CREATE TABLE `trainer_withdrawals` (
 	`status` enum('requested','processing','paid','rejected') NOT NULL DEFAULT 'requested',
 	`processed_by` varchar(36),
 	`note` varchar(500),
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `trainer_withdrawals_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -2929,8 +2967,8 @@ CREATE TABLE `trainers` (
 	`rating_avg` decimal(3,2) NOT NULL DEFAULT '0.00',
 	`sessions_count` int NOT NULL DEFAULT 0,
 	`password_hash` varchar(255),
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `trainers_id` PRIMARY KEY(`id`),
 	CONSTRAINT `idx_tr_email` UNIQUE(`email`),
 	CONSTRAINT `idx_tr_handle` UNIQUE(`handle`)
@@ -2947,8 +2985,8 @@ CREATE TABLE `user_addresses` (
 	`delivery_latitude` decimal(10,7),
 	`delivery_longitude` decimal(10,7),
 	`is_default` tinyint(1) NOT NULL DEFAULT 0,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `user_addresses_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -2964,8 +3002,8 @@ CREATE TABLE `users` (
 	`is_active` tinyint(1) NOT NULL DEFAULT 1,
 	`can_login` tinyint(1) NOT NULL DEFAULT 1,
 	`cargo_id` varchar(36),
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	`auth_provider` enum('local','google') NOT NULL DEFAULT 'local',
 	`google_id` varchar(255),
 	`cedula` varchar(500),
@@ -2994,8 +3032,8 @@ CREATE TABLE `variant_price_tiers` (
 	`price` decimal(12,2) NOT NULL,
 	`tenant_margin_pct` decimal(5,2) DEFAULT '0.00',
 	`is_active` tinyint(1) DEFAULT 1,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `variant_price_tiers_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -3004,7 +3042,7 @@ CREATE TABLE `vault_key_redemptions` (
 	`vault_key_id` varchar(36) NOT NULL,
 	`user_id` varchar(36) NOT NULL,
 	`zero_party_data` json,
-	`redeemed_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`redeemed_at` timestamp DEFAULT (now()),
 	CONSTRAINT `vault_key_redemptions_id` PRIMARY KEY(`id`),
 	CONSTRAINT `idx_vkr_unique` UNIQUE(`vault_key_id`,`user_id`)
 );
@@ -3023,7 +3061,7 @@ CREATE TABLE `vault_keys` (
 	`status` enum('active','disabled') NOT NULL DEFAULT 'active',
 	`created_by` varchar(36),
 	`created_by_affiliate_id` varchar(36),
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `vault_keys_id` PRIMARY KEY(`id`),
 	CONSTRAINT `idx_vk_code` UNIQUE(`code`)
 );
@@ -3045,7 +3083,7 @@ CREATE TABLE `waste_records` (
 	`photo_url` varchar(500),
 	`recorded_by` varchar(36) NOT NULL,
 	`recorded_by_name` varchar(100) NOT NULL,
-	`created_at` timestamp NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp NOT NULL DEFAULT (now()),
 	CONSTRAINT `waste_records_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -3061,8 +3099,8 @@ CREATE TABLE `wompi_transactions` (
 	`wompi_id` varchar(80),
 	`customer_email` varchar(255),
 	`payload` json,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `wompi_transactions_reference` PRIMARY KEY(`reference`)
 );
 --> statement-breakpoint
@@ -3077,7 +3115,7 @@ CREATE TABLE `work_order_materials` (
 	`unit_cost` decimal(12,2) NOT NULL DEFAULT '0.00',
 	`total_cost` decimal(12,2) NOT NULL DEFAULT '0.00',
 	`notes` text,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `work_order_materials_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -3089,7 +3127,7 @@ CREATE TABLE `work_order_payments` (
 	`payment_method` enum('efectivo','tarjeta','transferencia','nequi','otro') NOT NULL DEFAULT 'efectivo',
 	`notes` text,
 	`received_by` varchar(36),
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `work_order_payments_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -3115,7 +3153,7 @@ CREATE TABLE `work_orders` (
 	`fabric_description` varchar(300),
 	`quoted_price` decimal(12,2) NOT NULL DEFAULT '0.00',
 	`advance_paid` decimal(12,2) NOT NULL DEFAULT '0.00',
-	`received_at` timestamp NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+	`received_at` timestamp NOT NULL DEFAULT (now()),
 	`promised_at` date,
 	`delivered_at` timestamp,
 	`status` enum('recibido','cotizado','aprobado','en_proceso','listo','entregado','cancelado') NOT NULL DEFAULT 'recibido',
@@ -3125,8 +3163,8 @@ CREATE TABLE `work_orders` (
 	`photos_in` json,
 	`photos_out` json,
 	`created_by` varchar(36),
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `work_orders_id` PRIMARY KEY(`id`),
 	CONSTRAINT `idx_wo_number` UNIQUE(`tenant_id`,`order_number`)
 );
@@ -3143,7 +3181,7 @@ CREATE TABLE `workout_exercises` (
 	`suggested_weight` decimal(8,2) NOT NULL DEFAULT '0.00',
 	`movement_pattern` varchar(10),
 	`completed` tinyint(1) NOT NULL DEFAULT 0,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `workout_exercises_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -3158,8 +3196,8 @@ CREATE TABLE `workout_sessions` (
 	`duration_seconds` int,
 	`total_volume` decimal(12,2) NOT NULL DEFAULT '0.00',
 	`current_exercise_index` int NOT NULL DEFAULT 0,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` timestamp DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP,
+	`created_at` timestamp DEFAULT (now()),
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `workout_sessions_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -3174,7 +3212,7 @@ CREATE TABLE `workout_sets` (
 	`used_weight` decimal(8,2),
 	`completed` tinyint(1) NOT NULL DEFAULT 0,
 	`completed_at` datetime,
-	`created_at` timestamp DEFAULT (CURRENT_TIMESTAMP),
+	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `workout_sets_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -3515,6 +3553,9 @@ CREATE INDEX `idx_fleet_tenant` ON `fleet_vehicles` (`tenant_id`);--> statement-
 CREATE INDEX `idx_fleet_status` ON `fleet_vehicles` (`status`);--> statement-breakpoint
 CREATE INDEX `idx_fleet_type` ON `fleet_vehicles` (`type`);--> statement-breakpoint
 CREATE INDEX `idx_gm_guild` ON `guild_members` (`guild_id`);--> statement-breakpoint
+CREATE INDEX `idx_hc_tenant` ON `horma_colors` (`tenant_id`);--> statement-breakpoint
+CREATE INDEX `idx_hc_horma` ON `horma_colors` (`horma_id`,`tenant_id`);--> statement-breakpoint
+CREATE INDEX `idx_hormas_tenant` ON `hormas` (`tenant_id`,`is_active`);--> statement-breakpoint
 CREATE INDEX `idx_ih_order` ON `inventory_holds` (`order_id`);--> statement-breakpoint
 CREATE INDEX `idx_ih_tenant` ON `inventory_holds` (`tenant_id`);--> statement-breakpoint
 CREATE INDEX `idx_ih_product_tenant` ON `inventory_holds` (`product_id`,`tenant_id`);--> statement-breakpoint
@@ -3569,6 +3610,7 @@ CREATE INDEX `idx_pv_product` ON `product_variants` (`product_id`);--> statement
 CREATE INDEX `idx_pv_tenant_product` ON `product_variants` (`tenant_id`,`product_id`);--> statement-breakpoint
 CREATE INDEX `idx_pv_supplier` ON `product_variants` (`supplier_id`);--> statement-breakpoint
 CREATE INDEX `idx_pv_sku` ON `product_variants` (`tenant_id`,`sku`);--> statement-breakpoint
+CREATE INDEX `idx_pv_horma` ON `product_variants` (`horma_id`);--> statement-breakpoint
 CREATE INDEX `supplier_id` ON `products` (`supplier_id`);--> statement-breakpoint
 CREATE INDEX `idx_product_tenant` ON `products` (`tenant_id`);--> statement-breakpoint
 CREATE INDEX `idx_category` ON `products` (`category`);--> statement-breakpoint
@@ -3579,6 +3621,7 @@ CREATE INDEX `idx_products_delivery` ON `products` (`tenant_id`,`delivery_type`)
 CREATE INDEX `idx_products_preorder` ON `products` (`tenant_id`,`is_preorder`);--> statement-breakpoint
 CREATE INDEX `idx_menu_item` ON `products` (`tenant_id`,`is_menu_item`,`available_in_menu`);--> statement-breakpoint
 CREATE INDEX `idx_prep_area` ON `products` (`tenant_id`,`preparation_area`);--> statement-breakpoint
+CREATE INDEX `idx_products_horma` ON `products` (`horma_id`);--> statement-breakpoint
 CREATE INDEX `idx_psection_tenant` ON `profile_sections` (`tenant_id`,`order_index`);--> statement-breakpoint
 CREATE INDEX `idx_psection_active` ON `profile_sections` (`tenant_id`,`is_active`);--> statement-breakpoint
 CREATE INDEX `tenant_id` ON `purchase_invoice_items` (`tenant_id`);--> statement-breakpoint
