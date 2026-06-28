@@ -18,9 +18,12 @@ const THEME_COLORS_KEY = (tenantId: string) => `store_theme_colors:${tenantId}`;
  * estén publicados. `alias` es el alias de la tabla products en la query (normalmente "p").
  */
 function stockVisibleSql(alias: string = 'p'): string {
-  return `(${alias}.stock > 0 OR ${alias}.is_preorder = 1 OR EXISTS (
+  return `(${alias}.stock > 0
+    OR COALESCE(${alias}.is_presale, 0) = 1
+    OR EXISTS (
         SELECT 1 FROM product_variants pv
-        WHERE pv.product_id = ${alias}.id AND pv.is_active = 1 AND (pv.stock - pv.reserved_stock) > 0
+        WHERE pv.product_id = ${alias}.id AND pv.is_active = 1
+          AND ((pv.stock - pv.reserved_stock) > 0 OR pv.presale = 1)
       ))`;
 }
 
@@ -75,8 +78,15 @@ async function attachVariants<T extends { id: any }>(
     const [variantRows] = await pool.query(
       `SELECT pv.id, pv.product_id, pv.sku, pv.color, pv.color_hex AS colorHex, pv.size, pv.material,
               pv.stock, pv.reserved_stock, pv.cost_price, pv.price_override,
-              pv.images, pv.sort_order, pv.preorder_limit AS preorderLimit, pv.preorder_count AS preorderCount,
+              pv.images, pv.sort_order,
+              COALESCE(pv.presale, 0) AS presale,
+              pv.presale_date AS presaleDate,
+              pv.presale_limit AS presaleLimit,
+              COALESCE(pv.presale_sold, 0) AS presaleSold,
+              COALESCE(pv.presale_deposit_pct, 50) AS presaleDepositPct,
               pv.horma_id AS hormaId, h.name AS hormaName,
+              h.base_price AS hormaBasePrice,
+              h.weight_grams AS hormaWeightGrams, h.composition AS hormaComposition,
               (SELECT MIN(vpt.price) FROM variant_price_tiers vpt
                WHERE vpt.variant_id = pv.id AND vpt.is_active = 1) AS min_price,
               (SELECT JSON_ARRAYAGG(
@@ -214,7 +224,12 @@ router.get(
         const [r] = await pool.query(
           `SELECT
             p.id, p.name, p.category, p.brand, p.description,
-            p.sale_price as salePrice, p.image_url as imageUrl,
+            COALESCE(
+              (SELECT MIN(pv.price_override) FROM product_variants pv
+               WHERE pv.product_id = p.id AND pv.tenant_id = p.tenant_id AND pv.price_override > 0 AND pv.is_active = 1),
+              NULLIF(p.sale_price, 0)
+            ) as salePrice,
+            p.image_url as imageUrl,
             p.image_urls as images,
             p.stock, p.color, p.size, p.gender,
             p.is_on_offer as isOnOffer, p.offer_price as offerPrice,
@@ -226,18 +241,19 @@ router.get(
             p.weight as weight,
             p.hardware_weight_unit as hardwareWeightUnit,
             p.tenant_id as tenantId, t.name as storeName, t.slug as storeSlug,
-            IF(p.is_preorder, 1, 0) as isPreorder,
-            p.preorder_window_end as preorderWindowEnd,
-            p.preorder_ship_start as preorderShipStart,
-            p.preorder_ship_end as preorderShipEnd,
-            p.preorder_badge_text as preorderBadgeText,
-            p.preorder_policy_text as preorderPolicyText,
+            IF(COALESCE(p.is_presale, 0), 1, 0) as isPresale,
+            p.presale_window_end as presaleWindowEnd,
+            p.presale_ship_start as presaleShipStart,
+            p.presale_ship_end as presaleShipEnd,
+            COALESCE(p.presale_badge_text, 'Pre-orden') as presaleBadgeText,
+            p.presale_policy_text as presalePolicyText,
+            COALESCE(p.presale_deposit_pct, 50) as presaleDepositPct,
             p.qty_promo as qtyPromo
           FROM products p
           LEFT JOIN tenants t ON t.id = p.tenant_id
           ${joinStoreInfo}
           ${whereClause}
-          ORDER BY p.is_on_offer DESC, p.is_preorder DESC, p.name ASC
+          ORDER BY p.is_on_offer DESC, COALESCE(p.is_presale, 0) DESC, p.name ASC
           LIMIT ? OFFSET ?`,
           [...params, limit, offset]
         ) as any;
@@ -247,7 +263,12 @@ router.get(
         const [r] = await pool.query(
           `SELECT
             p.id, p.name, p.category, p.brand, p.description,
-            p.sale_price as salePrice, p.image_url as imageUrl,
+            COALESCE(
+              (SELECT MIN(pv.price_override) FROM product_variants pv
+               WHERE pv.product_id = p.id AND pv.tenant_id = p.tenant_id AND pv.price_override > 0 AND pv.is_active = 1),
+              NULLIF(p.sale_price, 0)
+            ) as salePrice,
+            p.image_url as imageUrl,
             p.image_urls as images,
             p.stock, p.color, p.size, p.gender,
             p.is_on_offer as isOnOffer, p.offer_price as offerPrice,
@@ -259,12 +280,13 @@ router.get(
             p.weight as weight,
             NULL as hardwareWeightUnit,
             p.tenant_id as tenantId, t.name as storeName, t.slug as storeSlug,
-            0 as isPreorder,
-            NULL as preorderWindowEnd,
-            NULL as preorderShipStart,
-            NULL as preorderShipEnd,
-            'Pre-orden' as preorderBadgeText,
-            NULL as preorderPolicyText
+            0 as isPresale,
+            NULL as presaleWindowEnd,
+            NULL as presaleShipStart,
+            NULL as presaleShipEnd,
+            'Precompra' as presaleBadgeText,
+            NULL as presalePolicyText,
+            50 as presaleDepositPct
           FROM products p
           LEFT JOIN tenants t ON t.id = p.tenant_id
           ${fallbackWhereClause}
@@ -570,23 +592,39 @@ router.get(
 
       let rows: any[];
       try {
-        // Full query with all new columns (delivery_type, is_new_launch, launch_date, preorder)
+        // Full query with all new columns (delivery_type, is_new_launch, launch_date, precompra, variant filters)
         const [r] = await pool.query(
-          `SELECT id, name, category, brand, sale_price as salePrice, image_url as imageUrl,
+          `SELECT id, name, category, brand,
+                  COALESCE(
+                    (SELECT MIN(pv.price_override) FROM product_variants pv
+                     WHERE pv.product_id = p.id AND pv.tenant_id = p.tenant_id AND pv.price_override > 0 AND pv.is_active = 1),
+                    NULLIF(sale_price, 0)
+                  ) as salePrice,
+                  image_url as imageUrl,
                   stock, IF(published_in_store, 1, 0) as publishedInStore,
                   IF(is_on_offer, 1, 0) as isOnOffer,
                   offer_price as offerPrice, offer_label as offerLabel, offer_end as offerEnd,
                   IF(available_for_delivery, 1, 0) as availableForDelivery,
                   delivery_type as deliveryType,
                   IF(is_new_launch, 1, 0) as isNewLaunch, launch_date as launchDate,
-                  IF(is_preorder, 1, 0) as isPreorder,
-                  preorder_window_end as preorderWindowEnd,
-                  preorder_ship_start as preorderShipStart,
-                  preorder_ship_end as preorderShipEnd,
-                  preorder_badge_text as preorderBadgeText
-           FROM products
-           WHERE tenant_id = ?
-           ORDER BY name ASC`,
+                  IF(COALESCE(is_presale, 0), 1, 0) as isPresale,
+                  presale_window_end as presaleWindowEnd,
+                  presale_ship_start as presaleShipStart,
+                  presale_ship_end as presaleShipEnd,
+                  COALESCE(presale_badge_text, 'Pre-orden') as presaleBadgeText,
+                  COALESCE(presale_deposit_pct, 50) as presaleDepositPct,
+                  (SELECT GROUP_CONCAT(DISTINCT pv2.color ORDER BY pv2.color SEPARATOR ',')
+                   FROM product_variants pv2
+                   WHERE pv2.product_id = p.id AND pv2.is_active = 1 AND pv2.color IS NOT NULL AND pv2.color != '') as variantColors,
+                  (SELECT GROUP_CONCAT(DISTINCT pv2.size ORDER BY pv2.size SEPARATOR ',')
+                   FROM product_variants pv2
+                   WHERE pv2.product_id = p.id AND pv2.is_active = 1 AND pv2.size IS NOT NULL AND pv2.size != '') as variantSizes,
+                  (SELECT GROUP_CONCAT(DISTINCT h.name ORDER BY h.sort_order SEPARATOR ',')
+                   FROM product_variants pv2 JOIN hormas h ON pv2.horma_id = h.id
+                   WHERE pv2.product_id = p.id AND pv2.is_active = 1) as variantHormas
+           FROM products p
+           WHERE p.tenant_id = ?
+           ORDER BY p.name ASC`,
           [tenantId]
         ) as any;
         rows = r;
@@ -594,26 +632,39 @@ router.get(
         try {
           // Fallback 1: without delivery_type
           const [r] = await pool.query(
-            `SELECT id, name, category, brand, sale_price as salePrice, image_url as imageUrl,
+            `SELECT id, name, category, brand,
+                    COALESCE(
+                      (SELECT MIN(pv.price_override) FROM product_variants pv
+                       WHERE pv.product_id = p.id AND pv.tenant_id = p.tenant_id AND pv.price_override > 0 AND pv.is_active = 1),
+                      NULLIF(sale_price, 0)
+                    ) as salePrice,
+                    image_url as imageUrl,
                     stock, IF(published_in_store, 1, 0) as publishedInStore,
                     IF(is_on_offer, 1, 0) as isOnOffer,
                     offer_price as offerPrice, offer_label as offerLabel, offer_end as offerEnd,
                     IF(available_for_delivery, 1, 0) as availableForDelivery,
                     NULL as deliveryType,
-                    IF(is_new_launch, 1, 0) as isNewLaunch, launch_date as launchDate,
-                    IF(is_preorder, 1, 0) as isPreorder,
-                    preorder_window_end as preorderWindowEnd,
-                    preorder_ship_start as preorderShipStart,
-                    preorder_ship_end as preorderShipEnd,
-                    preorder_badge_text as preorderBadgeText
-             FROM products
-             WHERE tenant_id = ?
-             ORDER BY name ASC`,
+                    0 as isNewLaunch, NULL as launchDate,
+                    0 as isPresale, NULL as presaleWindowEnd,
+                    NULL as presaleShipStart, NULL as presaleShipEnd,
+                    'Precompra' as presaleBadgeText, 50 as presaleDepositPct,
+                    (SELECT GROUP_CONCAT(DISTINCT pv2.color ORDER BY pv2.color SEPARATOR ',')
+                     FROM product_variants pv2
+                     WHERE pv2.product_id = p.id AND pv2.is_active = 1 AND pv2.color IS NOT NULL AND pv2.color != '') as variantColors,
+                    (SELECT GROUP_CONCAT(DISTINCT pv2.size ORDER BY pv2.size SEPARATOR ',')
+                     FROM product_variants pv2
+                     WHERE pv2.product_id = p.id AND pv2.is_active = 1 AND pv2.size IS NOT NULL AND pv2.size != '') as variantSizes,
+                    (SELECT GROUP_CONCAT(DISTINCT h.name ORDER BY h.sort_order SEPARATOR ',')
+                     FROM product_variants pv2 JOIN hormas h ON pv2.horma_id = h.id
+                     WHERE pv2.product_id = p.id AND pv2.is_active = 1) as variantHormas
+             FROM products p
+             WHERE p.tenant_id = ?
+             ORDER BY p.name ASC`,
             [tenantId]
           ) as any;
           rows = r;
         } catch {
-          // Fallback 2: without delivery_type, is_new_launch, launch_date, or preorder
+          // Fallback 2: mínimo absoluto
           const [r] = await pool.query(
             `SELECT id, name, category, brand, sale_price as salePrice, image_url as imageUrl,
                     stock, IF(published_in_store, 1, 0) as publishedInStore,
@@ -622,9 +673,9 @@ router.get(
                     IF(available_for_delivery, 1, 0) as availableForDelivery,
                     NULL as deliveryType,
                     0 as isNewLaunch, NULL as launchDate,
-                    0 as isPreorder, NULL as preorderWindowEnd,
-                    NULL as preorderShipStart, NULL as preorderShipEnd,
-                    NULL as preorderBadgeText
+                    0 as isPresale, NULL as presaleWindowEnd,
+                    NULL as presaleShipStart, NULL as presaleShipEnd,
+                    'Precompra' as presaleBadgeText, 50 as presaleDepositPct
              FROM products
              WHERE tenant_id = ?
              ORDER BY name ASC`,
@@ -641,7 +692,7 @@ router.get(
         isOnOffer: Number(r.isOnOffer) === 1,
         availableForDelivery: Number(r.availableForDelivery) === 1,
         isNewLaunch: Number(r.isNewLaunch) === 1,
-        isPreorder: Number(r.isPreorder) === 1,
+        isPresale: Number(r.isPresale) === 1,
       }));
 
       res.json({ success: true, data });
@@ -729,7 +780,7 @@ router.get('/offers', async (req: Request, res: Response) => {
     const [rows] = await pool.query(
       `SELECT
         p.id, p.name, p.category, p.brand, p.description,
-        p.sale_price as salePrice, p.offer_price as offerPrice,
+        COALESCE((SELECT MIN(pv2.price_override) FROM product_variants pv2 WHERE pv2.product_id = p.id AND pv2.tenant_id = p.tenant_id AND pv2.price_override > 0 AND pv2.is_active = 1), NULLIF(p.sale_price, 0)) as salePrice, p.offer_price as offerPrice,
         p.image_url as imageUrl, p.image_urls as images,
         p.stock, p.color, p.size, p.gender,
         p.offer_label as offerLabel, p.offer_end as offerEnd,
@@ -823,7 +874,7 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
     try {
       const [rows] = await pool.query(
         `SELECT p.id, p.name, p.category, p.brand, p.description,
-                p.sale_price as salePrice, p.image_url as imageUrl, p.image_urls as images,
+                COALESCE((SELECT MIN(pv2.price_override) FROM product_variants pv2 WHERE pv2.product_id = p.id AND pv2.tenant_id = p.tenant_id AND pv2.price_override > 0 AND pv2.is_active = 1), NULLIF(p.sale_price, 0)) as salePrice, p.image_url as imageUrl, p.image_urls as images,
                 p.stock, p.color, p.size, p.gender,
                 p.is_on_offer as isOnOffer, p.offer_price as offerPrice,
                 p.offer_label as offerLabel,
@@ -844,7 +895,7 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
     // Trending products (most recently published, on offer first)
     const [trending] = await pool.query(
       `SELECT p.id, p.name, p.category, p.brand, p.description,
-              p.sale_price as salePrice, p.image_url as imageUrl, p.image_urls as images,
+              COALESCE((SELECT MIN(pv2.price_override) FROM product_variants pv2 WHERE pv2.product_id = p.id AND pv2.tenant_id = p.tenant_id AND pv2.price_override > 0 AND pv2.is_active = 1), NULLIF(p.sale_price, 0)) as salePrice, p.image_url as imageUrl, p.image_urls as images,
               p.stock, p.color, p.size, p.gender,
               p.is_on_offer as isOnOffer, p.offer_price as offerPrice,
               p.offer_label as offerLabel,
@@ -961,7 +1012,7 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
         const drop = drops[0];
         const [dropProducts] = await pool.query(
           `SELECT p.id, p.name, p.category, p.brand, p.description,
-                  p.sale_price as salePrice, p.image_url as imageUrl, p.image_urls as images,
+                  COALESCE((SELECT MIN(pv2.price_override) FROM product_variants pv2 WHERE pv2.product_id = p.id AND pv2.tenant_id = p.tenant_id AND pv2.price_override > 0 AND pv2.is_active = 1), NULLIF(p.sale_price, 0)) as salePrice, p.image_url as imageUrl, p.image_urls as images,
                   p.stock, p.color, p.size, p.gender,
                   sdp.custom_discount as customDiscount,
                   ROUND(p.sale_price * (1 - COALESCE(sdp.custom_discount, ?) / 100)) as finalPrice,
@@ -984,7 +1035,7 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
     try {
       const [rows] = await pool.query(
         `SELECT p.id, p.name, p.category, p.brand, p.description,
-                p.sale_price as salePrice, p.image_url as imageUrl, p.image_urls as images,
+                COALESCE((SELECT MIN(pv2.price_override) FROM product_variants pv2 WHERE pv2.product_id = p.id AND pv2.tenant_id = p.tenant_id AND pv2.price_override > 0 AND pv2.is_active = 1), NULLIF(p.sale_price, 0)) as salePrice, p.image_url as imageUrl, p.image_urls as images,
                 p.stock, p.color, p.size, p.gender,
                 p.is_on_offer as isOnOffer, p.offer_price as offerPrice,
                 p.offer_label as offerLabel, p.launch_date as launchDate,
@@ -1405,7 +1456,7 @@ router.get('/customization', authenticate, requirePlan('empresarial'), async (re
 
     const [featured] = await pool.query(
       `SELECT sfp.id, sfp.product_id as productId, sfp.sort_order as sortOrder,
-              p.name, p.image_url as imageUrl, p.sale_price as salePrice
+              p.name, p.image_url as imageUrl, COALESCE((SELECT MIN(pv2.price_override) FROM product_variants pv2 WHERE pv2.product_id = p.id AND pv2.tenant_id = p.tenant_id AND pv2.price_override > 0 AND pv2.is_active = 1), NULLIF(p.sale_price, 0)) as salePrice
        FROM store_featured_products sfp
        INNER JOIN products p ON p.id = sfp.product_id
        WHERE sfp.tenant_id = ?
@@ -1553,7 +1604,7 @@ router.get('/customization', authenticate, requirePlan('empresarial'), async (re
       try {
         const [dpRows] = await pool.query(
           `SELECT sdp.product_id as productId, sdp.custom_discount as customDiscount,
-                  p.name, p.image_url as imageUrl, p.sale_price as salePrice
+                  p.name, p.image_url as imageUrl, COALESCE((SELECT MIN(pv2.price_override) FROM product_variants pv2 WHERE pv2.product_id = p.id AND pv2.tenant_id = p.tenant_id AND pv2.price_override > 0 AND pv2.is_active = 1), NULLIF(p.sale_price, 0)) as salePrice
            FROM store_drop_products sdp
            INNER JOIN products p ON p.id = sdp.product_id
            WHERE sdp.drop_id = ?`,
@@ -2212,7 +2263,7 @@ router.get('/drop/:dropId', async (req: Request, res: Response) => {
 
     const [products] = await pool.query(
       `SELECT p.id, p.name, p.category, p.brand, p.description,
-              p.sale_price as salePrice, p.image_url as imageUrl, p.stock,
+              COALESCE((SELECT MIN(pv2.price_override) FROM product_variants pv2 WHERE pv2.product_id = p.id AND pv2.tenant_id = p.tenant_id AND pv2.price_override > 0 AND pv2.is_active = 1), NULLIF(p.sale_price, 0)) as salePrice, p.image_url as imageUrl, p.stock,
               p.color, p.size, p.gender,
               sdp.custom_discount as customDiscount,
               ROUND(p.sale_price * (1 - COALESCE(sdp.custom_discount, ?) / 100)) as finalPrice
@@ -2405,7 +2456,7 @@ router.get('/order-bump', async (req: Request, res: Response) => {
         const placeholders = manualIds.map(() => '?').join(',');
         const [rows] = await pool.query(
           `SELECT p.id, p.name, p.category, p.brand, p.description,
-                  p.sale_price as salePrice, p.image_url as imageUrl, p.stock,
+                  COALESCE((SELECT MIN(pv2.price_override) FROM product_variants pv2 WHERE pv2.product_id = p.id AND pv2.tenant_id = p.tenant_id AND pv2.price_override > 0 AND pv2.is_active = 1), NULLIF(p.sale_price, 0)) as salePrice, p.image_url as imageUrl, p.stock,
                   p.is_on_offer as isOnOffer, p.offer_price as offerPrice, p.offer_label as offerLabel
            FROM products p
            WHERE p.id IN (${placeholders}) AND p.tenant_id = ? AND p.published_in_store = 1 AND ${stockVisibleSql('p')}
@@ -2436,7 +2487,7 @@ router.get('/order-bump', async (req: Request, res: Response) => {
 
       const [rows] = await pool.query(
         `SELECT p.id, p.name, p.category, p.brand, p.description,
-                p.sale_price as salePrice, p.image_url as imageUrl, p.stock,
+                COALESCE((SELECT MIN(pv2.price_override) FROM product_variants pv2 WHERE pv2.product_id = p.id AND pv2.tenant_id = p.tenant_id AND pv2.price_override > 0 AND pv2.is_active = 1), NULLIF(p.sale_price, 0)) as salePrice, p.image_url as imageUrl, p.stock,
                 p.is_on_offer as isOnOffer, p.offer_price as offerPrice, p.offer_label as offerLabel
          FROM products p
          WHERE ${whereClause}
@@ -2458,7 +2509,7 @@ router.get('/order-bump', async (req: Request, res: Response) => {
         fallbackParams.push(maxItems);
         const [fallback] = await pool.query(
           `SELECT p.id, p.name, p.category, p.brand, p.description,
-                  p.sale_price as salePrice, p.image_url as imageUrl, p.stock,
+                  COALESCE((SELECT MIN(pv2.price_override) FROM product_variants pv2 WHERE pv2.product_id = p.id AND pv2.tenant_id = p.tenant_id AND pv2.price_override > 0 AND pv2.is_active = 1), NULLIF(p.sale_price, 0)) as salePrice, p.image_url as imageUrl, p.stock,
                   p.is_on_offer as isOnOffer, p.offer_price as offerPrice, p.offer_label as offerLabel
            FROM products p WHERE ${fallbackWhere}
            ORDER BY p.is_on_offer DESC, p.updated_at DESC LIMIT ?`,
@@ -2537,7 +2588,7 @@ router.get('/new-launches', async (req: Request, res: Response) => {
     const [rows] = await pool.query(
       `SELECT
         p.id, p.name, p.category, p.brand, p.description,
-        p.sale_price as salePrice, p.image_url as imageUrl,
+        COALESCE((SELECT MIN(pv2.price_override) FROM product_variants pv2 WHERE pv2.product_id = p.id AND pv2.tenant_id = p.tenant_id AND pv2.price_override > 0 AND pv2.is_active = 1), NULLIF(p.sale_price, 0)) as salePrice, p.image_url as imageUrl,
         p.stock, p.color, p.size, p.gender,
         p.is_on_offer as isOnOffer, p.offer_price as offerPrice,
         p.offer_label as offerLabel, p.launch_date as launchDate,
@@ -2673,7 +2724,7 @@ router.get('/recommended', authenticate, async (req: Request, res: Response) => 
 
     const [rows] = await pool.query(
       `SELECT p.id, p.name, p.category, p.brand, p.description,
-              p.sale_price as salePrice, p.image_url as imageUrl, p.images,
+              COALESCE((SELECT MIN(pv2.price_override) FROM product_variants pv2 WHERE pv2.product_id = p.id AND pv2.tenant_id = p.tenant_id AND pv2.price_override > 0 AND pv2.is_active = 1), NULLIF(p.sale_price, 0)) as salePrice, p.image_url as imageUrl, p.images,
               p.is_on_offer as isOnOffer, p.offer_price as offerPrice,
               p.tenant_id as tenantId, t.name as storeName, t.slug as storeSlug
          FROM products p
@@ -2760,7 +2811,7 @@ router.get('/platform-featured', async (req: Request, res: Response) => {
     const placeholders = ids.map(() => '?').join(',');
     const [rows] = await pool.query(
       `SELECT p.id, p.name, p.category, p.brand, p.description,
-        p.sale_price as salePrice, p.image_url as imageUrl, p.images,
+        COALESCE((SELECT MIN(pv2.price_override) FROM product_variants pv2 WHERE pv2.product_id = p.id AND pv2.tenant_id = p.tenant_id AND pv2.price_override > 0 AND pv2.is_active = 1), NULLIF(p.sale_price, 0)) as salePrice, p.image_url as imageUrl, p.images,
         p.stock, p.color, p.size, p.gender,
         p.is_on_offer as isOnOffer, p.offer_price as offerPrice,
         p.offer_label as offerLabel, p.product_type as productType,

@@ -36,7 +36,8 @@ interface Props {
 const MAX_VARIANT_IMAGES = 4
 const EMPTY_VARIANT = {
   sku: '', color: '', colorHex: '', size: '', material: '', stock: 0, minStock: 0, costPrice: '', priceOverride: '',
-  images: ['', '', '', ''] as string[], preorderLimit: '', hormaId: '',
+  images: ['', '', '', ''] as string[], hormaId: '',
+  presale: false, presaleDate: '', presaleLimit: '', presaleDepositPct: '50',
 }
 const EMPTY_TIER    = { minQty: 1, price: '', tenantMarginPct: 0 }
 
@@ -275,8 +276,11 @@ export function VariantManager({ productId, productName, hormaId, open, onClose 
       minStock: v.minStock, costPrice: v.costPrice?.toString() || '',
       priceOverride: v.priceOverride?.toString() || '',
       images: [imgs[0] || '', imgs[1] || '', imgs[2] || '', imgs[3] || ''],
-      preorderLimit: v.preorderLimit != null ? String(v.preorderLimit) : '',
       hormaId: v.hormaId || '',
+      presale: !!(v.presale),
+      presaleDate: v.presaleDate ?? '',
+      presaleLimit: v.presaleLimit != null ? String(v.presaleLimit) : '',
+      presaleDepositPct: v.presaleDepositPct != null ? String(v.presaleDepositPct) : '50',
     })
     setEditingVariant(v)
     setShowAddVariant(true)
@@ -298,7 +302,10 @@ export function VariantManager({ productId, productName, hormaId, open, onClose 
         costPrice: variantForm.costPrice ? Number(variantForm.costPrice) : undefined,
         priceOverride: variantForm.priceOverride ? Number(variantForm.priceOverride) : undefined,
         images: variantForm.images.map(u => u.trim()).filter(Boolean).slice(0, MAX_VARIANT_IMAGES),
-        preorderLimit: variantForm.preorderLimit !== '' ? Number(variantForm.preorderLimit) : null,
+        presale: variantForm.presale,
+        presaleDate: variantForm.presaleDate || null,
+        presaleLimit: variantForm.presaleLimit !== '' ? Number(variantForm.presaleLimit) : null,
+        presaleDepositPct: variantForm.presaleDepositPct !== '' ? Number(variantForm.presaleDepositPct) : 50,
       }
       const result = editingVariant
         ? await api.updateVariant(editingVariant.id, payload)
@@ -668,8 +675,11 @@ export function VariantManager({ productId, productName, hormaId, open, onClose 
                           >
                             Stock: {v.stock}
                           </Badge>
+                          {v.costPrice != null && (
+                            <span className="text-xs text-muted-foreground">Costo: {formatCOP(v.costPrice)}</span>
+                          )}
                           {v.priceOverride != null && (
-                            <span className="text-xs text-muted-foreground">{formatCOP(v.priceOverride)}</span>
+                            <span className="text-xs font-semibold text-primary">Venta: {formatCOP(v.priceOverride)}</span>
                           )}
                           {v.priceTiers && v.priceTiers.length > 0 && (
                             <Badge variant="outline" className="text-xs gap-1">
@@ -818,20 +828,64 @@ export function VariantManager({ productId, productName, hormaId, open, onClose 
                   onChange={e => setVariantForm(p => ({ ...p, minStock: Number(e.target.value) }))} />
               </div>
               <div>
-                <Label className="text-xs">Costo (proveedor)</Label>
-                <Input type="number" min={0} placeholder="0" value={variantForm.costPrice}
-                  onChange={e => setVariantForm(p => ({ ...p, costPrice: e.target.value }))} />
+                <Label className="text-xs">Precio compra / costo</Label>
+                <div className="relative">
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">$</span>
+                  <Input type="number" min={0} placeholder="0" value={variantForm.costPrice}
+                    onChange={e => setVariantForm(p => ({ ...p, costPrice: e.target.value }))}
+                    className="pl-6" />
+                </div>
               </div>
               <div>
-                <Label className="text-xs">Precio override</Label>
-                <Input type="number" min={0} placeholder="Usa precio base si vacío" value={variantForm.priceOverride}
-                  onChange={e => setVariantForm(p => ({ ...p, priceOverride: e.target.value }))} />
+                <Label className="text-xs">Precio de venta</Label>
+                <div className="relative">
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">$</span>
+                  <Input type="number" min={0} placeholder="Usa precio base del producto si vacío" value={variantForm.priceOverride}
+                    onChange={e => setVariantForm(p => ({ ...p, priceOverride: e.target.value }))}
+                    className="pl-6" />
+                </div>
               </div>
-              <div>
-                <Label className="text-xs">Cupo de preventa</Label>
-                <Input type="number" min={0} placeholder="Vacío = ilimitado" value={variantForm.preorderLimit}
-                  onChange={e => setVariantForm(p => ({ ...p, preorderLimit: e.target.value }))} />
-                <p className="text-[10px] text-muted-foreground mt-1">Máximo de unidades vendibles en preventa (backorder) para esta variante.</p>
+              <div className="col-span-2 rounded-lg border border-border bg-amber-50/50 dark:bg-amber-950/20 p-3 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label className="text-xs font-semibold">Pre-orden (preventa)</Label>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">Permite vender esta variante antes de tener stock físico.</p>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={variantForm.presale}
+                    onClick={() => setVariantForm(p => ({ ...p, presale: !p.presale }))}
+                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${variantForm.presale ? 'bg-amber-500' : 'bg-input'}`}
+                  >
+                    <span className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-lg ring-0 transition-transform ${variantForm.presale ? 'translate-x-4' : 'translate-x-0'}`} />
+                  </button>
+                </div>
+                {variantForm.presale && (
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <Label className="text-[10px]">Anticipo (%)</Label>
+                      <Input type="number" min={0} max={100} step={5} value={variantForm.presaleDepositPct}
+                        onChange={e => setVariantForm(p => ({ ...p, presaleDepositPct: e.target.value }))}
+                        className="h-7 text-xs" />
+                      <p className="text-[9px] text-muted-foreground mt-0.5">% que paga el cliente ahora</p>
+                    </div>
+                    <div>
+                      <Label className="text-[10px]">Cupo máximo</Label>
+                      <Input type="number" min={0} placeholder="∞ ilimitado" value={variantForm.presaleLimit}
+                        onChange={e => setVariantForm(p => ({ ...p, presaleLimit: e.target.value }))}
+                        className="h-7 text-xs" />
+                      <p className="text-[9px] text-muted-foreground mt-0.5">Unidades disponibles</p>
+                    </div>
+                    <div>
+                      <Label className="text-[10px]">Fecha estimada de entrega</Label>
+                      <Input type="date" value={variantForm.presaleDate}
+                        onChange={e => setVariantForm(p => ({ ...p, presaleDate: e.target.value }))}
+                        className="h-7 text-xs" />
+                      <p className="text-[9px] text-muted-foreground mt-0.5">Interna, no visible al cliente</p>
+                    </div>
+                  </div>
+                )}
               </div>
               <div className="col-span-2">
                 <Label className="text-xs">Imágenes del color (máx. {MAX_VARIANT_IMAGES})</Label>

@@ -21,6 +21,26 @@ const fail = (res: Response, e: any, msg: string) => {
   res.status(500).json({ success: false, error: e?.message || msg });
 };
 
+// Auto-crea la tabla si no existe (evita 500 en instalaciones nuevas)
+async function ensureTable(): Promise<void> {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS notifications (
+      id         VARCHAR(36) PRIMARY KEY,
+      tenant_id  VARCHAR(36) NOT NULL,
+      type       VARCHAR(40)  NOT NULL DEFAULT 'general',
+      title      VARCHAR(200) NOT NULL,
+      body       VARCHAR(500) NULL,
+      link       VARCHAR(500) NULL,
+      is_read    BOOLEAN      NOT NULL DEFAULT FALSE,
+      created_at TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+      KEY idx_notif_tenant (tenant_id, is_read, created_at)
+    )
+  `);
+}
+
+// Ejecutar al arrancar el módulo (no bloquea el servidor)
+ensureTable().catch(e => console.error('notifications ensureTable error:', e));
+
 /** Crea una notificación para un tenant (reutilizable por otros módulos). */
 export async function createNotification(
   tenantId: string,

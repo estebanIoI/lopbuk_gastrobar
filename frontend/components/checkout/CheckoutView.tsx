@@ -622,9 +622,9 @@ export function CheckoutView({
                       <div className="flex-1 min-w-0 flex justify-between items-start">
                         <div className="min-w-0">
                           <div className="font-light text-gray-900 text-sm leading-snug">{item.nombre}</div>
-                          {item.isPreorder && (
+                          {(item.isPreorder || (item as any).isPresale) && (
                             <span className="inline-block text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-semibold mt-0.5">
-                              {item.preorderBadgeText || 'Pre-orden'}
+                              {(item as any).presaleBadgeText || item.preorderBadgeText || 'Pre-orden'}
                             </span>
                           )}
                           {(item.tallaSeleccionada || item.colorSeleccionado) && (
@@ -1041,9 +1041,9 @@ export function CheckoutView({
 
                 {/* Aviso Pre-orden */}
                 {(() => {
-                  const preorderItems = carrito.filter(i => i.isPreorder)
-                  if (preorderItems.length === 0) return null
-                  const hasRegular = carrito.some(i => !i.isPreorder)
+                  const presaleItems = carrito.filter(i => i.isPreorder || (i as any).isPresale)
+                  if (presaleItems.length === 0) return null
+                  const hasRegular = carrito.some(i => !i.isPreorder && !(i as any).isPresale)
                   return (
                     <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 space-y-2">
                       <p className="text-xs font-bold text-amber-800 uppercase tracking-wide">Aviso de pre-orden</p>
@@ -1053,7 +1053,7 @@ export function CheckoutView({
                         </p>
                       )}
                       <ul className="space-y-1">
-                        {preorderItems.map((item, i) => {
+                        {presaleItems.map((item, i) => {
                           const range = item.preorderShipStart
                             ? (() => {
                                 const fmt = (d: string) => new Date(d).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' })

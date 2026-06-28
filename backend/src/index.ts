@@ -80,6 +80,7 @@ import profileRoutes from './modules/profile/profile.routes';
 import communityRoutes from './modules/community/community.routes';
 import notificationsRoutes from './modules/notifications/notifications.routes';
 import theme4Routes from './modules/theme4/theme4.routes';
+import cloudinaryBrowserRoutes from './modules/cloudinary-browser/cloudinary-browser.routes';
 
 const app = express();
 
@@ -100,7 +101,7 @@ app.use(cors({
 // Cookie parser (needed for httpOnly auth cookies)
 app.use(cookieParser());
 
-app.use(express.json({ limit: '5mb' }));
+app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // Input sanitization: strip HTML tags from all string fields to prevent stored XSS
@@ -220,6 +221,7 @@ app.use(`${apiPrefix}/profile`, profileRoutes);
 app.use(`${apiPrefix}/community`, communityRoutes);
 app.use(`${apiPrefix}/notifications`, notificationsRoutes);
 app.use(`${apiPrefix}/theme4`, theme4Routes);
+app.use(`${apiPrefix}/cloudinary`, cloudinaryBrowserRoutes);
 
 // Variantes + Proveedores + Hormas + Hidden-access + Locations
 // IMPORTANTE: rutas con prefijo específico van ANTES de variantsRoutes (/api)

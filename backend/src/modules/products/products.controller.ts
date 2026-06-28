@@ -2,6 +2,7 @@ import { Response, NextFunction } from 'express';
 import { productsService, ProductFilters } from './products.service';
 import { Category, StockStatus, ProductType } from '../../common/types';
 import { AuthRequest } from '../../common/middleware';
+import { db } from '../../config';
 
 export class ProductsController {
   async findAll(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
@@ -180,6 +181,39 @@ export class ProductsController {
         data: result,
         message: `${result.totalCreated} productos creados, ${result.totalFailed} fallaron`,
       });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getImageUrls(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const tenantId = req.user!.tenantId!;
+      const [rows] = await (db as any).execute(
+        `SELECT id, name, image_url AS imageUrl
+         FROM products
+         WHERE tenant_id = ? AND image_url IS NOT NULL AND image_url != ''
+         ORDER BY created_at DESC`,
+        [tenantId]
+      );
+      res.json({ success: true, data: rows });
+    } catch (error) { next(error); }
+  }
+
+  async bulkCreateWithVariants(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const tenantId = req.user!.tenantId!;
+      const { items } = req.body;
+      if (!Array.isArray(items) || items.length === 0) {
+        res.status(400).json({ success: false, error: 'Se requiere un array de items no vacío' });
+        return;
+      }
+      if (items.length > 100) {
+        res.status(400).json({ success: false, error: 'Máximo 100 productos por llamada' });
+        return;
+      }
+      const result = await productsService.bulkCreateWithVariants(tenantId, items);
+      res.status(result.totalFailed > 0 ? 207 : 201).json({ success: true, data: result });
     } catch (error) {
       next(error);
     }

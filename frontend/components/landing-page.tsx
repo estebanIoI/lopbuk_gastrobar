@@ -126,15 +126,21 @@ interface StorefrontProduct {
   availableForDelivery?: boolean | number
   deliveryType?: 'domicilio' | 'envio' | 'ambos' | null
   sedeId?: string | null
-  // Pre-orden
-  isPreorder?: boolean | number | null
-  preorderWindowEnd?: string | null
-  preorderShipStart?: string | null
-  preorderShipEnd?: string | null
-  preorderBadgeText?: string | null
+  // Precompra
+  isPresale?: boolean | number | null
+  presaleWindowEnd?: string | null
+  presaleShipStart?: string | null
+  presaleShipEnd?: string | null
+  presaleBadgeText?: string | null
+  presaleDepositPct?: number | null
+  /** @deprecated usa isPresale */ isPreorder?: boolean | number | null
   // Variantes (talla/color/peso/material) adjuntadas por el backend
   variants?: RawVariant[]
   hasVariants?: boolean
+  // Derivados de variantes para filtros rápidos
+  variantHormas?: string[]
+  variantColors?: string[]
+  variantSizes?: string[]
 }
 
 function CustomSectionFrame({ name, html }: { name: string; html: string }) {
@@ -231,6 +237,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   const [catalogSelectedCategories, setCatalogSelectedCategories] = useState<Set<string>>(new Set())
   const [catalogSelectedBrands, setCatalogSelectedBrands] = useState<Set<string>>(new Set())
   const [catalogSelectedGenders, setCatalogSelectedGenders] = useState<Set<string>>(new Set())
+  const [catalogSelectedHormas, setCatalogSelectedHormas] = useState<Set<string>>(new Set())
+  const [catalogSelectedColors, setCatalogSelectedColors] = useState<Set<string>>(new Set())
   const [catalogSidebarOpen, setCatalogSidebarOpen] = useState(false)
 
   // ====== STOREFRONT STATE ======
@@ -331,6 +339,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   const [selectedProduct, setSelectedProduct] = useState<StorefrontProduct | null>(null)
   const [showProductModal, setShowProductModal] = useState(false)
   const [productQuantity, setProductQuantity] = useState(1)
+  // Protección multiclic: bloquea el botón comprar mientras se procesa el pedido
+  const [isAddingToCart, setIsAddingToCart] = useState(false)
+  const addingToCartRef = useRef(false) // ref para doble protección race-safe
   // Variante elegida en el modal (talla/color/peso). null = sin elegir o sin variantes.
   const [selectedVariant, setSelectedVariant] = useState<SelectedVariant | null>(null)
   // Modificadores del producto en el modal (compartidos con el Tema 2)
@@ -1601,6 +1612,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     setShowProductModal(false)
     setSelectedProduct(null)
     setProductQuantity(1)
+    setIsAddingToCart(false)
+    addingToCartRef.current = false
     setPromoUnitPrice(null)
     window.history.replaceState({}, '', window.location.pathname)
   }
@@ -1722,10 +1735,10 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         variantId: selectedVariant?.id,
         variantLabel: selectedVariant?.label,
         tallaSeleccionada: selectedVariant?.label,
-        isPreorder: Boolean(selectedProduct.isPreorder) || undefined,
-        preorderShipStart: selectedProduct.isPreorder ? (selectedProduct.preorderShipStart || null) : undefined,
-        preorderShipEnd: selectedProduct.isPreorder ? (selectedProduct.preorderShipEnd || null) : undefined,
-        preorderBadgeText: selectedProduct.isPreorder ? (selectedProduct.preorderBadgeText || 'Pre-orden') : undefined,
+        isPresale: Boolean(selectedProduct.isPresale || selectedProduct.isPreorder) || undefined,
+        presaleShipStart: (selectedProduct.isPresale || selectedProduct.isPreorder) ? (selectedProduct.presaleShipStart || null) : undefined,
+        presaleShipEnd: (selectedProduct.isPresale || selectedProduct.isPreorder) ? (selectedProduct.presaleShipEnd || null) : undefined,
+        presaleBadgeText: (selectedProduct.isPresale || selectedProduct.isPreorder) ? (selectedProduct.presaleBadgeText || 'Pre-orden') : undefined,
         tenantId: selectedProduct.tenantId,
         storeName: selectedProduct.storeName,
         availableForDelivery: !!selectedProduct.availableForDelivery,
@@ -1819,10 +1832,10 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
           ? toKgClient(product.weight, product.hardwareWeightUnit) || null
           : null,
         productType: product.productType || undefined,
-        isPreorder: Boolean(product.isPreorder) || undefined,
-        preorderShipStart: product.isPreorder ? (product.preorderShipStart || null) : undefined,
-        preorderShipEnd: product.isPreorder ? (product.preorderShipEnd || null) : undefined,
-        preorderBadgeText: product.isPreorder ? (product.preorderBadgeText || 'Pre-orden') : undefined,
+        isPresale: Boolean(product.isPresale || product.isPreorder) || undefined,
+        presaleShipStart: (product.isPresale || product.isPreorder) ? (product.presaleShipStart || null) : undefined,
+        presaleShipEnd: (product.isPresale || product.isPreorder) ? (product.presaleShipEnd || null) : undefined,
+        presaleBadgeText: (product.isPresale || product.isPreorder) ? (product.presaleBadgeText || 'Pre-orden') : undefined,
       }]
     })
     setShowCart(true) // Always show cart after adding
@@ -1907,9 +1920,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
             discountPercent: p.descuentoPorcentaje || 0,
             productImage: p.imagen || undefined,
             variantId: p.variantId,
-            isPreorder: p.isPreorder ? 1 : 0,
-            preorderShipStart: p.preorderShipStart || null,
-            preorderShipEnd: p.preorderShipEnd || null,
+            isPresale: (p.isPresale || p.isPreorder) ? 1 : 0,
+            presaleShipStart: p.presaleShipStart || p.preorderShipStart || null,
+            presaleShipEnd: p.presaleShipEnd || p.preorderShipEnd || null,
           })),
         }
 
@@ -2382,9 +2395,21 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   })
 
   // ====== CATALOG DERIVED VALUES ======
-  const availableSizes = Array.from(new Set(products.filter(p => p.size).map(p => p.size!))).sort()
   const availableBrands = Array.from(new Set(products.filter(p => p.brand).map(p => p.brand!))).sort()
   const availableGenders = Array.from(new Set(products.filter(p => p.gender).map(p => p.gender!))).sort()
+  // Derivar desde variantes (preferencia) o campo legado
+  const availableHormas = Array.from(new Set(
+    products.flatMap(p => p.variants?.map(v => (v as any).hormaName).filter(Boolean) ?? [])
+  )).sort()
+  const availableColors = Array.from(new Set(
+    products.flatMap(p => p.variants?.map(v => (v as any).color).filter(Boolean) ?? [])
+  )).sort()
+  const availableSizes = Array.from(new Set(
+    products.flatMap(p => {
+      const fromVariants = p.variants?.map(v => (v as any).size).filter(Boolean) ?? []
+      return fromVariants.length > 0 ? fromVariants : (p.size ? [p.size] : [])
+    })
+  )).sort()
 
   const catalogFilteredProducts = products.filter(p => {
     // Special section filters
@@ -2405,11 +2430,16 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     const finalPrice = (p.isOnOffer && p.offerPrice) ? p.offerPrice : p.salePrice
     const matchPrice = (catalogPriceMin === 0 && catalogPriceMax === 0) ||
       (finalPrice >= catalogPriceMin && (catalogPriceMax === 0 || finalPrice <= catalogPriceMax))
-    const matchSize = catalogSelectedSizes.size === 0 || (p.size != null && catalogSelectedSizes.has(p.size))
+    const variantSizeSet = new Set(p.variants?.map(v => (v as any).size).filter(Boolean) ?? (p.size ? [p.size] : []))
+    const variantColorSet = new Set(p.variants?.map(v => (v as any).color).filter(Boolean) ?? [])
+    const variantHormaSet = new Set(p.variants?.map(v => (v as any).hormaName).filter(Boolean) ?? [])
+    const matchSize = catalogSelectedSizes.size === 0 || [...catalogSelectedSizes].some(s => variantSizeSet.has(s))
+    const matchColor = catalogSelectedColors.size === 0 || [...catalogSelectedColors].some(c => variantColorSet.has(c))
+    const matchHorma = catalogSelectedHormas.size === 0 || [...catalogSelectedHormas].some(h => variantHormaSet.has(h))
     const matchCategory = catalogSelectedCategories.size === 0 || catalogSelectedCategories.has(p.category)
     const matchBrand = catalogSelectedBrands.size === 0 || (p.brand != null && catalogSelectedBrands.has(p.brand))
     const matchGender = catalogSelectedGenders.size === 0 || (p.gender != null && catalogSelectedGenders.has(p.gender))
-    return matchSearch && matchPrice && matchSize && matchCategory && matchBrand && matchGender
+    return matchSearch && matchPrice && matchSize && matchColor && matchHorma && matchCategory && matchBrand && matchGender
   })
 
   const clearCatalogFilters = () => {
@@ -2419,6 +2449,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     setCatalogSelectedCategories(new Set())
     setCatalogSelectedBrands(new Set())
     setCatalogSelectedGenders(new Set())
+    setCatalogSelectedHormas(new Set())
+    setCatalogSelectedColors(new Set())
     setSearchQuery('')
     setCatalogSpecialFilter('all')
   }
@@ -2428,6 +2460,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     setCatalogPriceMin(0); setCatalogPriceMax(0)
     setCatalogSelectedSizes(new Set()); setCatalogSelectedCategories(new Set())
     setCatalogSelectedBrands(new Set()); setCatalogSelectedGenders(new Set())
+    setCatalogSelectedHormas(new Set()); setCatalogSelectedColors(new Set())
     setSearchQuery('')
     setShowCatalog(true); setShowDrop(false); setShowServices(false); setShowNewLaunches(false)
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -3403,7 +3436,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     variants={selectedProduct.variants}
                     basePrice={selectedProduct.salePrice}
                     isLightBg={isLightBg}
-                    allowOutOfStock={Boolean(selectedProduct.isPreorder)}
+                    allowOutOfStock={Boolean(selectedProduct.isPresale || selectedProduct.isPreorder)}
                     formatPrice={formatCOP}
                     onChange={setSelectedVariant}
                   />
@@ -3474,57 +3507,74 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 })}
 
                 {/* Quantity + Heart */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center">
-                    <button
-                      onClick={() => setProductQuantity(q => Math.max(1, q - 1))}
-                      disabled={selectedProduct.stock === 0}
-                      className={`w-11 h-11 flex items-center justify-center border rounded-l-xl transition-colors ${isLightBg ? 'border-black/20 text-black/60 hover:bg-black/5' : 'border-white/20 text-white/60 hover:bg-white/5'}`}
-                    >
-                      <Minus className="w-4 h-4" />
-                    </button>
-                    <span className={`w-12 h-11 flex items-center justify-center border-y text-base font-light ${isLightBg ? 'border-black/20 text-black' : 'border-white/20 text-white'}`}>{productQuantity}</span>
-                    <button
-                      onClick={() => setProductQuantity(q => Math.min(selectedProduct.stock, q + 1))}
-                      disabled={selectedProduct.stock === 0}
-                      className={`w-11 h-11 flex items-center justify-center border rounded-r-xl transition-colors ${isLightBg ? 'border-black/20 text-black/60 hover:bg-black/5' : 'border-white/20 text-white/60 hover:bg-white/5'}`}
-                    >
-                      <Plus className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <button
-                    onClick={() => toggleFavorite(selectedProduct.id)}
-                    className={`w-11 h-11 flex items-center justify-center rounded-full border transition-colors ${isLightBg ? 'border-black/20 hover:bg-red-50' : 'border-white/20 hover:bg-red-500/10'}`}
-                  >
-                    <Heart className={`w-5 h-5 ${favorites.has(selectedProduct.id) ? 'fill-red-500 text-red-500' : isLightBg ? 'text-black/40' : 'text-white/40'}`} />
-                  </button>
-                </div>
+                {(() => {
+                  const _isPresale = Boolean(selectedProduct.isPresale || selectedProduct.isPreorder)
+                  const _outOfStock = selectedProduct.stock === 0 && !_isPresale
+                  return (
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center">
+                        <button
+                          onClick={() => setProductQuantity(q => Math.max(1, q - 1))}
+                          disabled={productQuantity <= 1}
+                          className={`w-11 h-11 flex items-center justify-center border rounded-l-xl transition-colors ${isLightBg ? 'border-black/20 text-black/60 hover:bg-black/5 disabled:opacity-30' : 'border-white/20 text-white/60 hover:bg-white/5 disabled:opacity-30'}`}
+                        >
+                          <Minus className="w-4 h-4" />
+                        </button>
+                        <span className={`w-12 h-11 flex items-center justify-center border-y text-base font-light ${isLightBg ? 'border-black/20 text-black' : 'border-white/20 text-white'}`}>{productQuantity}</span>
+                        <button
+                          onClick={() => setProductQuantity(q => _isPresale ? q + 1 : Math.min(Math.max(selectedProduct.stock, 1), q + 1))}
+                          disabled={!_isPresale && _outOfStock}
+                          className={`w-11 h-11 flex items-center justify-center border rounded-r-xl transition-colors ${isLightBg ? 'border-black/20 text-black/60 hover:bg-black/5 disabled:opacity-30' : 'border-white/20 text-white/60 hover:bg-white/5 disabled:opacity-30'}`}
+                        >
+                          <Plus className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <button
+                        onClick={() => toggleFavorite(selectedProduct.id)}
+                        className={`w-11 h-11 flex items-center justify-center rounded-full border transition-colors ${isLightBg ? 'border-black/20 hover:bg-red-50' : 'border-white/20 hover:bg-red-500/10'}`}
+                      >
+                        <Heart className={`w-5 h-5 ${favorites.has(selectedProduct.id) ? 'fill-red-500 text-red-500' : isLightBg ? 'text-black/40' : 'text-white/40'}`} />
+                      </button>
+                    </div>
+                  )
+                })()}
 
                 {/* Stock status */}
-                {selectedProduct.stock === 0 ? (
-                  <div className="flex items-center gap-2 text-red-400 text-sm"><div className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />Agotado</div>
-                ) : selectedProduct.stock <= 5 ? (
-                  <div className="flex items-center gap-2 text-white/90 text-sm"><div className="w-2 h-2 rounded-full bg-white animate-pulse flex-shrink-0" />¡Últimas {selectedProduct.stock} unidades!</div>
-                ) : null}
+                {(() => {
+                  const _isPresale = Boolean(selectedProduct.isPresale || selectedProduct.isPreorder)
+                  if (_isPresale && selectedProduct.stock === 0) return (
+                    <div className="flex items-center gap-2 text-amber-400 text-sm"><div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />Pre-orden — disponible para reservar</div>
+                  )
+                  if (selectedProduct.stock === 0) return (
+                    <div className="flex items-center gap-2 text-red-400 text-sm"><div className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />Agotado</div>
+                  )
+                  if (selectedProduct.stock <= 5) return (
+                    <div className="flex items-center gap-2 text-white/90 text-sm"><div className="w-2 h-2 rounded-full bg-white animate-pulse flex-shrink-0" />¡Últimas {selectedProduct.stock} unidades!</div>
+                  )
+                  return null
+                })()}
 
                 {/* Action buttons */}
                 {(() => {
+                  const _isPresale = Boolean(selectedProduct.isPresale || selectedProduct.isPreorder)
+                  const _outOfStock = selectedProduct.stock === 0 && !_isPresale
                   const isDeliveryItem = selectedProduct.deliveryType === 'domicilio' || selectedProduct.deliveryType === 'ambos'
                   const previewTotal = totalCarrito + (selectedProduct.salePrice * productQuantity)
                   const previewProgress = DELIVERY_FREE_MIN > 0 ? Math.min(100, (previewTotal / DELIVERY_FREE_MIN) * 100) : 0
                   const previewUnlocked = DELIVERY_FREE_MIN > 0 && previewTotal >= DELIVERY_FREE_MIN
                   const previewRemaining = Math.max(0, DELIVERY_FREE_MIN - previewTotal)
+                  const canBuy = !_outOfStock && t1Missing.length === 0 && !variantPending && !isAddingToCart
                   return (
                     <div className="space-y-3 pt-1">
                       {t1Missing.length > 0 && (
                         <p className="text-center text-[11px] text-red-400">Elige: {t1Missing.map((g: any) => g.name).join(', ')}</p>
                       )}
                       <button
-                        onClick={addFromModal}
-                        disabled={selectedProduct.stock === 0 || t1Missing.length > 0 || variantPending}
-                        style={selectedProduct.stock > 0 && t1Missing.length === 0 && !variantPending ? { backgroundColor: isLightBg ? '#111111' : '#ffffff', color: isLightBg ? '#ffffff' : '#000000' } : undefined}
+                        onClick={() => { if (!canBuy) return; addFromModal() }}
+                        disabled={!canBuy}
+                        style={canBuy ? { backgroundColor: isLightBg ? '#111111' : '#ffffff', color: isLightBg ? '#ffffff' : '#000000' } : undefined}
                         className={`w-full py-4 flex items-center justify-center gap-2.5 text-sm uppercase tracking-[0.15em] font-medium rounded-xl transition-opacity ${
-                          selectedProduct.stock === 0 || t1Missing.length > 0 || variantPending ? 'opacity-30 cursor-not-allowed bg-black/10 text-white/30' : 'hover:opacity-85'
+                          !canBuy ? 'opacity-30 cursor-not-allowed bg-black/10 text-white/30' : 'hover:opacity-85'
                         }`}
                       >
                         <ShoppingCart className="w-4 h-4 flex-shrink-0" />
@@ -3532,19 +3582,29 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       </button>
                       <button
                         onClick={() => {
-                          if (selectedProduct.stock === 0 || t1Missing.length > 0 || variantPending) return
-                          addFromModal()
-                          setShowCart(false)
-                          handleIrAlCheckout()
+                          if (!canBuy || isAddingToCart) return
+                          if (addingToCartRef.current) return
+                          addingToCartRef.current = true
+                          setIsAddingToCart(true)
+                          try {
+                            addFromModal()
+                            setShowCart(false)
+                            handleIrAlCheckout()
+                          } finally {
+                            setTimeout(() => {
+                              setIsAddingToCart(false)
+                              addingToCartRef.current = false
+                            }, 1500)
+                          }
                         }}
-                        disabled={selectedProduct.stock === 0 || t1Missing.length > 0 || variantPending}
-                        style={selectedProduct.stock > 0 && t1Missing.length === 0 && !variantPending ? { backgroundColor: isLightBg ? '#111111' : '#ffffff', color: isLightBg ? '#ffffff' : '#000000' } : undefined}
+                        disabled={!canBuy}
+                        style={canBuy ? { backgroundColor: isLightBg ? '#111111' : '#ffffff', color: isLightBg ? '#ffffff' : '#000000' } : undefined}
                         className={`w-full py-4 flex items-center justify-center gap-2 text-sm uppercase tracking-[0.15em] font-semibold rounded-xl transition-opacity ${
-                          selectedProduct.stock === 0 || t1Missing.length > 0 || variantPending ? 'opacity-30 cursor-not-allowed bg-black/10 text-white/30' : 'hover:opacity-85'
+                          !canBuy ? 'opacity-30 cursor-not-allowed bg-black/10 text-white/30' : 'hover:opacity-85'
                         }`}
                       >
-                        {isDeliveryItem ? <Truck className="w-4 h-4 flex-shrink-0" /> : null}
-                        {selectedProduct.stock === 0 ? 'Agotado' : isDeliveryItem ? 'Pedir Domicilio' : 'Comprar ahora'}
+                        {isAddingToCart ? <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" /> : isDeliveryItem ? <Truck className="w-4 h-4 flex-shrink-0" /> : null}
+                        {isAddingToCart ? 'Procesando…' : _outOfStock ? 'Agotado' : _isPresale && selectedProduct.stock === 0 ? 'Comprar' : isDeliveryItem ? 'Pedir Domicilio' : 'Comprar ahora'}
                       </button>
 
                       {/* Barra de progreso hacia domicilio gratis */}
@@ -4046,7 +4106,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           variants={selectedProduct.variants}
                           basePrice={selectedProduct.salePrice}
                           isLightBg={isLightBg}
-                          allowOutOfStock={Boolean(selectedProduct.isPreorder)}
+                          allowOutOfStock={Boolean(selectedProduct.isPresale || selectedProduct.isPreorder)}
                           formatPrice={formatCOP}
                           onChange={setSelectedVariant}
                         />
@@ -4074,55 +4134,71 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       ) : null}
 
                       {/* Quantity + heart */}
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center">
-                          <button onClick={() => setProductQuantity(q => Math.max(1, q - 1))} disabled={selectedProduct.stock === 0}
-                            className="w-10 h-10 flex items-center justify-center text-white/50 hover:text-white hover:bg-white/5 border border-white/10 transition-colors">
-                            <Minus className="w-4 h-4" />
-                          </button>
-                          <span className="w-12 text-center text-sm font-light border-y border-white/10 h-10 flex items-center justify-center">{productQuantity}</span>
-                          <button onClick={() => setProductQuantity(q => Math.min(selectedProduct.stock, q + 1))} disabled={selectedProduct.stock === 0}
-                            className="w-10 h-10 flex items-center justify-center text-white/50 hover:text-white hover:bg-white/5 border border-white/10 transition-colors">
-                            <Plus className="w-4 h-4" />
-                          </button>
-                        </div>
-                        <button onClick={() => toggleFavorite(selectedProduct.id)}
-                          className="w-10 h-10 flex items-center justify-center border border-white/10 hover:bg-red-500/10 transition-colors">
-                          <Heart className={`w-5 h-5 ${favorites.has(selectedProduct.id) ? 'fill-red-500 text-red-500' : 'text-white/40'}`} />
-                        </button>
-                      </div>
+                      {(() => {
+                        const _isPresale = Boolean(selectedProduct.isPresale || selectedProduct.isPreorder)
+                        const _outOfStock = selectedProduct.stock === 0 && !_isPresale
+                        return (
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center">
+                              <button onClick={() => setProductQuantity(q => Math.max(1, q - 1))} disabled={productQuantity <= 1}
+                                className="w-10 h-10 flex items-center justify-center text-white/50 hover:text-white hover:bg-white/5 border border-white/10 transition-colors disabled:opacity-30">
+                                <Minus className="w-4 h-4" />
+                              </button>
+                              <span className="w-12 text-center text-sm font-light border-y border-white/10 h-10 flex items-center justify-center">{productQuantity}</span>
+                              <button onClick={() => setProductQuantity(q => _isPresale ? q + 1 : Math.min(Math.max(selectedProduct.stock, 1), q + 1))} disabled={!_isPresale && _outOfStock}
+                                className="w-10 h-10 flex items-center justify-center text-white/50 hover:text-white hover:bg-white/5 border border-white/10 transition-colors disabled:opacity-30">
+                                <Plus className="w-4 h-4" />
+                              </button>
+                            </div>
+                            <button onClick={() => toggleFavorite(selectedProduct.id)}
+                              className="w-10 h-10 flex items-center justify-center border border-white/10 hover:bg-red-500/10 transition-colors">
+                              <Heart className={`w-5 h-5 ${favorites.has(selectedProduct.id) ? 'fill-red-500 text-red-500' : 'text-white/40'}`} />
+                            </button>
+                          </div>
+                        )
+                      })()}
 
                       {/* CTAs */}
                       {(() => {
+                        const _isPresale = Boolean(selectedProduct.isPresale || selectedProduct.isPreorder)
+                        const _outOfStock = selectedProduct.stock === 0 && !_isPresale
                         const isDeliveryItem = selectedProduct.deliveryType === 'domicilio' || selectedProduct.deliveryType === 'ambos'
                         const previewTotal = totalCarrito + (selectedProduct.salePrice * productQuantity)
                         const previewProgress = DELIVERY_FREE_MIN > 0 ? Math.min(100, (previewTotal / DELIVERY_FREE_MIN) * 100) : 0
                         const previewUnlocked = DELIVERY_FREE_MIN > 0 && previewTotal >= DELIVERY_FREE_MIN
                         const previewRemaining = Math.max(0, DELIVERY_FREE_MIN - previewTotal)
+                        const canBuy = !_outOfStock && !variantPending && !isAddingToCart
                         return (
                           <div className="space-y-3 mt-2">
                             <div ref={ctaRef} className="flex gap-3">
                               <button
-                                onClick={addFromModal}
-                                disabled={selectedProduct.stock === 0 || variantPending}
-                                style={selectedProduct.stock > 0 && !variantPending ? { backgroundColor: isLightBg ? '#f5f5f5' : '#1a1a1a', color: isLightBg ? '#111111' : '#ffffff', border: `1px solid ${isLightBg ? '#d1d5db' : '#333333'}` } : undefined}
+                                onClick={() => { if (!canBuy) return; addFromModal() }}
+                                disabled={!canBuy}
+                                style={canBuy ? { backgroundColor: isLightBg ? '#f5f5f5' : '#1a1a1a', color: isLightBg ? '#111111' : '#ffffff', border: `1px solid ${isLightBg ? '#d1d5db' : '#333333'}` } : undefined}
                                 className={`flex-1 py-4 text-xs uppercase tracking-[0.1em] font-medium transition-all duration-200 flex items-center justify-center gap-2 rounded-xl ${
-                                  selectedProduct.stock === 0 || variantPending ? 'bg-black/5 text-black/20 cursor-not-allowed border border-black/10' : 'hover:opacity-75'
+                                  !canBuy ? 'bg-black/5 text-black/20 cursor-not-allowed border border-black/10' : 'hover:opacity-75'
                                 }`}
                               >
                                 <ShoppingCart className="w-4 h-4 flex-shrink-0" />
-                                <span className="whitespace-nowrap">{selectedProduct.stock === 0 ? 'Agotado' : variantPending ? 'Elige una opción' : 'Añadir al carrito'}</span>
+                                <span className="whitespace-nowrap">{_outOfStock ? 'Agotado' : variantPending ? 'Elige una opción' : 'Añadir al carrito'}</span>
                               </button>
                               <button
-                                onClick={() => { if (selectedProduct.stock === 0 || variantPending) return; addFromModal(); setShowCart(false); handleIrAlCheckout() }}
-                                disabled={selectedProduct.stock === 0 || variantPending}
-                                style={selectedProduct.stock > 0 && !variantPending ? { backgroundColor: isLightBg ? '#111111' : '#ffffff', color: isLightBg ? '#ffffff' : '#000000' } : undefined}
+                                onClick={() => {
+                                  if (!canBuy || isAddingToCart) return
+                                  if (addingToCartRef.current) return
+                                  addingToCartRef.current = true
+                                  setIsAddingToCart(true)
+                                  try { addFromModal(); setShowCart(false); handleIrAlCheckout() }
+                                  finally { setTimeout(() => { setIsAddingToCart(false); addingToCartRef.current = false }, 1500) }
+                                }}
+                                disabled={!canBuy}
+                                style={canBuy ? { backgroundColor: isLightBg ? '#111111' : '#ffffff', color: isLightBg ? '#ffffff' : '#000000' } : undefined}
                                 className={`flex-1 py-4 text-xs uppercase tracking-[0.1em] font-semibold flex items-center justify-center gap-2 rounded-xl transition-opacity ${
-                                  selectedProduct.stock === 0 || variantPending ? 'bg-black/5 text-black/20 cursor-not-allowed border border-black/10' : 'hover:opacity-80'
+                                  !canBuy ? 'bg-black/5 text-black/20 cursor-not-allowed border border-black/10' : 'hover:opacity-80'
                                 }`}
                               >
-                                {isDeliveryItem ? <Truck className="w-4 h-4 flex-shrink-0" /> : null}
-                                <span className="whitespace-nowrap">{selectedProduct.stock === 0 ? 'Agotado' : isDeliveryItem ? 'Pedir Domicilio' : 'Comprar ahora'}</span>
+                                {isAddingToCart ? <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" /> : isDeliveryItem ? <Truck className="w-4 h-4 flex-shrink-0" /> : null}
+                                <span className="whitespace-nowrap">{isAddingToCart ? 'Procesando…' : _outOfStock ? 'Agotado' : _isPresale && selectedProduct.stock === 0 ? 'Comprar' : isDeliveryItem ? 'Pedir Domicilio' : 'Comprar ahora'}</span>
                               </button>
                             </div>
 
@@ -4505,6 +4581,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 availableBrands={availableBrands}
                 availableGenders={availableGenders}
                 availableSizes={availableSizes}
+                availableHormas={availableHormas}
+                availableColors={availableColors}
                 selectedCategories={catalogSelectedCategories}
                 setSelectedCategories={setCatalogSelectedCategories}
                 selectedBrands={catalogSelectedBrands}
@@ -4513,6 +4591,10 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 setSelectedGenders={setCatalogSelectedGenders}
                 selectedSizes={catalogSelectedSizes}
                 setSelectedSizes={setCatalogSelectedSizes}
+                selectedHormas={catalogSelectedHormas}
+                setSelectedHormas={setCatalogSelectedHormas}
+                selectedColors={catalogSelectedColors}
+                setSelectedColors={setCatalogSelectedColors}
                 priceMin={catalogPriceMin}
                 priceMax={catalogPriceMax}
                 setPriceMin={setCatalogPriceMin}
@@ -4593,7 +4675,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   </div>
                 )}
                 {/* Active filter pills */}
-                {(catalogSelectedCategories.size > 0 || catalogSelectedBrands.size > 0 || catalogSelectedGenders.size > 0 || catalogSelectedSizes.size > 0 || catalogPriceMin > 0 || catalogPriceMax > 0) && (
+                {(catalogSelectedCategories.size > 0 || catalogSelectedBrands.size > 0 || catalogSelectedGenders.size > 0 || catalogSelectedSizes.size > 0 || catalogSelectedHormas.size > 0 || catalogSelectedColors.size > 0 || catalogPriceMin > 0 || catalogPriceMax > 0) && (
                   <div className="flex flex-wrap items-center gap-2 mt-3">
                     {Array.from(catalogSelectedCategories).map(v => (
                       <FilterPill key={`cat-${v}`} label={v} onRemove={() => { const s = new Set(catalogSelectedCategories); s.delete(v); setCatalogSelectedCategories(s) }} />
@@ -4603,6 +4685,12 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     ))}
                     {Array.from(catalogSelectedGenders).map(v => (
                       <FilterPill key={`gender-${v}`} label={v} onRemove={() => { const s = new Set(catalogSelectedGenders); s.delete(v); setCatalogSelectedGenders(s) }} />
+                    ))}
+                    {Array.from(catalogSelectedHormas).map(v => (
+                      <FilterPill key={`horma-${v}`} label={`Horma: ${v}`} onRemove={() => { const s = new Set(catalogSelectedHormas); s.delete(v); setCatalogSelectedHormas(s) }} />
+                    ))}
+                    {Array.from(catalogSelectedColors).map(v => (
+                      <FilterPill key={`color-${v}`} label={`Color: ${v}`} onRemove={() => { const s = new Set(catalogSelectedColors); s.delete(v); setCatalogSelectedColors(s) }} />
                     ))}
                     {Array.from(catalogSelectedSizes).map(v => (
                       <FilterPill key={`size-${v}`} label={v} onRemove={() => { const s = new Set(catalogSelectedSizes); s.delete(v); setCatalogSelectedSizes(s) }} />
@@ -4902,6 +4990,21 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   <div className={`grid gap-3 sm:gap-4 ${productCardStyle === 'style2' ? 'grid-cols-2 sm:grid-cols-3 xl:grid-cols-4' : 'grid-cols-2 sm:grid-cols-3 xl:grid-cols-4'}`}>
                     {catalogFilteredProducts.map(product => {
                       const inCart = carrito.find(c => c.id === product.id)
+                      // Precio dinámico: si hay horma/color seleccionado en filtro, usar price_override de esa variante
+                      const activeHorma = catalogSelectedHormas.size === 1 ? Array.from(catalogSelectedHormas)[0] : null
+                      const activeColor = catalogSelectedColors.size === 1 ? Array.from(catalogSelectedColors)[0] : null
+                      const activeSize = catalogSelectedSizes.size === 1 ? Array.from(catalogSelectedSizes)[0] : null
+                      const matchedVariant = product.variants?.find(v => {
+                        const rv = v as any
+                        if (activeHorma && rv.hormaName !== activeHorma) return false
+                        if (activeColor && rv.color !== activeColor) return false
+                        if (activeSize && rv.size !== activeSize) return false
+                        return true
+                      })
+                      const variantPrice = matchedVariant
+                        ? Number((matchedVariant as any).price_override ?? (matchedVariant as any).hormaBasePrice ?? 0)
+                        : 0
+                      const displayPrice = variantPrice > 0 ? variantPrice : product.salePrice
                       const isOffer = product.isOnOffer && product.offerPrice
                       const discount = isOffer ? Math.round(((product.salePrice - product.offerPrice!) / product.salePrice) * 100) : 0
 
@@ -4980,11 +5083,11 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                               <div className="flex items-center justify-center gap-2 mb-1">
                                 {isOffer ? (
                                   <>
-                                    <span className="text-gray-400 text-xs line-through">{formatCOP(product.salePrice)}</span>
+                                    <span className="text-gray-400 text-xs line-through">{formatCOP(displayPrice)}</span>
                                     <span className="text-gray-900 font-bold text-sm">{formatCOP(product.offerPrice!)}</span>
                                   </>
                                 ) : (
-                                  <span className="text-gray-900 font-bold text-sm">{formatCOP(product.salePrice)}</span>
+                                  <span className="text-gray-900 font-bold text-sm">{formatCOP(displayPrice)}</span>
                                 )}
                               </div>
                               <div className="flex items-center justify-center gap-1 text-[10px] text-gray-400">
@@ -5059,10 +5162,10 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                                 {isOffer ? (
                                   <>
                                     <span className="text-orange-400 font-semibold text-sm">{formatCOP(product.offerPrice!)}</span>
-                                    <span className="text-white/30 text-xs line-through">{formatCOP(product.salePrice)}</span>
+                                    <span className="text-white/30 text-xs line-through">{formatCOP(displayPrice)}</span>
                                   </>
                                 ) : (
-                                  <span className="text-white font-light text-sm">{formatCOP(product.salePrice)}</span>
+                                  <span className="text-white font-light text-sm">{formatCOP(displayPrice)}</span>
                                 )}
                               </div>
                             </div>
@@ -5110,6 +5213,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   availableBrands={availableBrands}
                   availableGenders={availableGenders}
                   availableSizes={availableSizes}
+                  availableHormas={availableHormas}
+                  availableColors={availableColors}
                   selectedCategories={catalogSelectedCategories}
                   setSelectedCategories={setCatalogSelectedCategories}
                   selectedBrands={catalogSelectedBrands}
@@ -5118,6 +5223,10 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   setSelectedGenders={setCatalogSelectedGenders}
                   selectedSizes={catalogSelectedSizes}
                   setSelectedSizes={setCatalogSelectedSizes}
+                  selectedHormas={catalogSelectedHormas}
+                  setSelectedHormas={setCatalogSelectedHormas}
+                  selectedColors={catalogSelectedColors}
+                  setSelectedColors={setCatalogSelectedColors}
                   priceMin={catalogPriceMin}
                   priceMax={catalogPriceMax}
                   setPriceMin={setCatalogPriceMin}
@@ -9954,18 +10063,23 @@ function CountUpStat({ value, suffix = '', label }: { value: number; suffix?: st
 
 /* ========== CatalogSidebar ========== */
 function CatalogSidebar({
-  categories, availableBrands, availableGenders, availableSizes,
+  categories, availableBrands, availableGenders, availableSizes, availableHormas, availableColors,
   selectedCategories, setSelectedCategories,
   selectedBrands, setSelectedBrands,
   selectedGenders, setSelectedGenders,
   selectedSizes, setSelectedSizes,
+  selectedHormas, setSelectedHormas,
+  selectedColors, setSelectedColors,
   priceMin, priceMax, setPriceMin, setPriceMax, onClear,
 }: {
   categories: string[]; availableBrands: string[]; availableGenders: string[]; availableSizes: string[]
+  availableHormas: string[]; availableColors: string[]
   selectedCategories: Set<string>; setSelectedCategories: (v: Set<string>) => void
   selectedBrands: Set<string>; setSelectedBrands: (v: Set<string>) => void
   selectedGenders: Set<string>; setSelectedGenders: (v: Set<string>) => void
   selectedSizes: Set<string>; setSelectedSizes: (v: Set<string>) => void
+  selectedHormas: Set<string>; setSelectedHormas: (v: Set<string>) => void
+  selectedColors: Set<string>; setSelectedColors: (v: Set<string>) => void
   priceMin: number; priceMax: number; setPriceMin: (v: number) => void; setPriceMax: (v: number) => void
   onClear: () => void
 }) {
@@ -9975,7 +10089,7 @@ function CatalogSidebar({
     setter(next)
   }
 
-  const hasFilters = selectedCategories.size > 0 || selectedBrands.size > 0 || selectedGenders.size > 0 || selectedSizes.size > 0 || priceMin > 0 || priceMax > 0
+  const hasFilters = selectedCategories.size > 0 || selectedBrands.size > 0 || selectedGenders.size > 0 || selectedSizes.size > 0 || selectedHormas.size > 0 || selectedColors.size > 0 || priceMin > 0 || priceMax > 0
 
   return (
     <div className="p-5 space-y-6">
@@ -10094,10 +10208,40 @@ function CatalogSidebar({
         </div>
       )}
 
+      {/* Hormas */}
+      {availableHormas.length > 0 && (
+        <div className="border-b border-white/5 pb-5">
+          <h4 className="text-[11px] text-white/40 uppercase tracking-widest mb-3">Hormas</h4>
+          <div className="flex flex-wrap gap-2">
+            {availableHormas.map(h => (
+              <button key={h} onClick={() => toggle(h, selectedHormas, setSelectedHormas)}
+                className={`px-3 py-1.5 text-xs border transition-colors ${selectedHormas.has(h) ? 'bg-white text-black border-white' : 'bg-white/5 text-white/60 border-white/10 hover:border-white/30'}`}>
+                {h}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Colores */}
+      {availableColors.length > 0 && (
+        <div className="border-b border-white/5 pb-5">
+          <h4 className="text-[11px] text-white/40 uppercase tracking-widest mb-3">Colores</h4>
+          <div className="flex flex-wrap gap-2">
+            {availableColors.map(c => (
+              <button key={c} onClick={() => toggle(c, selectedColors, setSelectedColors)}
+                className={`px-3 py-1.5 text-xs border transition-colors ${selectedColors.has(c) ? 'bg-white text-black border-white' : 'bg-white/5 text-white/60 border-white/10 hover:border-white/30'}`}>
+                {c}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Sizes */}
       {availableSizes.length > 0 && (
         <div className="pb-5">
-          <h4 className="text-[11px] text-white/40 uppercase tracking-widest mb-3">Tamaños</h4>
+          <h4 className="text-[11px] text-white/40 uppercase tracking-widest mb-3">Tallas</h4>
           <div className="flex flex-wrap gap-2">
             {availableSizes.map(size => (
               <button key={size} onClick={() => toggle(size, selectedSizes, setSelectedSizes)}
