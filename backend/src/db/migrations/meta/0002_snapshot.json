@@ -1,8 +1,8 @@
 {
   "version": "5",
   "dialect": "mysql",
-  "id": "10cba8fb-d2e5-4c9b-811d-cfb0b5b16d64",
-  "prevId": "0635e3df-4a01-460a-9a19-06af8a20f74b",
+  "id": "ec7f6bef-9fe8-408b-a122-26b5a71f513f",
+  "prevId": "10cba8fb-d2e5-4c9b-811d-cfb0b5b16d64",
   "tables": {
     "affiliate_campaigns": {
       "name": "affiliate_campaigns",
@@ -21676,6 +21676,34 @@
         "social_snapchat": {
           "name": "social_snapchat",
           "type": "varchar(500)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "cloudinary_cloud_name": {
+          "name": "cloudinary_cloud_name",
+          "type": "varchar(120)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "cloudinary_upload_preset": {
+          "name": "cloudinary_upload_preset",
+          "type": "varchar(120)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "cloudinary_api_key": {
+          "name": "cloudinary_api_key",
+          "type": "varchar(120)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "cloudinary_api_secret": {
+          "name": "cloudinary_api_secret",
+          "type": "varchar(255)",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false

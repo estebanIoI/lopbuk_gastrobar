@@ -24,7 +24,26 @@ export async function getCloudinaryConfig(): Promise<{ cloudName: string; upload
   if (_cloudinaryCache?.cloudName && _cloudinaryCache?.uploadPreset) {
     return _cloudinaryCache
   }
-  // 2. Try fetching from backend (platform_settings — set by superadmin)
+  // 2. Config efectiva del comercio (su Cloudinary o fallback al global del superadmin).
+  try {
+    const token = api.getToken()
+    const res = await fetch(`${API_URL}/cloudinary/config`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      credentials: 'include',
+    })
+    if (res.ok) {
+      const json = await res.json()
+      const d = json?.data
+      if (json.success && d?.effectiveCloudName) {
+        _cloudinaryCache = {
+          cloudName: d.effectiveCloudName,
+          uploadPreset: d.effectiveUploadPreset,
+        }
+        return _cloudinaryCache
+      }
+    }
+  } catch { /* fallback */ }
+  // 3. Fallback legacy: endpoint global (platform_settings)
   try {
     const token = api.getToken()
     const res = await fetch(`${API_URL}/chatbot/cloudinary-config`, {
@@ -34,15 +53,12 @@ export async function getCloudinaryConfig(): Promise<{ cloudName: string; upload
     if (res.ok) {
       const json = await res.json()
       if (json.success && json.data?.cloudName) {
-        _cloudinaryCache = {
-          cloudName: json.data.cloudName,
-          uploadPreset: json.data.uploadPreset,
-        }
+        _cloudinaryCache = { cloudName: json.data.cloudName, uploadPreset: json.data.uploadPreset }
         return _cloudinaryCache
       }
     }
   } catch { /* fallback */ }
-  // 3. Fallback: env vars
+  // 4. Fallback final: env vars
   return {
     cloudName: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || '',
     uploadPreset: process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || '',
