@@ -159,27 +159,8 @@ router.put('/config', authenticate, async (req: Request, res: Response) => {
       lanyardOffsetX, lanyardOffsetY, lanyardScale,
     } = req.body;
 
-    // Migración idempotente: columna del robot 3D (URL de Spline).
-    try {
-      const [rcols] = await pool.query(
-        `SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'portfolio_config' AND COLUMN_NAME = 'robot_spline_url'`
-      ) as any;
-      if (!rcols.length) await pool.query('ALTER TABLE portfolio_config ADD COLUMN robot_spline_url TEXT NULL');
-    } catch { /* tabla aun no existe; se crea en el upsert */ }
-
-    // Migración idempotente: posición y tamaño del lanyard (controles del superadmin).
-    for (const [col, def] of [
-      ['lanyard_offset_x', 'INT NOT NULL DEFAULT 0'],
-      ['lanyard_offset_y', 'INT NOT NULL DEFAULT 0'],
-      ['lanyard_scale', 'INT NOT NULL DEFAULT 100'],
-    ] as const) {
-      try {
-        const [c] = await pool.query(
-          `SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'portfolio_config' AND COLUMN_NAME = ?`, [col]
-        ) as any;
-        if (!c.length) await pool.query(`ALTER TABLE portfolio_config ADD COLUMN ${col} ${def}`);
-      } catch { /* noop */ }
-    }
+    // DDL congelado: las columnas de portfolio_config (robot_spline_url, lanyard_offset_x/y,
+    // lanyard_scale) viven en el baseline Drizzle (src/db/migrations). Prohibido DDL en runtime — ver CLAUDE.md.
 
     const doUpsert = async () => {
       await pool.query(
@@ -277,32 +258,9 @@ router.put('/config', authenticate, async (req: Request, res: Response) => {
 // ─────────────────────────────────────────────────────────────
 // Helper: auto-crear tabla portfolio_team_cards
 // ─────────────────────────────────────────────────────────────
-async function ensureTeamTable() {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS portfolio_team_cards (
-      id          INT AUTO_INCREMENT PRIMARY KEY,
-      name        VARCHAR(120) NOT NULL,
-      role        VARCHAR(120) NOT NULL DEFAULT '',
-      bio         TEXT,
-      photo_url   TEXT,
-      accent_color VARCHAR(30) NOT NULL DEFAULT '#06b6d4',
-      sort_order  INT NOT NULL DEFAULT 0,
-      is_active   TINYINT(1) NOT NULL DEFAULT 1,
-      github_url  VARCHAR(255),
-      linkedin_url VARCHAR(255),
-      created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-  `);
-  // Migración idempotente: imagen de la banda/cordón del carnet 3D (por tarjeta).
-  const [cols] = await pool.query(
-    `SELECT COLUMN_NAME FROM information_schema.COLUMNS
-     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'portfolio_team_cards' AND COLUMN_NAME = 'band_image_url'`
-  ) as any;
-  if (!cols.length) {
-    await pool.query('ALTER TABLE portfolio_team_cards ADD COLUMN band_image_url TEXT NULL AFTER photo_url');
-  }
-}
+// DDL congelado: la tabla portfolio_team_cards y su columna band_image_url viven en
+// el baseline Drizzle (src/db/migrations). No-op conservado porque la invocan los handlers. Ver CLAUDE.md.
+async function ensureTeamTable() { /* no-op: esquema en migraciones */ }
 
 // ─────────────────────────────────────────────────────────────
 // GET /api/portfolio/team — Pública: lista de ingenieros activos
@@ -402,50 +360,11 @@ router.delete('/team/:id', authenticate, async (req: Request, res: Response) => 
 // ─────────────────────────────────────────────────────────────
 // Helpers: auto-crear tablas de features y servicios
 // ─────────────────────────────────────────────────────────────
-async function ensureFeatureTable() {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS portfolio_feature_cards (
-      id          INT AUTO_INCREMENT PRIMARY KEY,
-      icon        VARCHAR(10) NOT NULL DEFAULT '⚡',
-      title       VARCHAR(120) NOT NULL,
-      description TEXT,
-      sort_order  INT NOT NULL DEFAULT 0,
-      is_active   TINYINT(1) NOT NULL DEFAULT 1,
-      created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-  `);
-}
+// DDL congelado: la tabla portfolio_feature_cards vive en el baseline Drizzle (src/db/migrations). Ver CLAUDE.md.
+async function ensureFeatureTable() { /* no-op: esquema en migraciones */ }
 
-async function ensureServiceTables() {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS portfolio_service_categories (
-      id         INT AUTO_INCREMENT PRIMARY KEY,
-      icon       VARCHAR(10) NOT NULL DEFAULT '📦',
-      label      VARCHAR(120) NOT NULL,
-      type       ENUM('package','subscription','addon') NOT NULL DEFAULT 'package',
-      sort_order INT NOT NULL DEFAULT 0,
-      is_active  TINYINT(1) NOT NULL DEFAULT 1,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-  `);
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS portfolio_service_options (
-      id          INT AUTO_INCREMENT PRIMARY KEY,
-      category_id INT NOT NULL,
-      title       VARCHAR(120) NOT NULL,
-      description TEXT,
-      savings     VARCHAR(50),
-      price       DECIMAL(12,0) NOT NULL DEFAULT 0,
-      is_popular  TINYINT(1) NOT NULL DEFAULT 0,
-      sort_order  INT NOT NULL DEFAULT 0,
-      is_active   TINYINT(1) NOT NULL DEFAULT 1,
-      created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      FOREIGN KEY (category_id) REFERENCES portfolio_service_categories(id) ON DELETE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-  `);
+// DDL congelado: las tablas portfolio_service_categories/options viven en el baseline Drizzle (src/db/migrations). Ver CLAUDE.md.
+async function ensureServiceTables() { /* no-op: esquema en migraciones */
 }
 
 // ─────────────────────────────────────────────────────────────

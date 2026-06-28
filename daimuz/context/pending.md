@@ -60,7 +60,7 @@ Arquitectura completa en [[brain/variants-and-suppliers]]. Decisiones formales e
 > - tsc backend + frontend: **0 errores totales**.
 >
 > **Solo queda (operativo):**
-> - [ ] Ejecutar el arranque del backend (corre las migraciones idempotentes) + cargar el producto AnMarg (`imports/anmarg-camiseta-clasica/`).
+> - [ ] Ejecutar el arranque del backend (corre las migraciones idempotentes) + cargar el producto AnMarg (`backend/imports/anmarg-camiseta-clasica/`).
 > - [ ] **Deploy en Komodo**.
 
 **Sprint 1 — Schema DB:**

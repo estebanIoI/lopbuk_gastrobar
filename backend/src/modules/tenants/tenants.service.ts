@@ -668,29 +668,9 @@ export class TenantsService {
 
   // ── Tarjetas externas (comercios fuera del aplicativo) ──────────────────────
   // Tarjetas de la página principal que NO son tenants: redirigen a un link externo.
-  private externalEnsured = false;
-  async ensureExternalCardsTable(): Promise<void> {
-    if (this.externalEnsured) return;
-    await db.execute(
-      `CREATE TABLE IF NOT EXISTS marketplace_external_cards (
-        id           VARCHAR(36) PRIMARY KEY,
-        name         VARCHAR(255) NOT NULL,
-        slug         VARCHAR(255) NULL,
-        logo_url     VARCHAR(800) NULL,
-        cover_url    VARCHAR(800) NULL,
-        description  VARCHAR(500) NULL,
-        external_url VARCHAR(1000) NOT NULL,
-        city         VARCHAR(255) NULL,
-        is_verified  TINYINT(1) NOT NULL DEFAULT 0,
-        is_visible   TINYINT(1) NOT NULL DEFAULT 1,
-        sort_order   INT NOT NULL DEFAULT 0,
-        created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        INDEX idx_mec_visible (is_visible, sort_order)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
-    );
-    this.externalEnsured = true;
-  }
+  // DDL congelado: la tabla marketplace_external_cards vive en el baseline Drizzle
+  // (src/db/migrations). Método no-op conservado porque lo invocan varios métodos. Ver CLAUDE.md.
+  async ensureExternalCardsTable(): Promise<void> { /* no-op: esquema en migraciones */ }
 
   private mapExternalCard = (r: any) => ({
     id: r.id, name: r.name, slug: r.slug, logoUrl: r.logo_url, coverUrl: r.cover_url,

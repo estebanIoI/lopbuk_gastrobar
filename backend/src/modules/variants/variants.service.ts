@@ -138,17 +138,9 @@ export class VariantsService {
     return v;
   }
 
-  // Asegura la columna color_hex (auto-migración idempotente; cubre entornos donde
-  // la migración de arranque aún no corrió).
-  private colorHexEnsured = false;
-  private async ensureColorHex(): Promise<void> {
-    if (this.colorHexEnsured) return;
-    try {
-      await db.execute('ALTER TABLE product_variants ADD COLUMN color_hex VARCHAR(9) NULL');
-    } catch (e: any) {
-      if (e?.errno !== 1060) { /* 1060 = columna ya existe; otro error se ignora aquí */ }
-    }
-    this.colorHexEnsured = true;
+  // DDL congelado: la columna product_variants.color_hex vive en el baseline Drizzle
+  // (src/db/migrations). Método no-op conservado porque lo invocan varios métodos. Ver CLAUDE.md.
+  private async ensureColorHex(): Promise<void> { /* no-op: esquema en migraciones */
   }
 
   async create(productId: string, tenantId: string, data: {

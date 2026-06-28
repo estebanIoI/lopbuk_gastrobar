@@ -5,15 +5,8 @@ import pool from '../../config/database';
 // frontend/app/lopbuk/page.tsx). El backend solo persiste/lee el JSON.
 
 async function ensureTable(): Promise<void> {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS lopbuk_landing (
-      id          INT PRIMARY KEY DEFAULT 1,
-      config      JSON,
-      updated_by  VARCHAR(120),
-      created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-  `);
+  // DDL congelado: la tabla `lopbuk_landing` vive en el baseline Drizzle
+  // (backend/src/db/migrations/0000_*). Prohibido CREATE TABLE en runtime — ver CLAUDE.md.
 }
 
 /** Devuelve la config guardada (objeto) o {} si no existe / tabla no migrada. */

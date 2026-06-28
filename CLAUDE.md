@@ -36,6 +36,31 @@
 5. **Respuestas API** — `{ success: true, data }` / `{ success: false, error }`
 6. **Errores** — `throw new AppError('mensaje', httpCode)` en services
 7. **No tocar sin preguntar:** schema DB · auth middleware · config files
+8. **Esquema = migraciones versionadas** — el esquema vive en `backend/src/db/schema`
+   (fuente TS) + `backend/src/db/migrations` (historial). **PROHIBIDO `CREATE TABLE` /
+   `ALTER TABLE` en runtime** (nada de `ensureTable()` ni DDL en `index.ts`).
+
+---
+
+## 🧬 Migraciones de esquema (Drizzle Kit)
+
+Flujo para cualquier cambio de esquema (tabla/columna nueva, índice, etc.):
+
+```
+1. Editar la tabla en backend/src/db/schema/schema.ts
+2. npm run db:generate     → crea src/db/migrations/000N_*.sql (revísalo)
+3. npm run migrate         → aplica las migraciones pendientes
+```
+
+- **Baseline:** `0000_nervous_norman_osborn.sql` = esquema completo (201 tablas +
+  6 vistas + 196 FKs + 2672 columnas), capturado por introspección de una BD verdad
+  (schema_FULL.sql + TODO el DDL de runtime extraído). Reconstruye la BD 1:1.
+- **BD nueva/vacía:** `migrate()` corre el 0000 y crea todo.
+- **BD existente (prod/staging):** correr UNA vez `src/db/baseline-mark-applied.sql`
+  para marcar el 0000 como aplicado (no recrea nada). En prod NO se corre `migrate()`
+  al arrancar (gate `NODE_ENV !== 'production'` en `index.ts`); usar `npm run migrate`.
+- `schema_FULL.sql` ya **no** es fuente de verdad → archivado en `backend/db-legacy/`
+  (junto con `inventarioEsteban_v3_multitenant.sql` y las 13 migraciones viejas).
 
 ---
 

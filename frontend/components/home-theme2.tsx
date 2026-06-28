@@ -565,7 +565,7 @@ export function MarketplaceHomeGovCo({
   // mobile-first. Mismo componente, mismos datos y handlers (sin doble fetch).
   const isDesktop = useIsDesktop()
   const isMobile = isDesktop === false
-  const [mobileNav, setMobileNavTab] = useState<'inicio' | 'explorar' | 'tiendas' | 'ofertas'>('inicio')
+  const [mobileNavTab, setMobileNavTab] = useState<'inicio' | 'explorar' | 'tiendas' | 'ofertas'>('inicio')
   const mTopRef = useRef<HTMLDivElement>(null)
   const mOffersRef = useRef<HTMLDivElement>(null)
   const mNewRef = useRef<HTMLDivElement>(null)
@@ -682,7 +682,7 @@ export function MarketplaceHomeGovCo({
     const goOffers = () => { setMobileNavTab('ofertas'); mOffersRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
     const goExplore = () => { setMobileNavTab('explorar'); mNewRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
     const heroHasSlides = heroSlides.filter(s => s.url).length > 0
-    const navItemsM: { key: typeof mobileNav | 'cuenta'; label: string; icon: ReactNode; onClick: () => void }[] = [
+    const navItemsM: { key: typeof mobileNavTab | 'cuenta'; label: string; icon: ReactNode; onClick: () => void }[] = [
       { key: 'inicio', label: 'Inicio', icon: <HomeIcon className="w-5 h-5" />, onClick: goTop },
       { key: 'explorar', label: 'Explorar', icon: <Compass className="w-5 h-5" />, onClick: goExplore },
       { key: 'tiendas', label: 'Tiendas', icon: <Store className="w-5 h-5" />, onClick: goStores },
@@ -795,7 +795,7 @@ export function MarketplaceHomeGovCo({
         <nav className="fixed bottom-0 inset-x-0 z-50 bg-white/95 backdrop-blur border-t border-gray-200" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
           <div className="grid grid-cols-5">
             {navItemsM.map(it => {
-              const active = mobileNav === it.key
+              const active = mobileNavTab === it.key
               return (
                 <button key={it.key} onClick={it.onClick} className="flex flex-col items-center gap-0.5 py-2 transition-colors" style={{ color: active ? GREEN : '#9aa0a8' }}>
                   {it.icon}
