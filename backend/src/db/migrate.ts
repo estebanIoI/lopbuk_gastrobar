@@ -63,7 +63,31 @@ async function addColumnIfMissing(table: string, col: string, definition: string
   console.log(`Catch-up: ${table}.${col} agregada.`)
 }
 
+// Asegura que `table` use la collation `collation` (CONVERT si difiere). Evita el
+// "Illegal mix of collations" cuando hormas se creó con otro charset que el resto.
+async function ensureTableCollation(table: string, charset: string, collation: string): Promise<void> {
+  const [r]: any = await pool.query(
+    'SELECT TABLE_COLLATION AS c FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? LIMIT 1',
+    [table]
+  )
+  if (r[0] && r[0].c && r[0].c !== collation) {
+    await pool.query(`ALTER TABLE \`${table}\` CONVERT TO CHARACTER SET ${charset} COLLATE ${collation}`)
+    console.log(`Catch-up: ${table} convertida a ${collation}.`)
+  }
+}
+
 async function runCatchup(): Promise<void> {
+  // Detectar la collation de una tabla de negocio existente para que hormas haga
+  // JOIN sin "Illegal mix of collations". Sirve igual en prod (unicode_ci) y dev (0900).
+  const [collRows]: any = await pool.query(
+    `SELECT TABLE_COLLATION AS c FROM information_schema.TABLES
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME IN ('product_variants','products','users')
+     ORDER BY FIELD(TABLE_NAME,'product_variants','products','users') LIMIT 1`
+  )
+  let collation = collRows[0]?.c || 'utf8mb4_unicode_ci'
+  if (!/^utf8mb4_[a-z0-9_]+$/i.test(collation)) collation = 'utf8mb4_unicode_ci' // sanitizar
+  const charset = collation.split('_')[0]
+
   await pool.query(
     `CREATE TABLE IF NOT EXISTS hormas (
       id VARCHAR(36) NOT NULL PRIMARY KEY, tenant_id VARCHAR(36) NOT NULL,
@@ -77,7 +101,7 @@ async function runCatchup(): Promise<void> {
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       UNIQUE KEY uk_horma_slug_tenant (tenant_id, slug),
       INDEX idx_hormas_tenant (tenant_id, is_active)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`
+    ) ENGINE=InnoDB DEFAULT CHARSET=${charset} COLLATE=${collation}`
   )
   await pool.query(
     `CREATE TABLE IF NOT EXISTS horma_colors (
@@ -88,8 +112,12 @@ async function runCatchup(): Promise<void> {
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       UNIQUE KEY uk_horma_color (horma_id, color),
       INDEX idx_hc_tenant (tenant_id), INDEX idx_hc_horma (horma_id, tenant_id)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`
+    ) ENGINE=InnoDB DEFAULT CHARSET=${charset} COLLATE=${collation}`
   )
+  // Si hormas/horma_colors ya existían con otra collation (deploy previo), corregir.
+  await ensureTableCollation('hormas', charset, collation)
+  await ensureTableCollation('horma_colors', charset, collation)
+
   await addColumnIfMissing('products', 'horma_id', 'VARCHAR(36) NULL')
   await addColumnIfMissing('product_variants', 'horma_id', 'VARCHAR(36) NULL')
   await addColumnIfMissing('products', 'base_price', 'DECIMAL(12,2) NULL')
