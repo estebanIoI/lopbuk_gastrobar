@@ -107,11 +107,11 @@ export function useTenantLifecycle() {
         bgColor:              t.bgColor,
         createdAt:            t.createdAt,
         updatedAt:            t.updatedAt,
-        isHidden:             Boolean(t.is_hidden || t.isHidden),
-        hiddenAccessToken:    t.hidden_access_token || t.hiddenAccessToken,
-        hiddenAccessCode:     t.hidden_access_code  || t.hiddenAccessCode,
-        hiddenTokenExpiresAt: t.hidden_token_expires_at || t.hiddenTokenExpiresAt,
-        allowRegeneration:    t.allow_regeneration !== 0,
+        isHidden:             Boolean(t.isHidden ?? t.is_hidden),
+        hiddenAccessToken:    t.hiddenAccessToken ?? t.hidden_access_token ?? undefined,
+        hiddenAccessCode:     t.hiddenAccessCode  ?? t.hidden_access_code  ?? undefined,
+        hiddenTokenExpiresAt: t.hiddenTokenExpiresAt ?? t.hidden_token_expires_at ?? undefined,
+        allowRegeneration:    (t.allowRegeneration ?? t.allow_regeneration) !== false && (t.allowRegeneration ?? t.allow_regeneration) !== 0,
       })))
     }
     setIsLoadingTenants(false)

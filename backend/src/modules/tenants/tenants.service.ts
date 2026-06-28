@@ -38,6 +38,11 @@ interface TenantSummaryRow extends RowDataPacket {
   total_sales: number;
   created_at: Date;
   updated_at: Date;
+  is_hidden?: number;
+  hidden_access_token?: string | null;
+  hidden_access_code?: string | null;
+  hidden_token_expires_at?: Date | null;
+  allow_regeneration?: number;
 }
 
 interface CountRow extends RowDataPacket {
@@ -66,6 +71,11 @@ export interface TenantWithSummary extends Tenant {
   totalUsers: number;
   totalProducts: number;
   totalSales: number;
+  isHidden?: boolean;
+  hiddenAccessToken?: string | null;
+  hiddenAccessCode?: string | null;
+  hiddenTokenExpiresAt?: string | null;
+  allowRegeneration?: boolean;
 }
 
 export class TenantsService {
@@ -104,6 +114,11 @@ export class TenantsService {
       totalSales: Number(row.total_sales) || 0,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
+      isHidden: Boolean(row.is_hidden),
+      hiddenAccessToken: row.hidden_access_token ?? null,
+      hiddenAccessCode: row.hidden_access_code ?? null,
+      hiddenTokenExpiresAt: row.hidden_token_expires_at ? new Date(row.hidden_token_expires_at).toISOString() : null,
+      allowRegeneration: row.allow_regeneration === undefined ? true : Boolean(row.allow_regeneration),
     };
   }
 
@@ -134,6 +149,7 @@ export class TenantsService {
       `SELECT
         t.id, t.name, t.slug, t.business_type, t.owner_id, t.plan, t.status,
         t.max_users, t.max_products, t.bg_color, t.trial_ends_at, t.created_at, t.updated_at,
+        t.is_hidden, t.hidden_access_token, t.hidden_access_code, t.hidden_token_expires_at, t.allow_regeneration,
         u.name as owner_name, u.email as owner_email,
         (SELECT COUNT(*) FROM users WHERE tenant_id = t.id) as total_users,
         (SELECT COUNT(*) FROM products WHERE tenant_id = t.id) as total_products,
@@ -162,6 +178,7 @@ export class TenantsService {
       `SELECT
         t.id, t.name, t.slug, t.business_type, t.owner_id, t.plan, t.status,
         t.max_users, t.max_products, t.bg_color, t.trial_ends_at, t.created_at, t.updated_at,
+        t.is_hidden, t.hidden_access_token, t.hidden_access_code, t.hidden_token_expires_at, t.allow_regeneration,
         u.name as owner_name, u.email as owner_email,
         (SELECT COUNT(*) FROM users WHERE tenant_id = t.id) as total_users,
         (SELECT COUNT(*) FROM products WHERE tenant_id = t.id) as total_products,

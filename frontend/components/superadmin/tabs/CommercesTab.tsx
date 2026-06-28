@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import {
   CheckCircle2, Eye, EyeOff, RefreshCw, Save, Search, Store,
   Plus, Trash2, RotateCcw, PauseCircle, PlayCircle, Loader2,
-  Lock, Unlock, Copy, ExternalLink, RotateCw, ChevronDown, ChevronUp,
+  Lock, Unlock, Copy, ExternalLink, RotateCw, ChevronDown, ChevronUp, Download,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -12,6 +12,8 @@ import { Input } from '@/components/ui/input'
 import { useCommerces } from '../hooks/useCommerces'
 import { useTenantLifecycle, type TenantFull } from '../hooks/useTenantLifecycle'
 import { CommerceWizard } from '../shared/CommerceWizard'
+import { api } from '@/lib/api'
+import { QRCodeSVG } from 'qrcode.react'
 
 // ── Status badge ──────────────────────────────────────────────────────────────
 
@@ -50,6 +52,7 @@ function HiddenLayerPanel({ tenant, onRefresh }: { tenant: TenantFull; onRefresh
   const [localToken, setLocalToken] = useState(tenant.hiddenAccessToken)
   const [localCode, setLocalCode]   = useState(tenant.hiddenAccessCode)
   const [localHidden, setLocalHidden] = useState(Boolean(tenant.isHidden))
+  const qrRef = useRef<HTMLDivElement>(null)
 
   const deepLink = localToken
     ? `${typeof window !== 'undefined' ? window.location.origin : ''}/hidden/${localToken}`
@@ -58,9 +61,15 @@ function HiddenLayerPanel({ tenant, onRefresh }: { tenant: TenantFull; onRefresh
   const callApi = useCallback(async (path: string, body?: object) => {
     setLoading(true)
     try {
+      // Auth: cookie httpOnly (credentials) + Bearer en memoria como fallback,
+      // igual que el resto del frontend (ver lib/api.ts — NO usar localStorage).
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      const tok = api.getToken()
+      if (tok) headers.Authorization = `Bearer ${tok}`
       const res = await fetch(`${API_BASE}/hidden-access${path}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token') || ''}` },
+        headers,
+        credentials: 'include',
         body: body ? JSON.stringify(body) : undefined,
       })
       return await res.json()
@@ -87,6 +96,20 @@ function HiddenLayerPanel({ tenant, onRefresh }: { tenant: TenantFull; onRefresh
   }
 
   const copy = (text: string) => navigator.clipboard.writeText(text)
+
+  const downloadQr = () => {
+    if (!qrRef.current) return
+    const svg = qrRef.current.querySelector('svg')
+    if (!svg) return
+    const data = new XMLSerializer().serializeToString(svg)
+    const blob = new Blob([data], { type: 'image/svg+xml' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `hidden-access-${tenant.name || tenant.slug}.svg`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   return (
     <div className="mt-2">
@@ -120,6 +143,20 @@ function HiddenLayerPanel({ tenant, onRefresh }: { tenant: TenantFull; onRefresh
                   </a>
                 </div>
               </div>
+
+              {/* QR descargable */}
+              {deepLink && (
+                <div className="space-y-1.5">
+                  <div ref={qrRef} className="flex justify-center p-2 bg-white rounded-lg border">
+                    <QRCodeSVG value={deepLink} size={140} />
+                  </div>
+                  <button onClick={downloadQr}
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-[11px] font-medium hover:bg-muted transition-colors w-full justify-center">
+                    <Download className="h-3 w-3" />
+                    Descargar QR
+                  </button>
+                </div>
+              )}
 
               {/* Código manual */}
               <div className="space-y-1">

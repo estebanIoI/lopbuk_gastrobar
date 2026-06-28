@@ -21,21 +21,25 @@ const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'
 
 // ── Componente de partículas ──────────────────────────────────────────────────
 function Particles() {
+  const [particles, setParticles] = useState<Array<React.CSSProperties>>([])
+
+  useEffect(() => {
+    setParticles(
+      Array.from({ length: 24 }).map((_, i) => ({
+        width: `${Math.random() * 3 + 1}px`,
+        height: `${Math.random() * 3 + 1}px`,
+        background: `rgba(${i % 2 === 0 ? '120,255,120' : '0,200,100'}, ${Math.random() * 0.7 + 0.3})`,
+        left: `${Math.random() * 100}%`,
+        top: `${Math.random() * 100}%`,
+        animation: `float-particle ${3 + Math.random() * 4}s ease-in-out ${Math.random() * 3}s infinite`,
+      }))
+    )
+  }, [])
+
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none">
-      {Array.from({ length: 24 }).map((_, i) => (
-        <div
-          key={i}
-          className="absolute rounded-full"
-          style={{
-            width: `${Math.random() * 3 + 1}px`,
-            height: `${Math.random() * 3 + 1}px`,
-            background: `rgba(${i % 2 === 0 ? '120,255,120' : '0,200,100'}, ${Math.random() * 0.7 + 0.3})`,
-            left: `${Math.random() * 100}%`,
-            top: `${Math.random() * 100}%`,
-            animation: `float-particle ${3 + Math.random() * 4}s ease-in-out ${Math.random() * 3}s infinite`,
-          }}
-        />
+      {particles.map((style, i) => (
+        <div key={i} className="absolute rounded-full" style={style} />
       ))}
     </div>
   )
@@ -162,7 +166,7 @@ export default function HiddenAccessPage() {
 
   const goToStore = () => {
     if (!store) return
-    router.push(`/lopbuk?store=${store.slug}`)
+    router.push(`/?store=${store.slug}`)
   }
 
   // ── Render por fase ───────────────────────────────────────────────────────

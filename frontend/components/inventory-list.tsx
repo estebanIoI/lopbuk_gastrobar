@@ -712,6 +712,34 @@ export function InventoryList() {
     }
   }
 
+  // ── Imagen rápida de la variante (modal de inserción rápida) ──
+  // Igual que el producto principal: la primera imagen es la principal de la variante.
+  const [imageVariant, setImageVariant] = useState<ProductVariant | null>(null)
+  const [variantImageForm, setVariantImageForm] = useState<string[]>(['', '', '', ''])
+  const [savingVariantImage, setSavingVariantImage] = useState(false)
+
+  const openVariantImageDialog = (v: ProductVariant) => {
+    const imgs = v.images || []
+    setVariantImageForm([imgs[0] || '', imgs[1] || '', imgs[2] || '', imgs[3] || ''])
+    setImageVariant(v)
+  }
+
+  const saveVariantImage = async () => {
+    if (!imageVariant) return
+    setSavingVariantImage(true)
+    try {
+      const r = await api.updateVariant(imageVariant.id, {
+        images: variantImageForm.map(u => u.trim()).filter(Boolean).slice(0, MAX_VARIANT_IMAGES),
+      })
+      if (!r.success) { toast.error(r.error || 'No se pudo guardar la imagen'); return }
+      toast.success('Imagen de la variante actualizada')
+      setImageVariant(null)
+      await loadVariantsSummary()
+    } finally {
+      setSavingVariantImage(false)
+    }
+  }
+
   // Producto, Horma, Talla, Color, Stock, SKU, Tipo, Categoria, [Sede], Precio, Acciones
   const inventoryColSpan = (sedes.length >= 2 ? 11 : 10) + (selectMode ? 1 : 0)
 
@@ -1574,6 +1602,7 @@ export function InventoryList() {
                                         </TableHead>
                                       )}
                                       {displayHormas.length > 1 && <TableHead className="text-muted-foreground text-xs lg:text-sm">Horma</TableHead>}
+                                      <TableHead className="text-muted-foreground text-xs lg:text-sm">Imagen</TableHead>
                                       <TableHead className="text-muted-foreground text-xs lg:text-sm">Color</TableHead>
                                       <TableHead className="text-muted-foreground text-xs lg:text-sm">Talla</TableHead>
                                       <TableHead className="text-muted-foreground text-xs lg:text-sm">SKU</TableHead>
@@ -1602,6 +1631,23 @@ export function InventoryList() {
                                               {v.hormaName || (v.hormaId ? hormaById[v.hormaId]?.name : null) || '—'}
                                             </TableCell>
                                           )}
+                                          <TableCell>
+                                            {(() => {
+                                              const vImg = (Array.isArray(v.images) ? v.images[0] : '') || product.imageUrl || (Array.isArray(product.images) ? product.images[0] : '') || ''
+                                              return (
+                                                <button
+                                                  type="button"
+                                                  onClick={() => openVariantImageDialog(v)}
+                                                  title="Configurar imagen de la variante"
+                                                  className="h-10 w-10 rounded-md border border-border overflow-hidden bg-secondary/30 flex items-center justify-center hover:ring-2 hover:ring-primary/40 transition shrink-0"
+                                                >
+                                                  {vImg
+                                                    ? <img src={vImg} alt={v.sku} className="h-full w-full object-cover" />
+                                                    : <ImageIcon className="h-4 w-4 text-muted-foreground" />}
+                                                </button>
+                                              )
+                                            })()}
+                                          </TableCell>
                                           <TableCell>
                                             {v.color ? (
                                               <span
@@ -1817,6 +1863,45 @@ export function InventoryList() {
               </Button>
               <Button onClick={handleSaveImages} disabled={isSavingImages}>
                 {isSavingImages ? 'Guardando...' : 'Guardar Imágenes'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Quick Image Upload Dialog — Variante */}
+      {imageVariant && (
+        <Dialog open={!!imageVariant} onOpenChange={(open) => { if (!open) setImageVariant(null) }}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Imagen de la variante</DialogTitle>
+              <DialogDescription>
+                {imageVariant.sku} — Cargue hasta 4 imágenes. La primera es la imagen principal de la variante.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid grid-cols-2 gap-3 py-2">
+              {[0, 1, 2, 3].map((idx) => (
+                <div key={idx} className="rounded-lg border border-border p-2 bg-secondary/20">
+                  <p className="text-xs font-medium text-muted-foreground mb-2">
+                    {idx === 0 ? 'Imagen principal ★' : `Imagen ${idx + 1}`}
+                  </p>
+                  <CloudinaryUpload
+                    value={variantImageForm[idx] || ''}
+                    onChange={(url) => {
+                      const next = [...variantImageForm]
+                      next[idx] = url
+                      setVariantImageForm(next)
+                    }}
+                    previewClassName="h-20 w-full object-cover rounded border"
+                    accept="image/*,image/gif"
+                  />
+                </div>
+              ))}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setImageVariant(null)}>Cancelar</Button>
+              <Button onClick={saveVariantImage} disabled={savingVariantImage}>
+                {savingVariantImage ? 'Guardando…' : 'Guardar imagen'}
               </Button>
             </DialogFooter>
           </DialogContent>

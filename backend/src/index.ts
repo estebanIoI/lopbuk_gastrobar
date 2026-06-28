@@ -221,12 +221,15 @@ app.use(`${apiPrefix}/community`, communityRoutes);
 app.use(`${apiPrefix}/notifications`, notificationsRoutes);
 app.use(`${apiPrefix}/theme4`, theme4Routes);
 
-// Variantes + Proveedores
-app.use(`${apiPrefix}`, variantsRoutes);
+// Variantes + Proveedores + Hormas + Hidden-access + Locations
+// IMPORTANTE: rutas con prefijo específico van ANTES de variantsRoutes (/api)
+// porque variantsRoutes tiene router.use(authenticate) global que interceptaría
+// rutas sin auth como /api/hidden-access/*
 app.use(`${apiPrefix}/suppliers`, suppliersRoutes);
 app.use(`${apiPrefix}/hormas`, hormasRoutes);
 app.use(`${apiPrefix}/hidden-access`, hiddenAccessRoutes);
 app.use(`${apiPrefix}/locations`, locationsRoutes);
+app.use(`${apiPrefix}`, variantsRoutes);
 
 // Error handling
 app.use(notFoundHandler);

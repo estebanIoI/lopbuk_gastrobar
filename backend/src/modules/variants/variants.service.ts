@@ -297,7 +297,7 @@ export class VariantsService {
   async findAllByTenant(tenantId: string): Promise<ProductVariant[]> {
     await this.ensureTables();
     const [rows] = await db.execute<VariantRow[]>(
-      `SELECT pv.*, p.name AS product_name, COALESCE(p.base_price, p.sale_price) AS base_price, h.name AS horma_name
+      `SELECT pv.*, p.name AS product_name, COALESCE(pv.price_override, p.sale_price) AS base_price, h.name AS horma_name
        FROM product_variants pv
        LEFT JOIN products p ON p.id = pv.product_id
        LEFT JOIN hormas h ON h.id = pv.horma_id
@@ -311,7 +311,7 @@ export class VariantsService {
   async findByProduct(productId: string, tenantId: string): Promise<ProductVariant[]> {
     await this.ensureTables();
     const [rows] = await db.execute<VariantRow[]>(
-      `SELECT pv.*, p.name AS product_name, COALESCE(p.base_price, p.sale_price) AS base_price, h.name AS horma_name
+      `SELECT pv.*, p.name AS product_name, COALESCE(pv.price_override, p.sale_price) AS base_price, h.name AS horma_name
        FROM product_variants pv
        LEFT JOIN products p ON p.id = pv.product_id
        LEFT JOIN hormas h ON h.id = pv.horma_id
@@ -331,7 +331,7 @@ export class VariantsService {
   async findById(id: string, tenantId: string): Promise<ProductVariant> {
     await this.ensureTables();
     const [rows] = await db.execute<VariantRow[]>(
-      `SELECT pv.*, p.name AS product_name, COALESCE(p.base_price, p.sale_price) AS base_price, h.name AS horma_name
+      `SELECT pv.*, p.name AS product_name, COALESCE(pv.price_override, p.sale_price) AS base_price, h.name AS horma_name
        FROM product_variants pv
        LEFT JOIN products p ON p.id = pv.product_id
        LEFT JOIN hormas h ON h.id = pv.horma_id
@@ -693,7 +693,7 @@ export class VariantsService {
 
     // Fallback: price_override o base_price del producto padre
     const [rows] = await db.execute<RowDataPacket[]>(
-      `SELECT pv.price_override, COALESCE(p.base_price, p.sale_price) AS base_price
+      `SELECT pv.price_override, COALESCE(pv.price_override, p.sale_price) AS base_price
        FROM product_variants pv
        LEFT JOIN products p ON p.id = pv.product_id
        WHERE pv.id = ? AND pv.tenant_id = ?`,
