@@ -54,7 +54,7 @@ export const PRODUCT_TYPES: Record<ProductType, ProductTypeConfig> = {
     icon: '👕',
     description: 'Prendas de vestir y textiles',
     color: 'purple',
-    fields: ['brand', 'size', 'color', 'material', 'gender', 'season', 'garmentType', 'washingInstructions', 'countryOfOrigin', 'locationInStore', 'notes']
+    fields: ['brand', 'size', 'color', 'garmentType', 'washingInstructions', 'countryOfOrigin', 'locationInStore', 'notes']
   },
   electronica: {
     id: 'electronica',
@@ -198,7 +198,7 @@ export const FIELD_DEFINITIONS: Record<string, FieldDefinition> = {
   },
   garmentType: { name: 'garmentType', label: 'Tipo de Prenda', type: 'text', placeholder: 'Ej: Camisa, Pantalon' },
   washingInstructions: { name: 'washingInstructions', label: 'Instrucciones de Lavado', type: 'textarea', placeholder: 'Ej: Lavar a maquina 30°C' },
-  countryOfOrigin: { name: 'countryOfOrigin', label: 'Pais de Origen', type: 'text', placeholder: 'Ej: Colombia, China' },
+  countryOfOrigin: { name: 'countryOfOrigin', label: 'Pais de Origen', type: 'location' },
   // Electronica
   serialNumber: { name: 'serialNumber', label: 'Numero de Serie', type: 'text', placeholder: 'Numero de serie o IMEI' },
   warrantyMonths: { name: 'warrantyMonths', label: 'Garantia (meses)', type: 'number', min: 0, max: 120, placeholder: '12' },

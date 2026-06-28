@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { CloudinaryUpload } from '@/components/ui/cloudinary-upload'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog'
@@ -22,15 +23,21 @@ import {
   Wand2, Sparkles, Layers, X,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { resolveColorHex } from '@/lib/colors'
 
 interface Props {
   productId: string
   productName: string
+  hormaId?: string
   open: boolean
   onClose: () => void
 }
 
-const EMPTY_VARIANT = { sku: '', color: '', colorHex: '', size: '', material: '', stock: 0, minStock: 0, costPrice: '', priceOverride: '', imageUrl: '', preorderLimit: '' }
+const MAX_VARIANT_IMAGES = 4
+const EMPTY_VARIANT = {
+  sku: '', color: '', colorHex: '', size: '', material: '', stock: 0, minStock: 0, costPrice: '', priceOverride: '',
+  images: ['', '', '', ''] as string[], preorderLimit: '', hormaId: '',
+}
 const EMPTY_TIER    = { minQty: 1, price: '', tenantMarginPct: 0 }
 
 // ── Ejes del modo guiado (mapeados a las columnas reales del backend) ──
@@ -43,14 +50,27 @@ const GUIDED_AXES = [
 
 const stripDiacritics = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '')
 const slug = (s: string) => stripDiacritics(s.toUpperCase()).replace(/[^A-Z0-9]/g, '').slice(0, 6)
+// Para el tag de HORMA en el SKU no se puede truncar a 6: "Oversize Fit" y
+// "Oversize Americana" comparten el prefijo "OVERSI" y quedaban indistinguibles
+// ("0009-OVERSI-BLANCO-S" para las dos). El slug completo SÍ es único por definición
+// (UNIQUE KEY uk_horma_slug_tenant), así que no hace falta truncarlo.
+const hormaTagFull = (s: string) => stripDiacritics(s.toUpperCase()).replace(/[^A-Z0-9]/g, '')
 const parseVals = (s: string) => Array.from(new Set(s.split(/[,\n]/).map(t => t.trim()).filter(Boolean)))
 
-export function VariantManager({ productId, productName, open, onClose }: Props) {
+export function VariantManager({ productId, productName, hormaId, open, onClose }: Props) {
   const [variants, setVariants]           = useState<ProductVariant[]>([])
   const [loading, setLoading]             = useState(false)
   const [expandedId, setExpandedId]       = useState<string | null>(null)
 
-  // Modo guiado
+  // Hormas: única forma de generar variantes "por plantilla" — unificado con lo que
+  // antes vivía aparte en el formulario de "Agregar Producto". La horma solo sugiere
+  // (color×talla×hex) al generar; la variante ya creada es dueña de su propia data.
+  const [hormasList, setHormasList] = useState<any[]>([])
+  const [useHorma, setUseHorma] = useState(false)
+  const [selectedHormaIds, setSelectedHormaIds] = useState<string[]>([])
+  const [hormaMatrix, setHormaMatrix] = useState<Record<string, Record<string, Record<string, string>>>>({})
+
+  // Modo guiado (libre, sin horma)
   const [guided, setGuided]               = useState(true)
   const [axisColor, setAxisColor]         = useState('')
   const [axisSize, setAxisSize]           = useState('')
@@ -92,6 +112,50 @@ export function VariantManager({ productId, productName, open, onClose }: Props)
   }, [productId])
 
   useEffect(() => { if (open) { load(); setSkuPrefix(slug(productName)) } }, [open, load, productName])
+  useEffect(() => {
+    if (!open) return
+    api.getHormas().then(r => { if (r.success && r.data) setHormasList(r.data as any[]) })
+    // hormaId (prop legacy) = horma "principal" del producto → preselecciona el modo horma.
+    if (hormaId) { setUseHorma(true); setSelectedHormaIds([hormaId]) }
+  }, [open, hormaId])
+
+  const hormaById = useMemo(() => {
+    const map: Record<string, any> = {}
+    for (const h of hormasList) map[h.id] = h
+    return map
+  }, [hormasList])
+
+  // Hormas en juego entre las variantes YA creadas (para el encabezado del diálogo).
+  const existingHormaNames = useMemo(() => {
+    const seen = new Map<string, string>()
+    for (const v of variants) {
+      if (v.hormaId && !seen.has(v.hormaId)) seen.set(v.hormaId, v.hormaName || hormaById[v.hormaId]?.name || 'Horma')
+    }
+    return Array.from(seen.values())
+  }, [variants, hormaById])
+
+  // Inicializa/actualiza la matriz color×talla de una horma recién seleccionada.
+  const toggleHorma = (hid: string) => {
+    if (selectedHormaIds.includes(hid)) {
+      setSelectedHormaIds(prev => prev.filter(id => id !== hid))
+      setHormaMatrix(prev => { const next = { ...prev }; delete next[hid]; return next })
+      return
+    }
+    const h = hormasList.find(x => x.id === hid)
+    const sizes: string[] = h?.sizeChart ? Object.keys(h.sizeChart) : []
+    const cols: string[] = (h?.colors || []).map((c: any) => c.color)
+    const matrix: Record<string, Record<string, string>> = {}
+    for (const c of cols) { matrix[c] = {}; for (const sz of sizes) matrix[c][sz] = '' }
+    setHormaMatrix(prev => ({ ...prev, [hid]: matrix }))
+    setSelectedHormaIds(prev => [...prev, hid])
+  }
+
+  const setHormaMatrixCell = (hid: string, color: string, size: string, val: string) => {
+    setHormaMatrix(prev => ({
+      ...prev,
+      [hid]: { ...(prev[hid] || {}), [color]: { ...(prev[hid]?.[color] || {}), [size]: val } },
+    }))
+  }
 
   // ── Modo guiado: matriz de combinaciones ────────────────────────────────────
   const combos = useMemo(() => {
@@ -120,28 +184,71 @@ export function VariantManager({ productId, productName, open, onClose }: Props)
     return [skuPrefix || 'VAR', ...parts].filter(Boolean).join('-')
   }
 
+  // ── Modo guiado: matriz por horma (color×talla, con hex heredado) ───────────
+  const hormaCombos = useMemo(() => {
+    if (!useHorma) return []
+    const multiHorma = selectedHormaIds.length > 1
+    const used = new Set<string>()
+    const out: { color: string; size: string; hormaId: string; colorHex?: string; sku: string }[] = []
+    for (const hid of selectedHormaIds) {
+      const h = hormasList.find(x => x.id === hid)
+      if (!h) continue
+      const sizes: string[] = h.sizeChart ? Object.keys(h.sizeChart) : []
+      const colorsList: { color: string; hex?: string }[] = h.colors || []
+      const hormaTag = hormaTagFull(h.slug || h.name || 'H')
+      for (const c of colorsList) {
+        for (const size of sizes) {
+          let sku = multiHorma
+            ? `${skuPrefix || 'VAR'}-${hormaTag}-${slug(c.color)}-${size}`
+            : `${skuPrefix || 'VAR'}-${slug(c.color)}-${size}`
+          let n = 2
+          while (used.has(sku)) { sku = `${sku}-${n}`; n++ }
+          used.add(sku)
+          out.push({ color: c.color, size, hormaId: hid, colorHex: c.hex, sku })
+        }
+      }
+    }
+    return out
+  }, [useHorma, selectedHormaIds, hormasList, skuPrefix])
+
   const generate = async () => {
-    if (combos.length === 0) { toast.error('Agrega al menos un valor en algún eje'); return }
+    const total = useHorma ? hormaCombos.length : combos.length
+    if (total === 0) {
+      toast.error(useHorma ? 'Selecciona al menos una horma con colores y tallas' : 'Agrega al menos un valor en algún eje')
+      return
+    }
     setGenerating(true)
-    setGenProgress({ done: 0, total: combos.length })
+    setGenProgress({ done: 0, total })
     let created = 0, skipped = 0, failed = 0
-    for (let i = 0; i < combos.length; i++) {
-      const combo = combos[i]
-      const sku = buildSku(combo)
-      if (existingSkus.has(sku)) { skipped++; setGenProgress({ done: i + 1, total: combos.length }); continue }
+    for (let i = 0; i < total; i++) {
+      const sku = useHorma ? hormaCombos[i].sku : buildSku(combos[i])
+      if (existingSkus.has(sku)) { skipped++; setGenProgress({ done: i + 1, total }); continue }
       try {
-        await api.createVariant(productId, {
-          sku,
-          color: combo.color || undefined,
-          size: combo.size || undefined,
-          material: combo.material || undefined,
-          stock: Number(gStock) || 0,
-          minStock: 0,
-          priceOverride: gPrice ? Number(gPrice) : undefined,
-        })
+        if (useHorma) {
+          const hc = hormaCombos[i]
+          const raw = hormaMatrix[hc.hormaId]?.[hc.color]?.[hc.size]
+          await api.createVariant(productId, {
+            sku, color: hc.color, size: hc.size, hormaId: hc.hormaId,
+            colorHex: hc.colorHex || undefined,
+            stock: Number(raw) || 0,
+            minStock: 0,
+            priceOverride: gPrice ? Number(gPrice) : undefined,
+          })
+        } else {
+          const combo = combos[i]
+          await api.createVariant(productId, {
+            sku,
+            color: combo.color || undefined,
+            size: combo.size || undefined,
+            material: combo.material || undefined,
+            stock: Number(gStock) || 0,
+            minStock: 0,
+            priceOverride: gPrice ? Number(gPrice) : undefined,
+          })
+        }
         created++
       } catch { failed++ }
-      setGenProgress({ done: i + 1, total: combos.length })
+      setGenProgress({ done: i + 1, total })
     }
     setGenerating(false)
     setGenProgress(null)
@@ -149,20 +256,27 @@ export function VariantManager({ productId, productName, open, onClose }: Props)
     else if (skipped) toast.info('Todas esas combinaciones ya existían')
     if (failed) toast.warning(`${failed} no se pudieron crear`)
     setAxisColor(''); setAxisSize(''); setAxisMaterial('')
+    setSelectedHormaIds([]); setHormaMatrix({})
     await load()
     setGuided(false)
   }
 
   // ── Variant CRUD (avanzado) ─────────────────────────────────────────────────
-  const openAdd = () => { setVariantForm(EMPTY_VARIANT); setEditingVariant(null); setShowAddVariant(true) }
+  const openAdd = () => {
+    setVariantForm({ ...EMPTY_VARIANT, hormaId: selectedHormaIds[0] || hormaId || '' })
+    setEditingVariant(null)
+    setShowAddVariant(true)
+  }
   const openEdit = (v: ProductVariant) => {
+    const imgs = v.images || []
     setVariantForm({
       sku: v.sku, color: v.color || '', colorHex: v.colorHex || '', size: v.size || '',
       material: v.material || '', stock: v.stock,
       minStock: v.minStock, costPrice: v.costPrice?.toString() || '',
       priceOverride: v.priceOverride?.toString() || '',
-      imageUrl: v.images?.[0] || '',
+      images: [imgs[0] || '', imgs[1] || '', imgs[2] || '', imgs[3] || ''],
       preorderLimit: v.preorderLimit != null ? String(v.preorderLimit) : '',
+      hormaId: v.hormaId || '',
     })
     setEditingVariant(v)
     setShowAddVariant(true)
@@ -178,11 +292,12 @@ export function VariantManager({ productId, productName, open, onClose }: Props)
         colorHex: variantForm.colorHex.trim(),
         size: variantForm.size || undefined,
         material: variantForm.material || undefined,
+        hormaId: variantForm.hormaId || null,
         stock: Number(variantForm.stock),
         minStock: Number(variantForm.minStock),
         costPrice: variantForm.costPrice ? Number(variantForm.costPrice) : undefined,
         priceOverride: variantForm.priceOverride ? Number(variantForm.priceOverride) : undefined,
-        images: variantForm.imageUrl.trim() ? [variantForm.imageUrl.trim()] : [],
+        images: variantForm.images.map(u => u.trim()).filter(Boolean).slice(0, MAX_VARIANT_IMAGES),
         preorderLimit: variantForm.preorderLimit !== '' ? Number(variantForm.preorderLimit) : null,
       }
       const result = editingVariant
@@ -279,7 +394,7 @@ export function VariantManager({ productId, productName, open, onClose }: Props)
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Package className="w-5 h-5" />
-              Variantes — {productName}
+              Variantes — {productName}{existingHormaNames.length > 0 ? ` · Horma${existingHormaNames.length > 1 ? 's' : ''}: ${existingHormaNames.join(', ')}` : ''}
             </DialogTitle>
           </DialogHeader>
 
@@ -296,92 +411,220 @@ export function VariantManager({ productId, productName, open, onClose }: Props)
           {/* ─────────── MODO GUIADO ─────────── */}
           {guided ? (
             <div className="space-y-4">
-              <div className="rounded-lg border bg-muted/30 p-4 space-y-4">
-                <div className="flex items-start gap-2">
-                  <Sparkles className="w-4 h-4 text-primary mt-0.5 shrink-0" />
-                  <p className="text-sm text-muted-foreground">
-                    Escribe los valores de cada eje separados por comas. El sistema arma <strong>todas las combinaciones</strong> con su SKU, stock y precio. Deja un eje vacío si no aplica.
-                  </p>
-                </div>
-
-                {GUIDED_AXES.map(axis => {
-                  const val = axis.key === 'color' ? axisColor : axis.key === 'size' ? axisSize : axisMaterial
-                  const setVal = axis.key === 'color' ? setAxisColor : axis.key === 'size' ? setAxisSize : setAxisMaterial
-                  const chips = parseVals(val)
-                  return (
-                    <div key={axis.key}>
-                      <Label className="text-xs font-medium">{axis.label}</Label>
-                      <Input
-                        placeholder={axis.placeholder}
-                        value={val}
-                        onChange={e => setVal(e.target.value)}
-                        className="mt-1"
-                      />
-                      {chips.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5 mt-2">
-                          {chips.map(c => (
-                            <Badge key={c} variant="secondary" className="gap-1">
-                              {c}
-                              <button onClick={() => setVal(chips.filter(x => x !== c).join(', '))} className="hover:text-destructive">
-                                <X className="w-3 h-3" />
-                              </button>
-                            </Badge>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  <div>
-                    <Label className="text-xs">Stock por variante</Label>
-                    <Input type="number" min={0} value={gStock} onChange={e => setGStock(Number(e.target.value))} className="mt-1" />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Precio (opcional)</Label>
-                    <Input type="number" min={0} placeholder="Usa precio base" value={gPrice} onChange={e => setGPrice(e.target.value)} className="mt-1" />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Prefijo SKU</Label>
-                    <Input value={skuPrefix} onChange={e => setSkuPrefix(e.target.value.toUpperCase())} className="mt-1" />
-                  </div>
-                </div>
+              {/* Conmutador Horma / Libre */}
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant={useHorma ? 'default' : 'outline'} onClick={() => setUseHorma(true)} className="gap-1.5">
+                  <Layers className="w-4 h-4" /> Usar horma
+                </Button>
+                <Button size="sm" variant={!useHorma ? 'default' : 'outline'} onClick={() => setUseHorma(false)} className="gap-1.5">
+                  <Sparkles className="w-4 h-4" /> Libre (color/talla/material)
+                </Button>
               </div>
 
-              {/* Vista previa de la matriz */}
-              {combos.length > 0 && (
-                <div className="rounded-lg border overflow-hidden">
-                  <div className="flex items-center justify-between px-4 py-2 bg-muted/40">
-                    <p className="text-sm font-medium">Se crearán {combos.filter(c => !existingSkus.has(buildSku(c))).length} variante(s)</p>
-                    <span className="text-xs text-muted-foreground">{combos.length} combinaciones</span>
+              {useHorma ? (
+                <div className="rounded-lg border bg-muted/30 p-4 space-y-4">
+                  <div className="flex items-start gap-2">
+                    <Layers className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+                    <p className="text-sm text-muted-foreground">
+                      Elige una o varias hormas. Por cada una se arma su tabla de stock por color×talla — el color hereda el hex de la paleta de la horma si lo tiene.
+                    </p>
                   </div>
-                  <div className="max-h-56 overflow-y-auto divide-y">
-                    {combos.map((c, i) => {
-                      const sku = buildSku(c)
-                      const dup = existingSkus.has(sku)
-                      const label = [c.color, c.size, c.material].filter(Boolean).join(' / ')
-                      return (
-                        <div key={i} className="flex items-center gap-3 px-4 py-2 text-sm">
-                          <span className="flex-1">{label || '—'}</span>
-                          <Badge variant="outline" className="font-mono text-[10px]">{sku}</Badge>
-                          {dup
-                            ? <span className="text-[10px] text-amber-600 w-16 text-right">Ya existe</span>
-                            : <span className="text-[10px] text-muted-foreground w-16 text-right">Stock {gStock}</span>}
+
+                  {hormasList.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">No hay hormas creadas todavía (Inventario → Hormas).</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {hormasList.map(h => {
+                        const active = selectedHormaIds.includes(h.id)
+                        return (
+                          <button
+                            key={h.id}
+                            type="button"
+                            onClick={() => toggleHorma(h.id)}
+                            className={`px-3 py-1.5 rounded-full border text-sm transition-colors ${
+                              active ? 'border-primary bg-primary/10 text-foreground' : 'border-input text-muted-foreground hover:bg-muted'
+                            }`}
+                          >
+                            {h.name}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  {selectedHormaIds.map(hid => {
+                    const h = hormasList.find(x => x.id === hid)
+                    if (!h) return null
+                    const sizes: string[] = h.sizeChart ? Object.keys(h.sizeChart) : []
+                    const colorsList: { color: string; hex?: string }[] = h.colors || []
+                    if (sizes.length === 0 || colorsList.length === 0) return null
+                    return (
+                      <div key={hid} className="space-y-2 rounded-lg border border-border p-3 bg-background">
+                        <Label className="text-xs font-medium">{h.name}</Label>
+                        <div className="overflow-x-auto border rounded-md">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-b bg-muted/40">
+                                <th className="text-left p-2 font-medium">Color</th>
+                                {sizes.map(s => <th key={s} className="p-2 font-medium text-center">{s}</th>)}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {colorsList.map(c => (
+                                <tr key={c.color} className="border-b last:border-0">
+                                  <td className="p-2 whitespace-nowrap">
+                                    <span className="inline-flex items-center gap-1.5">
+                                      <span className="h-3 w-3 rounded-full border shrink-0" style={{ backgroundColor: resolveColorHex(c.color, c.hex) }} />
+                                      {c.color}
+                                    </span>
+                                  </td>
+                                  {sizes.map(size => (
+                                    <td key={size} className="p-1 text-center">
+                                      <Input type="number" min={0} className="h-8 w-16 text-center mx-auto"
+                                        value={hormaMatrix[hid]?.[c.color]?.[size] ?? ''}
+                                        onChange={e => setHormaMatrixCell(hid, c.color, size, e.target.value)} />
+                                    </td>
+                                  ))}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
                         </div>
-                      )
-                    })}
+                      </div>
+                    )
+                  })}
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs">Precio (opcional)</Label>
+                      <Input type="number" min={0} placeholder="Usa precio base" value={gPrice} onChange={e => setGPrice(e.target.value)} className="mt-1" />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Prefijo SKU</Label>
+                      <Input value={skuPrefix} onChange={e => setSkuPrefix(e.target.value.toUpperCase())} className="mt-1" />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-lg border bg-muted/30 p-4 space-y-4">
+                  <div className="flex items-start gap-2">
+                    <Sparkles className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+                    <p className="text-sm text-muted-foreground">
+                      Escribe los valores de cada eje separados por comas. El sistema arma <strong>todas las combinaciones</strong> con su SKU, stock y precio. Deja un eje vacío si no aplica.
+                    </p>
+                  </div>
+
+                  {GUIDED_AXES.map(axis => {
+                    const val = axis.key === 'color' ? axisColor : axis.key === 'size' ? axisSize : axisMaterial
+                    const setVal = axis.key === 'color' ? setAxisColor : axis.key === 'size' ? setAxisSize : setAxisMaterial
+                    const chips = parseVals(val)
+                    return (
+                      <div key={axis.key}>
+                        <Label className="text-xs font-medium">{axis.label}</Label>
+                        <Input
+                          placeholder={axis.placeholder}
+                          value={val}
+                          onChange={e => setVal(e.target.value)}
+                          className="mt-1"
+                        />
+                        {chips.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 mt-2">
+                            {chips.map(c => (
+                              <Badge key={c} variant="secondary" className="gap-1">
+                                {c}
+                                <button onClick={() => setVal(chips.filter(x => x !== c).join(', '))} className="hover:text-destructive">
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    <div>
+                      <Label className="text-xs">Stock por variante</Label>
+                      <Input type="number" min={0} value={gStock} onChange={e => setGStock(Number(e.target.value))} className="mt-1" />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Precio (opcional)</Label>
+                      <Input type="number" min={0} placeholder="Usa precio base" value={gPrice} onChange={e => setGPrice(e.target.value)} className="mt-1" />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Prefijo SKU</Label>
+                      <Input value={skuPrefix} onChange={e => setSkuPrefix(e.target.value.toUpperCase())} className="mt-1" />
+                    </div>
                   </div>
                 </div>
               )}
 
+              {/* Vista previa */}
+              {useHorma ? (
+                hormaCombos.length > 0 && (
+                  <div className="rounded-lg border overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-2 bg-muted/40">
+                      <p className="text-sm font-medium">Se crearán {hormaCombos.filter(c => !existingSkus.has(c.sku)).length} variante(s)</p>
+                      <span className="text-xs text-muted-foreground">{hormaCombos.length} combinaciones</span>
+                    </div>
+                    <div className="max-h-56 overflow-y-auto divide-y">
+                      {hormaCombos.map((c, i) => {
+                        const dup = existingSkus.has(c.sku)
+                        const stock = Number(hormaMatrix[c.hormaId]?.[c.color]?.[c.size]) || 0
+                        return (
+                          <div key={i} className="flex items-center gap-3 px-4 py-2 text-sm">
+                            <span className="flex-1">{c.color} / {c.size}</span>
+                            <Badge variant="outline" className="font-mono text-[10px]">{c.sku}</Badge>
+                            {dup
+                              ? <span className="text-[10px] text-amber-600 w-16 text-right">Ya existe</span>
+                              : <span className="text-[10px] text-muted-foreground w-16 text-right">Stock {stock}</span>}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              ) : (
+                combos.length > 0 && (
+                  <div className="rounded-lg border overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-2 bg-muted/40">
+                      <p className="text-sm font-medium">Se crearán {combos.filter(c => !existingSkus.has(buildSku(c))).length} variante(s)</p>
+                      <span className="text-xs text-muted-foreground">{combos.length} combinaciones</span>
+                    </div>
+                    <div className="max-h-56 overflow-y-auto divide-y">
+                      {combos.map((c, i) => {
+                        const sku = buildSku(c)
+                        const dup = existingSkus.has(sku)
+                        const label = [c.color, c.size, c.material].filter(Boolean).join(' / ')
+                        return (
+                          <div key={i} className="flex items-center gap-3 px-4 py-2 text-sm">
+                            <span className="flex-1">{label || '—'}</span>
+                            <Badge variant="outline" className="font-mono text-[10px]">{sku}</Badge>
+                            {dup
+                              ? <span className="text-[10px] text-amber-600 w-16 text-right">Ya existe</span>
+                              : <span className="text-[10px] text-muted-foreground w-16 text-right">Stock {gStock}</span>}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              )}
+
               <div className="flex items-center justify-between">
                 <p className="text-xs text-muted-foreground">
-                  {genProgress ? `Creando ${genProgress.done}/${genProgress.total}…` : 'Tip: “Negro, Blanco” × “S, M, L” = 6 variantes.'}
+                  {genProgress
+                    ? `Creando ${genProgress.done}/${genProgress.total}…`
+                    : useHorma ? 'Tip: elige varias hormas si el mismo diseño se ofrece en distintos modelos.' : 'Tip: “Negro, Blanco” × “S, M, L” = 6 variantes.'}
                 </p>
-                <Button onClick={generate} disabled={generating || combos.length === 0} className="gap-1.5">
+                <Button onClick={generate} disabled={generating || (useHorma ? hormaCombos.length === 0 : combos.length === 0)} className="gap-1.5">
                   <Wand2 className="w-4 h-4" />
-                  {generating ? 'Generando…' : `Generar ${combos.filter(c => !existingSkus.has(buildSku(c))).length || ''} variantes`}
+                  {generating
+                    ? 'Generando…'
+                    : useHorma
+                      ? `Generar ${hormaCombos.filter(c => !existingSkus.has(c.sku)).length || ''} variantes`
+                      : `Generar ${combos.filter(c => !existingSkus.has(buildSku(c))).length || ''} variantes`}
                 </Button>
               </div>
             </div>
@@ -522,6 +765,18 @@ export function VariantManager({ productId, productName, open, onClose }: Props)
                 {skuDuplicate && <p className="text-[10px] text-destructive mt-1">⚠ Ese SKU ya existe en otra variante. Usa uno diferente.</p>}
               </div>
               <div>
+                <Label className="text-xs">Horma</Label>
+                <Select value={variantForm.hormaId || 'none'} onValueChange={v => setVariantForm(p => ({ ...p, hormaId: v === 'none' ? '' : v }))}>
+                  <SelectTrigger><SelectValue placeholder="Sin horma" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Sin horma</SelectItem>
+                    {hormasList.map(h => (
+                      <SelectItem key={h.id} value={h.id}>{h.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
                 <Label className="text-xs">Color (nombre)</Label>
                 <div className="flex items-center gap-2">
                   <Input placeholder="Ej: Vainilla, Negro…" value={variantForm.color}
@@ -579,16 +834,28 @@ export function VariantManager({ productId, productName, open, onClose }: Props)
                 <p className="text-[10px] text-muted-foreground mt-1">Máximo de unidades vendibles en preventa (backorder) para esta variante.</p>
               </div>
               <div className="col-span-2">
-                <Label className="text-xs">Imagen del color (URL)</Label>
-                <Input placeholder="https://… (opcional)" value={variantForm.imageUrl}
-                  onChange={e => setVariantForm(p => ({ ...p, imageUrl: e.target.value }))} />
-                {variantForm.imageUrl.trim() && (
-                  <div className="mt-2 w-16 h-16 rounded-lg overflow-hidden border bg-muted">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={variantForm.imageUrl} alt="preview" className="w-full h-full object-cover" />
-                  </div>
-                )}
-                <p className="text-[11px] text-muted-foreground mt-1">Si la defines, al elegir este color en la tienda la foto principal cambia a esta imagen.</p>
+                <Label className="text-xs">Imágenes del color (máx. {MAX_VARIANT_IMAGES})</Label>
+                <p className="text-[11px] text-muted-foreground mb-2">
+                  La primera es la principal: al elegir este color en la tienda, la foto cambia a esta galería.
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {variantForm.images.map((url, idx) => (
+                    <div key={idx} className="rounded-lg border border-border p-1.5 bg-secondary/20">
+                      <p className="text-[10px] font-medium text-muted-foreground mb-1">
+                        {idx === 0 ? 'Principal ★' : `Imagen ${idx + 1}`}
+                      </p>
+                      <CloudinaryUpload
+                        value={url}
+                        onChange={(newUrl) => setVariantForm(p => {
+                          const next = [...p.images]
+                          next[idx] = newUrl
+                          return { ...p, images: next }
+                        })}
+                        previewClassName="h-16 w-full object-cover rounded border"
+                      />
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>

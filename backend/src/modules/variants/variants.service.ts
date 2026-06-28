@@ -3,6 +3,9 @@ import { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
 import { db } from '../../config';
 import { ProductVariant, VariantPriceTier, ResolvedPrice, InventoryMovement } from '../../common/types';
 import { AppError } from '../../common/middleware';
+import { hormasService } from '../hormas/hormas.service';
+
+const MAX_VARIANT_IMAGES = 4;
 
 // ─── Row interfaces ───────────────────────────────────────────────────────────
 
@@ -15,9 +18,10 @@ interface VariantRow extends RowDataPacket {
   supplier_id: string | null; images: string | null;
   sort_order: number; is_active: number;
   preorder_limit: number | null; preorder_count: number | null;
+  horma_id: string | null;
   created_at: Date; updated_at: Date;
   // joined
-  product_name: string | null; base_price: number | null;
+  product_name: string | null; base_price: number | null; horma_name: string | null;
 }
 
 interface TierRow extends RowDataPacket {
@@ -62,10 +66,12 @@ function mapVariant(row: VariantRow): ProductVariant {
     isActive: Boolean(row.is_active),
     preorderLimit: row.preorder_limit != null ? Number(row.preorder_limit) : null,
     preorderCount: row.preorder_count != null ? Number(row.preorder_count) : 0,
+    hormaId: row.horma_id ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     productName: row.product_name ?? undefined,
     basePrice: row.base_price != null ? Number(row.base_price) : undefined,
+    hormaName: row.horma_name ?? undefined,
     label,
   };
 }
@@ -104,13 +110,210 @@ function mapMovement(row: MovRow): InventoryMovement {
 
 export class VariantsService {
 
+  // Auto-migración idempotente: crea las tablas de variantes/proveedores si no existen.
+  // El esquema "oficial" vive en src/migrations/004_variants_and_suppliers.sql,
+  // pero esa migración debe correrse a mano — en tenants donde nunca se ejecutó,
+  // product_variants/variant_price_tiers/inventory_movements/suppliers no existían
+  // (ER_NO_SUCH_TABLE). Este auto-heal evita depender de ese paso manual.
+  // Público porque otros services (import.service, suppliers.service) también
+  // tocan estas mismas tablas directamente.
+  private tablesEnsured = false;
+  async ensureTables(): Promise<void> {
+    if (this.tablesEnsured) return;
+    // Las queries de variantes hacen LEFT JOIN a `hormas` (horma_id por variante) —
+    // hay que asegurar que esa tabla exista antes, sin importar quién pidió primero.
+    await hormasService.ensureTables();
+    await db.query(`CREATE TABLE IF NOT EXISTS suppliers (
+      id            VARCHAR(36)  NOT NULL PRIMARY KEY,
+      tenant_id     VARCHAR(36)  NOT NULL,
+      name          VARCHAR(255) NOT NULL,
+      contact_info  TEXT,
+      phone         VARCHAR(50),
+      email         VARCHAR(255),
+      payment_terms TEXT,
+      is_active     TINYINT(1)   DEFAULT 1,
+      created_at    TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+      updated_at    TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_suppliers_tenant (tenant_id, is_active)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+
+    await db.query(`CREATE TABLE IF NOT EXISTS supplier_products (
+      id              VARCHAR(36)  NOT NULL PRIMARY KEY,
+      supplier_id     VARCHAR(36)  NOT NULL,
+      product_id      VARCHAR(36)  NOT NULL,
+      supplier_sku    VARCHAR(100),
+      cost_price      DECIMAL(12,2) DEFAULT 0,
+      lead_time_days  INT          DEFAULT 0,
+      is_preferred    TINYINT(1)   DEFAULT 0,
+      is_active       TINYINT(1)   DEFAULT 1,
+      created_at      TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+      updated_at      TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_sp_supplier (supplier_id),
+      INDEX idx_sp_product (product_id),
+      INDEX idx_sp_supplier_product (supplier_id, product_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+
+    await db.query(`CREATE TABLE IF NOT EXISTS product_variants (
+      id              VARCHAR(36)  NOT NULL PRIMARY KEY,
+      tenant_id       VARCHAR(36)  NOT NULL,
+      product_id      VARCHAR(36)  NOT NULL,
+      sku             VARCHAR(100) NOT NULL,
+      barcode         VARCHAR(100),
+      color           VARCHAR(100),
+      color_hex       VARCHAR(9),
+      size            VARCHAR(50),
+      material        VARCHAR(100),
+      stock           INT          DEFAULT 0,
+      reserved_stock  INT          DEFAULT 0,
+      min_stock       INT          DEFAULT 0,
+      cost_price      DECIMAL(12,2) DEFAULT 0,
+      price_override  DECIMAL(12,2),
+      supplier_id     VARCHAR(36),
+      images          JSON,
+      sort_order      INT          DEFAULT 0,
+      is_active       TINYINT(1)   DEFAULT 1,
+      preorder_limit  INT NULL COMMENT 'Cupo máximo de preventa (NULL = ilimitado)',
+      preorder_count  INT NOT NULL DEFAULT 0 COMMENT 'Unidades vendidas/reservadas en preventa',
+      horma_id        VARCHAR(36) NULL COMMENT 'Horma de ESTA variante — un producto puede tener variantes en distintas hormas',
+      created_at      TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+      updated_at      TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_pv_product (product_id),
+      INDEX idx_pv_tenant_product (tenant_id, product_id),
+      INDEX idx_pv_supplier (supplier_id),
+      INDEX idx_pv_sku (tenant_id, sku),
+      INDEX idx_pv_horma (horma_id),
+      UNIQUE KEY uk_pv_sku_tenant (sku, tenant_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+
+    await db.query(`CREATE TABLE IF NOT EXISTS variant_price_tiers (
+      id                VARCHAR(36)  NOT NULL PRIMARY KEY,
+      tenant_id         VARCHAR(36)  NOT NULL,
+      variant_id        VARCHAR(36)  NOT NULL,
+      min_qty           INT          NOT NULL DEFAULT 1,
+      price             DECIMAL(12,2) NOT NULL,
+      tenant_margin_pct DECIMAL(5,2) DEFAULT 0,
+      is_active         TINYINT(1)   DEFAULT 1,
+      created_at        TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+      updated_at        TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_vpt_variant (variant_id),
+      INDEX idx_vpt_variant_minqty (variant_id, tenant_id, min_qty),
+      INDEX idx_vpt_tenant (tenant_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+
+    await db.query(`CREATE TABLE IF NOT EXISTS inventory_movements (
+      id              VARCHAR(36)  NOT NULL PRIMARY KEY,
+      tenant_id       VARCHAR(36)  NOT NULL,
+      variant_id      VARCHAR(36),
+      product_id      VARCHAR(36)  NOT NULL,
+      type            ENUM('entrada','salida','ajuste','merma','transferencia','reserva','liberacion') NOT NULL,
+      quantity        INT          NOT NULL,
+      reason          TEXT         NOT NULL,
+      reference_type  VARCHAR(50),
+      reference_id    VARCHAR(36),
+      created_by      VARCHAR(36),
+      created_at      TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_im_variant (variant_id),
+      INDEX idx_im_product (product_id),
+      INDEX idx_im_tenant (tenant_id),
+      INDEX idx_im_created (tenant_id, created_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+
+    // Si estas tablas ya habían quedado creadas (por una corrida anterior de este
+    // mismo auto-heal, antes de fijar el COLLATE arriba) con el collation default
+    // del servidor (ej. utf8mb4_0900_ai_ci en MySQL 8), cualquier JOIN/WHERE contra
+    // `products` (utf8mb4_unicode_ci) truena con ER_CANT_AGGREGATE_2COLLATIONS.
+    // Forzamos el collation correcto de forma idempotente (no-op si ya coincide).
+    for (const t of ['suppliers', 'supplier_products', 'product_variants', 'variant_price_tiers', 'inventory_movements']) {
+      try {
+        await db.query(`ALTER TABLE ${t} CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
+      } catch (e: any) {
+        console.error(`[variants.ensureTables] No se pudo fijar collation de ${t}:`, e?.message || e);
+      }
+    }
+
+    // products.base_price: fallback de precio que usa resolvePrice() cuando la
+    // variante no tiene price_override ni tiers. Si la tabla products es vieja
+    // (sin esta columna) la rellenamos desde sale_price.
+    try {
+      await db.query('ALTER TABLE products ADD COLUMN base_price DECIMAL(12,2) NULL');
+      await db.query('UPDATE products SET base_price = sale_price WHERE base_price IS NULL');
+    } catch (e: any) {
+      if (e?.errno !== 1060) { /* 1060 = columna ya existe */ }
+    }
+
+    // horma_id por variante: si product_variants YA existía (de antes de este cambio),
+    // el CREATE TABLE IF NOT EXISTS de arriba no le agrega la columna — hay que alterarla.
+    try {
+      await db.query("ALTER TABLE product_variants ADD COLUMN horma_id VARCHAR(36) NULL COMMENT 'Horma de ESTA variante'");
+      await db.query('ALTER TABLE product_variants ADD INDEX idx_pv_horma (horma_id)');
+      // Backfill: si el producto ya tenía una sola horma (products.horma_id), úsala
+      // como punto de partida para sus variantes existentes sin horma propia.
+      await db.query(`
+        UPDATE product_variants pv
+        JOIN products p ON p.id = pv.product_id
+        SET pv.horma_id = p.horma_id
+        WHERE pv.horma_id IS NULL AND p.horma_id IS NOT NULL
+      `);
+    } catch (e: any) {
+      if (e?.errno !== 1060) { /* 1060 = columna/índice ya existe */ }
+    }
+
+    // ── Limpieza única de SKUs bloqueados ───────────────────────────────────
+    // 1) Variantes huérfanas: su producto ya no existe (porque products.delete()
+    //    antes no las borraba). Quedaban "activas" ocupando su SKU para siempre.
+    // 2) Variantes desactivadas de antes de este fix, que softDelete() aún no
+    //    había renombrado. Libera su SKU para que se pueda reusar.
+    try {
+      await db.query(`
+        DELETE vpt FROM variant_price_tiers vpt
+        LEFT JOIN product_variants pv ON pv.id = vpt.variant_id
+        WHERE pv.id IS NULL
+      `);
+      await db.query(`
+        DELETE pv FROM product_variants pv
+        LEFT JOIN products p ON p.id = pv.product_id
+        WHERE p.id IS NULL
+      `);
+      await db.query(`
+        UPDATE product_variants
+        SET sku = CONCAT(sku, '-DEL-', SUBSTRING(id, 1, 8))
+        WHERE is_active = 0 AND sku NOT LIKE '%-DEL-%'
+      `);
+    } catch (e: any) {
+      console.error('[variants.ensureTables] limpieza de SKUs bloqueados falló:', e?.message || e);
+    }
+
+    this.tablesEnsured = true;
+  }
+
   // ── Variants CRUD ──────────────────────────────────────────────────────────
 
-  async findByProduct(productId: string, tenantId: string): Promise<ProductVariant[]> {
+  /**
+   * Todas las variantes activas del tenant, en un solo viaje (sin eager-load de tiers,
+   * a propósito — esto alimenta el resumen de "stock total" y "colores" en la tabla
+   * de inventario, que necesita ser liviano para todos los productos a la vez).
+   */
+  async findAllByTenant(tenantId: string): Promise<ProductVariant[]> {
+    await this.ensureTables();
     const [rows] = await db.execute<VariantRow[]>(
-      `SELECT pv.*, p.name AS product_name, COALESCE(p.base_price, p.sale_price) AS base_price
+      `SELECT pv.*, p.name AS product_name, COALESCE(p.base_price, p.sale_price) AS base_price, h.name AS horma_name
        FROM product_variants pv
        LEFT JOIN products p ON p.id = pv.product_id
+       LEFT JOIN hormas h ON h.id = pv.horma_id
+       WHERE pv.tenant_id = ? AND pv.is_active = 1
+       ORDER BY pv.product_id, pv.sort_order ASC, pv.created_at ASC`,
+      [tenantId]
+    );
+    return rows.map(mapVariant);
+  }
+
+  async findByProduct(productId: string, tenantId: string): Promise<ProductVariant[]> {
+    await this.ensureTables();
+    const [rows] = await db.execute<VariantRow[]>(
+      `SELECT pv.*, p.name AS product_name, COALESCE(p.base_price, p.sale_price) AS base_price, h.name AS horma_name
+       FROM product_variants pv
+       LEFT JOIN products p ON p.id = pv.product_id
+       LEFT JOIN hormas h ON h.id = pv.horma_id
        WHERE pv.product_id = ? AND pv.tenant_id = ? AND pv.is_active = 1
        ORDER BY pv.sort_order ASC, pv.created_at ASC`,
       [productId, tenantId]
@@ -125,10 +328,12 @@ export class VariantsService {
   }
 
   async findById(id: string, tenantId: string): Promise<ProductVariant> {
+    await this.ensureTables();
     const [rows] = await db.execute<VariantRow[]>(
-      `SELECT pv.*, p.name AS product_name, COALESCE(p.base_price, p.sale_price) AS base_price
+      `SELECT pv.*, p.name AS product_name, COALESCE(p.base_price, p.sale_price) AS base_price, h.name AS horma_name
        FROM product_variants pv
        LEFT JOIN products p ON p.id = pv.product_id
+       LEFT JOIN hormas h ON h.id = pv.horma_id
        WHERE pv.id = ? AND pv.tenant_id = ? AND pv.is_active = 1`,
       [id, tenantId]
     );
@@ -147,22 +352,34 @@ export class VariantsService {
     sku: string; barcode?: string; color?: string; colorHex?: string; size?: string; material?: string;
     stock?: number; minStock?: number; costPrice?: number; priceOverride?: number;
     supplierId?: string; images?: string[]; sortOrder?: number; preorderLimit?: number | null;
+    hormaId?: string | null;
   }): Promise<ProductVariant> {
+    await this.ensureTables();
     await this.ensureColorHex();
-    // SKU único por tenant
+    if (data.images && data.images.length > MAX_VARIANT_IMAGES) {
+      throw new AppError(`Máximo ${MAX_VARIANT_IMAGES} imágenes por color`, 400);
+    }
+    // SKU único por tenant (solo entre activas — una eliminada no debe bloquear el SKU)
     const [dup] = await db.execute<RowDataPacket[]>(
-      'SELECT id FROM product_variants WHERE sku = ? AND tenant_id = ?',
+      'SELECT id FROM product_variants WHERE sku = ? AND tenant_id = ? AND is_active = 1',
       [data.sku, tenantId]
     );
     if (dup.length > 0) throw new AppError('El SKU de la variante ya existe', 400);
+
+    // Si viene horma_id, valida que el color esté en la paleta de ESA horma
+    // (no la del producto — un producto puede tener variantes en varias hormas).
+    if (data.hormaId && data.color) {
+      const allowed = await hormasService.isColorAllowed(data.hormaId, data.color, tenantId);
+      if (!allowed) throw new AppError(`El color "${data.color}" no está en la paleta de esta horma`, 400);
+    }
 
     const id = uuidv4();
     await db.execute(
       `INSERT INTO product_variants
          (id, tenant_id, product_id, sku, barcode, color, color_hex, size, material,
           stock, reserved_stock, min_stock, cost_price, price_override,
-          supplier_id, images, sort_order, preorder_limit)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)`,
+          supplier_id, images, sort_order, preorder_limit, horma_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id, tenantId, productId,
         data.sku, data.barcode ?? null, data.color ?? null, data.colorHex ?? null, data.size ?? null, data.material ?? null,
@@ -172,6 +389,7 @@ export class VariantsService {
         data.images ? JSON.stringify(data.images) : null,
         data.sortOrder ?? 0,
         data.preorderLimit ?? null,
+        data.hormaId ?? null,
       ]
     );
 
@@ -191,13 +409,17 @@ export class VariantsService {
     sku: string; barcode: string; color: string; colorHex: string; size: string; material: string;
     minStock: number; costPrice: number; priceOverride: number;
     supplierId: string; images: string[]; sortOrder: number; isActive: boolean; preorderLimit: number | null;
+    hormaId: string | null;
   }>): Promise<ProductVariant> {
     await this.ensureColorHex();
     await this.findById(id, tenantId);
+    if (data.images && data.images.length > MAX_VARIANT_IMAGES) {
+      throw new AppError(`Máximo ${MAX_VARIANT_IMAGES} imágenes por color`, 400);
+    }
 
     if (data.sku) {
       const [dup] = await db.execute<RowDataPacket[]>(
-        'SELECT id FROM product_variants WHERE sku = ? AND tenant_id = ? AND id != ?',
+        'SELECT id FROM product_variants WHERE sku = ? AND tenant_id = ? AND id != ? AND is_active = 1',
         [data.sku, tenantId, id]
       );
       if (dup.length > 0) throw new AppError('El SKU de la variante ya existe', 400);
@@ -207,7 +429,7 @@ export class VariantsService {
       sku: 'sku', barcode: 'barcode', color: 'color', colorHex: 'color_hex', size: 'size', material: 'material',
       minStock: 'min_stock', costPrice: 'cost_price', priceOverride: 'price_override',
       supplierId: 'supplier_id', sortOrder: 'sort_order', isActive: 'is_active',
-      preorderLimit: 'preorder_limit',
+      preorderLimit: 'preorder_limit', hormaId: 'horma_id',
     };
 
     const sets: string[] = [];
@@ -229,8 +451,12 @@ export class VariantsService {
 
   async softDelete(id: string, tenantId: string): Promise<void> {
     await this.findById(id, tenantId);
+    // Renombra el SKU al desactivar — el UNIQUE KEY (sku, tenant_id) no distingue
+    // is_active, así que sin esto el SKU queda bloqueado para siempre y una variante
+    // NUEVA que intente reusarlo (ej. al recrear el mismo producto) choca con
+    // "El SKU de la variante ya existe" contra una fila que el usuario ya borró.
     await db.execute(
-      'UPDATE product_variants SET is_active = 0 WHERE id = ? AND tenant_id = ?',
+      "UPDATE product_variants SET is_active = 0, sku = CONCAT(sku, '-DEL-', SUBSTRING(id, 1, 8)) WHERE id = ? AND tenant_id = ?",
       [id, tenantId]
     );
   }
@@ -242,6 +468,7 @@ export class VariantsService {
     quantity: number; type: 'entrada' | 'salida' | 'ajuste' | 'merma';
     reason: string; referenceType?: string; referenceId?: string; createdBy?: string;
   }): Promise<ProductVariant> {
+    await this.ensureTables();
     if (!params.reason?.trim()) throw new AppError('Debe especificar el motivo del movimiento', 400);
 
     const isDecrease = params.type === 'salida' || params.type === 'merma';
@@ -275,6 +502,7 @@ export class VariantsService {
     conn: any,
     variantId: string, tenantId: string, quantity: number
   ): Promise<void> {
+    await this.ensureTables();
     const [result] = await conn.execute(
       'UPDATE product_variants SET stock = stock - ? WHERE id = ? AND tenant_id = ? AND stock >= ?',
       [quantity, variantId, tenantId, quantity]
@@ -299,6 +527,7 @@ export class VariantsService {
   }): Promise<{ ok: boolean; conflict?: string }> {
     const variantItems = params.items.filter(i => i.variantId);
     if (variantItems.length === 0) return { ok: true };
+    await this.ensureTables();
 
     const conn = await (db as any).getConnection();
     try {
@@ -358,6 +587,7 @@ export class VariantsService {
    * → preorder_count. Registra un movimiento 'liberacion'. Idempotente: sin reservas, no hace nada.
    */
   async releaseForOrder(orderId: string, tenantId: string): Promise<void> {
+    await this.ensureTables();
     const [movs] = await db.execute<RowDataPacket[]>(
       `SELECT variant_id, product_id, reference_type, SUM(quantity) AS qty
        FROM inventory_movements
@@ -402,6 +632,7 @@ export class VariantsService {
     variantId: string; productId: string; tenantId: string; quantity: number;
     isPreorder?: boolean; reason: string; referenceId: string;
   }): Promise<{ sku: string; costPrice: number }> {
+    await this.ensureTables();
     const [rows] = await conn.execute(
       'SELECT sku, cost_price FROM product_variants WHERE id = ? AND tenant_id = ? FOR UPDATE',
       [params.variantId, params.tenantId]
@@ -434,6 +665,7 @@ export class VariantsService {
   // ── Price Tiers ────────────────────────────────────────────────────────────
 
   async findTiersByVariant(variantId: string, tenantId: string): Promise<VariantPriceTier[]> {
+    await this.ensureTables();
     const [rows] = await db.execute<TierRow[]>(
       `SELECT * FROM variant_price_tiers
        WHERE variant_id = ? AND tenant_id = ? AND is_active = 1
@@ -444,6 +676,7 @@ export class VariantsService {
   }
 
   async resolvePrice(variantId: string, qty: number, tenantId: string): Promise<ResolvedPrice> {
+    await this.ensureTables();
     // Buscar el tier más alto con min_qty <= qty
     const [tiers] = await db.execute<TierRow[]>(
       `SELECT * FROM variant_price_tiers
@@ -501,6 +734,7 @@ export class VariantsService {
   async updateTier(tierId: string, tenantId: string, data: {
     price?: number; tenantMarginPct?: number; isActive?: boolean;
   }): Promise<VariantPriceTier> {
+    await this.ensureTables();
     const [existing] = await db.execute<TierRow[]>(
       'SELECT * FROM variant_price_tiers WHERE id = ? AND tenant_id = ?',
       [tierId, tenantId]
@@ -522,6 +756,7 @@ export class VariantsService {
   }
 
   async deleteTier(tierId: string, tenantId: string): Promise<void> {
+    await this.ensureTables();
     const [existing] = await db.execute<RowDataPacket[]>(
       'SELECT id FROM variant_price_tiers WHERE id = ? AND tenant_id = ?', [tierId, tenantId]
     );
@@ -532,9 +767,69 @@ export class VariantsService {
     );
   }
 
+  // ── Edición masiva (grupos) ────────────────────────────────────────────────
+  // Aplica el mismo cambio a un lote de variantes — pensado para "editar por
+  // grupos" desde el panel de inventario (ej. seleccionar todas las de talla M
+  // y sumar 50 unidades, o fijar un nuevo precio override a todo un color).
+  // No es transaccional entre variantes a propósito: si una falla (ej. stock
+  // insuficiente al restar), las demás deben seguir aplicándose — se reporta
+  // por variante en `failed` en vez de abortar todo el lote.
+  async bulkUpdate(tenantId: string, params: {
+    variantIds: string[];
+    stock?: { type: 'entrada' | 'salida' | 'ajuste' | 'merma'; quantity: number; reason: string };
+    priceOverride?: number | null;
+    costPrice?: number | null;
+    minStock?: number;
+    createdBy?: string;
+  }): Promise<{ updated: number; failed: { id: string; error: string }[] }> {
+    await this.ensureTables();
+    if (!params.variantIds || params.variantIds.length === 0) {
+      throw new AppError('Debe seleccionar al menos una variante', 400);
+    }
+    if (!params.stock && params.priceOverride === undefined && params.costPrice === undefined && params.minStock === undefined) {
+      throw new AppError('No hay cambios para aplicar', 400);
+    }
+    if (params.stock && !params.stock.reason?.trim()) {
+      throw new AppError('Debe especificar el motivo del ajuste de stock', 400);
+    }
+
+    const fieldUpdate: Partial<{ priceOverride: number | null; costPrice: number | null; minStock: number }> = {};
+    if (params.priceOverride !== undefined) fieldUpdate.priceOverride = params.priceOverride;
+    if (params.costPrice !== undefined) fieldUpdate.costPrice = params.costPrice;
+    if (params.minStock !== undefined) fieldUpdate.minStock = params.minStock;
+
+    let updated = 0;
+    const failed: { id: string; error: string }[] = [];
+
+    for (const variantId of params.variantIds) {
+      try {
+        const variant = await this.findById(variantId, tenantId);
+
+        if (params.stock) {
+          await this.adjustStock({
+            variantId, productId: variant.productId, tenantId,
+            quantity: params.stock.quantity, type: params.stock.type,
+            reason: params.stock.reason, referenceType: 'bulk_edit', createdBy: params.createdBy,
+          });
+        }
+
+        if (Object.keys(fieldUpdate).length > 0) {
+          await this.update(variantId, tenantId, fieldUpdate);
+        }
+
+        updated++;
+      } catch (e: any) {
+        failed.push({ id: variantId, error: e?.message || 'Error desconocido' });
+      }
+    }
+
+    return { updated, failed };
+  }
+
   // ── Inventory Movements ────────────────────────────────────────────────────
 
   async getMovements(variantId: string, tenantId: string): Promise<InventoryMovement[]> {
+    await this.ensureTables();
     const [rows] = await db.execute<MovRow[]>(
       `SELECT * FROM inventory_movements
        WHERE variant_id = ? AND tenant_id = ?

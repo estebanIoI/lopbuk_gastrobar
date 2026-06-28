@@ -27,12 +27,14 @@ export interface ProductVariant {
   isActive: boolean;
   preorderLimit?: number | null;  // cupo máximo de preventa (null = ilimitado)
   preorderCount?: number;         // unidades vendidas/reservadas en preventa
+  hormaId?: string | null;        // horma (silueta) de ESTA variante — un producto puede tener variantes en distintas hormas
   createdAt: Date;
   updatedAt: Date;
   // Eager-loaded
   priceTiers?: VariantPriceTier[];
   productName?: string;
   basePrice?: number;
+  hormaName?: string;
   label?: string; // "Negro / M"
 }
 

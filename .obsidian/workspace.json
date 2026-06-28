@@ -4,17 +4,17 @@
     "type": "split",
     "children": [
       {
-        "id": "d2337794e5f09a1f",
+        "id": "321244959e24e644",
         "type": "tabs",
         "children": [
           {
-            "id": "eaa45144a10060f7",
+            "id": "3d2798e7625b49ea",
             "type": "leaf",
             "state": {
-              "type": "graph",
+              "type": "empty",
               "state": {},
-              "icon": "lucide-git-fork",
-              "title": "Vista gráfica"
+              "icon": "lucide-file",
+              "title": "Nueva pestaña"
             }
           }
         ]
@@ -74,8 +74,7 @@
       }
     ],
     "direction": "horizontal",
-    "width": 200,
-    "collapsed": true
+    "width": 200
   },
   "right": {
     "id": "1a49d3cddd9801da",
@@ -180,8 +179,9 @@
       "bases:Crear nueva base": false
     }
   },
-  "active": "eaa45144a10060f7",
+  "active": "7db4f582bcf38241",
   "lastOpenFiles": [
+    "Sin nombre",
     "daimuz/memory/current-state.md.tmp.9732.9ffc5fafb42d",
     "backend/src/modules/storefront/storefront.routes.ts.tmp.9732.37e22cf61273",
     "frontend/lib/types.ts.tmp.9732.598898fc6bfe",
@@ -192,7 +192,6 @@
     "backend/src/index.ts.tmp.9732.ff42354240ee",
     "daimuz/context/pending.md.tmp.26036.c873844153ab",
     "daimuz/context/current-sprint.md.tmp.26036.b1b3d56dd802",
-    "daimuz/memory/changelog.md.tmp.26036.f6908b8c34d1",
     "daimuz/DAIMUZ.md",
     "daimuz/memory/bugs-history.md",
     "README.md",

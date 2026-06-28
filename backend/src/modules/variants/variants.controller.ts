@@ -7,6 +7,14 @@ export class VariantsController {
 
   // ── Variants ──────────────────────────────────────────────────────────────
 
+  async findAllByTenant(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const tenantId = req.user!.tenantId!;
+      const data = await variantsService.findAllByTenant(tenantId);
+      res.json({ success: true, data });
+    } catch (err) { next(err); }
+  }
+
   async findByProduct(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const tenantId = req.user!.tenantId!;
@@ -66,6 +74,18 @@ export class VariantsController {
     try {
       const tenantId = req.user!.tenantId!;
       const data = await variantsService.getMovements(req.params.id, tenantId);
+      res.json({ success: true, data });
+    } catch (err) { next(err); }
+  }
+
+  async bulkUpdate(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const tenantId = req.user!.tenantId!;
+      const { variantIds, stock, priceOverride, costPrice, minStock } = req.body;
+      const data = await variantsService.bulkUpdate(tenantId, {
+        variantIds, stock, priceOverride, costPrice, minStock,
+        createdBy: req.user!.id,
+      });
       res.json({ success: true, data });
     } catch (err) { next(err); }
   }

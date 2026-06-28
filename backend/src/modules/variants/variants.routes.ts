@@ -12,18 +12,36 @@ router.use(authenticate);
 // POST /api/products/:productId/variants
 router.get(
   '/products/:productId/variants',
-  [param('productId').isUUID().withMessage('ID de producto inválido'), validateRequest],
+  [param('productId').notEmpty().withMessage('ID de producto inválido'), validateRequest],
   variantsController.findByProduct.bind(variantsController)
 );
 
 router.post(
   '/products/:productId/variants',
   [
-    param('productId').isUUID(),
+    param('productId').notEmpty(),
     body('sku').notEmpty().withMessage('SKU requerido'),
     validateRequest,
   ],
   variantsController.create.bind(variantsController)
+);
+
+// ── Resumen (todas las variantes del tenant, para la tabla de inventario) ─────
+// GET /api/variants/summary
+// IMPORTANTE: declarada ANTES de '/variants/:id' — si no, Express la matchearía
+// como GET /variants/:id con id="summary" y nunca llegaría aquí.
+router.get('/variants/summary', variantsController.findAllByTenant.bind(variantsController));
+
+// ── Edición masiva (grupos) ────────────────────────────────────────────────────
+// POST /api/variants/bulk-update
+// IMPORTANTE: declarada ANTES de '/variants/:id' por la misma razón que '/variants/summary'.
+router.post(
+  '/variants/bulk-update',
+  [
+    body('variantIds').isArray({ min: 1 }).withMessage('Debe seleccionar al menos una variante'),
+    validateRequest,
+  ],
+  variantsController.bulkUpdate.bind(variantsController)
 );
 
 // ── Por variante ──────────────────────────────────────────────────────────────
@@ -37,26 +55,26 @@ router.post(
 // POST   /api/variants/:id/resolve-price
 router.get(
   '/variants/:id',
-  [param('id').isUUID(), validateRequest],
+  [param('id').notEmpty(), validateRequest],
   variantsController.findById.bind(variantsController)
 );
 
 router.put(
   '/variants/:id',
-  [param('id').isUUID(), validateRequest],
+  [param('id').notEmpty(), validateRequest],
   variantsController.update.bind(variantsController)
 );
 
 router.delete(
   '/variants/:id',
-  [param('id').isUUID(), validateRequest],
+  [param('id').notEmpty(), validateRequest],
   variantsController.delete.bind(variantsController)
 );
 
 router.patch(
   '/variants/:id/stock',
   [
-    param('id').isUUID(),
+    param('id').notEmpty(),
     body('quantity').isNumeric().withMessage('Cantidad requerida'),
     body('type').isIn(['entrada', 'salida', 'ajuste', 'merma']).withMessage('Tipo inválido'),
     body('reason').notEmpty().withMessage('Motivo requerido'),
@@ -67,20 +85,20 @@ router.patch(
 
 router.get(
   '/variants/:id/movements',
-  [param('id').isUUID(), validateRequest],
+  [param('id').notEmpty(), validateRequest],
   variantsController.getMovements.bind(variantsController)
 );
 
 router.get(
   '/variants/:id/price-tiers',
-  [param('id').isUUID(), validateRequest],
+  [param('id').notEmpty(), validateRequest],
   variantsController.getTiers.bind(variantsController)
 );
 
 router.post(
   '/variants/:id/price-tiers',
   [
-    param('id').isUUID(),
+    param('id').notEmpty(),
     body('minQty').isInt({ min: 1 }).withMessage('minQty debe ser ≥ 1'),
     body('price').isNumeric().withMessage('Precio requerido'),
     validateRequest,
@@ -90,7 +108,7 @@ router.post(
 
 router.post(
   '/variants/:id/resolve-price',
-  [param('id').isUUID(), validateRequest],
+  [param('id').notEmpty(), validateRequest],
   variantsController.resolvePrice.bind(variantsController)
 );
 
@@ -99,13 +117,13 @@ router.post(
 // DELETE /api/price-tiers/:tierId
 router.put(
   '/price-tiers/:tierId',
-  [param('tierId').isUUID(), validateRequest],
+  [param('tierId').notEmpty(), validateRequest],
   variantsController.updateTier.bind(variantsController)
 );
 
 router.delete(
   '/price-tiers/:tierId',
-  [param('tierId').isUUID(), validateRequest],
+  [param('tierId').notEmpty(), validateRequest],
   variantsController.deleteTier.bind(variantsController)
 );
 
