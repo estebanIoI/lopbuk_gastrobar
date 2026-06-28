@@ -394,6 +394,7 @@ router.get('/stores', async (req: Request, res: Response) => {
        FROM tenants t
        LEFT JOIN store_info si ON si.tenant_id = t.id
        WHERE t.status = 'activo'
+         AND (t.is_hidden IS NULL OR t.is_hidden = 0)
          AND (si.marketplace_visible IS NULL OR si.marketplace_visible = 1)
        ${municipalityFilter}
        ORDER BY COALESCE(si.marketplace_order, 0) ASC, t.name ASC`,
@@ -1948,19 +1949,7 @@ router.put('/contact-page', authenticate, requirePlan('empresarial'), async (req
         values
       );
     } catch {
-      // Columns don't exist yet — add each one individually (IF NOT EXISTS not supported in MySQL < 8.0.3)
-      const alterCols = [
-        `ALTER TABLE store_info ADD COLUMN contact_page_enabled    TINYINT(1)   NOT NULL DEFAULT 0`,
-        `ALTER TABLE store_info ADD COLUMN contact_page_title      VARCHAR(255)          DEFAULT NULL`,
-        `ALTER TABLE store_info ADD COLUMN contact_page_description TEXT                 DEFAULT NULL`,
-        `ALTER TABLE store_info ADD COLUMN contact_page_image      VARCHAR(500)          DEFAULT NULL`,
-        `ALTER TABLE store_info ADD COLUMN contact_page_products   TEXT                  DEFAULT NULL`,
-        `ALTER TABLE store_info ADD COLUMN contact_page_links      TEXT                  DEFAULT NULL`,
-        `ALTER TABLE store_info ADD COLUMN contact_page_link_theme VARCHAR(20)           DEFAULT 'theme1'`,
-      ];
-      for (const sql of alterCols) {
-        try { await pool.query(sql); } catch (e: any) { if (e.errno !== 1060) throw e; }
-      }
+      // DDL congelado: columnas store_info.contact_page_* en el baseline Drizzle (src/db/migrations). Ver CLAUDE.md.
       await pool.query(
         `UPDATE store_info SET
           contact_page_enabled = ?,
@@ -1981,9 +1970,7 @@ router.put('/contact-page', authenticate, requirePlan('empresarial'), async (req
 
     // X and Snapchat — newer columns added separately
     if (socialX !== undefined || socialSnapchat !== undefined) {
-      for (const col of ['social_x VARCHAR(500)', 'social_snapchat VARCHAR(500)']) {
-        try { await pool.query(`ALTER TABLE store_info ADD COLUMN ${col} DEFAULT NULL`); } catch (e: any) { if (e.errno !== 1060) { /* ignore */ } }
-      }
+      // DDL congelado: columnas store_info.social_x/social_snapchat en el baseline Drizzle (src/db/migrations). Ver CLAUDE.md.
       try {
         await pool.query(
           `UPDATE store_info SET social_x = ?, social_snapchat = ? WHERE tenant_id = ?`,
@@ -2015,14 +2002,7 @@ router.put('/age-gate', authenticate, requirePlan('empresarial'), async (req: Re
         [ageGateEnabled ? 1 : 0, ageGateDescription || null, tenantId]
       );
     } catch {
-      // Columns don't exist yet — auto-add them then retry
-      const alterCols = [
-        `ALTER TABLE store_info ADD COLUMN age_gate_enabled     TINYINT(1) NOT NULL DEFAULT 0`,
-        `ALTER TABLE store_info ADD COLUMN age_gate_description TEXT DEFAULT NULL`,
-      ];
-      for (const sql of alterCols) {
-        try { await pool.query(sql); } catch (e: any) { if (e.errno !== 1060) throw e; }
-      }
+      // DDL congelado: columnas store_info.age_gate_* en el baseline Drizzle (src/db/migrations). Ver CLAUDE.md.
       await pool.query(
         `UPDATE store_info SET age_gate_enabled = ?, age_gate_description = ? WHERE tenant_id = ?`,
         [ageGateEnabled ? 1 : 0, ageGateDescription || null, tenantId]
@@ -2268,17 +2248,7 @@ router.put('/cart-settings', authenticate, requirePlan('empresarial'), async (re
     const safeMin = Math.max(0, parseInt(cartMinPurchase) || 0);
     const safeFee = Math.max(0, parseInt(cartDeliveryFee) || 0);
 
-    // Ensure columns exist (migration for existing DBs)
-    try {
-      await pool.query(
-        `ALTER TABLE store_info ADD COLUMN cart_min_purchase INT NOT NULL DEFAULT 0 COMMENT 'Monto mínimo COP para domicilio con flota'`
-      );
-    } catch { /* column already exists — ignore */ }
-    try {
-      await pool.query(
-        `ALTER TABLE store_info ADD COLUMN cart_delivery_fee INT NOT NULL DEFAULT 0 COMMENT 'Tarifa de domicilio COP cuando no alcanza el mínimo'`
-      );
-    } catch { /* column already exists — ignore */ }
+    // DDL congelado: columnas store_info.cart_min_purchase/cart_delivery_fee en el baseline Drizzle (src/db/migrations). Ver CLAUDE.md.
 
     // Try UPDATE first (row already exists)
     const [updateResult] = await pool.query(
@@ -2313,20 +2283,7 @@ router.get('/order-bump-config', authenticate, requirePlan('empresarial'), async
 
     let config: any = null;
     try {
-      await pool.query(`
-        CREATE TABLE IF NOT EXISTS store_order_bump (
-          id INT PRIMARY KEY AUTO_INCREMENT,
-          tenant_id VARCHAR(36) NOT NULL,
-          is_enabled BOOLEAN NOT NULL DEFAULT FALSE,
-          mode ENUM('auto','manual') NOT NULL DEFAULT 'auto',
-          title VARCHAR(255) NOT NULL DEFAULT '¿También te puede interesar?',
-          max_items INT NOT NULL DEFAULT 3,
-          product_ids JSON NULL,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-          UNIQUE INDEX idx_order_bump_tenant (tenant_id)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-      `);
+      // DDL congelado: tabla store_order_bump vive en el baseline Drizzle (src/db/migrations). Ver CLAUDE.md.
       const [rows] = await pool.query(
         `SELECT is_enabled as isEnabled, mode, title, max_items as maxItems, product_ids as productIds
          FROM store_order_bump WHERE tenant_id = ?`,
@@ -2366,21 +2323,7 @@ router.put('/order-bump-config', authenticate, requirePlan('empresarial'), async
     const tenantId = (req as any).user.tenantId;
     const { isEnabled, mode, title, maxItems, productIds } = req.body;
 
-    // Ensure table exists (in case migration hasn't been applied yet)
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS store_order_bump (
-        id INT PRIMARY KEY AUTO_INCREMENT,
-        tenant_id VARCHAR(36) NOT NULL,
-        is_enabled BOOLEAN NOT NULL DEFAULT FALSE,
-        mode ENUM('auto','manual') NOT NULL DEFAULT 'auto',
-        title VARCHAR(255) NOT NULL DEFAULT '¿También te puede interesar?',
-        max_items INT NOT NULL DEFAULT 3,
-        product_ids JSON NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        UNIQUE INDEX idx_order_bump_tenant (tenant_id)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-    `);
+    // DDL congelado: tabla store_order_bump vive en el baseline Drizzle (src/db/migrations). Ver CLAUDE.md.
 
     const [existing] = await pool.query(
       'SELECT id FROM store_order_bump WHERE tenant_id = ?', [tenantId]
@@ -3046,6 +2989,8 @@ function slugifySection(text: string): string {
 }
 
 async function ensureCustomSectionsTable(tenantId: string): Promise<void> {
+  return; // DDL congelado: tabla store_custom_sections vive en el baseline Drizzle (src/db/migrations). Ver CLAUDE.md.
+  // eslint-disable-next-line no-unreachable
   try {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS store_custom_sections (

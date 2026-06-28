@@ -20,34 +20,9 @@ const ADMIN_ROLES: UserRole[] = ['superadmin', 'comerciante', 'administrador_rb'
 const ok = (res: Response, data: any, code = 200) => res.status(code).json({ success: true, data });
 const bad = (res: Response, msg: string, code = 400) => res.status(code).json({ success: false, error: msg });
 
-let ensured = false;
-export async function ensureLoyaltyTables() {
-  if (ensured) return;
-  await pool.query(`CREATE TABLE IF NOT EXISTS loyalty_config (
-    tenant_id VARCHAR(36) PRIMARY KEY, enabled TINYINT NOT NULL DEFAULT 1,
-    points_per_thousand DECIMAL(8,2) NOT NULL DEFAULT 1,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
-  await pool.query(`CREATE TABLE IF NOT EXISTS loyalty_accounts (
-    id VARCHAR(36) PRIMARY KEY, tenant_id VARCHAR(36) NOT NULL,
-    customer_name VARCHAR(120) NULL, customer_phone VARCHAR(40) NOT NULL,
-    points_balance INT NOT NULL DEFAULT 0, total_earned INT NOT NULL DEFAULT 0,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE INDEX idx_loyalty_acct (tenant_id, customer_phone)
-  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
-  await pool.query(`CREATE TABLE IF NOT EXISTS loyalty_transactions (
-    id VARCHAR(36) PRIMARY KEY, tenant_id VARCHAR(36) NOT NULL, account_id VARCHAR(36) NOT NULL,
-    type ENUM('earn','redeem','adjust') NOT NULL, points INT NOT NULL, reason VARCHAR(200) NULL,
-    order_id VARCHAR(36) NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_loyalty_tx (tenant_id, account_id, created_at)
-  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
-  await pool.query(`CREATE TABLE IF NOT EXISTS loyalty_rewards (
-    id VARCHAR(36) PRIMARY KEY, tenant_id VARCHAR(36) NOT NULL, name VARCHAR(120) NOT NULL,
-    description VARCHAR(300) NULL, points_cost INT NOT NULL, is_active TINYINT NOT NULL DEFAULT 1,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, INDEX idx_loyalty_reward (tenant_id, is_active)
-  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
-  ensured = true;
-}
+// DDL congelado: las tablas loyalty_* viven en el baseline Drizzle (src/db/migrations).
+// Función no-op conservada porque la invocan varios handlers. Ver CLAUDE.md.
+export async function ensureLoyaltyTables() { /* no-op: esquema en migraciones */ }
 
 export async function getLoyaltyConfig(tenantId: string): Promise<{ enabled: boolean; pointsPerThousand: number }> {
   const [r] = (await pool.query('SELECT enabled, points_per_thousand FROM loyalty_config WHERE tenant_id = ?', [tenantId])) as any;

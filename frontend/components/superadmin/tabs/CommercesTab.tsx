@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import {
   CheckCircle2, Eye, EyeOff, RefreshCw, Save, Search, Store,
   Plus, Trash2, RotateCcw, PauseCircle, PlayCircle, Loader2,
+  Lock, Unlock, Copy, ExternalLink, RotateCw, ChevronDown, ChevronUp, Download,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -11,6 +12,8 @@ import { Input } from '@/components/ui/input'
 import { useCommerces } from '../hooks/useCommerces'
 import { useTenantLifecycle, type TenantFull } from '../hooks/useTenantLifecycle'
 import { CommerceWizard } from '../shared/CommerceWizard'
+import { api } from '@/lib/api'
+import { QRCodeSVG } from 'qrcode.react'
 
 // ── Status badge ──────────────────────────────────────────────────────────────
 
@@ -38,6 +41,174 @@ function PlanBadge({ plan }: { plan: string }) {
   return <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${cls}`}>{plan}</span>
 }
 
+// ── Hidden Layer panel ────────────────────────────────────────────────────────
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'
+
+function HiddenLayerPanel({ tenant, onRefresh }: { tenant: TenantFull; onRefresh: () => void }) {
+  const [open, setOpen] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [expiresInDays, setExpiresInDays] = useState<number | ''>('')
+  const [localToken, setLocalToken] = useState(tenant.hiddenAccessToken)
+  const [localCode, setLocalCode]   = useState(tenant.hiddenAccessCode)
+  const [localHidden, setLocalHidden] = useState(Boolean(tenant.isHidden))
+  const qrRef = useRef<HTMLDivElement>(null)
+
+  const deepLink = localToken
+    ? `${typeof window !== 'undefined' ? window.location.origin : ''}/hidden/${localToken}`
+    : ''
+
+  const callApi = useCallback(async (path: string, body?: object) => {
+    setLoading(true)
+    try {
+      // Auth: cookie httpOnly (credentials) + Bearer en memoria como fallback,
+      // igual que el resto del frontend (ver lib/api.ts — NO usar localStorage).
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      const tok = api.getToken()
+      if (tok) headers.Authorization = `Bearer ${tok}`
+      const res = await fetch(`${API_BASE}/hidden-access${path}`, {
+        method: 'POST',
+        headers,
+        credentials: 'include',
+        body: body ? JSON.stringify(body) : undefined,
+      })
+      return await res.json()
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  const handleGenerate = async () => {
+    const r = await callApi(`/tenants/${tenant.id}/generate`, expiresInDays ? { expiresInDays: Number(expiresInDays) } : {})
+    if (r.success) { setLocalToken(r.data.token); setLocalCode(r.data.code); setLocalHidden(true); onRefresh() }
+  }
+
+  const handleRegenerate = async () => {
+    if (!confirm('¿Regenerar? Todos los accesos anteriores quedarán inválidos.')) return
+    const r = await callApi(`/tenants/${tenant.id}/regenerate`, expiresInDays ? { expiresInDays: Number(expiresInDays) } : {})
+    if (r.success) { setLocalToken(r.data.token); setLocalCode(r.data.code); onRefresh() }
+  }
+
+  const handleDisable = async () => {
+    if (!confirm('¿Desactivar Hidden Layer? La tienda volverá al marketplace público.')) return
+    const r = await callApi(`/tenants/${tenant.id}/disable`)
+    if (r.success) { setLocalToken(undefined); setLocalCode(undefined); setLocalHidden(false); onRefresh() }
+  }
+
+  const copy = (text: string) => navigator.clipboard.writeText(text)
+
+  const downloadQr = () => {
+    if (!qrRef.current) return
+    const svg = qrRef.current.querySelector('svg')
+    if (!svg) return
+    const data = new XMLSerializer().serializeToString(svg)
+    const blob = new Blob([data], { type: 'image/svg+xml' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `hidden-access-${tenant.name || tenant.slug}.svg`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  return (
+    <div className="mt-2">
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="flex items-center gap-1.5 text-[10px] font-semibold px-2.5 py-1 rounded-full transition-colors"
+        style={localHidden
+          ? { background: 'rgba(0,180,60,0.12)', color: 'rgba(0,150,50,1)', border: '1px solid rgba(0,180,60,0.25)' }
+          : { background: 'rgba(0,0,0,0.05)', color: '#6b7280', border: '1px solid rgba(0,0,0,0.1)' }}
+      >
+        {localHidden ? <Lock className="h-3 w-3" /> : <Unlock className="h-3 w-3" />}
+        Hidden Layer
+        {open ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+      </button>
+
+      {open && (
+        <div className="mt-2 rounded-xl border p-3 space-y-3 text-xs"
+          style={{ background: 'rgba(0,20,5,0.04)', borderColor: 'rgba(0,180,60,0.15)' }}>
+          {localHidden && localToken ? (
+            <>
+              {/* Deep link */}
+              <div className="space-y-1">
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Deep Link / QR</p>
+                <div className="flex items-center gap-1.5">
+                  <code className="flex-1 bg-muted px-2 py-1 rounded text-[10px] truncate">{deepLink}</code>
+                  <button onClick={() => copy(deepLink)} title="Copiar" className="p-1 hover:bg-muted rounded">
+                    <Copy className="h-3 w-3" />
+                  </button>
+                  <a href={deepLink} target="_blank" rel="noopener noreferrer" className="p-1 hover:bg-muted rounded">
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                </div>
+              </div>
+
+              {/* QR descargable */}
+              {deepLink && (
+                <div className="space-y-1.5">
+                  <div ref={qrRef} className="flex justify-center p-2 bg-white rounded-lg border">
+                    <QRCodeSVG value={deepLink} size={140} />
+                  </div>
+                  <button onClick={downloadQr}
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-[11px] font-medium hover:bg-muted transition-colors w-full justify-center">
+                    <Download className="h-3 w-3" />
+                    Descargar QR
+                  </button>
+                </div>
+              )}
+
+              {/* Código manual */}
+              <div className="space-y-1">
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Código de acceso</p>
+                <div className="flex items-center gap-1.5">
+                  <code className="bg-muted px-3 py-1.5 rounded font-mono font-bold tracking-widest text-sm">{localCode}</code>
+                  <button onClick={() => copy(localCode || '')} className="p-1 hover:bg-muted rounded"><Copy className="h-3 w-3" /></button>
+                </div>
+              </div>
+
+              {/* Acciones */}
+              <div className="flex gap-2 pt-1">
+                <button onClick={handleRegenerate} disabled={loading}
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-[11px] font-medium hover:bg-muted disabled:opacity-50 transition-colors">
+                  {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCw className="h-3 w-3" />}
+                  Regenerar
+                </button>
+                <button onClick={handleDisable} disabled={loading}
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-red-200 text-red-500 text-[11px] font-medium hover:bg-red-50 disabled:opacity-50 transition-colors">
+                  <Unlock className="h-3 w-3" />
+                  Hacer pública
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="text-muted-foreground">Esta tienda NO tiene Hidden Layer activo. Generar acceso para ocultarla del marketplace y asignarle un token + código secreto.</p>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  value={expiresInDays}
+                  onChange={e => setExpiresInDays(e.target.value === '' ? '' : Number(e.target.value))}
+                  placeholder="Días hasta expirar (vacío = permanente)"
+                  className="flex-1 px-2 py-1.5 rounded-lg border text-xs outline-none focus:ring-1"
+                  style={{ minWidth: 0 }}
+                  min={1}
+                />
+                <button onClick={handleGenerate} disabled={loading}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold text-white disabled:opacity-50 transition-all whitespace-nowrap"
+                  style={{ background: 'linear-gradient(135deg, #00b840, #005c2a)' }}>
+                  {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Lock className="h-3 w-3" />}
+                  Activar Hidden Layer
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Active commerce row ───────────────────────────────────────────────────────
 
 function ActiveTenantRow({
@@ -46,19 +217,22 @@ function ActiveTenantRow({
   trashingId,
   onToggle,
   onTrash,
+  onRefresh,
 }: {
   tenant: TenantFull
   togglingId: string | null
   trashingId: string | null
   onToggle: () => void
   onTrash: () => void
+  onRefresh: () => void
 }) {
   const [confirming, setConfirming] = useState(false)
   const isToggling = togglingId === tenant.id
   const isTrashing = trashingId === tenant.id
 
   return (
-    <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background px-4 py-3 hover:bg-muted/20 transition-colors">
+    <div className="rounded-lg border border-border bg-background px-4 py-3 hover:bg-muted/20 transition-colors">
+      <div className="flex items-center justify-between gap-3">
       <div className="flex items-center gap-3 min-w-0">
         <div className="h-8 w-8 rounded-md bg-muted flex items-center justify-center flex-shrink-0">
           <Store className="h-4 w-4 text-muted-foreground/60" />
@@ -124,6 +298,8 @@ function ActiveTenantRow({
           </button>
         )}
       </div>
+      </div>
+      <HiddenLayerPanel tenant={tenant} onRefresh={onRefresh} />
     </div>
   )
 }
@@ -318,6 +494,7 @@ export function CommercesTab() {
                   trashingId={trashingId}
                   onToggle={() => handleToggleStatus(t)}
                   onTrash={() => handleTrash(t)}
+                  onRefresh={fetchTenants}
                 />
               ))}
             </div>

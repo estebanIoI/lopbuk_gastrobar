@@ -23,7 +23,7 @@
 - **Selección dinámica en ambos themes:** `VariantSelector` (color swatches + chips talla/material, resuelve variante exacta, precio/imagen/stock en vivo, tiers por cantidad). Integrado en Tema 1 (`landing-page`) y Tema 2 (`theme2-order-flow`). Carrito/WhatsApp/ticket/pedido llevan la variante; `variantId` en el payload.
 - **Reserva atómica de stock** (`variants.service.ts`): `reserveForPublicOrder()` (incrementa `reserved_stock` race-safe `WHERE (stock - reserved_stock) >= qty`, transaccional, movimiento `'reserva'` con `reference_id = orderId`) + `releaseForOrder()` (cancelación/rollback, movimiento `'liberacion'`). `POST /orders/public` separa ítems con/ sin variante; `cancel-gateway` libera.
 - **Preventa (backorder):** `allowOutOfStock` en `VariantSelector` (agotadas seleccionables, "Disponible en preventa"); ítems `isPreorder` no reservan stock (venta ilimitada) — para embudos masivos.
-- **Datos de carga AnMarg:** `imports/anmarg-camiseta-clasica/` (CSV 90 variantes, SQL tiers 6+/12+/24+, README).
+- **Datos de carga AnMarg:** `backend/imports/anmarg-camiseta-clasica/` (CSV 90 variantes, SQL tiers 6+/12+/24+, README).
 - **Asiento al confirmar** (`settleVariantForSale`): al entregar el pedido, descuenta `product_variants.stock`, libera la reserva, registra movimiento `'salida'` y congela `variant_id`/costo/margen en `sale_items`.
 - **Cupo de preventa:** `product_variants.preorder_limit` (NULL = ilimitado) + `preorder_count`; enforce atómico en la reserva; campo "Cupo de preventa" en `variant-manager`.
 - **Reserva en pasarelas:** MP/ADDI/Sistecrédito reservan variante + persisten `variant_id` + liberan en webhooks de rechazo.

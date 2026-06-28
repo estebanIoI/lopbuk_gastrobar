@@ -534,7 +534,8 @@ class RestbarService {
       [rows] = await db.execute<RowDataPacket[]>(buildSql(true), [tenantId]);
     } catch (e: any) {
       if (e?.code === 'ER_BAD_FIELD_ERROR') {
-        try { await db.execute("ALTER TABLE rb_orders ADD COLUMN priority ENUM('normal','urgente') NOT NULL DEFAULT 'normal'"); } catch { /* ya existe o sin permisos */ }
+        // DDL congelado: rb_orders.priority vive en el baseline Drizzle (src/db/migrations). Ver CLAUDE.md.
+        // Si la columna faltara, se degrada a la consulta sin priority (sin tocar el esquema).
         [rows] = await db.execute<RowDataPacket[]>(buildSql(false), [tenantId]);
       } else { throw e; }
     }

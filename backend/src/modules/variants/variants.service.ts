@@ -119,9 +119,10 @@ export class VariantsService {
   // tocan estas mismas tablas directamente.
   private tablesEnsured = false;
   async ensureTables(): Promise<void> {
+    return; // DDL congelado: suppliers/product_variants/variant_price_tiers/inventory_movements
+            // viven en el baseline Drizzle (src/db/migrations). Ver CLAUDE.md.
+    // eslint-disable-next-line no-unreachable
     if (this.tablesEnsured) return;
-    // Las queries de variantes hacen LEFT JOIN a `hormas` (horma_id por variante) —
-    // hay que asegurar que esa tabla exista antes, sin importar quién pidió primero.
     await hormasService.ensureTables();
     await db.query(`CREATE TABLE IF NOT EXISTS suppliers (
       id            VARCHAR(36)  NOT NULL PRIMARY KEY,
@@ -296,7 +297,7 @@ export class VariantsService {
   async findAllByTenant(tenantId: string): Promise<ProductVariant[]> {
     await this.ensureTables();
     const [rows] = await db.execute<VariantRow[]>(
-      `SELECT pv.*, p.name AS product_name, COALESCE(p.base_price, p.sale_price) AS base_price, h.name AS horma_name
+      `SELECT pv.*, p.name AS product_name, COALESCE(pv.price_override, p.sale_price) AS base_price, h.name AS horma_name
        FROM product_variants pv
        LEFT JOIN products p ON p.id = pv.product_id
        LEFT JOIN hormas h ON h.id = pv.horma_id
@@ -310,7 +311,7 @@ export class VariantsService {
   async findByProduct(productId: string, tenantId: string): Promise<ProductVariant[]> {
     await this.ensureTables();
     const [rows] = await db.execute<VariantRow[]>(
-      `SELECT pv.*, p.name AS product_name, COALESCE(p.base_price, p.sale_price) AS base_price, h.name AS horma_name
+      `SELECT pv.*, p.name AS product_name, COALESCE(pv.price_override, p.sale_price) AS base_price, h.name AS horma_name
        FROM product_variants pv
        LEFT JOIN products p ON p.id = pv.product_id
        LEFT JOIN hormas h ON h.id = pv.horma_id
@@ -330,7 +331,7 @@ export class VariantsService {
   async findById(id: string, tenantId: string): Promise<ProductVariant> {
     await this.ensureTables();
     const [rows] = await db.execute<VariantRow[]>(
-      `SELECT pv.*, p.name AS product_name, COALESCE(p.base_price, p.sale_price) AS base_price, h.name AS horma_name
+      `SELECT pv.*, p.name AS product_name, COALESCE(pv.price_override, p.sale_price) AS base_price, h.name AS horma_name
        FROM product_variants pv
        LEFT JOIN products p ON p.id = pv.product_id
        LEFT JOIN hormas h ON h.id = pv.horma_id
@@ -343,17 +344,9 @@ export class VariantsService {
     return v;
   }
 
-  // Asegura la columna color_hex (auto-migración idempotente; cubre entornos donde
-  // la migración de arranque aún no corrió).
-  private colorHexEnsured = false;
-  private async ensureColorHex(): Promise<void> {
-    if (this.colorHexEnsured) return;
-    try {
-      await db.execute('ALTER TABLE product_variants ADD COLUMN color_hex VARCHAR(9) NULL');
-    } catch (e: any) {
-      if (e?.errno !== 1060) { /* 1060 = columna ya existe; otro error se ignora aquí */ }
-    }
-    this.colorHexEnsured = true;
+  // DDL congelado: la columna product_variants.color_hex vive en el baseline Drizzle
+  // (src/db/migrations). Método no-op conservado porque lo invocan varios métodos. Ver CLAUDE.md.
+  private async ensureColorHex(): Promise<void> { /* no-op: esquema en migraciones */
   }
 
   async create(productId: string, tenantId: string, data: {
@@ -700,7 +693,7 @@ export class VariantsService {
 
     // Fallback: price_override o base_price del producto padre
     const [rows] = await db.execute<RowDataPacket[]>(
-      `SELECT pv.price_override, COALESCE(p.base_price, p.sale_price) AS base_price
+      `SELECT pv.price_override, COALESCE(pv.price_override, p.sale_price) AS base_price
        FROM product_variants pv
        LEFT JOIN products p ON p.id = pv.product_id
        WHERE pv.id = ? AND pv.tenant_id = ?`,

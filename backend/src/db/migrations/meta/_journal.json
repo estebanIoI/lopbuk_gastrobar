@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1782623499433,
+      "tag": "0000_tearful_patch",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1782657591476,
+      "tag": "0001_optimal_wolverine",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1782658626615,
+      "tag": "0002_concerned_darkstar",
+      "breakpoints": true
+    }
+  ]
+}
