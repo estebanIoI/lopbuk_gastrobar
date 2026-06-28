@@ -1,7 +1,7 @@
 {
   "version": "5",
   "dialect": "mysql",
-  "id": "f2800879-b00d-42a6-8e0c-61f217269662",
+  "id": "d2d21b46-2627-41ac-b5e2-0dbb2fa60ab0",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "affiliate_campaigns": {
@@ -159,16 +159,16 @@
         }
       },
       "uniqueConstraints": {
-        "idx_campaign_ref": {
-          "name": "idx_campaign_ref",
-          "columns": [
-            "ref_token"
-          ]
-        },
         "idx_campaign_code": {
           "name": "idx_campaign_code",
           "columns": [
             "discount_code"
+          ]
+        },
+        "idx_campaign_ref": {
+          "name": "idx_campaign_ref",
+          "columns": [
+            "ref_token"
           ]
         }
       },
@@ -377,20 +377,6 @@
           ],
           "isUnique": false
         },
-        "idx_conv_tenant": {
-          "name": "idx_conv_tenant",
-          "columns": [
-            "tenant_id"
-          ],
-          "isUnique": false
-        },
-        "idx_conv_status": {
-          "name": "idx_conv_status",
-          "columns": [
-            "status"
-          ],
-          "isUnique": false
-        },
         "idx_conv_order": {
           "name": "idx_conv_order",
           "columns": [
@@ -402,6 +388,20 @@
           "name": "idx_conv_sale",
           "columns": [
             "sale_id"
+          ],
+          "isUnique": false
+        },
+        "idx_conv_status": {
+          "name": "idx_conv_status",
+          "columns": [
+            "status"
+          ],
+          "isUnique": false
+        },
+        "idx_conv_tenant": {
+          "name": "idx_conv_tenant",
+          "columns": [
+            "tenant_id"
           ],
           "isUnique": false
         }
@@ -502,18 +502,18 @@
         }
       },
       "indexes": {
+        "idx_submission_affiliate": {
+          "name": "idx_submission_affiliate",
+          "columns": [
+            "affiliate_id"
+          ],
+          "isUnique": false
+        },
         "idx_submission_mission": {
           "name": "idx_submission_mission",
           "columns": [
             "mission_id",
             "status"
-          ],
-          "isUnique": false
-        },
-        "idx_submission_affiliate": {
-          "name": "idx_submission_affiliate",
-          "columns": [
-            "affiliate_id"
           ],
           "isUnique": false
         }
@@ -763,13 +763,6 @@
         }
       },
       "indexes": {
-        "package_id": {
-          "name": "package_id",
-          "columns": [
-            "package_id"
-          ],
-          "isUnique": false
-        },
         "idx_pkgorder_affiliate": {
           "name": "idx_pkgorder_affiliate",
           "columns": [
@@ -783,6 +776,13 @@
           "columns": [
             "tenant_id",
             "status"
+          ],
+          "isUnique": false
+        },
+        "package_id": {
+          "name": "package_id",
+          "columns": [
+            "package_id"
           ],
           "isUnique": false
         }
@@ -1269,10 +1269,11 @@
         }
       },
       "indexes": {
-        "idx_agent_actions_tenant": {
-          "name": "idx_agent_actions_tenant",
+        "idx_agent_actions_created": {
+          "name": "idx_agent_actions_created",
           "columns": [
-            "tenant_id"
+            "tenant_id",
+            "created_at"
           ],
           "isUnique": false
         },
@@ -1283,19 +1284,18 @@
           ],
           "isUnique": false
         },
+        "idx_agent_actions_tenant": {
+          "name": "idx_agent_actions_tenant",
+          "columns": [
+            "tenant_id"
+          ],
+          "isUnique": false
+        },
         "idx_agent_actions_tool": {
           "name": "idx_agent_actions_tool",
           "columns": [
             "tenant_id",
             "tool_name"
-          ],
-          "isUnique": false
-        },
-        "idx_agent_actions_created": {
-          "name": "idx_agent_actions_created",
-          "columns": [
-            "tenant_id",
-            "created_at"
           ],
           "isUnique": false
         }
@@ -1822,20 +1822,6 @@
         }
       },
       "indexes": {
-        "idx_audit_tenant": {
-          "name": "idx_audit_tenant",
-          "columns": [
-            "tenant_id"
-          ],
-          "isUnique": false
-        },
-        "idx_audit_user": {
-          "name": "idx_audit_user",
-          "columns": [
-            "user_id"
-          ],
-          "isUnique": false
-        },
         "idx_audit_action": {
           "name": "idx_audit_action",
           "columns": [
@@ -1858,11 +1844,17 @@
           ],
           "isUnique": false
         },
-        "idx_audit_tenant_date": {
-          "name": "idx_audit_tenant_date",
+        "idx_audit_severity": {
+          "name": "idx_audit_severity",
           "columns": [
-            "tenant_id",
-            "created_at"
+            "severity"
+          ],
+          "isUnique": false
+        },
+        "idx_audit_tenant": {
+          "name": "idx_audit_tenant",
+          "columns": [
+            "tenant_id"
           ],
           "isUnique": false
         },
@@ -1874,10 +1866,18 @@
           ],
           "isUnique": false
         },
-        "idx_audit_severity": {
-          "name": "idx_audit_severity",
+        "idx_audit_tenant_date": {
+          "name": "idx_audit_tenant_date",
           "columns": [
-            "severity"
+            "tenant_id",
+            "created_at"
+          ],
+          "isUnique": false
+        },
+        "idx_audit_user": {
+          "name": "idx_audit_user",
+          "columns": [
+            "user_id"
           ],
           "isUnique": false
         }
@@ -2445,17 +2445,17 @@
         }
       },
       "indexes": {
-        "idx_compra_tenant": {
-          "name": "idx_compra_tenant",
-          "columns": [
-            "tenant_id"
-          ],
-          "isUnique": false
-        },
         "idx_compra_cartilla": {
           "name": "idx_compra_cartilla",
           "columns": [
             "cartilla_id"
+          ],
+          "isUnique": false
+        },
+        "idx_compra_tenant": {
+          "name": "idx_compra_tenant",
+          "columns": [
+            "tenant_id"
           ],
           "isUnique": false
         }
@@ -2873,17 +2873,17 @@
         }
       },
       "indexes": {
-        "idx_modulo_tenant": {
-          "name": "idx_modulo_tenant",
-          "columns": [
-            "tenant_id"
-          ],
-          "isUnique": false
-        },
         "idx_modulo_cartilla": {
           "name": "idx_modulo_cartilla",
           "columns": [
             "cartilla_id"
+          ],
+          "isUnique": false
+        },
+        "idx_modulo_tenant": {
+          "name": "idx_modulo_tenant",
+          "columns": [
+            "tenant_id"
           ],
           "isUnique": false
         }
@@ -3177,17 +3177,17 @@
         }
       },
       "indexes": {
-        "idx_pub_tenant": {
-          "name": "idx_pub_tenant",
-          "columns": [
-            "tenant_id"
-          ],
-          "isUnique": false
-        },
         "idx_pub_cartilla": {
           "name": "idx_pub_cartilla",
           "columns": [
             "cartilla_id"
+          ],
+          "isUnique": false
+        },
+        "idx_pub_tenant": {
+          "name": "idx_pub_tenant",
+          "columns": [
+            "tenant_id"
           ],
           "isUnique": false
         }
@@ -3291,17 +3291,17 @@
         }
       },
       "indexes": {
-        "idx_reto_tenant": {
-          "name": "idx_reto_tenant",
-          "columns": [
-            "tenant_id"
-          ],
-          "isUnique": false
-        },
         "idx_reto_cartilla": {
           "name": "idx_reto_cartilla",
           "columns": [
             "cartilla_id"
+          ],
+          "isUnique": false
+        },
+        "idx_reto_tenant": {
+          "name": "idx_reto_tenant",
+          "columns": [
+            "tenant_id"
           ],
           "isUnique": false
         }
@@ -3676,17 +3676,17 @@
         }
       },
       "indexes": {
-        "idx_vocab_tenant": {
-          "name": "idx_vocab_tenant",
-          "columns": [
-            "tenant_id"
-          ],
-          "isUnique": false
-        },
         "idx_vocab_cartilla": {
           "name": "idx_vocab_cartilla",
           "columns": [
             "cartilla_id"
+          ],
+          "isUnique": false
+        },
+        "idx_vocab_tenant": {
+          "name": "idx_vocab_tenant",
+          "columns": [
+            "tenant_id"
           ],
           "isUnique": false
         }
@@ -3881,18 +3881,18 @@
         }
       },
       "indexes": {
-        "idx_cartilla_tenant": {
-          "name": "idx_cartilla_tenant",
-          "columns": [
-            "tenant_id"
-          ],
-          "isUnique": false
-        },
         "idx_cartilla_publicado": {
           "name": "idx_cartilla_publicado",
           "columns": [
             "publicado",
             "is_active"
+          ],
+          "isUnique": false
+        },
+        "idx_cartilla_tenant": {
+          "name": "idx_cartilla_tenant",
+          "columns": [
+            "tenant_id"
           ],
           "isUnique": false
         }
@@ -4000,17 +4000,17 @@
           ],
           "isUnique": false
         },
-        "idx_cash_movement_tenant": {
-          "name": "idx_cash_movement_tenant",
-          "columns": [
-            "tenant_id"
-          ],
-          "isUnique": false
-        },
         "idx_cash_movement_session": {
           "name": "idx_cash_movement_session",
           "columns": [
             "session_id"
+          ],
+          "isUnique": false
+        },
+        "idx_cash_movement_tenant": {
+          "name": "idx_cash_movement_tenant",
+          "columns": [
+            "tenant_id"
           ],
           "isUnique": false
         }
@@ -4300,13 +4300,6 @@
         }
       },
       "indexes": {
-        "opened_by": {
-          "name": "opened_by",
-          "columns": [
-            "opened_by"
-          ],
-          "isUnique": false
-        },
         "closed_by": {
           "name": "closed_by",
           "columns": [
@@ -4314,10 +4307,10 @@
           ],
           "isUnique": false
         },
-        "idx_cash_session_tenant": {
-          "name": "idx_cash_session_tenant",
+        "idx_cash_session_opened": {
+          "name": "idx_cash_session_opened",
           "columns": [
-            "tenant_id"
+            "opened_at"
           ],
           "isUnique": false
         },
@@ -4328,10 +4321,17 @@
           ],
           "isUnique": false
         },
-        "idx_cash_session_opened": {
-          "name": "idx_cash_session_opened",
+        "idx_cash_session_tenant": {
+          "name": "idx_cash_session_tenant",
           "columns": [
-            "opened_at"
+            "tenant_id"
+          ],
+          "isUnique": false
+        },
+        "opened_by": {
+          "name": "opened_by",
+          "columns": [
+            "opened_by"
           ],
           "isUnique": false
         }
@@ -5125,19 +5125,19 @@
         }
       },
       "indexes": {
+        "idx_comment_parent": {
+          "name": "idx_comment_parent",
+          "columns": [
+            "parent_id"
+          ],
+          "isUnique": false
+        },
         "idx_comment_post": {
           "name": "idx_comment_post",
           "columns": [
             "post_id",
             "is_active",
             "created_at"
-          ],
-          "isUnique": false
-        },
-        "idx_comment_parent": {
-          "name": "idx_comment_parent",
-          "columns": [
-            "parent_id"
           ],
           "isUnique": false
         }
@@ -5448,15 +5448,6 @@
         }
       },
       "indexes": {
-        "idx_post_status": {
-          "name": "idx_post_status",
-          "columns": [
-            "status",
-            "is_active",
-            "published_at"
-          ],
-          "isUnique": false
-        },
         "idx_post_author": {
           "name": "idx_post_author",
           "columns": [
@@ -5468,6 +5459,15 @@
           "name": "idx_post_category",
           "columns": [
             "category"
+          ],
+          "isUnique": false
+        },
+        "idx_post_status": {
+          "name": "idx_post_status",
+          "columns": [
+            "status",
+            "is_active",
+            "published_at"
           ],
           "isUnique": false
         }
@@ -5532,18 +5532,18 @@
         }
       },
       "indexes": {
+        "idx_reaction_device": {
+          "name": "idx_reaction_device",
+          "columns": [
+            "device_id"
+          ],
+          "isUnique": false
+        },
         "idx_reaction_post": {
           "name": "idx_reaction_post",
           "columns": [
             "post_id",
             "type"
-          ],
-          "isUnique": false
-        },
-        "idx_reaction_device": {
-          "name": "idx_reaction_device",
-          "columns": [
-            "device_id"
           ],
           "isUnique": false
         }
@@ -5572,19 +5572,19 @@
         }
       },
       "uniqueConstraints": {
-        "uq_reaction": {
-          "name": "uq_reaction",
-          "columns": [
-            "post_id",
-            "user_id",
-            "type"
-          ]
-        },
         "uq_react_device": {
           "name": "uq_react_device",
           "columns": [
             "post_id",
             "device_id",
+            "type"
+          ]
+        },
+        "uq_reaction": {
+          "name": "uq_reaction",
+          "columns": [
+            "post_id",
+            "user_id",
             "type"
           ]
         }
@@ -5869,18 +5869,18 @@
         }
       },
       "indexes": {
+        "idx_cal_code": {
+          "name": "idx_cal_code",
+          "columns": [
+            "code_id"
+          ],
+          "isUnique": false
+        },
         "idx_cal_user": {
           "name": "idx_cal_user",
           "columns": [
             "user_id",
             "created_at"
-          ],
-          "isUnique": false
-        },
-        "idx_cal_code": {
-          "name": "idx_cal_code",
-          "columns": [
-            "code_id"
           ],
           "isUnique": false
         }
@@ -6702,27 +6702,6 @@
         }
       },
       "indexes": {
-        "received_by": {
-          "name": "received_by",
-          "columns": [
-            "received_by"
-          ],
-          "isUnique": false
-        },
-        "idx_credit_payments_tenant": {
-          "name": "idx_credit_payments_tenant",
-          "columns": [
-            "tenant_id"
-          ],
-          "isUnique": false
-        },
-        "idx_credit_payments_sale": {
-          "name": "idx_credit_payments_sale",
-          "columns": [
-            "sale_id"
-          ],
-          "isUnique": false
-        },
         "idx_credit_payments_customer": {
           "name": "idx_credit_payments_customer",
           "columns": [
@@ -6734,6 +6713,27 @@
           "name": "idx_credit_payments_date",
           "columns": [
             "created_at"
+          ],
+          "isUnique": false
+        },
+        "idx_credit_payments_sale": {
+          "name": "idx_credit_payments_sale",
+          "columns": [
+            "sale_id"
+          ],
+          "isUnique": false
+        },
+        "idx_credit_payments_tenant": {
+          "name": "idx_credit_payments_tenant",
+          "columns": [
+            "tenant_id"
+          ],
+          "isUnique": false
+        },
+        "received_by": {
+          "name": "received_by",
+          "columns": [
+            "received_by"
           ],
           "isUnique": false
         }
@@ -7082,17 +7082,10 @@
         }
       },
       "indexes": {
-        "user_id": {
-          "name": "user_id",
+        "idx_dev_req_created": {
+          "name": "idx_dev_req_created",
           "columns": [
-            "user_id"
-          ],
-          "isUnique": false
-        },
-        "idx_dev_req_tenant": {
-          "name": "idx_dev_req_tenant",
-          "columns": [
-            "tenant_id"
+            "created_at"
           ],
           "isUnique": false
         },
@@ -7103,10 +7096,17 @@
           ],
           "isUnique": false
         },
-        "idx_dev_req_created": {
-          "name": "idx_dev_req_created",
+        "idx_dev_req_tenant": {
+          "name": "idx_dev_req_tenant",
           "columns": [
-            "created_at"
+            "tenant_id"
+          ],
+          "isUnique": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "columns": [
+            "user_id"
           ],
           "isUnique": false
         }
@@ -7252,17 +7252,17 @@
         }
       },
       "indexes": {
-        "idx_coupon_tenant": {
-          "name": "idx_coupon_tenant",
-          "columns": [
-            "tenant_id"
-          ],
-          "isUnique": false
-        },
         "idx_coupon_active": {
           "name": "idx_coupon_active",
           "columns": [
             "is_active"
+          ],
+          "isUnique": false
+        },
+        "idx_coupon_tenant": {
+          "name": "idx_coupon_tenant",
+          "columns": [
+            "tenant_id"
           ],
           "isUnique": false
         }
@@ -7491,18 +7491,18 @@
         }
       },
       "indexes": {
+        "idx_drop_status": {
+          "name": "idx_drop_status",
+          "columns": [
+            "status"
+          ],
+          "isUnique": false
+        },
         "idx_drop_window": {
           "name": "idx_drop_window",
           "columns": [
             "starts_at",
             "ends_at"
-          ],
-          "isUnique": false
-        },
-        "idx_drop_status": {
-          "name": "idx_drop_status",
-          "columns": [
-            "status"
           ],
           "isUnique": false
         }
@@ -7740,25 +7740,26 @@
         }
       },
       "indexes": {
-        "idx_novelties_tenant": {
-          "name": "idx_novelties_tenant",
-          "columns": [
-            "tenant_id"
-          ],
-          "isUnique": false
-        },
-        "idx_novelties_user": {
-          "name": "idx_novelties_user",
-          "columns": [
-            "user_id"
-          ],
-          "isUnique": false
-        },
         "idx_novelties_date": {
           "name": "idx_novelties_date",
           "columns": [
             "tenant_id",
             "start_date"
+          ],
+          "isUnique": false
+        },
+        "idx_novelties_status": {
+          "name": "idx_novelties_status",
+          "columns": [
+            "tenant_id",
+            "status"
+          ],
+          "isUnique": false
+        },
+        "idx_novelties_tenant": {
+          "name": "idx_novelties_tenant",
+          "columns": [
+            "tenant_id"
           ],
           "isUnique": false
         },
@@ -7770,11 +7771,10 @@
           ],
           "isUnique": false
         },
-        "idx_novelties_status": {
-          "name": "idx_novelties_status",
+        "idx_novelties_user": {
+          "name": "idx_novelties_user",
           "columns": [
-            "tenant_id",
-            "status"
+            "user_id"
           ],
           "isUnique": false
         }
@@ -7891,17 +7891,17 @@
         }
       },
       "indexes": {
-        "user_id": {
-          "name": "user_id",
-          "columns": [
-            "user_id"
-          ],
-          "isUnique": false
-        },
         "idx_vacation_tenant": {
           "name": "idx_vacation_tenant",
           "columns": [
             "tenant_id"
+          ],
+          "isUnique": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "columns": [
+            "user_id"
           ],
           "isUnique": false
         }
@@ -8494,6 +8494,38 @@
           ],
           "isUnique": false
         },
+        "idx_fin_tx_category": {
+          "name": "idx_fin_tx_category",
+          "columns": [
+            "tenant_id",
+            "category_id"
+          ],
+          "isUnique": false
+        },
+        "idx_fin_tx_date": {
+          "name": "idx_fin_tx_date",
+          "columns": [
+            "tenant_id",
+            "transaction_date"
+          ],
+          "isUnique": false
+        },
+        "idx_fin_tx_recurring": {
+          "name": "idx_fin_tx_recurring",
+          "columns": [
+            "tenant_id",
+            "is_recurring"
+          ],
+          "isUnique": false
+        },
+        "idx_fin_tx_source": {
+          "name": "idx_fin_tx_source",
+          "columns": [
+            "source_type",
+            "source_id"
+          ],
+          "isUnique": false
+        },
         "idx_fin_tx_tenant": {
           "name": "idx_fin_tx_tenant",
           "columns": [
@@ -8506,38 +8538,6 @@
           "columns": [
             "tenant_id",
             "type"
-          ],
-          "isUnique": false
-        },
-        "idx_fin_tx_date": {
-          "name": "idx_fin_tx_date",
-          "columns": [
-            "tenant_id",
-            "transaction_date"
-          ],
-          "isUnique": false
-        },
-        "idx_fin_tx_category": {
-          "name": "idx_fin_tx_category",
-          "columns": [
-            "tenant_id",
-            "category_id"
-          ],
-          "isUnique": false
-        },
-        "idx_fin_tx_source": {
-          "name": "idx_fin_tx_source",
-          "columns": [
-            "source_type",
-            "source_id"
-          ],
-          "isUnique": false
-        },
-        "idx_fin_tx_recurring": {
-          "name": "idx_fin_tx_recurring",
-          "columns": [
-            "tenant_id",
-            "is_recurring"
           ],
           "isUnique": false
         }
@@ -8703,20 +8703,6 @@
           ],
           "isUnique": false
         },
-        "idx_maintenance_tenant": {
-          "name": "idx_maintenance_tenant",
-          "columns": [
-            "tenant_id"
-          ],
-          "isUnique": false
-        },
-        "idx_maintenance_vehicle": {
-          "name": "idx_maintenance_vehicle",
-          "columns": [
-            "vehicle_id"
-          ],
-          "isUnique": false
-        },
         "idx_maintenance_scheduled": {
           "name": "idx_maintenance_scheduled",
           "columns": [
@@ -8728,6 +8714,20 @@
           "name": "idx_maintenance_status",
           "columns": [
             "status"
+          ],
+          "isUnique": false
+        },
+        "idx_maintenance_tenant": {
+          "name": "idx_maintenance_tenant",
+          "columns": [
+            "tenant_id"
+          ],
+          "isUnique": false
+        },
+        "idx_maintenance_vehicle": {
+          "name": "idx_maintenance_vehicle",
+          "columns": [
+            "vehicle_id"
           ],
           "isUnique": false
         }
@@ -8886,17 +8886,17 @@
         }
       },
       "indexes": {
-        "idx_fleet_tenant": {
-          "name": "idx_fleet_tenant",
-          "columns": [
-            "tenant_id"
-          ],
-          "isUnique": false
-        },
         "idx_fleet_status": {
           "name": "idx_fleet_status",
           "columns": [
             "status"
+          ],
+          "isUnique": false
+        },
+        "idx_fleet_tenant": {
+          "name": "idx_fleet_tenant",
+          "columns": [
+            "tenant_id"
           ],
           "isUnique": false
         },
@@ -9164,17 +9164,17 @@
         }
       },
       "indexes": {
-        "idx_hc_tenant": {
-          "name": "idx_hc_tenant",
-          "columns": [
-            "tenant_id"
-          ],
-          "isUnique": false
-        },
         "idx_hc_horma": {
           "name": "idx_hc_horma",
           "columns": [
             "horma_id",
+            "tenant_id"
+          ],
+          "isUnique": false
+        },
+        "idx_hc_tenant": {
+          "name": "idx_hc_tenant",
+          "columns": [
             "tenant_id"
           ],
           "isUnique": false
@@ -9411,17 +9411,17 @@
         }
       },
       "indexes": {
+        "idx_ih_expires": {
+          "name": "idx_ih_expires",
+          "columns": [
+            "expires_at"
+          ],
+          "isUnique": false
+        },
         "idx_ih_order": {
           "name": "idx_ih_order",
           "columns": [
             "order_id"
-          ],
-          "isUnique": false
-        },
-        "idx_ih_tenant": {
-          "name": "idx_ih_tenant",
-          "columns": [
-            "tenant_id"
           ],
           "isUnique": false
         },
@@ -9433,10 +9433,10 @@
           ],
           "isUnique": false
         },
-        "idx_ih_expires": {
-          "name": "idx_ih_expires",
+        "idx_ih_tenant": {
+          "name": "idx_ih_tenant",
           "columns": [
-            "expires_at"
+            "tenant_id"
           ],
           "isUnique": false
         }
@@ -9536,10 +9536,11 @@
         }
       },
       "indexes": {
-        "idx_im_variant": {
-          "name": "idx_im_variant",
+        "idx_im_created": {
+          "name": "idx_im_created",
           "columns": [
-            "variant_id"
+            "tenant_id",
+            "created_at"
           ],
           "isUnique": false
         },
@@ -9557,11 +9558,10 @@
           ],
           "isUnique": false
         },
-        "idx_im_created": {
-          "name": "idx_im_created",
+        "idx_im_variant": {
+          "name": "idx_im_variant",
           "columns": [
-            "tenant_id",
-            "created_at"
+            "variant_id"
           ],
           "isUnique": false
         }
@@ -10552,18 +10552,18 @@
         }
       },
       "indexes": {
+        "idx_notif_created": {
+          "name": "idx_notif_created",
+          "columns": [
+            "created_at"
+          ],
+          "isUnique": false
+        },
         "idx_notif_tenant_read": {
           "name": "idx_notif_tenant_read",
           "columns": [
             "tenant_id",
             "is_read"
-          ],
-          "isUnique": false
-        },
-        "idx_notif_created": {
-          "name": "idx_notif_created",
-          "columns": [
-            "created_at"
           ],
           "isUnique": false
         }
@@ -11030,10 +11030,12 @@
         }
       },
       "indexes": {
-        "seller_id": {
-          "name": "seller_id",
+        "idx_adj_period": {
+          "name": "idx_adj_period",
           "columns": [
-            "seller_id"
+            "tenant_id",
+            "period_from",
+            "period_to"
           ],
           "isUnique": false
         },
@@ -11045,12 +11047,10 @@
           ],
           "isUnique": false
         },
-        "idx_adj_period": {
-          "name": "idx_adj_period",
+        "seller_id": {
+          "name": "seller_id",
           "columns": [
-            "tenant_id",
-            "period_from",
-            "period_to"
+            "seller_id"
           ],
           "isUnique": false
         }
@@ -11273,10 +11273,12 @@
         }
       },
       "indexes": {
-        "idx_payroll_tenant": {
-          "name": "idx_payroll_tenant",
+        "idx_payroll_period": {
+          "name": "idx_payroll_period",
           "columns": [
-            "tenant_id"
+            "tenant_id",
+            "period_from",
+            "period_to"
           ],
           "isUnique": false
         },
@@ -11287,20 +11289,18 @@
           ],
           "isUnique": false
         },
-        "idx_payroll_period": {
-          "name": "idx_payroll_period",
-          "columns": [
-            "tenant_id",
-            "period_from",
-            "period_to"
-          ],
-          "isUnique": false
-        },
         "idx_payroll_status": {
           "name": "idx_payroll_status",
           "columns": [
             "tenant_id",
             "status"
+          ],
+          "isUnique": false
+        },
+        "idx_payroll_tenant": {
+          "name": "idx_payroll_tenant",
+          "columns": [
+            "tenant_id"
           ],
           "isUnique": false
         }
@@ -12095,18 +12095,18 @@
         }
       },
       "indexes": {
-        "idx_price_tenant": {
-          "name": "idx_price_tenant",
-          "columns": [
-            "tenant_id"
-          ],
-          "isUnique": false
-        },
         "idx_price_product_date": {
           "name": "idx_price_product_date",
           "columns": [
             "product_id",
             "created_at"
+          ],
+          "isUnique": false
+        },
+        "idx_price_tenant": {
+          "name": "idx_price_tenant",
+          "columns": [
+            "tenant_id"
           ],
           "isUnique": false
         }
@@ -12238,18 +12238,18 @@
         }
       },
       "indexes": {
-        "idx_printers_tenant": {
-          "name": "idx_printers_tenant",
-          "columns": [
-            "tenant_id"
-          ],
-          "isUnique": false
-        },
         "idx_printers_module": {
           "name": "idx_printers_module",
           "columns": [
             "tenant_id",
             "assigned_module"
+          ],
+          "isUnique": false
+        },
+        "idx_printers_tenant": {
+          "name": "idx_printers_tenant",
+          "columns": [
+            "tenant_id"
           ],
           "isUnique": false
         }
@@ -12358,10 +12358,19 @@
         }
       },
       "indexes": {
-        "product_id": {
-          "name": "product_id",
+        "idx_alert_date": {
+          "name": "idx_alert_date",
           "columns": [
-            "product_id"
+            "alert_date",
+            "is_resolved"
+          ],
+          "isUnique": false
+        },
+        "idx_alert_priority": {
+          "name": "idx_alert_priority",
+          "columns": [
+            "priority",
+            "is_resolved"
           ],
           "isUnique": false
         },
@@ -12372,14 +12381,6 @@
           ],
           "isUnique": false
         },
-        "idx_alert_date": {
-          "name": "idx_alert_date",
-          "columns": [
-            "alert_date",
-            "is_resolved"
-          ],
-          "isUnique": false
-        },
         "idx_alert_type": {
           "name": "idx_alert_type",
           "columns": [
@@ -12387,11 +12388,10 @@
           ],
           "isUnique": false
         },
-        "idx_alert_priority": {
-          "name": "idx_alert_priority",
+        "product_id": {
+          "name": "product_id",
           "columns": [
-            "priority",
-            "is_resolved"
+            "product_id"
           ],
           "isUnique": false
         }
@@ -12689,13 +12689,6 @@
         }
       },
       "indexes": {
-        "ingredient_id": {
-          "name": "ingredient_id",
-          "columns": [
-            "ingredient_id"
-          ],
-          "isUnique": false
-        },
         "idx_recipe_product": {
           "name": "idx_recipe_product",
           "columns": [
@@ -12707,6 +12700,13 @@
           "name": "idx_recipe_tenant",
           "columns": [
             "tenant_id"
+          ],
+          "isUnique": false
+        },
+        "ingredient_id": {
+          "name": "ingredient_id",
+          "columns": [
+            "ingredient_id"
           ],
           "isUnique": false
         }
@@ -12871,13 +12871,6 @@
         }
       },
       "indexes": {
-        "idx_reviews_tenant": {
-          "name": "idx_reviews_tenant",
-          "columns": [
-            "tenant_id"
-          ],
-          "isUnique": false
-        },
         "idx_reviews_product": {
           "name": "idx_reviews_product",
           "columns": [
@@ -12890,6 +12883,13 @@
           "columns": [
             "tenant_id",
             "status"
+          ],
+          "isUnique": false
+        },
+        "idx_reviews_tenant": {
+          "name": "idx_reviews_tenant",
+          "columns": [
+            "tenant_id"
           ],
           "isUnique": false
         }
@@ -13114,25 +13114,17 @@
         }
       },
       "indexes": {
+        "idx_pv_horma": {
+          "name": "idx_pv_horma",
+          "columns": [
+            "horma_id"
+          ],
+          "isUnique": false
+        },
         "idx_pv_product": {
           "name": "idx_pv_product",
           "columns": [
             "product_id"
-          ],
-          "isUnique": false
-        },
-        "idx_pv_tenant_product": {
-          "name": "idx_pv_tenant_product",
-          "columns": [
-            "tenant_id",
-            "product_id"
-          ],
-          "isUnique": false
-        },
-        "idx_pv_supplier": {
-          "name": "idx_pv_supplier",
-          "columns": [
-            "supplier_id"
           ],
           "isUnique": false
         },
@@ -13144,10 +13136,18 @@
           ],
           "isUnique": false
         },
-        "idx_pv_horma": {
-          "name": "idx_pv_horma",
+        "idx_pv_supplier": {
+          "name": "idx_pv_supplier",
           "columns": [
-            "horma_id"
+            "supplier_id"
+          ],
+          "isUnique": false
+        },
+        "idx_pv_tenant_product": {
+          "name": "idx_pv_tenant_product",
+          "columns": [
+            "tenant_id",
+            "product_id"
           ],
           "isUnique": false
         }
@@ -13949,67 +13949,20 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "base_price": {
+          "name": "base_price",
+          "type": "decimal(12,2)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {
-        "supplier_id": {
-          "name": "supplier_id",
-          "columns": [
-            "supplier_id"
-          ],
-          "isUnique": false
-        },
-        "idx_product_tenant": {
-          "name": "idx_product_tenant",
-          "columns": [
-            "tenant_id"
-          ],
-          "isUnique": false
-        },
         "idx_category": {
           "name": "idx_category",
           "columns": [
             "category"
-          ],
-          "isUnique": false
-        },
-        "idx_products_store": {
-          "name": "idx_products_store",
-          "columns": [
-            "tenant_id",
-            "published_in_store"
-          ],
-          "isUnique": false
-        },
-        "idx_products_offer": {
-          "name": "idx_products_offer",
-          "columns": [
-            "tenant_id",
-            "is_on_offer"
-          ],
-          "isUnique": false
-        },
-        "idx_products_expiry": {
-          "name": "idx_products_expiry",
-          "columns": [
-            "tenant_id",
-            "expiry_date"
-          ],
-          "isUnique": false
-        },
-        "idx_products_delivery": {
-          "name": "idx_products_delivery",
-          "columns": [
-            "tenant_id",
-            "delivery_type"
-          ],
-          "isUnique": false
-        },
-        "idx_products_preorder": {
-          "name": "idx_products_preorder",
-          "columns": [
-            "tenant_id",
-            "is_preorder"
           ],
           "isUnique": false
         },
@@ -14030,10 +13983,64 @@
           ],
           "isUnique": false
         },
+        "idx_product_tenant": {
+          "name": "idx_product_tenant",
+          "columns": [
+            "tenant_id"
+          ],
+          "isUnique": false
+        },
+        "idx_products_delivery": {
+          "name": "idx_products_delivery",
+          "columns": [
+            "tenant_id",
+            "delivery_type"
+          ],
+          "isUnique": false
+        },
+        "idx_products_expiry": {
+          "name": "idx_products_expiry",
+          "columns": [
+            "tenant_id",
+            "expiry_date"
+          ],
+          "isUnique": false
+        },
         "idx_products_horma": {
           "name": "idx_products_horma",
           "columns": [
             "horma_id"
+          ],
+          "isUnique": false
+        },
+        "idx_products_offer": {
+          "name": "idx_products_offer",
+          "columns": [
+            "tenant_id",
+            "is_on_offer"
+          ],
+          "isUnique": false
+        },
+        "idx_products_preorder": {
+          "name": "idx_products_preorder",
+          "columns": [
+            "tenant_id",
+            "is_preorder"
+          ],
+          "isUnique": false
+        },
+        "idx_products_store": {
+          "name": "idx_products_store",
+          "columns": [
+            "tenant_id",
+            "published_in_store"
+          ],
+          "isUnique": false
+        },
+        "supplier_id": {
+          "name": "supplier_id",
+          "columns": [
+            "supplier_id"
           ],
           "isUnique": false
         }
@@ -14075,18 +14082,18 @@
         }
       },
       "uniqueConstraints": {
-        "idx_product_tenant_sku": {
-          "name": "idx_product_tenant_sku",
-          "columns": [
-            "tenant_id",
-            "sku"
-          ]
-        },
         "idx_product_tenant_barcode": {
           "name": "idx_product_tenant_barcode",
           "columns": [
             "tenant_id",
             "barcode"
+          ]
+        },
+        "idx_product_tenant_sku": {
+          "name": "idx_product_tenant_sku",
+          "columns": [
+            "tenant_id",
+            "sku"
           ]
         }
       },
@@ -14158,19 +14165,19 @@
         }
       },
       "indexes": {
-        "idx_psection_tenant": {
-          "name": "idx_psection_tenant",
-          "columns": [
-            "tenant_id",
-            "order_index"
-          ],
-          "isUnique": false
-        },
         "idx_psection_active": {
           "name": "idx_psection_active",
           "columns": [
             "tenant_id",
             "is_active"
+          ],
+          "isUnique": false
+        },
+        "idx_psection_tenant": {
+          "name": "idx_psection_tenant",
+          "columns": [
+            "tenant_id",
+            "order_index"
           ],
           "isUnique": false
         }
@@ -14262,13 +14269,6 @@
         }
       },
       "indexes": {
-        "tenant_id": {
-          "name": "tenant_id",
-          "columns": [
-            "tenant_id"
-          ],
-          "isUnique": false
-        },
         "idx_purchase_items_invoice": {
           "name": "idx_purchase_items_invoice",
           "columns": [
@@ -14280,6 +14280,13 @@
           "name": "idx_purchase_items_product",
           "columns": [
             "product_id"
+          ],
+          "isUnique": false
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "columns": [
+            "tenant_id"
           ],
           "isUnique": false
         }
@@ -14528,17 +14535,18 @@
           ],
           "isUnique": false
         },
-        "idx_purchase_invoices_tenant": {
-          "name": "idx_purchase_invoices_tenant",
-          "columns": [
-            "tenant_id"
-          ],
-          "isUnique": false
-        },
         "idx_purchase_invoices_date": {
           "name": "idx_purchase_invoices_date",
           "columns": [
             "purchase_date"
+          ],
+          "isUnique": false
+        },
+        "idx_purchase_invoices_status": {
+          "name": "idx_purchase_invoices_status",
+          "columns": [
+            "tenant_id",
+            "payment_status"
           ],
           "isUnique": false
         },
@@ -14549,11 +14557,10 @@
           ],
           "isUnique": false
         },
-        "idx_purchase_invoices_status": {
-          "name": "idx_purchase_invoices_status",
+        "idx_purchase_invoices_tenant": {
+          "name": "idx_purchase_invoices_tenant",
           "columns": [
-            "tenant_id",
-            "payment_status"
+            "tenant_id"
           ],
           "isUnique": false
         },
@@ -15276,10 +15283,12 @@
         }
       },
       "indexes": {
-        "menu_item_id": {
-          "name": "menu_item_id",
+        "idx_rb_item_area": {
+          "name": "idx_rb_item_area",
           "columns": [
-            "menu_item_id"
+            "tenant_id",
+            "preparation_area",
+            "status"
           ],
           "isUnique": false
         },
@@ -15298,12 +15307,10 @@
           ],
           "isUnique": false
         },
-        "idx_rb_item_area": {
-          "name": "idx_rb_item_area",
+        "menu_item_id": {
+          "name": "menu_item_id",
           "columns": [
-            "tenant_id",
-            "preparation_area",
-            "status"
+            "menu_item_id"
           ],
           "isUnique": false
         }
@@ -15577,17 +15584,11 @@
         }
       },
       "indexes": {
-        "waiter_id": {
-          "name": "waiter_id",
+        "idx_rb_order_status": {
+          "name": "idx_rb_order_status",
           "columns": [
-            "waiter_id"
-          ],
-          "isUnique": false
-        },
-        "sale_id": {
-          "name": "sale_id",
-          "columns": [
-            "sale_id"
+            "tenant_id",
+            "status"
           ],
           "isUnique": false
         },
@@ -15599,18 +15600,24 @@
           ],
           "isUnique": false
         },
-        "idx_rb_order_status": {
-          "name": "idx_rb_order_status",
-          "columns": [
-            "tenant_id",
-            "status"
-          ],
-          "isUnique": false
-        },
         "idx_rb_order_waiter": {
           "name": "idx_rb_order_waiter",
           "columns": [
             "tenant_id",
+            "waiter_id"
+          ],
+          "isUnique": false
+        },
+        "sale_id": {
+          "name": "sale_id",
+          "columns": [
+            "sale_id"
+          ],
+          "isUnique": false
+        },
+        "waiter_id": {
+          "name": "waiter_id",
+          "columns": [
             "waiter_id"
           ],
           "isUnique": false
@@ -15801,17 +15808,17 @@
           ],
           "isUnique": false
         },
-        "idx_rb_payment_tenant": {
-          "name": "idx_rb_payment_tenant",
-          "columns": [
-            "tenant_id"
-          ],
-          "isUnique": false
-        },
         "idx_rb_payment_session": {
           "name": "idx_rb_payment_session",
           "columns": [
             "cash_session_id"
+          ],
+          "isUnique": false
+        },
+        "idx_rb_payment_tenant": {
+          "name": "idx_rb_payment_tenant",
+          "columns": [
+            "tenant_id"
           ],
           "isUnique": false
         }
@@ -16107,14 +16114,6 @@
         }
       },
       "indexes": {
-        "idx_rb_res_tenant_status": {
-          "name": "idx_rb_res_tenant_status",
-          "columns": [
-            "tenant_id",
-            "status"
-          ],
-          "isUnique": false
-        },
         "idx_rb_res_date": {
           "name": "idx_rb_res_date",
           "columns": [
@@ -16136,6 +16135,14 @@
           "columns": [
             "tenant_id",
             "reservation_date",
+            "status"
+          ],
+          "isUnique": false
+        },
+        "idx_rb_res_tenant_status": {
+          "name": "idx_rb_res_tenant_status",
+          "columns": [
+            "tenant_id",
             "status"
           ],
           "isUnique": false
@@ -16578,6 +16585,13 @@
         }
       },
       "indexes": {
+        "idx_re_clients_agent": {
+          "name": "idx_re_clients_agent",
+          "columns": [
+            "assigned_agent_id"
+          ],
+          "isUnique": false
+        },
         "idx_re_clients_tenant": {
           "name": "idx_re_clients_tenant",
           "columns": [
@@ -16590,13 +16604,6 @@
           "columns": [
             "tenant_id",
             "client_type"
-          ],
-          "isUnique": false
-        },
-        "idx_re_clients_agent": {
-          "name": "idx_re_clients_agent",
-          "columns": [
-            "assigned_agent_id"
           ],
           "isUnique": false
         }
@@ -16769,10 +16776,17 @@
         }
       },
       "indexes": {
-        "idx_re_con_tenant": {
-          "name": "idx_re_con_tenant",
+        "idx_re_con_client": {
+          "name": "idx_re_con_client",
           "columns": [
-            "tenant_id"
+            "client_id"
+          ],
+          "isUnique": false
+        },
+        "idx_re_con_end": {
+          "name": "idx_re_con_end",
+          "columns": [
+            "end_date"
           ],
           "isUnique": false
         },
@@ -16780,13 +16794,6 @@
           "name": "idx_re_con_property",
           "columns": [
             "property_id"
-          ],
-          "isUnique": false
-        },
-        "idx_re_con_client": {
-          "name": "idx_re_con_client",
-          "columns": [
-            "client_id"
           ],
           "isUnique": false
         },
@@ -16798,18 +16805,18 @@
           ],
           "isUnique": false
         },
+        "idx_re_con_tenant": {
+          "name": "idx_re_con_tenant",
+          "columns": [
+            "tenant_id"
+          ],
+          "isUnique": false
+        },
         "idx_re_con_type": {
           "name": "idx_re_con_type",
           "columns": [
             "tenant_id",
             "contract_type"
-          ],
-          "isUnique": false
-        },
-        "idx_re_con_end": {
-          "name": "idx_re_con_end",
-          "columns": [
-            "end_date"
           ],
           "isUnique": false
         }
@@ -16952,18 +16959,18 @@
           ],
           "isUnique": false
         },
-        "idx_re_act_tenant": {
-          "name": "idx_re_act_tenant",
-          "columns": [
-            "tenant_id"
-          ],
-          "isUnique": false
-        },
         "idx_re_act_sched": {
           "name": "idx_re_act_sched",
           "columns": [
             "tenant_id",
             "scheduled_at"
+          ],
+          "isUnique": false
+        },
+        "idx_re_act_tenant": {
+          "name": "idx_re_act_tenant",
+          "columns": [
+            "tenant_id"
           ],
           "isUnique": false
         }
@@ -17150,21 +17157,6 @@
         }
       },
       "indexes": {
-        "idx_re_leads_tenant": {
-          "name": "idx_re_leads_tenant",
-          "columns": [
-            "tenant_id"
-          ],
-          "isUnique": false
-        },
-        "idx_re_leads_stage": {
-          "name": "idx_re_leads_stage",
-          "columns": [
-            "tenant_id",
-            "stage"
-          ],
-          "isUnique": false
-        },
         "idx_re_leads_agent": {
           "name": "idx_re_leads_agent",
           "columns": [
@@ -17176,6 +17168,21 @@
           "name": "idx_re_leads_prop",
           "columns": [
             "property_id"
+          ],
+          "isUnique": false
+        },
+        "idx_re_leads_stage": {
+          "name": "idx_re_leads_stage",
+          "columns": [
+            "tenant_id",
+            "stage"
+          ],
+          "isUnique": false
+        },
+        "idx_re_leads_tenant": {
+          "name": "idx_re_leads_tenant",
+          "columns": [
+            "tenant_id"
           ],
           "isUnique": false
         }
@@ -17349,10 +17356,11 @@
         }
       },
       "indexes": {
-        "idx_re_maint_tenant": {
-          "name": "idx_re_maint_tenant",
+        "idx_re_maint_priority": {
+          "name": "idx_re_maint_priority",
           "columns": [
-            "tenant_id"
+            "tenant_id",
+            "priority"
           ],
           "isUnique": false
         },
@@ -17371,11 +17379,10 @@
           ],
           "isUnique": false
         },
-        "idx_re_maint_priority": {
-          "name": "idx_re_maint_priority",
+        "idx_re_maint_tenant": {
+          "name": "idx_re_maint_tenant",
           "columns": [
-            "tenant_id",
-            "priority"
+            "tenant_id"
           ],
           "isUnique": false
         }
@@ -17831,35 +17838,10 @@
         }
       },
       "indexes": {
-        "idx_re_prop_type": {
-          "name": "idx_re_prop_type",
+        "idx_re_prop_agent": {
+          "name": "idx_re_prop_agent",
           "columns": [
-            "tenant_id",
-            "property_type"
-          ],
-          "isUnique": false
-        },
-        "idx_re_prop_status": {
-          "name": "idx_re_prop_status",
-          "columns": [
-            "tenant_id",
-            "status"
-          ],
-          "isUnique": false
-        },
-        "idx_re_prop_op": {
-          "name": "idx_re_prop_op",
-          "columns": [
-            "tenant_id",
-            "operation_type"
-          ],
-          "isUnique": false
-        },
-        "idx_re_prop_published": {
-          "name": "idx_re_prop_published",
-          "columns": [
-            "tenant_id",
-            "is_published"
+            "assigned_agent_id"
           ],
           "isUnique": false
         },
@@ -17871,6 +17853,14 @@
           ],
           "isUnique": false
         },
+        "idx_re_prop_op": {
+          "name": "idx_re_prop_op",
+          "columns": [
+            "tenant_id",
+            "operation_type"
+          ],
+          "isUnique": false
+        },
         "idx_re_prop_owner": {
           "name": "idx_re_prop_owner",
           "columns": [
@@ -17878,10 +17868,27 @@
           ],
           "isUnique": false
         },
-        "idx_re_prop_agent": {
-          "name": "idx_re_prop_agent",
+        "idx_re_prop_published": {
+          "name": "idx_re_prop_published",
           "columns": [
-            "assigned_agent_id"
+            "tenant_id",
+            "is_published"
+          ],
+          "isUnique": false
+        },
+        "idx_re_prop_status": {
+          "name": "idx_re_prop_status",
+          "columns": [
+            "tenant_id",
+            "status"
+          ],
+          "isUnique": false
+        },
+        "idx_re_prop_type": {
+          "name": "idx_re_prop_type",
+          "columns": [
+            "tenant_id",
+            "property_type"
           ],
           "isUnique": false
         }
@@ -18231,14 +18238,6 @@
           ],
           "isUnique": false
         },
-        "idx_re_pay_status": {
-          "name": "idx_re_pay_status",
-          "columns": [
-            "tenant_id",
-            "status"
-          ],
-          "isUnique": false
-        },
         "idx_re_pay_due": {
           "name": "idx_re_pay_due",
           "columns": [
@@ -18252,6 +18251,14 @@
             "contract_id",
             "period_year",
             "period_month"
+          ],
+          "isUnique": false
+        },
+        "idx_re_pay_status": {
+          "name": "idx_re_pay_status",
+          "columns": [
+            "tenant_id",
+            "status"
           ],
           "isUnique": false
         }
@@ -18411,17 +18418,10 @@
         }
       },
       "indexes": {
-        "idx_re_vis_tenant": {
-          "name": "idx_re_vis_tenant",
+        "idx_re_vis_agent": {
+          "name": "idx_re_vis_agent",
           "columns": [
-            "tenant_id"
-          ],
-          "isUnique": false
-        },
-        "idx_re_vis_property": {
-          "name": "idx_re_vis_property",
-          "columns": [
-            "property_id"
+            "assigned_agent_id"
           ],
           "isUnique": false
         },
@@ -18433,10 +18433,10 @@
           ],
           "isUnique": false
         },
-        "idx_re_vis_agent": {
-          "name": "idx_re_vis_agent",
+        "idx_re_vis_property": {
+          "name": "idx_re_vis_property",
           "columns": [
-            "assigned_agent_id"
+            "property_id"
           ],
           "isUnique": false
         },
@@ -18445,6 +18445,13 @@
           "columns": [
             "tenant_id",
             "status"
+          ],
+          "isUnique": false
+        },
+        "idx_re_vis_tenant": {
+          "name": "idx_re_vis_tenant",
+          "columns": [
+            "tenant_id"
           ],
           "isUnique": false
         }
@@ -18564,10 +18571,10 @@
         }
       },
       "indexes": {
-        "tenant_id": {
-          "name": "tenant_id",
+        "idx_rt_expires": {
+          "name": "idx_rt_expires",
           "columns": [
-            "tenant_id"
+            "expires_at"
           ],
           "isUnique": false
         },
@@ -18578,19 +18585,19 @@
           ],
           "isUnique": false
         },
-        "idx_rt_expires": {
-          "name": "idx_rt_expires",
-          "columns": [
-            "expires_at"
-          ],
-          "isUnique": false
-        },
         "idx_rt_user_valid": {
           "name": "idx_rt_user_valid",
           "columns": [
             "user_id",
             "revoked_at",
             "expires_at"
+          ],
+          "isUnique": false
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "columns": [
+            "tenant_id"
           ],
           "isUnique": false
         }
@@ -18753,10 +18760,10 @@
         }
       },
       "indexes": {
-        "idx_sale_items_tenant": {
-          "name": "idx_sale_items_tenant",
+        "idx_product": {
+          "name": "idx_product",
           "columns": [
-            "tenant_id"
+            "product_id"
           ],
           "isUnique": false
         },
@@ -18767,10 +18774,10 @@
           ],
           "isUnique": false
         },
-        "idx_product": {
-          "name": "idx_product",
+        "idx_sale_items_tenant": {
+          "name": "idx_sale_items_tenant",
           "columns": [
-            "product_id"
+            "tenant_id"
           ],
           "isUnique": false
         },
@@ -19085,6 +19092,20 @@
           "autoincrement": false,
           "onUpdate": true,
           "default": "(now())"
+        },
+        "dispatch_notes": {
+          "name": "dispatch_notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "dispatched_at": {
+          "name": "dispatched_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {
@@ -19095,10 +19116,67 @@
           ],
           "isUnique": false
         },
-        "seller_id": {
-          "name": "seller_id",
+        "idx_created": {
+          "name": "idx_created",
           "columns": [
-            "seller_id"
+            "created_at"
+          ],
+          "isUnique": false
+        },
+        "idx_invoice": {
+          "name": "idx_invoice",
+          "columns": [
+            "invoice_number"
+          ],
+          "isUnique": false
+        },
+        "idx_sale_tenant": {
+          "name": "idx_sale_tenant",
+          "columns": [
+            "tenant_id"
+          ],
+          "isUnique": false
+        },
+        "idx_sales_credit_status": {
+          "name": "idx_sales_credit_status",
+          "columns": [
+            "credit_status"
+          ],
+          "isUnique": false
+        },
+        "idx_sales_due_date": {
+          "name": "idx_sales_due_date",
+          "columns": [
+            "due_date"
+          ],
+          "isUnique": false
+        },
+        "idx_sales_payment_method": {
+          "name": "idx_sales_payment_method",
+          "columns": [
+            "payment_method"
+          ],
+          "isUnique": false
+        },
+        "idx_sales_sede_id": {
+          "name": "idx_sales_sede_id",
+          "columns": [
+            "sede_id"
+          ],
+          "isUnique": false
+        },
+        "idx_sales_synced": {
+          "name": "idx_sales_synced",
+          "columns": [
+            "synced"
+          ],
+          "isUnique": false
+        },
+        "idx_sales_tenant_customer": {
+          "name": "idx_sales_tenant_customer",
+          "columns": [
+            "tenant_id",
+            "customer_id"
           ],
           "isUnique": false
         },
@@ -19119,25 +19197,10 @@
           ],
           "isUnique": false
         },
-        "idx_sales_tenant_customer": {
-          "name": "idx_sales_tenant_customer",
+        "idx_sales_vehicle": {
+          "name": "idx_sales_vehicle",
           "columns": [
-            "tenant_id",
-            "customer_id"
-          ],
-          "isUnique": false
-        },
-        "idx_sale_tenant": {
-          "name": "idx_sale_tenant",
-          "columns": [
-            "tenant_id"
-          ],
-          "isUnique": false
-        },
-        "idx_invoice": {
-          "name": "idx_invoice",
-          "columns": [
-            "invoice_number"
+            "vehicle_id"
           ],
           "isUnique": false
         },
@@ -19148,52 +19211,10 @@
           ],
           "isUnique": false
         },
-        "idx_created": {
-          "name": "idx_created",
+        "seller_id": {
+          "name": "seller_id",
           "columns": [
-            "created_at"
-          ],
-          "isUnique": false
-        },
-        "idx_sales_credit_status": {
-          "name": "idx_sales_credit_status",
-          "columns": [
-            "credit_status"
-          ],
-          "isUnique": false
-        },
-        "idx_sales_payment_method": {
-          "name": "idx_sales_payment_method",
-          "columns": [
-            "payment_method"
-          ],
-          "isUnique": false
-        },
-        "idx_sales_due_date": {
-          "name": "idx_sales_due_date",
-          "columns": [
-            "due_date"
-          ],
-          "isUnique": false
-        },
-        "idx_sales_synced": {
-          "name": "idx_sales_synced",
-          "columns": [
-            "synced"
-          ],
-          "isUnique": false
-        },
-        "idx_sales_sede_id": {
-          "name": "idx_sales_sede_id",
-          "columns": [
-            "sede_id"
-          ],
-          "isUnique": false
-        },
-        "idx_sales_vehicle": {
-          "name": "idx_sales_vehicle",
-          "columns": [
-            "vehicle_id"
+            "seller_id"
           ],
           "isUnique": false
         }
@@ -19555,10 +19576,11 @@
         }
       },
       "indexes": {
-        "tenant_id": {
-          "name": "tenant_id",
+        "idx_availability_day": {
+          "name": "idx_availability_day",
           "columns": [
-            "tenant_id"
+            "service_id",
+            "day_of_week"
           ],
           "isUnique": false
         },
@@ -19569,11 +19591,10 @@
           ],
           "isUnique": false
         },
-        "idx_availability_day": {
-          "name": "idx_availability_day",
+        "tenant_id": {
+          "name": "tenant_id",
           "columns": [
-            "service_id",
-            "day_of_week"
+            "tenant_id"
           ],
           "isUnique": false
         }
@@ -19679,18 +19700,18 @@
         }
       },
       "indexes": {
-        "idx_blocked_tenant_date": {
-          "name": "idx_blocked_tenant_date",
-          "columns": [
-            "tenant_id",
-            "blocked_date"
-          ],
-          "isUnique": false
-        },
         "idx_blocked_service_date": {
           "name": "idx_blocked_service_date",
           "columns": [
             "service_id",
+            "blocked_date"
+          ],
+          "isUnique": false
+        },
+        "idx_blocked_tenant_date": {
+          "name": "idx_blocked_tenant_date",
+          "columns": [
+            "tenant_id",
             "blocked_date"
           ],
           "isUnique": false
@@ -19893,10 +19914,11 @@
         }
       },
       "indexes": {
-        "idx_bookings_tenant": {
-          "name": "idx_bookings_tenant",
+        "idx_bookings_date": {
+          "name": "idx_bookings_date",
           "columns": [
-            "tenant_id"
+            "tenant_id",
+            "booking_date"
           ],
           "isUnique": false
         },
@@ -19915,8 +19937,15 @@
           ],
           "isUnique": false
         },
-        "idx_bookings_date": {
-          "name": "idx_bookings_date",
+        "idx_bookings_tenant": {
+          "name": "idx_bookings_tenant",
+          "columns": [
+            "tenant_id"
+          ],
+          "isUnique": false
+        },
+        "idx_bookings_tenant_date": {
+          "name": "idx_bookings_tenant_date",
           "columns": [
             "tenant_id",
             "booking_date"
@@ -20106,18 +20135,18 @@
         }
       },
       "indexes": {
-        "idx_services_tenant": {
-          "name": "idx_services_tenant",
-          "columns": [
-            "tenant_id"
-          ],
-          "isUnique": false
-        },
         "idx_services_published": {
           "name": "idx_services_published",
           "columns": [
             "tenant_id",
             "is_published"
+          ],
+          "isUnique": false
+        },
+        "idx_services_tenant": {
+          "name": "idx_services_tenant",
+          "columns": [
+            "tenant_id"
           ],
           "isUnique": false
         },
@@ -20218,17 +20247,17 @@
         }
       },
       "indexes": {
-        "idx_bonus_session": {
-          "name": "idx_bonus_session",
-          "columns": [
-            "session_id"
-          ],
-          "isUnique": false
-        },
         "idx_bonus_emp": {
           "name": "idx_bonus_emp",
           "columns": [
             "shift_emp_id"
+          ],
+          "isUnique": false
+        },
+        "idx_bonus_session": {
+          "name": "idx_bonus_session",
+          "columns": [
+            "session_id"
           ],
           "isUnique": false
         }
@@ -20466,17 +20495,10 @@
         }
       },
       "indexes": {
-        "user_id": {
-          "name": "user_id",
+        "idx_stock_created": {
+          "name": "idx_stock_created",
           "columns": [
-            "user_id"
-          ],
-          "isUnique": false
-        },
-        "idx_stock_tenant": {
-          "name": "idx_stock_tenant",
-          "columns": [
-            "tenant_id"
+            "created_at"
           ],
           "isUnique": false
         },
@@ -20487,17 +20509,10 @@
           ],
           "isUnique": false
         },
-        "idx_stock_type": {
-          "name": "idx_stock_type",
+        "idx_stock_tenant": {
+          "name": "idx_stock_tenant",
           "columns": [
-            "type"
-          ],
-          "isUnique": false
-        },
-        "idx_stock_created": {
-          "name": "idx_stock_created",
-          "columns": [
-            "created_at"
+            "tenant_id"
           ],
           "isUnique": false
         },
@@ -20506,6 +20521,20 @@
           "columns": [
             "tenant_id",
             "created_at"
+          ],
+          "isUnique": false
+        },
+        "idx_stock_type": {
+          "name": "idx_stock_type",
+          "columns": [
+            "type"
+          ],
+          "isUnique": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "columns": [
+            "user_id"
           ],
           "isUnique": false
         }
@@ -22055,13 +22084,6 @@
         }
       },
       "indexes": {
-        "product_id": {
-          "name": "product_id",
-          "columns": [
-            "product_id"
-          ],
-          "isUnique": false
-        },
         "idx_order_item_order": {
           "name": "idx_order_item_order",
           "columns": [
@@ -22073,6 +22095,13 @@
           "name": "idx_soi_variant",
           "columns": [
             "variant_id"
+          ],
+          "isUnique": false
+        },
+        "product_id": {
+          "name": "product_id",
+          "columns": [
+            "product_id"
           ],
           "isUnique": false
         }
@@ -22383,18 +22412,45 @@
         }
       },
       "indexes": {
+        "idx_order_client": {
+          "name": "idx_order_client",
+          "columns": [
+            "client_user_id"
+          ],
+          "isUnique": false
+        },
+        "idx_order_created": {
+          "name": "idx_order_created",
+          "columns": [
+            "created_at"
+          ],
+          "isUnique": false
+        },
+        "idx_order_dispatch_status": {
+          "name": "idx_order_dispatch_status",
+          "columns": [
+            "dispatch_status"
+          ],
+          "isUnique": false
+        },
+        "idx_order_driver": {
+          "name": "idx_order_driver",
+          "columns": [
+            "delivery_driver_id"
+          ],
+          "isUnique": false
+        },
+        "idx_order_number": {
+          "name": "idx_order_number",
+          "columns": [
+            "order_number"
+          ],
+          "isUnique": false
+        },
         "idx_order_tenant": {
           "name": "idx_order_tenant",
           "columns": [
             "tenant_id"
-          ],
-          "isUnique": false
-        },
-        "idx_order_tenant_status": {
-          "name": "idx_order_tenant_status",
-          "columns": [
-            "tenant_id",
-            "status"
           ],
           "isUnique": false
         },
@@ -22406,31 +22462,11 @@
           ],
           "isUnique": false
         },
-        "idx_order_number": {
-          "name": "idx_order_number",
+        "idx_order_tenant_status": {
+          "name": "idx_order_tenant_status",
           "columns": [
-            "order_number"
-          ],
-          "isUnique": false
-        },
-        "idx_order_created": {
-          "name": "idx_order_created",
-          "columns": [
-            "created_at"
-          ],
-          "isUnique": false
-        },
-        "idx_order_driver": {
-          "name": "idx_order_driver",
-          "columns": [
-            "delivery_driver_id"
-          ],
-          "isUnique": false
-        },
-        "idx_order_client": {
-          "name": "idx_order_client",
-          "columns": [
-            "client_user_id"
+            "tenant_id",
+            "status"
           ],
           "isUnique": false
         },
@@ -22438,13 +22474,6 @@
           "name": "idx_order_vehicle",
           "columns": [
             "vehicle_id"
-          ],
-          "isUnique": false
-        },
-        "idx_order_dispatch_status": {
-          "name": "idx_order_dispatch_status",
-          "columns": [
-            "dispatch_status"
           ],
           "isUnique": false
         }
@@ -22596,17 +22625,17 @@
         }
       },
       "indexes": {
-        "idx_sp_supplier": {
-          "name": "idx_sp_supplier",
-          "columns": [
-            "supplier_id"
-          ],
-          "isUnique": false
-        },
         "idx_sp_product": {
           "name": "idx_sp_product",
           "columns": [
             "product_id"
+          ],
+          "isUnique": false
+        },
+        "idx_sp_supplier": {
+          "name": "idx_sp_supplier",
+          "columns": [
+            "supplier_id"
           ],
           "isUnique": false
         },
@@ -22746,10 +22775,10 @@
         }
       },
       "indexes": {
-        "idx_supplier_tenant": {
-          "name": "idx_supplier_tenant",
+        "idx_supplier_active": {
+          "name": "idx_supplier_active",
           "columns": [
-            "tenant_id"
+            "is_active"
           ],
           "isUnique": false
         },
@@ -22760,10 +22789,10 @@
           ],
           "isUnique": false
         },
-        "idx_supplier_active": {
-          "name": "idx_supplier_active",
+        "idx_supplier_tenant": {
+          "name": "idx_supplier_tenant",
           "columns": [
-            "is_active"
+            "tenant_id"
           ],
           "isUnique": false
         }
@@ -23125,17 +23154,17 @@
         }
       },
       "indexes": {
-        "idx_tenant_status": {
-          "name": "idx_tenant_status",
-          "columns": [
-            "status"
-          ],
-          "isUnique": false
-        },
         "idx_tenant_slug": {
           "name": "idx_tenant_slug",
           "columns": [
             "slug"
+          ],
+          "isUnique": false
+        },
+        "idx_tenant_status": {
+          "name": "idx_tenant_status",
+          "columns": [
+            "status"
           ],
           "isUnique": false
         }
@@ -24361,18 +24390,10 @@
         }
       },
       "indexes": {
-        "offer_id": {
-          "name": "offer_id",
+        "idx_trbk_ref": {
+          "name": "idx_trbk_ref",
           "columns": [
-            "offer_id"
-          ],
-          "isUnique": false
-        },
-        "idx_trbk_user": {
-          "name": "idx_trbk_user",
-          "columns": [
-            "user_id",
-            "status"
+            "wompi_reference"
           ],
           "isUnique": false
         },
@@ -24384,10 +24405,18 @@
           ],
           "isUnique": false
         },
-        "idx_trbk_ref": {
-          "name": "idx_trbk_ref",
+        "idx_trbk_user": {
+          "name": "idx_trbk_user",
           "columns": [
-            "wompi_reference"
+            "user_id",
+            "status"
+          ],
+          "isUnique": false
+        },
+        "offer_id": {
+          "name": "offer_id",
+          "columns": [
+            "offer_id"
           ],
           "isUnique": false
         }
@@ -25222,7 +25251,7 @@
         },
         "role": {
           "name": "role",
-          "type": "enum('superadmin','comerciante','vendedor','cliente','repartidor','auxiliar_bodega','administrador_rb','cajero','mesero','cocinero','bartender','despachador','asesor_inmobiliario','gerente_inmobiliario','comunidad_admin')",
+          "type": "enum('superadmin','comerciante','vendedor','cliente','repartidor','auxiliar_bodega','administrador_rb','cajero','mesero','cocinero','bartender','despachador')",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
@@ -25230,7 +25259,7 @@
         },
         "phone": {
           "name": "phone",
-          "type": "varchar(500)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
@@ -25404,17 +25433,10 @@
         }
       },
       "indexes": {
-        "idx_users_tenant": {
-          "name": "idx_users_tenant",
+        "idx_google_id": {
+          "name": "idx_google_id",
           "columns": [
-            "tenant_id"
-          ],
-          "isUnique": false
-        },
-        "idx_users_role": {
-          "name": "idx_users_role",
-          "columns": [
-            "role"
+            "google_id"
           ],
           "isUnique": false
         },
@@ -25425,10 +25447,17 @@
           ],
           "isUnique": false
         },
-        "idx_google_id": {
-          "name": "idx_google_id",
+        "idx_users_role": {
+          "name": "idx_users_role",
           "columns": [
-            "google_id"
+            "role"
+          ],
+          "isUnique": false
+        },
+        "idx_users_tenant": {
+          "name": "idx_users_tenant",
+          "columns": [
+            "tenant_id"
           ],
           "isUnique": false
         }
@@ -25540,6 +25569,13 @@
         }
       },
       "indexes": {
+        "idx_vpt_tenant": {
+          "name": "idx_vpt_tenant",
+          "columns": [
+            "tenant_id"
+          ],
+          "isUnique": false
+        },
         "idx_vpt_variant": {
           "name": "idx_vpt_variant",
           "columns": [
@@ -25553,13 +25589,6 @@
             "variant_id",
             "tenant_id",
             "min_qty"
-          ],
-          "isUnique": false
-        },
-        "idx_vpt_tenant": {
-          "name": "idx_vpt_tenant",
-          "columns": [
-            "tenant_id"
           ],
           "isUnique": false
         }
@@ -25923,11 +25952,10 @@
         }
       },
       "indexes": {
-        "idx_wr_tenant_date": {
-          "name": "idx_wr_tenant_date",
+        "idx_wr_area": {
+          "name": "idx_wr_area",
           "columns": [
-            "tenant_id",
-            "created_at"
+            "area"
           ],
           "isUnique": false
         },
@@ -25938,10 +25966,11 @@
           ],
           "isUnique": false
         },
-        "idx_wr_area": {
-          "name": "idx_wr_area",
+        "idx_wr_tenant_date": {
+          "name": "idx_wr_tenant_date",
           "columns": [
-            "area"
+            "tenant_id",
+            "created_at"
           ],
           "isUnique": false
         }
@@ -26060,6 +26089,14 @@
         }
       },
       "indexes": {
+        "idx_wtx_context": {
+          "name": "idx_wtx_context",
+          "columns": [
+            "context",
+            "context_id"
+          ],
+          "isUnique": false
+        },
         "idx_wtx_status": {
           "name": "idx_wtx_status",
           "columns": [
@@ -26071,14 +26108,6 @@
           "name": "idx_wtx_tenant",
           "columns": [
             "tenant_id"
-          ],
-          "isUnique": false
-        },
-        "idx_wtx_context": {
-          "name": "idx_wtx_context",
-          "columns": [
-            "context",
-            "context_id"
           ],
           "isUnique": false
         }
@@ -26182,17 +26211,17 @@
         }
       },
       "indexes": {
-        "tenant_id": {
-          "name": "tenant_id",
-          "columns": [
-            "tenant_id"
-          ],
-          "isUnique": false
-        },
         "idx_wo_mat_order": {
           "name": "idx_wo_mat_order",
           "columns": [
             "work_order_id"
+          ],
+          "isUnique": false
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "columns": [
+            "tenant_id"
           ],
           "isUnique": false
         }
@@ -26299,13 +26328,6 @@
         }
       },
       "indexes": {
-        "received_by": {
-          "name": "received_by",
-          "columns": [
-            "received_by"
-          ],
-          "isUnique": false
-        },
         "idx_wo_pay_order": {
           "name": "idx_wo_pay_order",
           "columns": [
@@ -26317,6 +26339,13 @@
           "name": "idx_wo_pay_tenant",
           "columns": [
             "tenant_id"
+          ],
+          "isUnique": false
+        },
+        "received_by": {
+          "name": "received_by",
+          "columns": [
+            "received_by"
           ],
           "isUnique": false
         }
@@ -26637,11 +26666,11 @@
           ],
           "isUnique": false
         },
-        "idx_wo_tenant_status": {
-          "name": "idx_wo_tenant_status",
+        "idx_wo_customer": {
+          "name": "idx_wo_customer",
           "columns": [
             "tenant_id",
-            "status"
+            "customer_name"
           ],
           "isUnique": false
         },
@@ -26653,11 +26682,11 @@
           ],
           "isUnique": false
         },
-        "idx_wo_customer": {
-          "name": "idx_wo_customer",
+        "idx_wo_tenant_status": {
+          "name": "idx_wo_tenant_status",
           "columns": [
             "tenant_id",
-            "customer_name"
+            "status"
           ],
           "isUnique": false
         }
@@ -27937,6 +27966,72 @@
           "notNull": false,
           "autoincrement": false
         },
+        "is_menu_item": {
+          "name": "is_menu_item",
+          "type": "tinyint",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "is_ingredient": {
+          "name": "is_ingredient",
+          "type": "tinyint",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "preparation_area": {
+          "name": "preparation_area",
+          "type": "enum('bar','cocina','ambos')",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "prep_time_minutes": {
+          "name": "prep_time_minutes",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "available_in_menu": {
+          "name": "available_in_menu",
+          "type": "tinyint",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "qty_promo": {
+          "name": "qty_promo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "images": {
+          "name": "images",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "horma_id": {
+          "name": "horma_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "base_price": {
+          "name": "base_price",
+          "type": "decimal(12,2)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "category_name": {
           "name": "category_name",
           "type": "varchar(100)",
@@ -27954,7 +28049,7 @@
       },
       "name": "v_products_expiring_soon",
       "isExisting": false,
-      "definition": "select `p`.`id` AS `id`,`p`.`tenant_id` AS `tenant_id`,`p`.`name` AS `name`,`p`.`articulo` AS `articulo`,`p`.`category` AS `category`,`p`.`product_type` AS `product_type`,`p`.`brand` AS `brand`,`p`.`model` AS `model`,`p`.`description` AS `description`,`p`.`purchase_price` AS `purchase_price`,`p`.`sale_price` AS `sale_price`,`p`.`sku` AS `sku`,`p`.`barcode` AS `barcode`,`p`.`stock` AS `stock`,`p`.`reorder_point` AS `reorder_point`,`p`.`supplier` AS `supplier`,`p`.`supplier_id` AS `supplier_id`,`p`.`entry_date` AS `entry_date`,`p`.`image_url` AS `image_url`,`p`.`image_urls` AS `image_urls`,`p`.`location_in_store` AS `location_in_store`,`p`.`notes` AS `notes`,`p`.`tags` AS `tags`,`p`.`expiry_date` AS `expiry_date`,`p`.`batch_number` AS `batch_number`,`p`.`net_weight` AS `net_weight`,`p`.`weight_unit` AS `weight_unit`,`p`.`sanitary_registration` AS `sanitary_registration`,`p`.`storage_temperature` AS `storage_temperature`,`p`.`ingredients` AS `ingredients`,`p`.`nutritional_info` AS `nutritional_info`,`p`.`alcohol_content` AS `alcohol_content`,`p`.`allergens` AS `allergens`,`p`.`size` AS `size`,`p`.`color` AS `color`,`p`.`material` AS `material`,`p`.`gender` AS `gender`,`p`.`season` AS `season`,`p`.`garment_type` AS `garment_type`,`p`.`washing_instructions` AS `washing_instructions`,`p`.`country_of_origin` AS `country_of_origin`,`p`.`serial_number` AS `serial_number`,`p`.`warranty_months` AS `warranty_months`,`p`.`technical_specs` AS `technical_specs`,`p`.`voltage` AS `voltage`,`p`.`power_watts` AS `power_watts`,`p`.`compatibility` AS `compatibility`,`p`.`includes_accessories` AS `includes_accessories`,`p`.`product_condition` AS `product_condition`,`p`.`active_ingredient` AS `active_ingredient`,`p`.`concentration` AS `concentration`,`p`.`requires_prescription` AS `requires_prescription`,`p`.`administration_route` AS `administration_route`,`p`.`presentation` AS `presentation`,`p`.`units_per_package` AS `units_per_package`,`p`.`laboratory` AS `laboratory`,`p`.`contraindications` AS `contraindications`,`p`.`dimensions` AS `dimensions`,`p`.`weight` AS `weight`,`p`.`hardware_weight_unit` AS `hardware_weight_unit`,`p`.`caliber` AS `caliber`,`p`.`resistance` AS `resistance`,`p`.`finish` AS `finish`,`p`.`recommended_use` AS `recommended_use`,`p`.`author` AS `author`,`p`.`publisher` AS `publisher`,`p`.`isbn` AS `isbn`,`p`.`pages` AS `pages`,`p`.`language` AS `language`,`p`.`publication_year` AS `publication_year`,`p`.`edition` AS `edition`,`p`.`book_format` AS `book_format`,`p`.`recommended_age` AS `recommended_age`,`p`.`number_of_players` AS `number_of_players`,`p`.`game_type` AS `game_type`,`p`.`requires_batteries` AS `requires_batteries`,`p`.`package_dimensions` AS `package_dimensions`,`p`.`package_contents` AS `package_contents`,`p`.`safety_warnings` AS `safety_warnings`,`p`.`published_in_store` AS `published_in_store`,`p`.`available_for_delivery` AS `available_for_delivery`,`p`.`delivery_type` AS `delivery_type`,`p`.`is_new_launch` AS `is_new_launch`,`p`.`launch_date` AS `launch_date`,`p`.`is_preorder` AS `is_preorder`,`p`.`preorder_window_end` AS `preorder_window_end`,`p`.`preorder_ship_start` AS `preorder_ship_start`,`p`.`preorder_ship_end` AS `preorder_ship_end`,`p`.`preorder_badge_text` AS `preorder_badge_text`,`p`.`preorder_policy_text` AS `preorder_policy_text`,`p`.`is_on_offer` AS `is_on_offer`,`p`.`offer_price` AS `offer_price`,`p`.`offer_label` AS `offer_label`,`p`.`offer_start` AS `offer_start`,`p`.`offer_end` AS `offer_end`,`p`.`sede_id` AS `sede_id`,`p`.`created_at` AS `created_at`,`p`.`updated_at` AS `updated_at`,`p`.`created_by` AS `created_by`,`p`.`updated_by` AS `updated_by`,`c`.`name` AS `category_name`,(to_days(`p`.`expiry_date`) - to_days(curdate())) AS `days_until_expiry` from (`lopbuk`.`products` `p` left join `lopbuk`.`categories` `c` on(((`p`.`category` = `c`.`id`) and (`p`.`tenant_id` = `c`.`tenant_id`)))) where ((`p`.`expiry_date` is not null) and (`p`.`expiry_date` <= (curdate() + interval 30 day)) and (`p`.`expiry_date` >= curdate())) order by `p`.`expiry_date`",
+      "definition": "select `p`.`id` AS `id`,`p`.`tenant_id` AS `tenant_id`,`p`.`name` AS `name`,`p`.`articulo` AS `articulo`,`p`.`category` AS `category`,`p`.`product_type` AS `product_type`,`p`.`brand` AS `brand`,`p`.`model` AS `model`,`p`.`description` AS `description`,`p`.`purchase_price` AS `purchase_price`,`p`.`sale_price` AS `sale_price`,`p`.`sku` AS `sku`,`p`.`barcode` AS `barcode`,`p`.`stock` AS `stock`,`p`.`reorder_point` AS `reorder_point`,`p`.`supplier` AS `supplier`,`p`.`supplier_id` AS `supplier_id`,`p`.`entry_date` AS `entry_date`,`p`.`image_url` AS `image_url`,`p`.`image_urls` AS `image_urls`,`p`.`location_in_store` AS `location_in_store`,`p`.`notes` AS `notes`,`p`.`tags` AS `tags`,`p`.`expiry_date` AS `expiry_date`,`p`.`batch_number` AS `batch_number`,`p`.`net_weight` AS `net_weight`,`p`.`weight_unit` AS `weight_unit`,`p`.`sanitary_registration` AS `sanitary_registration`,`p`.`storage_temperature` AS `storage_temperature`,`p`.`ingredients` AS `ingredients`,`p`.`nutritional_info` AS `nutritional_info`,`p`.`alcohol_content` AS `alcohol_content`,`p`.`allergens` AS `allergens`,`p`.`size` AS `size`,`p`.`color` AS `color`,`p`.`material` AS `material`,`p`.`gender` AS `gender`,`p`.`season` AS `season`,`p`.`garment_type` AS `garment_type`,`p`.`washing_instructions` AS `washing_instructions`,`p`.`country_of_origin` AS `country_of_origin`,`p`.`serial_number` AS `serial_number`,`p`.`warranty_months` AS `warranty_months`,`p`.`technical_specs` AS `technical_specs`,`p`.`voltage` AS `voltage`,`p`.`power_watts` AS `power_watts`,`p`.`compatibility` AS `compatibility`,`p`.`includes_accessories` AS `includes_accessories`,`p`.`product_condition` AS `product_condition`,`p`.`active_ingredient` AS `active_ingredient`,`p`.`concentration` AS `concentration`,`p`.`requires_prescription` AS `requires_prescription`,`p`.`administration_route` AS `administration_route`,`p`.`presentation` AS `presentation`,`p`.`units_per_package` AS `units_per_package`,`p`.`laboratory` AS `laboratory`,`p`.`contraindications` AS `contraindications`,`p`.`dimensions` AS `dimensions`,`p`.`weight` AS `weight`,`p`.`hardware_weight_unit` AS `hardware_weight_unit`,`p`.`caliber` AS `caliber`,`p`.`resistance` AS `resistance`,`p`.`finish` AS `finish`,`p`.`recommended_use` AS `recommended_use`,`p`.`author` AS `author`,`p`.`publisher` AS `publisher`,`p`.`isbn` AS `isbn`,`p`.`pages` AS `pages`,`p`.`language` AS `language`,`p`.`publication_year` AS `publication_year`,`p`.`edition` AS `edition`,`p`.`book_format` AS `book_format`,`p`.`recommended_age` AS `recommended_age`,`p`.`number_of_players` AS `number_of_players`,`p`.`game_type` AS `game_type`,`p`.`requires_batteries` AS `requires_batteries`,`p`.`package_dimensions` AS `package_dimensions`,`p`.`package_contents` AS `package_contents`,`p`.`safety_warnings` AS `safety_warnings`,`p`.`published_in_store` AS `published_in_store`,`p`.`available_for_delivery` AS `available_for_delivery`,`p`.`delivery_type` AS `delivery_type`,`p`.`is_new_launch` AS `is_new_launch`,`p`.`launch_date` AS `launch_date`,`p`.`is_preorder` AS `is_preorder`,`p`.`preorder_window_end` AS `preorder_window_end`,`p`.`preorder_ship_start` AS `preorder_ship_start`,`p`.`preorder_ship_end` AS `preorder_ship_end`,`p`.`preorder_badge_text` AS `preorder_badge_text`,`p`.`preorder_policy_text` AS `preorder_policy_text`,`p`.`is_on_offer` AS `is_on_offer`,`p`.`offer_price` AS `offer_price`,`p`.`offer_label` AS `offer_label`,`p`.`offer_start` AS `offer_start`,`p`.`offer_end` AS `offer_end`,`p`.`sede_id` AS `sede_id`,`p`.`created_at` AS `created_at`,`p`.`updated_at` AS `updated_at`,`p`.`created_by` AS `created_by`,`p`.`updated_by` AS `updated_by`,`p`.`is_menu_item` AS `is_menu_item`,`p`.`is_ingredient` AS `is_ingredient`,`p`.`preparation_area` AS `preparation_area`,`p`.`prep_time_minutes` AS `prep_time_minutes`,`p`.`available_in_menu` AS `available_in_menu`,`p`.`qty_promo` AS `qty_promo`,`p`.`images` AS `images`,`p`.`horma_id` AS `horma_id`,`p`.`base_price` AS `base_price`,`c`.`name` AS `category_name`,(to_days(`p`.`expiry_date`) - to_days(curdate())) AS `days_until_expiry` from (`lopbuk`.`products` `p` left join `lopbuk`.`categories` `c` on(((`p`.`category` = `c`.`id`) and (`p`.`tenant_id` = `c`.`tenant_id`)))) where ((`p`.`expiry_date` is not null) and (`p`.`expiry_date` <= (curdate() + interval 30 day)) and (`p`.`expiry_date` >= curdate())) order by `p`.`expiry_date`",
       "algorithm": "undefined",
       "sqlSecurity": "definer"
     },
@@ -28676,6 +28771,72 @@
           "notNull": false,
           "autoincrement": false
         },
+        "is_menu_item": {
+          "name": "is_menu_item",
+          "type": "tinyint",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "is_ingredient": {
+          "name": "is_ingredient",
+          "type": "tinyint",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "preparation_area": {
+          "name": "preparation_area",
+          "type": "enum('bar','cocina','ambos')",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "prep_time_minutes": {
+          "name": "prep_time_minutes",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "available_in_menu": {
+          "name": "available_in_menu",
+          "type": "tinyint",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "qty_promo": {
+          "name": "qty_promo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "images": {
+          "name": "images",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "horma_id": {
+          "name": "horma_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "base_price": {
+          "name": "base_price",
+          "type": "decimal(12,2)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "category_name": {
           "name": "category_name",
           "type": "varchar(100)",
@@ -28686,7 +28847,7 @@
       },
       "name": "v_products_low_stock",
       "isExisting": false,
-      "definition": "select `p`.`id` AS `id`,`p`.`tenant_id` AS `tenant_id`,`p`.`name` AS `name`,`p`.`articulo` AS `articulo`,`p`.`category` AS `category`,`p`.`product_type` AS `product_type`,`p`.`brand` AS `brand`,`p`.`model` AS `model`,`p`.`description` AS `description`,`p`.`purchase_price` AS `purchase_price`,`p`.`sale_price` AS `sale_price`,`p`.`sku` AS `sku`,`p`.`barcode` AS `barcode`,`p`.`stock` AS `stock`,`p`.`reorder_point` AS `reorder_point`,`p`.`supplier` AS `supplier`,`p`.`supplier_id` AS `supplier_id`,`p`.`entry_date` AS `entry_date`,`p`.`image_url` AS `image_url`,`p`.`image_urls` AS `image_urls`,`p`.`location_in_store` AS `location_in_store`,`p`.`notes` AS `notes`,`p`.`tags` AS `tags`,`p`.`expiry_date` AS `expiry_date`,`p`.`batch_number` AS `batch_number`,`p`.`net_weight` AS `net_weight`,`p`.`weight_unit` AS `weight_unit`,`p`.`sanitary_registration` AS `sanitary_registration`,`p`.`storage_temperature` AS `storage_temperature`,`p`.`ingredients` AS `ingredients`,`p`.`nutritional_info` AS `nutritional_info`,`p`.`alcohol_content` AS `alcohol_content`,`p`.`allergens` AS `allergens`,`p`.`size` AS `size`,`p`.`color` AS `color`,`p`.`material` AS `material`,`p`.`gender` AS `gender`,`p`.`season` AS `season`,`p`.`garment_type` AS `garment_type`,`p`.`washing_instructions` AS `washing_instructions`,`p`.`country_of_origin` AS `country_of_origin`,`p`.`serial_number` AS `serial_number`,`p`.`warranty_months` AS `warranty_months`,`p`.`technical_specs` AS `technical_specs`,`p`.`voltage` AS `voltage`,`p`.`power_watts` AS `power_watts`,`p`.`compatibility` AS `compatibility`,`p`.`includes_accessories` AS `includes_accessories`,`p`.`product_condition` AS `product_condition`,`p`.`active_ingredient` AS `active_ingredient`,`p`.`concentration` AS `concentration`,`p`.`requires_prescription` AS `requires_prescription`,`p`.`administration_route` AS `administration_route`,`p`.`presentation` AS `presentation`,`p`.`units_per_package` AS `units_per_package`,`p`.`laboratory` AS `laboratory`,`p`.`contraindications` AS `contraindications`,`p`.`dimensions` AS `dimensions`,`p`.`weight` AS `weight`,`p`.`hardware_weight_unit` AS `hardware_weight_unit`,`p`.`caliber` AS `caliber`,`p`.`resistance` AS `resistance`,`p`.`finish` AS `finish`,`p`.`recommended_use` AS `recommended_use`,`p`.`author` AS `author`,`p`.`publisher` AS `publisher`,`p`.`isbn` AS `isbn`,`p`.`pages` AS `pages`,`p`.`language` AS `language`,`p`.`publication_year` AS `publication_year`,`p`.`edition` AS `edition`,`p`.`book_format` AS `book_format`,`p`.`recommended_age` AS `recommended_age`,`p`.`number_of_players` AS `number_of_players`,`p`.`game_type` AS `game_type`,`p`.`requires_batteries` AS `requires_batteries`,`p`.`package_dimensions` AS `package_dimensions`,`p`.`package_contents` AS `package_contents`,`p`.`safety_warnings` AS `safety_warnings`,`p`.`published_in_store` AS `published_in_store`,`p`.`available_for_delivery` AS `available_for_delivery`,`p`.`delivery_type` AS `delivery_type`,`p`.`is_new_launch` AS `is_new_launch`,`p`.`launch_date` AS `launch_date`,`p`.`is_preorder` AS `is_preorder`,`p`.`preorder_window_end` AS `preorder_window_end`,`p`.`preorder_ship_start` AS `preorder_ship_start`,`p`.`preorder_ship_end` AS `preorder_ship_end`,`p`.`preorder_badge_text` AS `preorder_badge_text`,`p`.`preorder_policy_text` AS `preorder_policy_text`,`p`.`is_on_offer` AS `is_on_offer`,`p`.`offer_price` AS `offer_price`,`p`.`offer_label` AS `offer_label`,`p`.`offer_start` AS `offer_start`,`p`.`offer_end` AS `offer_end`,`p`.`sede_id` AS `sede_id`,`p`.`created_at` AS `created_at`,`p`.`updated_at` AS `updated_at`,`p`.`created_by` AS `created_by`,`p`.`updated_by` AS `updated_by`,`c`.`name` AS `category_name` from (`lopbuk`.`products` `p` left join `lopbuk`.`categories` `c` on(((`p`.`category` = `c`.`id`) and (`p`.`tenant_id` = `c`.`tenant_id`)))) where ((`p`.`stock` <= `p`.`reorder_point`) and (`p`.`stock` >= 0)) order by (`p`.`stock` - `p`.`reorder_point`)",
+      "definition": "select `p`.`id` AS `id`,`p`.`tenant_id` AS `tenant_id`,`p`.`name` AS `name`,`p`.`articulo` AS `articulo`,`p`.`category` AS `category`,`p`.`product_type` AS `product_type`,`p`.`brand` AS `brand`,`p`.`model` AS `model`,`p`.`description` AS `description`,`p`.`purchase_price` AS `purchase_price`,`p`.`sale_price` AS `sale_price`,`p`.`sku` AS `sku`,`p`.`barcode` AS `barcode`,`p`.`stock` AS `stock`,`p`.`reorder_point` AS `reorder_point`,`p`.`supplier` AS `supplier`,`p`.`supplier_id` AS `supplier_id`,`p`.`entry_date` AS `entry_date`,`p`.`image_url` AS `image_url`,`p`.`image_urls` AS `image_urls`,`p`.`location_in_store` AS `location_in_store`,`p`.`notes` AS `notes`,`p`.`tags` AS `tags`,`p`.`expiry_date` AS `expiry_date`,`p`.`batch_number` AS `batch_number`,`p`.`net_weight` AS `net_weight`,`p`.`weight_unit` AS `weight_unit`,`p`.`sanitary_registration` AS `sanitary_registration`,`p`.`storage_temperature` AS `storage_temperature`,`p`.`ingredients` AS `ingredients`,`p`.`nutritional_info` AS `nutritional_info`,`p`.`alcohol_content` AS `alcohol_content`,`p`.`allergens` AS `allergens`,`p`.`size` AS `size`,`p`.`color` AS `color`,`p`.`material` AS `material`,`p`.`gender` AS `gender`,`p`.`season` AS `season`,`p`.`garment_type` AS `garment_type`,`p`.`washing_instructions` AS `washing_instructions`,`p`.`country_of_origin` AS `country_of_origin`,`p`.`serial_number` AS `serial_number`,`p`.`warranty_months` AS `warranty_months`,`p`.`technical_specs` AS `technical_specs`,`p`.`voltage` AS `voltage`,`p`.`power_watts` AS `power_watts`,`p`.`compatibility` AS `compatibility`,`p`.`includes_accessories` AS `includes_accessories`,`p`.`product_condition` AS `product_condition`,`p`.`active_ingredient` AS `active_ingredient`,`p`.`concentration` AS `concentration`,`p`.`requires_prescription` AS `requires_prescription`,`p`.`administration_route` AS `administration_route`,`p`.`presentation` AS `presentation`,`p`.`units_per_package` AS `units_per_package`,`p`.`laboratory` AS `laboratory`,`p`.`contraindications` AS `contraindications`,`p`.`dimensions` AS `dimensions`,`p`.`weight` AS `weight`,`p`.`hardware_weight_unit` AS `hardware_weight_unit`,`p`.`caliber` AS `caliber`,`p`.`resistance` AS `resistance`,`p`.`finish` AS `finish`,`p`.`recommended_use` AS `recommended_use`,`p`.`author` AS `author`,`p`.`publisher` AS `publisher`,`p`.`isbn` AS `isbn`,`p`.`pages` AS `pages`,`p`.`language` AS `language`,`p`.`publication_year` AS `publication_year`,`p`.`edition` AS `edition`,`p`.`book_format` AS `book_format`,`p`.`recommended_age` AS `recommended_age`,`p`.`number_of_players` AS `number_of_players`,`p`.`game_type` AS `game_type`,`p`.`requires_batteries` AS `requires_batteries`,`p`.`package_dimensions` AS `package_dimensions`,`p`.`package_contents` AS `package_contents`,`p`.`safety_warnings` AS `safety_warnings`,`p`.`published_in_store` AS `published_in_store`,`p`.`available_for_delivery` AS `available_for_delivery`,`p`.`delivery_type` AS `delivery_type`,`p`.`is_new_launch` AS `is_new_launch`,`p`.`launch_date` AS `launch_date`,`p`.`is_preorder` AS `is_preorder`,`p`.`preorder_window_end` AS `preorder_window_end`,`p`.`preorder_ship_start` AS `preorder_ship_start`,`p`.`preorder_ship_end` AS `preorder_ship_end`,`p`.`preorder_badge_text` AS `preorder_badge_text`,`p`.`preorder_policy_text` AS `preorder_policy_text`,`p`.`is_on_offer` AS `is_on_offer`,`p`.`offer_price` AS `offer_price`,`p`.`offer_label` AS `offer_label`,`p`.`offer_start` AS `offer_start`,`p`.`offer_end` AS `offer_end`,`p`.`sede_id` AS `sede_id`,`p`.`created_at` AS `created_at`,`p`.`updated_at` AS `updated_at`,`p`.`created_by` AS `created_by`,`p`.`updated_by` AS `updated_by`,`p`.`is_menu_item` AS `is_menu_item`,`p`.`is_ingredient` AS `is_ingredient`,`p`.`preparation_area` AS `preparation_area`,`p`.`prep_time_minutes` AS `prep_time_minutes`,`p`.`available_in_menu` AS `available_in_menu`,`p`.`qty_promo` AS `qty_promo`,`p`.`images` AS `images`,`p`.`horma_id` AS `horma_id`,`p`.`base_price` AS `base_price`,`c`.`name` AS `category_name` from (`lopbuk`.`products` `p` left join `lopbuk`.`categories` `c` on(((`p`.`category` = `c`.`id`) and (`p`.`tenant_id` = `c`.`tenant_id`)))) where ((`p`.`stock` <= `p`.`reorder_point`) and (`p`.`stock` >= 0)) order by (`p`.`stock` - `p`.`reorder_point`)",
       "algorithm": "undefined",
       "sqlSecurity": "definer"
     },
@@ -29408,6 +29569,72 @@
           "notNull": false,
           "autoincrement": false
         },
+        "is_menu_item": {
+          "name": "is_menu_item",
+          "type": "tinyint",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "is_ingredient": {
+          "name": "is_ingredient",
+          "type": "tinyint",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "preparation_area": {
+          "name": "preparation_area",
+          "type": "enum('bar','cocina','ambos')",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "prep_time_minutes": {
+          "name": "prep_time_minutes",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "available_in_menu": {
+          "name": "available_in_menu",
+          "type": "tinyint",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "qty_promo": {
+          "name": "qty_promo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "images": {
+          "name": "images",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "horma_id": {
+          "name": "horma_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "base_price": {
+          "name": "base_price",
+          "type": "decimal(12,2)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "stock_status": {
           "name": "stock_status",
           "type": "varchar(10)",
@@ -29418,7 +29645,7 @@
       },
       "name": "v_products_stock_status",
       "isExisting": false,
-      "definition": "select `p`.`id` AS `id`,`p`.`tenant_id` AS `tenant_id`,`p`.`name` AS `name`,`p`.`articulo` AS `articulo`,`p`.`category` AS `category`,`p`.`product_type` AS `product_type`,`p`.`brand` AS `brand`,`p`.`model` AS `model`,`p`.`description` AS `description`,`p`.`purchase_price` AS `purchase_price`,`p`.`sale_price` AS `sale_price`,`p`.`sku` AS `sku`,`p`.`barcode` AS `barcode`,`p`.`stock` AS `stock`,`p`.`reorder_point` AS `reorder_point`,`p`.`supplier` AS `supplier`,`p`.`supplier_id` AS `supplier_id`,`p`.`entry_date` AS `entry_date`,`p`.`image_url` AS `image_url`,`p`.`image_urls` AS `image_urls`,`p`.`location_in_store` AS `location_in_store`,`p`.`notes` AS `notes`,`p`.`tags` AS `tags`,`p`.`expiry_date` AS `expiry_date`,`p`.`batch_number` AS `batch_number`,`p`.`net_weight` AS `net_weight`,`p`.`weight_unit` AS `weight_unit`,`p`.`sanitary_registration` AS `sanitary_registration`,`p`.`storage_temperature` AS `storage_temperature`,`p`.`ingredients` AS `ingredients`,`p`.`nutritional_info` AS `nutritional_info`,`p`.`alcohol_content` AS `alcohol_content`,`p`.`allergens` AS `allergens`,`p`.`size` AS `size`,`p`.`color` AS `color`,`p`.`material` AS `material`,`p`.`gender` AS `gender`,`p`.`season` AS `season`,`p`.`garment_type` AS `garment_type`,`p`.`washing_instructions` AS `washing_instructions`,`p`.`country_of_origin` AS `country_of_origin`,`p`.`serial_number` AS `serial_number`,`p`.`warranty_months` AS `warranty_months`,`p`.`technical_specs` AS `technical_specs`,`p`.`voltage` AS `voltage`,`p`.`power_watts` AS `power_watts`,`p`.`compatibility` AS `compatibility`,`p`.`includes_accessories` AS `includes_accessories`,`p`.`product_condition` AS `product_condition`,`p`.`active_ingredient` AS `active_ingredient`,`p`.`concentration` AS `concentration`,`p`.`requires_prescription` AS `requires_prescription`,`p`.`administration_route` AS `administration_route`,`p`.`presentation` AS `presentation`,`p`.`units_per_package` AS `units_per_package`,`p`.`laboratory` AS `laboratory`,`p`.`contraindications` AS `contraindications`,`p`.`dimensions` AS `dimensions`,`p`.`weight` AS `weight`,`p`.`hardware_weight_unit` AS `hardware_weight_unit`,`p`.`caliber` AS `caliber`,`p`.`resistance` AS `resistance`,`p`.`finish` AS `finish`,`p`.`recommended_use` AS `recommended_use`,`p`.`author` AS `author`,`p`.`publisher` AS `publisher`,`p`.`isbn` AS `isbn`,`p`.`pages` AS `pages`,`p`.`language` AS `language`,`p`.`publication_year` AS `publication_year`,`p`.`edition` AS `edition`,`p`.`book_format` AS `book_format`,`p`.`recommended_age` AS `recommended_age`,`p`.`number_of_players` AS `number_of_players`,`p`.`game_type` AS `game_type`,`p`.`requires_batteries` AS `requires_batteries`,`p`.`package_dimensions` AS `package_dimensions`,`p`.`package_contents` AS `package_contents`,`p`.`safety_warnings` AS `safety_warnings`,`p`.`published_in_store` AS `published_in_store`,`p`.`available_for_delivery` AS `available_for_delivery`,`p`.`delivery_type` AS `delivery_type`,`p`.`is_new_launch` AS `is_new_launch`,`p`.`launch_date` AS `launch_date`,`p`.`is_preorder` AS `is_preorder`,`p`.`preorder_window_end` AS `preorder_window_end`,`p`.`preorder_ship_start` AS `preorder_ship_start`,`p`.`preorder_ship_end` AS `preorder_ship_end`,`p`.`preorder_badge_text` AS `preorder_badge_text`,`p`.`preorder_policy_text` AS `preorder_policy_text`,`p`.`is_on_offer` AS `is_on_offer`,`p`.`offer_price` AS `offer_price`,`p`.`offer_label` AS `offer_label`,`p`.`offer_start` AS `offer_start`,`p`.`offer_end` AS `offer_end`,`p`.`sede_id` AS `sede_id`,`p`.`created_at` AS `created_at`,`p`.`updated_at` AS `updated_at`,`p`.`created_by` AS `created_by`,`p`.`updated_by` AS `updated_by`,(case when (`p`.`stock` = 0) then 'agotado' when (`p`.`stock` <= `p`.`reorder_point`) then 'bajo' else 'suficiente' end) AS `stock_status` from `lopbuk`.`products` `p`",
+      "definition": "select `p`.`id` AS `id`,`p`.`tenant_id` AS `tenant_id`,`p`.`name` AS `name`,`p`.`articulo` AS `articulo`,`p`.`category` AS `category`,`p`.`product_type` AS `product_type`,`p`.`brand` AS `brand`,`p`.`model` AS `model`,`p`.`description` AS `description`,`p`.`purchase_price` AS `purchase_price`,`p`.`sale_price` AS `sale_price`,`p`.`sku` AS `sku`,`p`.`barcode` AS `barcode`,`p`.`stock` AS `stock`,`p`.`reorder_point` AS `reorder_point`,`p`.`supplier` AS `supplier`,`p`.`supplier_id` AS `supplier_id`,`p`.`entry_date` AS `entry_date`,`p`.`image_url` AS `image_url`,`p`.`image_urls` AS `image_urls`,`p`.`location_in_store` AS `location_in_store`,`p`.`notes` AS `notes`,`p`.`tags` AS `tags`,`p`.`expiry_date` AS `expiry_date`,`p`.`batch_number` AS `batch_number`,`p`.`net_weight` AS `net_weight`,`p`.`weight_unit` AS `weight_unit`,`p`.`sanitary_registration` AS `sanitary_registration`,`p`.`storage_temperature` AS `storage_temperature`,`p`.`ingredients` AS `ingredients`,`p`.`nutritional_info` AS `nutritional_info`,`p`.`alcohol_content` AS `alcohol_content`,`p`.`allergens` AS `allergens`,`p`.`size` AS `size`,`p`.`color` AS `color`,`p`.`material` AS `material`,`p`.`gender` AS `gender`,`p`.`season` AS `season`,`p`.`garment_type` AS `garment_type`,`p`.`washing_instructions` AS `washing_instructions`,`p`.`country_of_origin` AS `country_of_origin`,`p`.`serial_number` AS `serial_number`,`p`.`warranty_months` AS `warranty_months`,`p`.`technical_specs` AS `technical_specs`,`p`.`voltage` AS `voltage`,`p`.`power_watts` AS `power_watts`,`p`.`compatibility` AS `compatibility`,`p`.`includes_accessories` AS `includes_accessories`,`p`.`product_condition` AS `product_condition`,`p`.`active_ingredient` AS `active_ingredient`,`p`.`concentration` AS `concentration`,`p`.`requires_prescription` AS `requires_prescription`,`p`.`administration_route` AS `administration_route`,`p`.`presentation` AS `presentation`,`p`.`units_per_package` AS `units_per_package`,`p`.`laboratory` AS `laboratory`,`p`.`contraindications` AS `contraindications`,`p`.`dimensions` AS `dimensions`,`p`.`weight` AS `weight`,`p`.`hardware_weight_unit` AS `hardware_weight_unit`,`p`.`caliber` AS `caliber`,`p`.`resistance` AS `resistance`,`p`.`finish` AS `finish`,`p`.`recommended_use` AS `recommended_use`,`p`.`author` AS `author`,`p`.`publisher` AS `publisher`,`p`.`isbn` AS `isbn`,`p`.`pages` AS `pages`,`p`.`language` AS `language`,`p`.`publication_year` AS `publication_year`,`p`.`edition` AS `edition`,`p`.`book_format` AS `book_format`,`p`.`recommended_age` AS `recommended_age`,`p`.`number_of_players` AS `number_of_players`,`p`.`game_type` AS `game_type`,`p`.`requires_batteries` AS `requires_batteries`,`p`.`package_dimensions` AS `package_dimensions`,`p`.`package_contents` AS `package_contents`,`p`.`safety_warnings` AS `safety_warnings`,`p`.`published_in_store` AS `published_in_store`,`p`.`available_for_delivery` AS `available_for_delivery`,`p`.`delivery_type` AS `delivery_type`,`p`.`is_new_launch` AS `is_new_launch`,`p`.`launch_date` AS `launch_date`,`p`.`is_preorder` AS `is_preorder`,`p`.`preorder_window_end` AS `preorder_window_end`,`p`.`preorder_ship_start` AS `preorder_ship_start`,`p`.`preorder_ship_end` AS `preorder_ship_end`,`p`.`preorder_badge_text` AS `preorder_badge_text`,`p`.`preorder_policy_text` AS `preorder_policy_text`,`p`.`is_on_offer` AS `is_on_offer`,`p`.`offer_price` AS `offer_price`,`p`.`offer_label` AS `offer_label`,`p`.`offer_start` AS `offer_start`,`p`.`offer_end` AS `offer_end`,`p`.`sede_id` AS `sede_id`,`p`.`created_at` AS `created_at`,`p`.`updated_at` AS `updated_at`,`p`.`created_by` AS `created_by`,`p`.`updated_by` AS `updated_by`,`p`.`is_menu_item` AS `is_menu_item`,`p`.`is_ingredient` AS `is_ingredient`,`p`.`preparation_area` AS `preparation_area`,`p`.`prep_time_minutes` AS `prep_time_minutes`,`p`.`available_in_menu` AS `available_in_menu`,`p`.`qty_promo` AS `qty_promo`,`p`.`images` AS `images`,`p`.`horma_id` AS `horma_id`,`p`.`base_price` AS `base_price`,(case when (`p`.`stock` = 0) then 'agotado' when (`p`.`stock` <= `p`.`reorder_point`) then 'bajo' else 'suficiente' end) AS `stock_status` from `lopbuk`.`products` `p`",
       "algorithm": "undefined",
       "sqlSecurity": "definer"
     },
@@ -29665,6 +29892,20 @@
           "onUpdate": true,
           "default": "(now())"
         },
+        "dispatch_notes": {
+          "name": "dispatch_notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "dispatched_at": {
+          "name": "dispatched_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "total_items": {
           "name": "total_items",
           "type": "bigint",
@@ -29682,7 +29923,7 @@
       },
       "name": "v_sales_detail",
       "isExisting": false,
-      "definition": "select `s`.`id` AS `id`,`s`.`tenant_id` AS `tenant_id`,`s`.`invoice_number` AS `invoice_number`,`s`.`customer_id` AS `customer_id`,`s`.`customer_name` AS `customer_name`,`s`.`customer_phone` AS `customer_phone`,`s`.`customer_email` AS `customer_email`,`s`.`subtotal` AS `subtotal`,`s`.`tax` AS `tax`,`s`.`discount` AS `discount`,`s`.`total` AS `total`,`s`.`payment_method` AS `payment_method`,`s`.`amount_paid` AS `amount_paid`,`s`.`change_amount` AS `change_amount`,`s`.`seller_id` AS `seller_id`,`s`.`seller_name` AS `seller_name`,`s`.`cash_session_id` AS `cash_session_id`,`s`.`status` AS `status`,`s`.`credit_status` AS `credit_status`,`s`.`due_date` AS `due_date`,`s`.`notes` AS `notes`,`s`.`mixed_efectivo_amount` AS `mixed_efectivo_amount`,`s`.`mixed_second_method` AS `mixed_second_method`,`s`.`mixed_second_amount` AS `mixed_second_amount`,`s`.`sede_id` AS `sede_id`,`s`.`vehicle_id` AS `vehicle_id`,`s`.`dispatch_status` AS `dispatch_status`,`s`.`total_weight_kg` AS `total_weight_kg`,`s`.`synced` AS `synced`,`s`.`synced_at` AS `synced_at`,`s`.`origin` AS `origin`,`s`.`created_at` AS `created_at`,`s`.`updated_at` AS `updated_at`,count(`si`.`id`) AS `total_items`,sum(`si`.`quantity`) AS `total_quantity` from (`lopbuk`.`sales` `s` left join `lopbuk`.`sale_items` `si` on((`s`.`id` = `si`.`sale_id`))) group by `s`.`id`",
+      "definition": "select `s`.`id` AS `id`,`s`.`tenant_id` AS `tenant_id`,`s`.`invoice_number` AS `invoice_number`,`s`.`customer_id` AS `customer_id`,`s`.`customer_name` AS `customer_name`,`s`.`customer_phone` AS `customer_phone`,`s`.`customer_email` AS `customer_email`,`s`.`subtotal` AS `subtotal`,`s`.`tax` AS `tax`,`s`.`discount` AS `discount`,`s`.`total` AS `total`,`s`.`payment_method` AS `payment_method`,`s`.`amount_paid` AS `amount_paid`,`s`.`change_amount` AS `change_amount`,`s`.`seller_id` AS `seller_id`,`s`.`seller_name` AS `seller_name`,`s`.`cash_session_id` AS `cash_session_id`,`s`.`status` AS `status`,`s`.`credit_status` AS `credit_status`,`s`.`due_date` AS `due_date`,`s`.`notes` AS `notes`,`s`.`mixed_efectivo_amount` AS `mixed_efectivo_amount`,`s`.`mixed_second_method` AS `mixed_second_method`,`s`.`mixed_second_amount` AS `mixed_second_amount`,`s`.`sede_id` AS `sede_id`,`s`.`vehicle_id` AS `vehicle_id`,`s`.`dispatch_status` AS `dispatch_status`,`s`.`total_weight_kg` AS `total_weight_kg`,`s`.`synced` AS `synced`,`s`.`synced_at` AS `synced_at`,`s`.`origin` AS `origin`,`s`.`created_at` AS `created_at`,`s`.`updated_at` AS `updated_at`,`s`.`dispatch_notes` AS `dispatch_notes`,`s`.`dispatched_at` AS `dispatched_at`,count(`si`.`id`) AS `total_items`,sum(`si`.`quantity`) AS `total_quantity` from (`lopbuk`.`sales` `s` left join `lopbuk`.`sale_items` `si` on((`s`.`id` = `si`.`sale_id`))) group by `s`.`id`",
       "algorithm": "undefined",
       "sqlSecurity": "definer"
     },

@@ -21,8 +21,8 @@ export const affiliateCampaigns = mysqlTable("affiliate_campaigns", {
 		idxCampaignAffiliate: index("idx_campaign_affiliate").on(table.affiliateId),
 		idxCampaignTenant: index("idx_campaign_tenant").on(table.tenantId),
 		affiliateCampaignsId: primaryKey({ columns: [table.id], name: "affiliate_campaigns_id"}),
-		idxCampaignRef: unique("idx_campaign_ref").on(table.refToken),
 		idxCampaignCode: unique("idx_campaign_code").on(table.discountCode),
+		idxCampaignRef: unique("idx_campaign_ref").on(table.refToken),
 	}
 });
 
@@ -61,10 +61,10 @@ export const affiliateConversions = mysqlTable("affiliate_conversions", {
 (table) => {
 	return {
 		idxConvCampaign: index("idx_conv_campaign").on(table.campaignId),
-		idxConvTenant: index("idx_conv_tenant").on(table.tenantId),
-		idxConvStatus: index("idx_conv_status").on(table.status),
 		idxConvOrder: index("idx_conv_order").on(table.orderId),
 		idxConvSale: index("idx_conv_sale").on(table.saleId),
+		idxConvStatus: index("idx_conv_status").on(table.status),
+		idxConvTenant: index("idx_conv_tenant").on(table.tenantId),
 		affiliateConversionsId: primaryKey({ columns: [table.id], name: "affiliate_conversions_id"}),
 	}
 });
@@ -82,8 +82,8 @@ export const affiliateMissionSubmissions = mysqlTable("affiliate_mission_submiss
 },
 (table) => {
 	return {
-		idxSubmissionMission: index("idx_submission_mission").on(table.missionId, table.status),
 		idxSubmissionAffiliate: index("idx_submission_affiliate").on(table.affiliateId),
+		idxSubmissionMission: index("idx_submission_mission").on(table.missionId, table.status),
 		affiliateMissionSubmissionsId: primaryKey({ columns: [table.id], name: "affiliate_mission_submissions_id"}),
 	}
 });
@@ -125,9 +125,9 @@ export const affiliatePackageOrders = mysqlTable("affiliate_package_orders", {
 },
 (table) => {
 	return {
-		packageId: index("package_id").on(table.packageId),
 		idxPkgorderAffiliate: index("idx_pkgorder_affiliate").on(table.affiliateId, table.status),
 		idxPkgorderTenant: index("idx_pkgorder_tenant").on(table.tenantId, table.status),
+		packageId: index("package_id").on(table.packageId),
 		affiliatePackageOrdersId: primaryKey({ columns: [table.id], name: "affiliate_package_orders_id"}),
 	}
 });
@@ -208,10 +208,10 @@ export const agentActions = mysqlTable("agent_actions", {
 },
 (table) => {
 	return {
-		idxAgentActionsTenant: index("idx_agent_actions_tenant").on(table.tenantId),
-		idxAgentActionsSession: index("idx_agent_actions_session").on(table.sessionId),
-		idxAgentActionsTool: index("idx_agent_actions_tool").on(table.tenantId, table.toolName),
 		idxAgentActionsCreated: index("idx_agent_actions_created").on(table.tenantId, table.createdAt),
+		idxAgentActionsSession: index("idx_agent_actions_session").on(table.sessionId),
+		idxAgentActionsTenant: index("idx_agent_actions_tenant").on(table.tenantId),
+		idxAgentActionsTool: index("idx_agent_actions_tool").on(table.tenantId, table.toolName),
 		agentActionsId: primaryKey({ columns: [table.id], name: "agent_actions_id"}),
 	}
 });
@@ -311,14 +311,14 @@ export const auditLog = mysqlTable("audit_log", {
 },
 (table) => {
 	return {
-		idxAuditTenant: index("idx_audit_tenant").on(table.tenantId),
-		idxAuditUser: index("idx_audit_user").on(table.userId),
 		idxAuditAction: index("idx_audit_action").on(table.action),
 		idxAuditDate: index("idx_audit_date").on(table.createdAt),
 		idxAuditEntity: index("idx_audit_entity").on(table.entityType, table.entityId),
-		idxAuditTenantDate: index("idx_audit_tenant_date").on(table.tenantId, table.createdAt),
-		idxAuditTenantAction: index("idx_audit_tenant_action").on(table.tenantId, table.action),
 		idxAuditSeverity: index("idx_audit_severity").on(table.severity),
+		idxAuditTenant: index("idx_audit_tenant").on(table.tenantId),
+		idxAuditTenantAction: index("idx_audit_tenant_action").on(table.tenantId, table.action),
+		idxAuditTenantDate: index("idx_audit_tenant_date").on(table.tenantId, table.createdAt),
+		idxAuditUser: index("idx_audit_user").on(table.userId),
 		auditLogId: primaryKey({ columns: [table.id], name: "audit_log_id"}),
 	}
 });
@@ -422,8 +422,8 @@ export const cartillaCompras = mysqlTable("cartilla_compras", {
 },
 (table) => {
 	return {
-		idxCompraTenant: index("idx_compra_tenant").on(table.tenantId),
 		idxCompraCartilla: index("idx_compra_cartilla").on(table.cartillaId),
+		idxCompraTenant: index("idx_compra_tenant").on(table.tenantId),
 		cartillaComprasId: primaryKey({ columns: [table.id], name: "cartilla_compras_id"}),
 		uqCompraUsuarioCartilla: unique("uq_compra_usuario_cartilla").on(table.usuarioId, table.cartillaId),
 	}
@@ -495,8 +495,8 @@ export const cartillaModulos = mysqlTable("cartilla_modulos", {
 },
 (table) => {
 	return {
-		idxModuloTenant: index("idx_modulo_tenant").on(table.tenantId),
 		idxModuloCartilla: index("idx_modulo_cartilla").on(table.cartillaId),
+		idxModuloTenant: index("idx_modulo_tenant").on(table.tenantId),
 		cartillaModulosId: primaryKey({ columns: [table.id], name: "cartilla_modulos_id"}),
 		uqModuloCartillaClave: unique("uq_modulo_cartilla_clave").on(table.cartillaId, table.clave),
 	}
@@ -548,8 +548,8 @@ export const cartillaPublicaciones = mysqlTable("cartilla_publicaciones", {
 },
 (table) => {
 	return {
-		idxPubTenant: index("idx_pub_tenant").on(table.tenantId),
 		idxPubCartilla: index("idx_pub_cartilla").on(table.cartillaId),
+		idxPubTenant: index("idx_pub_tenant").on(table.tenantId),
 		cartillaPublicacionesId: primaryKey({ columns: [table.id], name: "cartilla_publicaciones_id"}),
 	}
 });
@@ -569,8 +569,8 @@ export const cartillaRetos = mysqlTable("cartilla_retos", {
 },
 (table) => {
 	return {
-		idxRetoTenant: index("idx_reto_tenant").on(table.tenantId),
 		idxRetoCartilla: index("idx_reto_cartilla").on(table.cartillaId),
+		idxRetoTenant: index("idx_reto_tenant").on(table.tenantId),
 		cartillaRetosId: primaryKey({ columns: [table.id], name: "cartilla_retos_id"}),
 	}
 });
@@ -639,8 +639,8 @@ export const cartillaVocabulario = mysqlTable("cartilla_vocabulario", {
 },
 (table) => {
 	return {
-		idxVocabTenant: index("idx_vocab_tenant").on(table.tenantId),
 		idxVocabCartilla: index("idx_vocab_cartilla").on(table.cartillaId),
+		idxVocabTenant: index("idx_vocab_tenant").on(table.tenantId),
 		cartillaVocabularioId: primaryKey({ columns: [table.id], name: "cartilla_vocabulario_id"}),
 	}
 });
@@ -670,8 +670,8 @@ export const cartillas = mysqlTable("cartillas", {
 },
 (table) => {
 	return {
-		idxCartillaTenant: index("idx_cartilla_tenant").on(table.tenantId),
 		idxCartillaPublicado: index("idx_cartilla_publicado").on(table.publicado, table.isActive),
+		idxCartillaTenant: index("idx_cartilla_tenant").on(table.tenantId),
 		cartillasId: primaryKey({ columns: [table.id], name: "cartillas_id"}),
 		uqCartillaTenantSlug: unique("uq_cartilla_tenant_slug").on(table.tenantId, table.slug),
 	}
@@ -692,8 +692,8 @@ export const cashMovements = mysqlTable("cash_movements", {
 (table) => {
 	return {
 		createdBy: index("created_by").on(table.createdBy),
-		idxCashMovementTenant: index("idx_cash_movement_tenant").on(table.tenantId),
 		idxCashMovementSession: index("idx_cash_movement_session").on(table.sessionId),
+		idxCashMovementTenant: index("idx_cash_movement_tenant").on(table.tenantId),
 		cashMovementsId: primaryKey({ columns: [table.id], name: "cash_movements_id"}),
 	}
 });
@@ -732,11 +732,11 @@ export const cashSessions = mysqlTable("cash_sessions", {
 },
 (table) => {
 	return {
-		openedBy: index("opened_by").on(table.openedBy),
 		closedBy: index("closed_by").on(table.closedBy),
-		idxCashSessionTenant: index("idx_cash_session_tenant").on(table.tenantId),
-		idxCashSessionStatus: index("idx_cash_session_status").on(table.status),
 		idxCashSessionOpened: index("idx_cash_session_opened").on(table.openedAt),
+		idxCashSessionStatus: index("idx_cash_session_status").on(table.status),
+		idxCashSessionTenant: index("idx_cash_session_tenant").on(table.tenantId),
+		openedBy: index("opened_by").on(table.openedBy),
 		cashSessionsId: primaryKey({ columns: [table.id], name: "cash_sessions_id"}),
 	}
 });
@@ -868,8 +868,8 @@ export const communityComments = mysqlTable("community_comments", {
 },
 (table) => {
 	return {
-		idxCommentPost: index("idx_comment_post").on(table.postId, table.isActive, table.createdAt),
 		idxCommentParent: index("idx_comment_parent").on(table.parentId),
+		idxCommentPost: index("idx_comment_post").on(table.postId, table.isActive, table.createdAt),
 		communityCommentsId: primaryKey({ columns: [table.id], name: "community_comments_id"}),
 	}
 });
@@ -922,9 +922,9 @@ export const communityPosts = mysqlTable("community_posts", {
 },
 (table) => {
 	return {
-		idxPostStatus: index("idx_post_status").on(table.status, table.isActive, table.publishedAt),
 		idxPostAuthor: index("idx_post_author").on(table.authorId),
 		idxPostCategory: index("idx_post_category").on(table.category),
+		idxPostStatus: index("idx_post_status").on(table.status, table.isActive, table.publishedAt),
 		communityPostsId: primaryKey({ columns: [table.id], name: "community_posts_id"}),
 	}
 });
@@ -939,11 +939,11 @@ export const communityReactions = mysqlTable("community_reactions", {
 },
 (table) => {
 	return {
-		idxReactionPost: index("idx_reaction_post").on(table.postId, table.type),
 		idxReactionDevice: index("idx_reaction_device").on(table.deviceId),
+		idxReactionPost: index("idx_reaction_post").on(table.postId, table.type),
 		communityReactionsId: primaryKey({ columns: [table.id], name: "community_reactions_id"}),
-		uqReaction: unique("uq_reaction").on(table.postId, table.userId, table.type),
 		uqReactDevice: unique("uq_react_device").on(table.postId, table.deviceId, table.type),
+		uqReaction: unique("uq_reaction").on(table.postId, table.userId, table.type),
 	}
 });
 
@@ -999,8 +999,8 @@ export const consumerAccessLedger = mysqlTable("consumer_access_ledger", {
 },
 (table) => {
 	return {
-		idxCalUser: index("idx_cal_user").on(table.userId, table.createdAt),
 		idxCalCode: index("idx_cal_code").on(table.codeId),
+		idxCalUser: index("idx_cal_user").on(table.userId, table.createdAt),
 		consumerAccessLedgerId: primaryKey({ columns: [table.id], name: "consumer_access_ledger_id"}),
 	}
 });
@@ -1176,11 +1176,11 @@ export const creditPayments = mysqlTable("credit_payments", {
 },
 (table) => {
 	return {
-		receivedBy: index("received_by").on(table.receivedBy),
-		idxCreditPaymentsTenant: index("idx_credit_payments_tenant").on(table.tenantId),
-		idxCreditPaymentsSale: index("idx_credit_payments_sale").on(table.saleId),
 		idxCreditPaymentsCustomer: index("idx_credit_payments_customer").on(table.customerId),
 		idxCreditPaymentsDate: index("idx_credit_payments_date").on(table.createdAt),
+		idxCreditPaymentsSale: index("idx_credit_payments_sale").on(table.saleId),
+		idxCreditPaymentsTenant: index("idx_credit_payments_tenant").on(table.tenantId),
+		receivedBy: index("received_by").on(table.receivedBy),
 		creditPaymentsId: primaryKey({ columns: [table.id], name: "credit_payments_id"}),
 	}
 });
@@ -1230,10 +1230,10 @@ export const devRequests = mysqlTable("dev_requests", {
 },
 (table) => {
 	return {
-		userId: index("user_id").on(table.userId),
-		idxDevReqTenant: index("idx_dev_req_tenant").on(table.tenantId),
-		idxDevReqStatus: index("idx_dev_req_status").on(table.status),
 		idxDevReqCreated: index("idx_dev_req_created").on(table.createdAt),
+		idxDevReqStatus: index("idx_dev_req_status").on(table.status),
+		idxDevReqTenant: index("idx_dev_req_tenant").on(table.tenantId),
+		userId: index("user_id").on(table.userId),
 		devRequestsId: primaryKey({ columns: [table.id], name: "dev_requests_id"}),
 	}
 });
@@ -1255,8 +1255,8 @@ export const discountCoupons = mysqlTable("discount_coupons", {
 },
 (table) => {
 	return {
-		idxCouponTenant: index("idx_coupon_tenant").on(table.tenantId),
 		idxCouponActive: index("idx_coupon_active").on(table.isActive),
+		idxCouponTenant: index("idx_coupon_tenant").on(table.tenantId),
 		discountCouponsId: primaryKey({ columns: [table.id], name: "discount_coupons_id"}),
 		idxCouponTenantCode: unique("idx_coupon_tenant_code").on(table.tenantId, table.code),
 	}
@@ -1295,8 +1295,8 @@ export const drops = mysqlTable("drops", {
 },
 (table) => {
 	return {
-		idxDropWindow: index("idx_drop_window").on(table.startsAt, table.endsAt),
 		idxDropStatus: index("idx_drop_status").on(table.status),
+		idxDropWindow: index("idx_drop_window").on(table.startsAt, table.endsAt),
 		dropsId: primaryKey({ columns: [table.id], name: "drops_id"}),
 	}
 });
@@ -1340,11 +1340,11 @@ export const employeeNovelties = mysqlTable("employee_novelties", {
 },
 (table) => {
 	return {
-		idxNoveltiesTenant: index("idx_novelties_tenant").on(table.tenantId),
-		idxNoveltiesUser: index("idx_novelties_user").on(table.userId),
 		idxNoveltiesDate: index("idx_novelties_date").on(table.tenantId, table.startDate),
-		idxNoveltiesType: index("idx_novelties_type").on(table.tenantId, table.type),
 		idxNoveltiesStatus: index("idx_novelties_status").on(table.tenantId, table.status),
+		idxNoveltiesTenant: index("idx_novelties_tenant").on(table.tenantId),
+		idxNoveltiesType: index("idx_novelties_type").on(table.tenantId, table.type),
+		idxNoveltiesUser: index("idx_novelties_user").on(table.userId),
 		employeeNoveltiesId: primaryKey({ columns: [table.id], name: "employee_novelties_id"}),
 	}
 });
@@ -1362,8 +1362,8 @@ export const employeeVacationBalances = mysqlTable("employee_vacation_balances",
 },
 (table) => {
 	return {
-		userId: index("user_id").on(table.userId),
 		idxVacationTenant: index("idx_vacation_tenant").on(table.tenantId),
+		userId: index("user_id").on(table.userId),
 		employeeVacationBalancesId: primaryKey({ columns: [table.id], name: "employee_vacation_balances_id"}),
 		idxVacationUserYear: unique("idx_vacation_user_year").on(table.tenantId, table.userId, table.year),
 	}
@@ -1457,12 +1457,12 @@ export const financeTransactions = mysqlTable("finance_transactions", {
 	return {
 		categoryId: index("category_id").on(table.categoryId),
 		createdBy: index("created_by").on(table.createdBy),
+		idxFinTxCategory: index("idx_fin_tx_category").on(table.tenantId, table.categoryId),
+		idxFinTxDate: index("idx_fin_tx_date").on(table.tenantId, table.transactionDate),
+		idxFinTxRecurring: index("idx_fin_tx_recurring").on(table.tenantId, table.isRecurring),
+		idxFinTxSource: index("idx_fin_tx_source").on(table.sourceType, table.sourceId),
 		idxFinTxTenant: index("idx_fin_tx_tenant").on(table.tenantId),
 		idxFinTxType: index("idx_fin_tx_type").on(table.tenantId, table.type),
-		idxFinTxDate: index("idx_fin_tx_date").on(table.tenantId, table.transactionDate),
-		idxFinTxCategory: index("idx_fin_tx_category").on(table.tenantId, table.categoryId),
-		idxFinTxSource: index("idx_fin_tx_source").on(table.sourceType, table.sourceId),
-		idxFinTxRecurring: index("idx_fin_tx_recurring").on(table.tenantId, table.isRecurring),
 		financeTransactionsId: primaryKey({ columns: [table.id], name: "finance_transactions_id"}),
 	}
 });
@@ -1487,10 +1487,10 @@ export const fleetMaintenance = mysqlTable("fleet_maintenance", {
 (table) => {
 	return {
 		createdBy: index("created_by").on(table.createdBy),
-		idxMaintenanceTenant: index("idx_maintenance_tenant").on(table.tenantId),
-		idxMaintenanceVehicle: index("idx_maintenance_vehicle").on(table.vehicleId),
 		idxMaintenanceScheduled: index("idx_maintenance_scheduled").on(table.scheduledDate),
 		idxMaintenanceStatus: index("idx_maintenance_status").on(table.status),
+		idxMaintenanceTenant: index("idx_maintenance_tenant").on(table.tenantId),
+		idxMaintenanceVehicle: index("idx_maintenance_vehicle").on(table.vehicleId),
 		fleetMaintenanceId: primaryKey({ columns: [table.id], name: "fleet_maintenance_id"}),
 	}
 });
@@ -1512,8 +1512,8 @@ export const fleetVehicles = mysqlTable("fleet_vehicles", {
 },
 (table) => {
 	return {
-		idxFleetTenant: index("idx_fleet_tenant").on(table.tenantId),
 		idxFleetStatus: index("idx_fleet_status").on(table.status),
+		idxFleetTenant: index("idx_fleet_tenant").on(table.tenantId),
 		idxFleetType: index("idx_fleet_type").on(table.type),
 		fleetVehiclesId: primaryKey({ columns: [table.id], name: "fleet_vehicles_id"}),
 	}
@@ -1563,8 +1563,8 @@ export const hormaColors = mysqlTable("horma_colors", {
 },
 (table) => {
 	return {
-		idxHcTenant: index("idx_hc_tenant").on(table.tenantId),
 		idxHcHorma: index("idx_hc_horma").on(table.hormaId, table.tenantId),
+		idxHcTenant: index("idx_hc_tenant").on(table.tenantId),
 		hormaColorsId: primaryKey({ columns: [table.id], name: "horma_colors_id"}),
 		ukHormaColor: unique("uk_horma_color").on(table.hormaId, table.color),
 	}
@@ -1607,10 +1607,10 @@ export const inventoryHolds = mysqlTable("inventory_holds", {
 },
 (table) => {
 	return {
-		idxIhOrder: index("idx_ih_order").on(table.orderId),
-		idxIhTenant: index("idx_ih_tenant").on(table.tenantId),
-		idxIhProductTenant: index("idx_ih_product_tenant").on(table.productId, table.tenantId),
 		idxIhExpires: index("idx_ih_expires").on(table.expiresAt),
+		idxIhOrder: index("idx_ih_order").on(table.orderId),
+		idxIhProductTenant: index("idx_ih_product_tenant").on(table.productId, table.tenantId),
+		idxIhTenant: index("idx_ih_tenant").on(table.tenantId),
 		inventoryHoldsId: primaryKey({ columns: [table.id], name: "inventory_holds_id"}),
 	}
 });
@@ -1630,10 +1630,10 @@ export const inventoryMovements = mysqlTable("inventory_movements", {
 },
 (table) => {
 	return {
-		idxImVariant: index("idx_im_variant").on(table.variantId),
+		idxImCreated: index("idx_im_created").on(table.tenantId, table.createdAt),
 		idxImProduct: index("idx_im_product").on(table.productId),
 		idxImTenant: index("idx_im_tenant").on(table.tenantId),
-		idxImCreated: index("idx_im_created").on(table.tenantId, table.createdAt),
+		idxImVariant: index("idx_im_variant").on(table.variantId),
 		inventoryMovementsId: primaryKey({ columns: [table.id], name: "inventory_movements_id"}),
 	}
 });
@@ -1830,8 +1830,8 @@ export const merchantNotifications = mysqlTable("merchant_notifications", {
 },
 (table) => {
 	return {
-		idxNotifTenantRead: index("idx_notif_tenant_read").on(table.tenantId, table.isRead),
 		idxNotifCreated: index("idx_notif_created").on(table.createdAt),
+		idxNotifTenantRead: index("idx_notif_tenant_read").on(table.tenantId, table.isRead),
 		merchantNotificationsId: primaryKey({ columns: [table.id], name: "merchant_notifications_id"}),
 	}
 });
@@ -1921,9 +1921,9 @@ export const payrollAdjustments = mysqlTable("payroll_adjustments", {
 },
 (table) => {
 	return {
-		sellerId: index("seller_id").on(table.sellerId),
-		idxAdjTenantSeller: index("idx_adj_tenant_seller").on(table.tenantId, table.sellerId),
 		idxAdjPeriod: index("idx_adj_period").on(table.tenantId, table.periodFrom, table.periodTo),
+		idxAdjTenantSeller: index("idx_adj_tenant_seller").on(table.tenantId, table.sellerId),
+		sellerId: index("seller_id").on(table.sellerId),
 		payrollAdjustmentsId: primaryKey({ columns: [table.id], name: "payroll_adjustments_id"}),
 	}
 });
@@ -1957,10 +1957,10 @@ export const payrollRecords = mysqlTable("payroll_records", {
 },
 (table) => {
 	return {
-		idxPayrollTenant: index("idx_payroll_tenant").on(table.tenantId),
-		idxPayrollSeller: index("idx_payroll_seller").on(table.sellerId),
 		idxPayrollPeriod: index("idx_payroll_period").on(table.tenantId, table.periodFrom, table.periodTo),
+		idxPayrollSeller: index("idx_payroll_seller").on(table.sellerId),
 		idxPayrollStatus: index("idx_payroll_status").on(table.tenantId, table.status),
+		idxPayrollTenant: index("idx_payroll_tenant").on(table.tenantId),
 		payrollRecordsId: primaryKey({ columns: [table.id], name: "payroll_records_id"}),
 	}
 });
@@ -2106,8 +2106,8 @@ export const priceHistory = mysqlTable("price_history", {
 },
 (table) => {
 	return {
-		idxPriceTenant: index("idx_price_tenant").on(table.tenantId),
 		idxPriceProductDate: index("idx_price_product_date").on(table.productId, table.createdAt),
+		idxPriceTenant: index("idx_price_tenant").on(table.tenantId),
 		priceHistoryId: primaryKey({ columns: [table.id], name: "price_history_id"}),
 	}
 });
@@ -2127,8 +2127,8 @@ export const printers = mysqlTable("printers", {
 },
 (table) => {
 	return {
-		idxPrintersTenant: index("idx_printers_tenant").on(table.tenantId),
 		idxPrintersModule: index("idx_printers_module").on(table.tenantId, table.assignedModule),
+		idxPrintersTenant: index("idx_printers_tenant").on(table.tenantId),
 		printersId: primaryKey({ columns: [table.id], name: "printers_id"}),
 	}
 });
@@ -2150,11 +2150,11 @@ export const productAlerts = mysqlTable("product_alerts", {
 },
 (table) => {
 	return {
-		productId: index("product_id").on(table.productId),
-		idxAlertTenant: index("idx_alert_tenant").on(table.tenantId),
 		idxAlertDate: index("idx_alert_date").on(table.alertDate, table.isResolved),
-		idxAlertType: index("idx_alert_type").on(table.alertType),
 		idxAlertPriority: index("idx_alert_priority").on(table.priority, table.isResolved),
+		idxAlertTenant: index("idx_alert_tenant").on(table.tenantId),
+		idxAlertType: index("idx_alert_type").on(table.alertType),
+		productId: index("product_id").on(table.productId),
 		productAlertsId: primaryKey({ columns: [table.id], name: "product_alerts_id"}),
 	}
 });
@@ -2208,9 +2208,9 @@ export const productRecipes = mysqlTable("product_recipes", {
 },
 (table) => {
 	return {
-		ingredientId: index("ingredient_id").on(table.ingredientId),
 		idxRecipeProduct: index("idx_recipe_product").on(table.productId),
 		idxRecipeTenant: index("idx_recipe_tenant").on(table.tenantId),
+		ingredientId: index("ingredient_id").on(table.ingredientId),
 		productRecipesId: primaryKey({ columns: [table.id], name: "product_recipes_id"}),
 	}
 });
@@ -2233,9 +2233,9 @@ export const productReviews = mysqlTable("product_reviews", {
 },
 (table) => {
 	return {
-		idxReviewsTenant: index("idx_reviews_tenant").on(table.tenantId),
 		idxReviewsProduct: index("idx_reviews_product").on(table.productId),
 		idxReviewsStatus: index("idx_reviews_status").on(table.tenantId, table.status),
+		idxReviewsTenant: index("idx_reviews_tenant").on(table.tenantId),
 		productReviewsId: primaryKey({ columns: [table.id], name: "product_reviews_id"}),
 		chkRating: check("chk_rating", sql`((\`rating\` >= 1) and (\`rating\` <= 5))`),
 	}
@@ -2268,11 +2268,11 @@ export const productVariants = mysqlTable("product_variants", {
 },
 (table) => {
 	return {
-		idxPvProduct: index("idx_pv_product").on(table.productId),
-		idxPvTenantProduct: index("idx_pv_tenant_product").on(table.tenantId, table.productId),
-		idxPvSupplier: index("idx_pv_supplier").on(table.supplierId),
-		idxPvSku: index("idx_pv_sku").on(table.tenantId, table.sku),
 		idxPvHorma: index("idx_pv_horma").on(table.hormaId),
+		idxPvProduct: index("idx_pv_product").on(table.productId),
+		idxPvSku: index("idx_pv_sku").on(table.tenantId, table.sku),
+		idxPvSupplier: index("idx_pv_supplier").on(table.supplierId),
+		idxPvTenantProduct: index("idx_pv_tenant_product").on(table.tenantId, table.productId),
 		productVariantsId: primaryKey({ columns: [table.id], name: "product_variants_id"}),
 		ukPvSkuTenant: unique("uk_pv_sku_tenant").on(table.sku, table.tenantId),
 	}
@@ -2392,23 +2392,24 @@ export const products = mysqlTable("products", {
 	qtyPromo: text("qty_promo"),
 	images: text(),
 	hormaId: varchar("horma_id", { length: 36 }),
+	basePrice: decimal("base_price", { precision: 12, scale: 2 }),
 },
 (table) => {
 	return {
-		supplierId: index("supplier_id").on(table.supplierId),
-		idxProductTenant: index("idx_product_tenant").on(table.tenantId),
 		idxCategory: index("idx_category").on(table.category),
-		idxProductsStore: index("idx_products_store").on(table.tenantId, table.publishedInStore),
-		idxProductsOffer: index("idx_products_offer").on(table.tenantId, table.isOnOffer),
-		idxProductsExpiry: index("idx_products_expiry").on(table.tenantId, table.expiryDate),
-		idxProductsDelivery: index("idx_products_delivery").on(table.tenantId, table.deliveryType),
-		idxProductsPreorder: index("idx_products_preorder").on(table.tenantId, table.isPreorder),
 		idxMenuItem: index("idx_menu_item").on(table.tenantId, table.isMenuItem, table.availableInMenu),
 		idxPrepArea: index("idx_prep_area").on(table.tenantId, table.preparationArea),
+		idxProductTenant: index("idx_product_tenant").on(table.tenantId),
+		idxProductsDelivery: index("idx_products_delivery").on(table.tenantId, table.deliveryType),
+		idxProductsExpiry: index("idx_products_expiry").on(table.tenantId, table.expiryDate),
 		idxProductsHorma: index("idx_products_horma").on(table.hormaId),
+		idxProductsOffer: index("idx_products_offer").on(table.tenantId, table.isOnOffer),
+		idxProductsPreorder: index("idx_products_preorder").on(table.tenantId, table.isPreorder),
+		idxProductsStore: index("idx_products_store").on(table.tenantId, table.publishedInStore),
+		supplierId: index("supplier_id").on(table.supplierId),
 		productsId: primaryKey({ columns: [table.id], name: "products_id"}),
-		idxProductTenantSku: unique("idx_product_tenant_sku").on(table.tenantId, table.sku),
 		idxProductTenantBarcode: unique("idx_product_tenant_barcode").on(table.tenantId, table.barcode),
+		idxProductTenantSku: unique("idx_product_tenant_sku").on(table.tenantId, table.sku),
 	}
 });
 
@@ -2424,8 +2425,8 @@ export const profileSections = mysqlTable("profile_sections", {
 },
 (table) => {
 	return {
-		idxPsectionTenant: index("idx_psection_tenant").on(table.tenantId, table.orderIndex),
 		idxPsectionActive: index("idx_psection_active").on(table.tenantId, table.isActive),
+		idxPsectionTenant: index("idx_psection_tenant").on(table.tenantId, table.orderIndex),
 		profileSectionsId: primaryKey({ columns: [table.id], name: "profile_sections_id"}),
 	}
 });
@@ -2444,9 +2445,9 @@ export const purchaseInvoiceItems = mysqlTable("purchase_invoice_items", {
 },
 (table) => {
 	return {
-		tenantId: index("tenant_id").on(table.tenantId),
 		idxPurchaseItemsInvoice: index("idx_purchase_items_invoice").on(table.invoiceId),
 		idxPurchaseItemsProduct: index("idx_purchase_items_product").on(table.productId),
+		tenantId: index("tenant_id").on(table.tenantId),
 		purchaseInvoiceItemsId: primaryKey({ columns: [table.id], name: "purchase_invoice_items_id"}),
 	}
 });
@@ -2482,10 +2483,10 @@ export const purchaseInvoices = mysqlTable("purchase_invoices", {
 (table) => {
 	return {
 		createdBy: index("created_by").on(table.createdBy),
-		idxPurchaseInvoicesTenant: index("idx_purchase_invoices_tenant").on(table.tenantId),
 		idxPurchaseInvoicesDate: index("idx_purchase_invoices_date").on(table.purchaseDate),
-		idxPurchaseInvoicesSupplier: index("idx_purchase_invoices_supplier").on(table.supplierId),
 		idxPurchaseInvoicesStatus: index("idx_purchase_invoices_status").on(table.tenantId, table.paymentStatus),
+		idxPurchaseInvoicesSupplier: index("idx_purchase_invoices_supplier").on(table.supplierId),
+		idxPurchaseInvoicesTenant: index("idx_purchase_invoices_tenant").on(table.tenantId),
 		idxPurchasesSynced: index("idx_purchases_synced").on(table.synced),
 		purchaseInvoicesId: primaryKey({ columns: [table.id], name: "purchase_invoices_id"}),
 	}
@@ -2612,10 +2613,10 @@ export const rbOrderItems = mysqlTable("rb_order_items", {
 },
 (table) => {
 	return {
-		menuItemId: index("menu_item_id").on(table.menuItemId),
+		idxRbItemArea: index("idx_rb_item_area").on(table.tenantId, table.preparationArea, table.status),
 		idxRbItemOrder: index("idx_rb_item_order").on(table.orderId),
 		idxRbItemStatus: index("idx_rb_item_status").on(table.tenantId, table.status),
-		idxRbItemArea: index("idx_rb_item_area").on(table.tenantId, table.preparationArea, table.status),
+		menuItemId: index("menu_item_id").on(table.menuItemId),
 		rbOrderItemsId: primaryKey({ columns: [table.id], name: "rb_order_items_id"}),
 	}
 });
@@ -2656,11 +2657,11 @@ export const rbOrders = mysqlTable("rb_orders", {
 },
 (table) => {
 	return {
-		waiterId: index("waiter_id").on(table.waiterId),
-		saleId: index("sale_id").on(table.saleId),
-		idxRbOrderTable: index("idx_rb_order_table").on(table.tableId, table.status),
 		idxRbOrderStatus: index("idx_rb_order_status").on(table.tenantId, table.status),
+		idxRbOrderTable: index("idx_rb_order_table").on(table.tableId, table.status),
 		idxRbOrderWaiter: index("idx_rb_order_waiter").on(table.tenantId, table.waiterId),
+		saleId: index("sale_id").on(table.saleId),
+		waiterId: index("waiter_id").on(table.waiterId),
 		rbOrdersId: primaryKey({ columns: [table.id], name: "rb_orders_id"}),
 		idxRbOrderNumber: unique("idx_rb_order_number").on(table.tenantId, table.orderNumber),
 	}
@@ -2685,8 +2686,8 @@ export const rbPayments = mysqlTable("rb_payments", {
 	return {
 		cashierId: index("cashier_id").on(table.cashierId),
 		idxRbPaymentOrder: index("idx_rb_payment_order").on(table.orderId),
-		idxRbPaymentTenant: index("idx_rb_payment_tenant").on(table.tenantId),
 		idxRbPaymentSession: index("idx_rb_payment_session").on(table.cashSessionId),
+		idxRbPaymentTenant: index("idx_rb_payment_tenant").on(table.tenantId),
 		rbPaymentsId: primaryKey({ columns: [table.id], name: "rb_payments_id"}),
 	}
 });
@@ -2730,10 +2731,10 @@ export const rbReservations = mysqlTable("rb_reservations", {
 },
 (table) => {
 	return {
-		idxRbResTenantStatus: index("idx_rb_res_tenant_status").on(table.tenantId, table.status),
 		idxRbResDate: index("idx_rb_res_date").on(table.tenantId, table.reservationDate),
 		idxRbResTableDate: index("idx_rb_res_table_date").on(table.tableId, table.reservationDate),
 		idxRbResTenantDateStatus: index("idx_rb_res_tenant_date_status").on(table.tenantId, table.reservationDate, table.status),
+		idxRbResTenantStatus: index("idx_rb_res_tenant_status").on(table.tenantId, table.status),
 		rbReservationsId: primaryKey({ columns: [table.id], name: "rb_reservations_id"}),
 	}
 });
@@ -2810,9 +2811,9 @@ export const reClients = mysqlTable("re_clients", {
 },
 (table) => {
 	return {
+		idxReClientsAgent: index("idx_re_clients_agent").on(table.assignedAgentId),
 		idxReClientsTenant: index("idx_re_clients_tenant").on(table.tenantId),
 		idxReClientsType: index("idx_re_clients_type").on(table.tenantId, table.clientType),
-		idxReClientsAgent: index("idx_re_clients_agent").on(table.assignedAgentId),
 		reClientsId: primaryKey({ columns: [table.id], name: "re_clients_id"}),
 	}
 });
@@ -2842,12 +2843,12 @@ export const reContracts = mysqlTable("re_contracts", {
 },
 (table) => {
 	return {
-		idxReConTenant: index("idx_re_con_tenant").on(table.tenantId),
-		idxReConProperty: index("idx_re_con_property").on(table.propertyId),
 		idxReConClient: index("idx_re_con_client").on(table.clientId),
-		idxReConStatus: index("idx_re_con_status").on(table.tenantId, table.status),
-		idxReConType: index("idx_re_con_type").on(table.tenantId, table.contractType),
 		idxReConEnd: index("idx_re_con_end").on(table.endDate),
+		idxReConProperty: index("idx_re_con_property").on(table.propertyId),
+		idxReConStatus: index("idx_re_con_status").on(table.tenantId, table.status),
+		idxReConTenant: index("idx_re_con_tenant").on(table.tenantId),
+		idxReConType: index("idx_re_con_type").on(table.tenantId, table.contractType),
 		reContractsId: primaryKey({ columns: [table.id], name: "re_contracts_id"}),
 		uqReContractNum: unique("uq_re_contract_num").on(table.tenantId, table.contractNumber),
 	}
@@ -2867,8 +2868,8 @@ export const reLeadActivities = mysqlTable("re_lead_activities", {
 (table) => {
 	return {
 		idxReActLead: index("idx_re_act_lead").on(table.leadId),
-		idxReActTenant: index("idx_re_act_tenant").on(table.tenantId),
 		idxReActSched: index("idx_re_act_sched").on(table.tenantId, table.scheduledAt),
+		idxReActTenant: index("idx_re_act_tenant").on(table.tenantId),
 		reLeadActivitiesId: primaryKey({ columns: [table.id], name: "re_lead_activities_id"}),
 	}
 });
@@ -2896,10 +2897,10 @@ export const reLeads = mysqlTable("re_leads", {
 },
 (table) => {
 	return {
-		idxReLeadsTenant: index("idx_re_leads_tenant").on(table.tenantId),
-		idxReLeadsStage: index("idx_re_leads_stage").on(table.tenantId, table.stage),
 		idxReLeadsAgent: index("idx_re_leads_agent").on(table.assignedAgentId),
 		idxReLeadsProp: index("idx_re_leads_prop").on(table.propertyId),
+		idxReLeadsStage: index("idx_re_leads_stage").on(table.tenantId, table.stage),
+		idxReLeadsTenant: index("idx_re_leads_tenant").on(table.tenantId),
 		reLeadsId: primaryKey({ columns: [table.id], name: "re_leads_id"}),
 	}
 });
@@ -2927,10 +2928,10 @@ export const reMaintenances = mysqlTable("re_maintenances", {
 },
 (table) => {
 	return {
-		idxReMaintTenant: index("idx_re_maint_tenant").on(table.tenantId),
+		idxReMaintPriority: index("idx_re_maint_priority").on(table.tenantId, table.priority),
 		idxReMaintProperty: index("idx_re_maint_property").on(table.propertyId),
 		idxReMaintStatus: index("idx_re_maint_status").on(table.tenantId, table.status),
-		idxReMaintPriority: index("idx_re_maint_priority").on(table.tenantId, table.priority),
+		idxReMaintTenant: index("idx_re_maint_tenant").on(table.tenantId),
 		reMaintenancesId: primaryKey({ columns: [table.id], name: "re_maintenances_id"}),
 	}
 });
@@ -2998,13 +2999,13 @@ export const reProperties = mysqlTable("re_properties", {
 },
 (table) => {
 	return {
-		idxRePropType: index("idx_re_prop_type").on(table.tenantId, table.propertyType),
-		idxRePropStatus: index("idx_re_prop_status").on(table.tenantId, table.status),
-		idxRePropOp: index("idx_re_prop_op").on(table.tenantId, table.operationType),
-		idxRePropPublished: index("idx_re_prop_published").on(table.tenantId, table.isPublished),
-		idxRePropFeatured: index("idx_re_prop_featured").on(table.tenantId, table.isFeatured),
-		idxRePropOwner: index("idx_re_prop_owner").on(table.ownerId),
 		idxRePropAgent: index("idx_re_prop_agent").on(table.assignedAgentId),
+		idxRePropFeatured: index("idx_re_prop_featured").on(table.tenantId, table.isFeatured),
+		idxRePropOp: index("idx_re_prop_op").on(table.tenantId, table.operationType),
+		idxRePropOwner: index("idx_re_prop_owner").on(table.ownerId),
+		idxRePropPublished: index("idx_re_prop_published").on(table.tenantId, table.isPublished),
+		idxRePropStatus: index("idx_re_prop_status").on(table.tenantId, table.status),
+		idxRePropType: index("idx_re_prop_type").on(table.tenantId, table.propertyType),
 		rePropertiesId: primaryKey({ columns: [table.id], name: "re_properties_id"}),
 		uqReCode: unique("uq_re_code").on(table.tenantId, table.code),
 	}
@@ -3064,9 +3065,9 @@ export const reRentPayments = mysqlTable("re_rent_payments", {
 (table) => {
 	return {
 		idxRePayContract: index("idx_re_pay_contract").on(table.contractId),
-		idxRePayStatus: index("idx_re_pay_status").on(table.tenantId, table.status),
 		idxRePayDue: index("idx_re_pay_due").on(table.dueDate),
 		idxRePayPeriod: index("idx_re_pay_period").on(table.contractId, table.periodYear, table.periodMonth),
+		idxRePayStatus: index("idx_re_pay_status").on(table.tenantId, table.status),
 		reRentPaymentsId: primaryKey({ columns: [table.id], name: "re_rent_payments_id"}),
 	}
 });
@@ -3090,11 +3091,11 @@ export const reVisits = mysqlTable("re_visits", {
 },
 (table) => {
 	return {
-		idxReVisTenant: index("idx_re_vis_tenant").on(table.tenantId),
-		idxReVisProperty: index("idx_re_vis_property").on(table.propertyId),
-		idxReVisDate: index("idx_re_vis_date").on(table.tenantId, table.scheduledAt),
 		idxReVisAgent: index("idx_re_vis_agent").on(table.assignedAgentId),
+		idxReVisDate: index("idx_re_vis_date").on(table.tenantId, table.scheduledAt),
+		idxReVisProperty: index("idx_re_vis_property").on(table.propertyId),
 		idxReVisStatus: index("idx_re_vis_status").on(table.tenantId, table.status),
+		idxReVisTenant: index("idx_re_vis_tenant").on(table.tenantId),
 		reVisitsId: primaryKey({ columns: [table.id], name: "re_visits_id"}),
 	}
 });
@@ -3113,10 +3114,10 @@ export const refreshTokens = mysqlTable("refresh_tokens", {
 },
 (table) => {
 	return {
-		tenantId: index("tenant_id").on(table.tenantId),
-		idxRtUser: index("idx_rt_user").on(table.userId),
 		idxRtExpires: index("idx_rt_expires").on(table.expiresAt),
+		idxRtUser: index("idx_rt_user").on(table.userId),
 		idxRtUserValid: index("idx_rt_user_valid").on(table.userId, table.revokedAt, table.expiresAt),
+		tenantId: index("tenant_id").on(table.tenantId),
 		refreshTokensId: primaryKey({ columns: [table.id], name: "refresh_tokens_id"}),
 		idxRtTokenHash: unique("idx_rt_token_hash").on(table.tokenHash),
 	}
@@ -3141,9 +3142,9 @@ export const saleItems = mysqlTable("sale_items", {
 },
 (table) => {
 	return {
-		idxSaleItemsTenant: index("idx_sale_items_tenant").on(table.tenantId),
-		idxSale: index("idx_sale").on(table.saleId),
 		idxProduct: index("idx_product").on(table.productId),
+		idxSale: index("idx_sale").on(table.saleId),
+		idxSaleItemsTenant: index("idx_sale_items_tenant").on(table.tenantId),
 		idxSaleItemsTenantProduct: index("idx_sale_items_tenant_product").on(table.tenantId, table.productId),
 		idxSiVariant: index("idx_si_variant").on(table.variantId),
 		saleItemsId: primaryKey({ columns: [table.id], name: "sale_items_id"}),
@@ -3185,24 +3186,26 @@ export const sales = mysqlTable("sales", {
 	origin: mysqlEnum(['local','cloud']).default('cloud').notNull(),
 	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
+	dispatchNotes: text("dispatch_notes"),
+	dispatchedAt: timestamp("dispatched_at", { mode: 'string' }),
 },
 (table) => {
 	return {
 		customerId: index("customer_id").on(table.customerId),
-		sellerId: index("seller_id").on(table.sellerId),
+		idxCreated: index("idx_created").on(table.createdAt),
+		idxInvoice: index("idx_invoice").on(table.invoiceNumber),
+		idxSaleTenant: index("idx_sale_tenant").on(table.tenantId),
+		idxSalesCreditStatus: index("idx_sales_credit_status").on(table.creditStatus),
+		idxSalesDueDate: index("idx_sales_due_date").on(table.dueDate),
+		idxSalesPaymentMethod: index("idx_sales_payment_method").on(table.paymentMethod),
+		idxSalesSedeId: index("idx_sales_sede_id").on(table.sedeId),
+		idxSalesSynced: index("idx_sales_synced").on(table.synced),
+		idxSalesTenantCustomer: index("idx_sales_tenant_customer").on(table.tenantId, table.customerId),
 		idxSalesTenantDate: index("idx_sales_tenant_date").on(table.tenantId, table.createdAt),
 		idxSalesTenantStatusDate: index("idx_sales_tenant_status_date").on(table.tenantId, table.status, table.createdAt),
-		idxSalesTenantCustomer: index("idx_sales_tenant_customer").on(table.tenantId, table.customerId),
-		idxSaleTenant: index("idx_sale_tenant").on(table.tenantId),
-		idxInvoice: index("idx_invoice").on(table.invoiceNumber),
-		idxStatus: index("idx_status").on(table.status),
-		idxCreated: index("idx_created").on(table.createdAt),
-		idxSalesCreditStatus: index("idx_sales_credit_status").on(table.creditStatus),
-		idxSalesPaymentMethod: index("idx_sales_payment_method").on(table.paymentMethod),
-		idxSalesDueDate: index("idx_sales_due_date").on(table.dueDate),
-		idxSalesSynced: index("idx_sales_synced").on(table.synced),
-		idxSalesSedeId: index("idx_sales_sede_id").on(table.sedeId),
 		idxSalesVehicle: index("idx_sales_vehicle").on(table.vehicleId),
+		idxStatus: index("idx_status").on(table.status),
+		sellerId: index("seller_id").on(table.sellerId),
 		salesId: primaryKey({ columns: [table.id], name: "sales_id"}),
 		idxSaleTenantInvoice: unique("idx_sale_tenant_invoice").on(table.tenantId, table.invoiceNumber),
 	}
@@ -3259,9 +3262,9 @@ export const serviceAvailability = mysqlTable("service_availability", {
 },
 (table) => {
 	return {
-		tenantId: index("tenant_id").on(table.tenantId),
-		idxAvailabilityService: index("idx_availability_service").on(table.serviceId),
 		idxAvailabilityDay: index("idx_availability_day").on(table.serviceId, table.dayOfWeek),
+		idxAvailabilityService: index("idx_availability_service").on(table.serviceId),
+		tenantId: index("tenant_id").on(table.tenantId),
 		serviceAvailabilityId: primaryKey({ columns: [table.id], name: "service_availability_id"}),
 	}
 });
@@ -3279,8 +3282,8 @@ export const serviceBlockedPeriods = mysqlTable("service_blocked_periods", {
 },
 (table) => {
 	return {
-		idxBlockedTenantDate: index("idx_blocked_tenant_date").on(table.tenantId, table.blockedDate),
 		idxBlockedServiceDate: index("idx_blocked_service_date").on(table.serviceId, table.blockedDate),
+		idxBlockedTenantDate: index("idx_blocked_tenant_date").on(table.tenantId, table.blockedDate),
 		serviceBlockedPeriodsId: primaryKey({ columns: [table.id], name: "service_blocked_periods_id"}),
 	}
 });
@@ -3311,10 +3314,11 @@ export const serviceBookings = mysqlTable("service_bookings", {
 },
 (table) => {
 	return {
-		idxBookingsTenant: index("idx_bookings_tenant").on(table.tenantId),
+		idxBookingsDate: index("idx_bookings_date").on(table.tenantId, table.bookingDate),
 		idxBookingsService: index("idx_bookings_service").on(table.serviceId),
 		idxBookingsStatus: index("idx_bookings_status").on(table.tenantId, table.status),
-		idxBookingsDate: index("idx_bookings_date").on(table.tenantId, table.bookingDate),
+		idxBookingsTenant: index("idx_bookings_tenant").on(table.tenantId),
+		idxBookingsTenantDate: index("idx_bookings_tenant_date").on(table.tenantId, table.bookingDate),
 		serviceBookingsId: primaryKey({ columns: [table.id], name: "service_bookings_id"}),
 	}
 });
@@ -3341,8 +3345,8 @@ export const services = mysqlTable("services", {
 },
 (table) => {
 	return {
-		idxServicesTenant: index("idx_services_tenant").on(table.tenantId),
 		idxServicesPublished: index("idx_services_published").on(table.tenantId, table.isPublished),
+		idxServicesTenant: index("idx_services_tenant").on(table.tenantId),
 		idxServicesType: index("idx_services_type").on(table.serviceType),
 		servicesId: primaryKey({ columns: [table.id], name: "services_id"}),
 	}
@@ -3360,8 +3364,8 @@ export const shiftEmployeeBonuses = mysqlTable("shift_employee_bonuses", {
 },
 (table) => {
 	return {
-		idxBonusSession: index("idx_bonus_session").on(table.sessionId),
 		idxBonusEmp: index("idx_bonus_emp").on(table.shiftEmpId),
+		idxBonusSession: index("idx_bonus_session").on(table.sessionId),
 		shiftEmployeeBonusesId: primaryKey({ columns: [table.id], name: "shift_employee_bonuses_id"}),
 	}
 });
@@ -3400,12 +3404,12 @@ export const stockMovements = mysqlTable("stock_movements", {
 },
 (table) => {
 	return {
-		userId: index("user_id").on(table.userId),
-		idxStockTenant: index("idx_stock_tenant").on(table.tenantId),
-		idxStockProduct: index("idx_stock_product").on(table.productId),
-		idxStockType: index("idx_stock_type").on(table.type),
 		idxStockCreated: index("idx_stock_created").on(table.createdAt),
+		idxStockProduct: index("idx_stock_product").on(table.productId),
+		idxStockTenant: index("idx_stock_tenant").on(table.tenantId),
 		idxStockTenantDate: index("idx_stock_tenant_date").on(table.tenantId, table.createdAt),
+		idxStockType: index("idx_stock_type").on(table.type),
+		userId: index("user_id").on(table.userId),
 		stockMovementsId: primaryKey({ columns: [table.id], name: "stock_movements_id"}),
 	}
 });
@@ -3647,9 +3651,9 @@ export const storefrontOrderItems = mysqlTable("storefront_order_items", {
 },
 (table) => {
 	return {
-		productId: index("product_id").on(table.productId),
 		idxOrderItemOrder: index("idx_order_item_order").on(table.orderId),
 		idxSoiVariant: index("idx_soi_variant").on(table.variantId),
+		productId: index("product_id").on(table.productId),
 		storefrontOrderItemsId: primaryKey({ columns: [table.id], name: "storefront_order_items_id"}),
 	}
 });
@@ -3694,15 +3698,15 @@ export const storefrontOrders = mysqlTable("storefront_orders", {
 },
 (table) => {
 	return {
-		idxOrderTenant: index("idx_order_tenant").on(table.tenantId),
-		idxOrderTenantStatus: index("idx_order_tenant_status").on(table.tenantId, table.status),
-		idxOrderTenantDate: index("idx_order_tenant_date").on(table.tenantId, table.createdAt),
-		idxOrderNumber: index("idx_order_number").on(table.orderNumber),
-		idxOrderCreated: index("idx_order_created").on(table.createdAt),
-		idxOrderDriver: index("idx_order_driver").on(table.deliveryDriverId),
 		idxOrderClient: index("idx_order_client").on(table.clientUserId),
-		idxOrderVehicle: index("idx_order_vehicle").on(table.vehicleId),
+		idxOrderCreated: index("idx_order_created").on(table.createdAt),
 		idxOrderDispatchStatus: index("idx_order_dispatch_status").on(table.dispatchStatus),
+		idxOrderDriver: index("idx_order_driver").on(table.deliveryDriverId),
+		idxOrderNumber: index("idx_order_number").on(table.orderNumber),
+		idxOrderTenant: index("idx_order_tenant").on(table.tenantId),
+		idxOrderTenantDate: index("idx_order_tenant_date").on(table.tenantId, table.createdAt),
+		idxOrderTenantStatus: index("idx_order_tenant_status").on(table.tenantId, table.status),
+		idxOrderVehicle: index("idx_order_vehicle").on(table.vehicleId),
 		storefrontOrdersId: primaryKey({ columns: [table.id], name: "storefront_orders_id"}),
 	}
 });
@@ -3721,8 +3725,8 @@ export const supplierProducts = mysqlTable("supplier_products", {
 },
 (table) => {
 	return {
-		idxSpSupplier: index("idx_sp_supplier").on(table.supplierId),
 		idxSpProduct: index("idx_sp_product").on(table.productId),
+		idxSpSupplier: index("idx_sp_supplier").on(table.supplierId),
 		idxSpSupplierProduct: index("idx_sp_supplier_product").on(table.supplierId, table.productId),
 		supplierProductsId: primaryKey({ columns: [table.id], name: "supplier_products_id"}),
 	}
@@ -3747,9 +3751,9 @@ export const suppliers = mysqlTable("suppliers", {
 },
 (table) => {
 	return {
-		idxSupplierTenant: index("idx_supplier_tenant").on(table.tenantId),
-		idxSupplierName: index("idx_supplier_name").on(table.name),
 		idxSupplierActive: index("idx_supplier_active").on(table.isActive),
+		idxSupplierName: index("idx_supplier_name").on(table.name),
+		idxSupplierTenant: index("idx_supplier_tenant").on(table.tenantId),
 		suppliersId: primaryKey({ columns: [table.id], name: "suppliers_id"}),
 	}
 });
@@ -3807,8 +3811,8 @@ export const tenants = mysqlTable("tenants", {
 },
 (table) => {
 	return {
-		idxTenantStatus: index("idx_tenant_status").on(table.status),
 		idxTenantSlug: index("idx_tenant_slug").on(table.slug),
+		idxTenantStatus: index("idx_tenant_status").on(table.status),
 		tenantsId: primaryKey({ columns: [table.id], name: "tenants_id"}),
 		slug: unique("slug").on(table.slug),
 	}
@@ -4033,10 +4037,10 @@ export const trainerBookings = mysqlTable("trainer_bookings", {
 },
 (table) => {
 	return {
-		offerId: index("offer_id").on(table.offerId),
-		idxTrbkUser: index("idx_trbk_user").on(table.userId, table.status),
-		idxTrbkTrainer: index("idx_trbk_trainer").on(table.trainerId, table.status),
 		idxTrbkRef: index("idx_trbk_ref").on(table.wompiReference),
+		idxTrbkTrainer: index("idx_trbk_trainer").on(table.trainerId, table.status),
+		idxTrbkUser: index("idx_trbk_user").on(table.userId, table.status),
+		offerId: index("offer_id").on(table.offerId),
 		trainerBookingsId: primaryKey({ columns: [table.id], name: "trainer_bookings_id"}),
 	}
 });
@@ -4171,8 +4175,8 @@ export const users = mysqlTable("users", {
 	email: varchar({ length: 255 }).notNull(),
 	password: varchar({ length: 255 }),
 	name: varchar({ length: 255 }).notNull(),
-	role: mysqlEnum(['superadmin','comerciante','vendedor','cliente','repartidor','auxiliar_bodega','administrador_rb','cajero','mesero','cocinero','bartender','despachador','asesor_inmobiliario','gerente_inmobiliario','comunidad_admin']).default('vendedor').notNull(),
-	phone: varchar({ length: 500 }),
+	role: mysqlEnum(['superadmin','comerciante','vendedor','cliente','repartidor','auxiliar_bodega','administrador_rb','cajero','mesero','cocinero','bartender','despachador']).default('vendedor').notNull(),
+	phone: text(),
 	avatar: varchar({ length: 500 }),
 	isActive: tinyint("is_active").default(1).notNull(),
 	canLogin: tinyint("can_login").default(1).notNull(),
@@ -4198,10 +4202,10 @@ export const users = mysqlTable("users", {
 },
 (table) => {
 	return {
-		idxUsersTenant: index("idx_users_tenant").on(table.tenantId),
-		idxUsersRole: index("idx_users_role").on(table.role),
-		idxUsersActive: index("idx_users_active").on(table.isActive),
 		idxGoogleId: index("idx_google_id").on(table.googleId),
+		idxUsersActive: index("idx_users_active").on(table.isActive),
+		idxUsersRole: index("idx_users_role").on(table.role),
+		idxUsersTenant: index("idx_users_tenant").on(table.tenantId),
 		usersId: primaryKey({ columns: [table.id], name: "users_id"}),
 		email: unique("email").on(table.email),
 	}
@@ -4220,9 +4224,9 @@ export const variantPriceTiers = mysqlTable("variant_price_tiers", {
 },
 (table) => {
 	return {
+		idxVptTenant: index("idx_vpt_tenant").on(table.tenantId),
 		idxVptVariant: index("idx_vpt_variant").on(table.variantId),
 		idxVptVariantMinqty: index("idx_vpt_variant_minqty").on(table.variantId, table.tenantId, table.minQty),
-		idxVptTenant: index("idx_vpt_tenant").on(table.tenantId),
 		variantPriceTiersId: primaryKey({ columns: [table.id], name: "variant_price_tiers_id"}),
 	}
 });
@@ -4287,9 +4291,9 @@ export const wasteRecords = mysqlTable("waste_records", {
 },
 (table) => {
 	return {
-		idxWrTenantDate: index("idx_wr_tenant_date").on(table.tenantId, table.createdAt),
-		idxWrProduct: index("idx_wr_product").on(table.productId),
 		idxWrArea: index("idx_wr_area").on(table.area),
+		idxWrProduct: index("idx_wr_product").on(table.productId),
+		idxWrTenantDate: index("idx_wr_tenant_date").on(table.tenantId, table.createdAt),
 		wasteRecordsId: primaryKey({ columns: [table.id], name: "waste_records_id"}),
 	}
 });
@@ -4311,9 +4315,9 @@ export const wompiTransactions = mysqlTable("wompi_transactions", {
 },
 (table) => {
 	return {
+		idxWtxContext: index("idx_wtx_context").on(table.context, table.contextId),
 		idxWtxStatus: index("idx_wtx_status").on(table.status),
 		idxWtxTenant: index("idx_wtx_tenant").on(table.tenantId),
-		idxWtxContext: index("idx_wtx_context").on(table.context, table.contextId),
 		wompiTransactionsReference: primaryKey({ columns: [table.reference], name: "wompi_transactions_reference"}),
 	}
 });
@@ -4333,8 +4337,8 @@ export const workOrderMaterials = mysqlTable("work_order_materials", {
 },
 (table) => {
 	return {
-		tenantId: index("tenant_id").on(table.tenantId),
 		idxWoMatOrder: index("idx_wo_mat_order").on(table.workOrderId),
+		tenantId: index("tenant_id").on(table.tenantId),
 		workOrderMaterialsId: primaryKey({ columns: [table.id], name: "work_order_materials_id"}),
 	}
 });
@@ -4351,9 +4355,9 @@ export const workOrderPayments = mysqlTable("work_order_payments", {
 },
 (table) => {
 	return {
-		receivedBy: index("received_by").on(table.receivedBy),
 		idxWoPayOrder: index("idx_wo_pay_order").on(table.workOrderId),
 		idxWoPayTenant: index("idx_wo_pay_tenant").on(table.tenantId),
+		receivedBy: index("received_by").on(table.receivedBy),
 		workOrderPaymentsId: primaryKey({ columns: [table.id], name: "work_order_payments_id"}),
 	}
 });
@@ -4402,9 +4406,9 @@ export const workOrders = mysqlTable("work_orders", {
 	return {
 		assignedTo: index("assigned_to").on(table.assignedTo),
 		createdBy: index("created_by").on(table.createdBy),
-		idxWoTenantStatus: index("idx_wo_tenant_status").on(table.tenantId, table.status),
-		idxWoPromised: index("idx_wo_promised").on(table.tenantId, table.promisedAt),
 		idxWoCustomer: index("idx_wo_customer").on(table.tenantId, table.customerName),
+		idxWoPromised: index("idx_wo_promised").on(table.tenantId, table.promisedAt),
+		idxWoTenantStatus: index("idx_wo_tenant_status").on(table.tenantId, table.status),
 		workOrdersId: primaryKey({ columns: [table.id], name: "work_orders_id"}),
 		idxWoNumber: unique("idx_wo_number").on(table.tenantId, table.orderNumber),
 	}
@@ -4596,9 +4600,18 @@ export const vProductsExpiringSoon = mysqlView("v_products_expiring_soon", {
 	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 	createdBy: varchar("created_by", { length: 50 }),
 	updatedBy: varchar("updated_by", { length: 50 }),
+	isMenuItem: tinyint("is_menu_item").default(0).notNull(),
+	isIngredient: tinyint("is_ingredient").default(0).notNull(),
+	preparationArea: mysqlEnum("preparation_area", ['bar','cocina','ambos']),
+	prepTimeMinutes: int("prep_time_minutes"),
+	availableInMenu: tinyint("available_in_menu").default(1).notNull(),
+	qtyPromo: text("qty_promo"),
+	images: text(),
+	hormaId: varchar("horma_id", { length: 36 }),
+	basePrice: decimal("base_price", { precision: 12, scale: 2 }),
 	categoryName: varchar("category_name", { length: 100 }),
 	daysUntilExpiry: int("days_until_expiry"),
-}).algorithm("undefined").sqlSecurity("definer").as(sql`select \`p\`.\`id\` AS \`id\`,\`p\`.\`tenant_id\` AS \`tenant_id\`,\`p\`.\`name\` AS \`name\`,\`p\`.\`articulo\` AS \`articulo\`,\`p\`.\`category\` AS \`category\`,\`p\`.\`product_type\` AS \`product_type\`,\`p\`.\`brand\` AS \`brand\`,\`p\`.\`model\` AS \`model\`,\`p\`.\`description\` AS \`description\`,\`p\`.\`purchase_price\` AS \`purchase_price\`,\`p\`.\`sale_price\` AS \`sale_price\`,\`p\`.\`sku\` AS \`sku\`,\`p\`.\`barcode\` AS \`barcode\`,\`p\`.\`stock\` AS \`stock\`,\`p\`.\`reorder_point\` AS \`reorder_point\`,\`p\`.\`supplier\` AS \`supplier\`,\`p\`.\`supplier_id\` AS \`supplier_id\`,\`p\`.\`entry_date\` AS \`entry_date\`,\`p\`.\`image_url\` AS \`image_url\`,\`p\`.\`image_urls\` AS \`image_urls\`,\`p\`.\`location_in_store\` AS \`location_in_store\`,\`p\`.\`notes\` AS \`notes\`,\`p\`.\`tags\` AS \`tags\`,\`p\`.\`expiry_date\` AS \`expiry_date\`,\`p\`.\`batch_number\` AS \`batch_number\`,\`p\`.\`net_weight\` AS \`net_weight\`,\`p\`.\`weight_unit\` AS \`weight_unit\`,\`p\`.\`sanitary_registration\` AS \`sanitary_registration\`,\`p\`.\`storage_temperature\` AS \`storage_temperature\`,\`p\`.\`ingredients\` AS \`ingredients\`,\`p\`.\`nutritional_info\` AS \`nutritional_info\`,\`p\`.\`alcohol_content\` AS \`alcohol_content\`,\`p\`.\`allergens\` AS \`allergens\`,\`p\`.\`size\` AS \`size\`,\`p\`.\`color\` AS \`color\`,\`p\`.\`material\` AS \`material\`,\`p\`.\`gender\` AS \`gender\`,\`p\`.\`season\` AS \`season\`,\`p\`.\`garment_type\` AS \`garment_type\`,\`p\`.\`washing_instructions\` AS \`washing_instructions\`,\`p\`.\`country_of_origin\` AS \`country_of_origin\`,\`p\`.\`serial_number\` AS \`serial_number\`,\`p\`.\`warranty_months\` AS \`warranty_months\`,\`p\`.\`technical_specs\` AS \`technical_specs\`,\`p\`.\`voltage\` AS \`voltage\`,\`p\`.\`power_watts\` AS \`power_watts\`,\`p\`.\`compatibility\` AS \`compatibility\`,\`p\`.\`includes_accessories\` AS \`includes_accessories\`,\`p\`.\`product_condition\` AS \`product_condition\`,\`p\`.\`active_ingredient\` AS \`active_ingredient\`,\`p\`.\`concentration\` AS \`concentration\`,\`p\`.\`requires_prescription\` AS \`requires_prescription\`,\`p\`.\`administration_route\` AS \`administration_route\`,\`p\`.\`presentation\` AS \`presentation\`,\`p\`.\`units_per_package\` AS \`units_per_package\`,\`p\`.\`laboratory\` AS \`laboratory\`,\`p\`.\`contraindications\` AS \`contraindications\`,\`p\`.\`dimensions\` AS \`dimensions\`,\`p\`.\`weight\` AS \`weight\`,\`p\`.\`hardware_weight_unit\` AS \`hardware_weight_unit\`,\`p\`.\`caliber\` AS \`caliber\`,\`p\`.\`resistance\` AS \`resistance\`,\`p\`.\`finish\` AS \`finish\`,\`p\`.\`recommended_use\` AS \`recommended_use\`,\`p\`.\`author\` AS \`author\`,\`p\`.\`publisher\` AS \`publisher\`,\`p\`.\`isbn\` AS \`isbn\`,\`p\`.\`pages\` AS \`pages\`,\`p\`.\`language\` AS \`language\`,\`p\`.\`publication_year\` AS \`publication_year\`,\`p\`.\`edition\` AS \`edition\`,\`p\`.\`book_format\` AS \`book_format\`,\`p\`.\`recommended_age\` AS \`recommended_age\`,\`p\`.\`number_of_players\` AS \`number_of_players\`,\`p\`.\`game_type\` AS \`game_type\`,\`p\`.\`requires_batteries\` AS \`requires_batteries\`,\`p\`.\`package_dimensions\` AS \`package_dimensions\`,\`p\`.\`package_contents\` AS \`package_contents\`,\`p\`.\`safety_warnings\` AS \`safety_warnings\`,\`p\`.\`published_in_store\` AS \`published_in_store\`,\`p\`.\`available_for_delivery\` AS \`available_for_delivery\`,\`p\`.\`delivery_type\` AS \`delivery_type\`,\`p\`.\`is_new_launch\` AS \`is_new_launch\`,\`p\`.\`launch_date\` AS \`launch_date\`,\`p\`.\`is_preorder\` AS \`is_preorder\`,\`p\`.\`preorder_window_end\` AS \`preorder_window_end\`,\`p\`.\`preorder_ship_start\` AS \`preorder_ship_start\`,\`p\`.\`preorder_ship_end\` AS \`preorder_ship_end\`,\`p\`.\`preorder_badge_text\` AS \`preorder_badge_text\`,\`p\`.\`preorder_policy_text\` AS \`preorder_policy_text\`,\`p\`.\`is_on_offer\` AS \`is_on_offer\`,\`p\`.\`offer_price\` AS \`offer_price\`,\`p\`.\`offer_label\` AS \`offer_label\`,\`p\`.\`offer_start\` AS \`offer_start\`,\`p\`.\`offer_end\` AS \`offer_end\`,\`p\`.\`sede_id\` AS \`sede_id\`,\`p\`.\`created_at\` AS \`created_at\`,\`p\`.\`updated_at\` AS \`updated_at\`,\`p\`.\`created_by\` AS \`created_by\`,\`p\`.\`updated_by\` AS \`updated_by\`,\`c\`.\`name\` AS \`category_name\`,(to_days(\`p\`.\`expiry_date\`) - to_days(curdate())) AS \`days_until_expiry\` from (\`lopbuk\`.\`products\` \`p\` left join \`lopbuk\`.\`categories\` \`c\` on(((\`p\`.\`category\` = \`c\`.\`id\`) and (\`p\`.\`tenant_id\` = \`c\`.\`tenant_id\`)))) where ((\`p\`.\`expiry_date\` is not null) and (\`p\`.\`expiry_date\` <= (curdate() + interval 30 day)) and (\`p\`.\`expiry_date\` >= curdate())) order by \`p\`.\`expiry_date\``);
+}).algorithm("undefined").sqlSecurity("definer").as(sql`select \`p\`.\`id\` AS \`id\`,\`p\`.\`tenant_id\` AS \`tenant_id\`,\`p\`.\`name\` AS \`name\`,\`p\`.\`articulo\` AS \`articulo\`,\`p\`.\`category\` AS \`category\`,\`p\`.\`product_type\` AS \`product_type\`,\`p\`.\`brand\` AS \`brand\`,\`p\`.\`model\` AS \`model\`,\`p\`.\`description\` AS \`description\`,\`p\`.\`purchase_price\` AS \`purchase_price\`,\`p\`.\`sale_price\` AS \`sale_price\`,\`p\`.\`sku\` AS \`sku\`,\`p\`.\`barcode\` AS \`barcode\`,\`p\`.\`stock\` AS \`stock\`,\`p\`.\`reorder_point\` AS \`reorder_point\`,\`p\`.\`supplier\` AS \`supplier\`,\`p\`.\`supplier_id\` AS \`supplier_id\`,\`p\`.\`entry_date\` AS \`entry_date\`,\`p\`.\`image_url\` AS \`image_url\`,\`p\`.\`image_urls\` AS \`image_urls\`,\`p\`.\`location_in_store\` AS \`location_in_store\`,\`p\`.\`notes\` AS \`notes\`,\`p\`.\`tags\` AS \`tags\`,\`p\`.\`expiry_date\` AS \`expiry_date\`,\`p\`.\`batch_number\` AS \`batch_number\`,\`p\`.\`net_weight\` AS \`net_weight\`,\`p\`.\`weight_unit\` AS \`weight_unit\`,\`p\`.\`sanitary_registration\` AS \`sanitary_registration\`,\`p\`.\`storage_temperature\` AS \`storage_temperature\`,\`p\`.\`ingredients\` AS \`ingredients\`,\`p\`.\`nutritional_info\` AS \`nutritional_info\`,\`p\`.\`alcohol_content\` AS \`alcohol_content\`,\`p\`.\`allergens\` AS \`allergens\`,\`p\`.\`size\` AS \`size\`,\`p\`.\`color\` AS \`color\`,\`p\`.\`material\` AS \`material\`,\`p\`.\`gender\` AS \`gender\`,\`p\`.\`season\` AS \`season\`,\`p\`.\`garment_type\` AS \`garment_type\`,\`p\`.\`washing_instructions\` AS \`washing_instructions\`,\`p\`.\`country_of_origin\` AS \`country_of_origin\`,\`p\`.\`serial_number\` AS \`serial_number\`,\`p\`.\`warranty_months\` AS \`warranty_months\`,\`p\`.\`technical_specs\` AS \`technical_specs\`,\`p\`.\`voltage\` AS \`voltage\`,\`p\`.\`power_watts\` AS \`power_watts\`,\`p\`.\`compatibility\` AS \`compatibility\`,\`p\`.\`includes_accessories\` AS \`includes_accessories\`,\`p\`.\`product_condition\` AS \`product_condition\`,\`p\`.\`active_ingredient\` AS \`active_ingredient\`,\`p\`.\`concentration\` AS \`concentration\`,\`p\`.\`requires_prescription\` AS \`requires_prescription\`,\`p\`.\`administration_route\` AS \`administration_route\`,\`p\`.\`presentation\` AS \`presentation\`,\`p\`.\`units_per_package\` AS \`units_per_package\`,\`p\`.\`laboratory\` AS \`laboratory\`,\`p\`.\`contraindications\` AS \`contraindications\`,\`p\`.\`dimensions\` AS \`dimensions\`,\`p\`.\`weight\` AS \`weight\`,\`p\`.\`hardware_weight_unit\` AS \`hardware_weight_unit\`,\`p\`.\`caliber\` AS \`caliber\`,\`p\`.\`resistance\` AS \`resistance\`,\`p\`.\`finish\` AS \`finish\`,\`p\`.\`recommended_use\` AS \`recommended_use\`,\`p\`.\`author\` AS \`author\`,\`p\`.\`publisher\` AS \`publisher\`,\`p\`.\`isbn\` AS \`isbn\`,\`p\`.\`pages\` AS \`pages\`,\`p\`.\`language\` AS \`language\`,\`p\`.\`publication_year\` AS \`publication_year\`,\`p\`.\`edition\` AS \`edition\`,\`p\`.\`book_format\` AS \`book_format\`,\`p\`.\`recommended_age\` AS \`recommended_age\`,\`p\`.\`number_of_players\` AS \`number_of_players\`,\`p\`.\`game_type\` AS \`game_type\`,\`p\`.\`requires_batteries\` AS \`requires_batteries\`,\`p\`.\`package_dimensions\` AS \`package_dimensions\`,\`p\`.\`package_contents\` AS \`package_contents\`,\`p\`.\`safety_warnings\` AS \`safety_warnings\`,\`p\`.\`published_in_store\` AS \`published_in_store\`,\`p\`.\`available_for_delivery\` AS \`available_for_delivery\`,\`p\`.\`delivery_type\` AS \`delivery_type\`,\`p\`.\`is_new_launch\` AS \`is_new_launch\`,\`p\`.\`launch_date\` AS \`launch_date\`,\`p\`.\`is_preorder\` AS \`is_preorder\`,\`p\`.\`preorder_window_end\` AS \`preorder_window_end\`,\`p\`.\`preorder_ship_start\` AS \`preorder_ship_start\`,\`p\`.\`preorder_ship_end\` AS \`preorder_ship_end\`,\`p\`.\`preorder_badge_text\` AS \`preorder_badge_text\`,\`p\`.\`preorder_policy_text\` AS \`preorder_policy_text\`,\`p\`.\`is_on_offer\` AS \`is_on_offer\`,\`p\`.\`offer_price\` AS \`offer_price\`,\`p\`.\`offer_label\` AS \`offer_label\`,\`p\`.\`offer_start\` AS \`offer_start\`,\`p\`.\`offer_end\` AS \`offer_end\`,\`p\`.\`sede_id\` AS \`sede_id\`,\`p\`.\`created_at\` AS \`created_at\`,\`p\`.\`updated_at\` AS \`updated_at\`,\`p\`.\`created_by\` AS \`created_by\`,\`p\`.\`updated_by\` AS \`updated_by\`,\`p\`.\`is_menu_item\` AS \`is_menu_item\`,\`p\`.\`is_ingredient\` AS \`is_ingredient\`,\`p\`.\`preparation_area\` AS \`preparation_area\`,\`p\`.\`prep_time_minutes\` AS \`prep_time_minutes\`,\`p\`.\`available_in_menu\` AS \`available_in_menu\`,\`p\`.\`qty_promo\` AS \`qty_promo\`,\`p\`.\`images\` AS \`images\`,\`p\`.\`horma_id\` AS \`horma_id\`,\`p\`.\`base_price\` AS \`base_price\`,\`c\`.\`name\` AS \`category_name\`,(to_days(\`p\`.\`expiry_date\`) - to_days(curdate())) AS \`days_until_expiry\` from (\`lopbuk\`.\`products\` \`p\` left join \`lopbuk\`.\`categories\` \`c\` on(((\`p\`.\`category\` = \`c\`.\`id\`) and (\`p\`.\`tenant_id\` = \`c\`.\`tenant_id\`)))) where ((\`p\`.\`expiry_date\` is not null) and (\`p\`.\`expiry_date\` <= (curdate() + interval 30 day)) and (\`p\`.\`expiry_date\` >= curdate())) order by \`p\`.\`expiry_date\``);
 
 export const vProductsLowStock = mysqlView("v_products_low_stock", {
 	id: varchar({ length: 36 }).notNull(),
@@ -4706,8 +4719,17 @@ export const vProductsLowStock = mysqlView("v_products_low_stock", {
 	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 	createdBy: varchar("created_by", { length: 50 }),
 	updatedBy: varchar("updated_by", { length: 50 }),
+	isMenuItem: tinyint("is_menu_item").default(0).notNull(),
+	isIngredient: tinyint("is_ingredient").default(0).notNull(),
+	preparationArea: mysqlEnum("preparation_area", ['bar','cocina','ambos']),
+	prepTimeMinutes: int("prep_time_minutes"),
+	availableInMenu: tinyint("available_in_menu").default(1).notNull(),
+	qtyPromo: text("qty_promo"),
+	images: text(),
+	hormaId: varchar("horma_id", { length: 36 }),
+	basePrice: decimal("base_price", { precision: 12, scale: 2 }),
 	categoryName: varchar("category_name", { length: 100 }),
-}).algorithm("undefined").sqlSecurity("definer").as(sql`select \`p\`.\`id\` AS \`id\`,\`p\`.\`tenant_id\` AS \`tenant_id\`,\`p\`.\`name\` AS \`name\`,\`p\`.\`articulo\` AS \`articulo\`,\`p\`.\`category\` AS \`category\`,\`p\`.\`product_type\` AS \`product_type\`,\`p\`.\`brand\` AS \`brand\`,\`p\`.\`model\` AS \`model\`,\`p\`.\`description\` AS \`description\`,\`p\`.\`purchase_price\` AS \`purchase_price\`,\`p\`.\`sale_price\` AS \`sale_price\`,\`p\`.\`sku\` AS \`sku\`,\`p\`.\`barcode\` AS \`barcode\`,\`p\`.\`stock\` AS \`stock\`,\`p\`.\`reorder_point\` AS \`reorder_point\`,\`p\`.\`supplier\` AS \`supplier\`,\`p\`.\`supplier_id\` AS \`supplier_id\`,\`p\`.\`entry_date\` AS \`entry_date\`,\`p\`.\`image_url\` AS \`image_url\`,\`p\`.\`image_urls\` AS \`image_urls\`,\`p\`.\`location_in_store\` AS \`location_in_store\`,\`p\`.\`notes\` AS \`notes\`,\`p\`.\`tags\` AS \`tags\`,\`p\`.\`expiry_date\` AS \`expiry_date\`,\`p\`.\`batch_number\` AS \`batch_number\`,\`p\`.\`net_weight\` AS \`net_weight\`,\`p\`.\`weight_unit\` AS \`weight_unit\`,\`p\`.\`sanitary_registration\` AS \`sanitary_registration\`,\`p\`.\`storage_temperature\` AS \`storage_temperature\`,\`p\`.\`ingredients\` AS \`ingredients\`,\`p\`.\`nutritional_info\` AS \`nutritional_info\`,\`p\`.\`alcohol_content\` AS \`alcohol_content\`,\`p\`.\`allergens\` AS \`allergens\`,\`p\`.\`size\` AS \`size\`,\`p\`.\`color\` AS \`color\`,\`p\`.\`material\` AS \`material\`,\`p\`.\`gender\` AS \`gender\`,\`p\`.\`season\` AS \`season\`,\`p\`.\`garment_type\` AS \`garment_type\`,\`p\`.\`washing_instructions\` AS \`washing_instructions\`,\`p\`.\`country_of_origin\` AS \`country_of_origin\`,\`p\`.\`serial_number\` AS \`serial_number\`,\`p\`.\`warranty_months\` AS \`warranty_months\`,\`p\`.\`technical_specs\` AS \`technical_specs\`,\`p\`.\`voltage\` AS \`voltage\`,\`p\`.\`power_watts\` AS \`power_watts\`,\`p\`.\`compatibility\` AS \`compatibility\`,\`p\`.\`includes_accessories\` AS \`includes_accessories\`,\`p\`.\`product_condition\` AS \`product_condition\`,\`p\`.\`active_ingredient\` AS \`active_ingredient\`,\`p\`.\`concentration\` AS \`concentration\`,\`p\`.\`requires_prescription\` AS \`requires_prescription\`,\`p\`.\`administration_route\` AS \`administration_route\`,\`p\`.\`presentation\` AS \`presentation\`,\`p\`.\`units_per_package\` AS \`units_per_package\`,\`p\`.\`laboratory\` AS \`laboratory\`,\`p\`.\`contraindications\` AS \`contraindications\`,\`p\`.\`dimensions\` AS \`dimensions\`,\`p\`.\`weight\` AS \`weight\`,\`p\`.\`hardware_weight_unit\` AS \`hardware_weight_unit\`,\`p\`.\`caliber\` AS \`caliber\`,\`p\`.\`resistance\` AS \`resistance\`,\`p\`.\`finish\` AS \`finish\`,\`p\`.\`recommended_use\` AS \`recommended_use\`,\`p\`.\`author\` AS \`author\`,\`p\`.\`publisher\` AS \`publisher\`,\`p\`.\`isbn\` AS \`isbn\`,\`p\`.\`pages\` AS \`pages\`,\`p\`.\`language\` AS \`language\`,\`p\`.\`publication_year\` AS \`publication_year\`,\`p\`.\`edition\` AS \`edition\`,\`p\`.\`book_format\` AS \`book_format\`,\`p\`.\`recommended_age\` AS \`recommended_age\`,\`p\`.\`number_of_players\` AS \`number_of_players\`,\`p\`.\`game_type\` AS \`game_type\`,\`p\`.\`requires_batteries\` AS \`requires_batteries\`,\`p\`.\`package_dimensions\` AS \`package_dimensions\`,\`p\`.\`package_contents\` AS \`package_contents\`,\`p\`.\`safety_warnings\` AS \`safety_warnings\`,\`p\`.\`published_in_store\` AS \`published_in_store\`,\`p\`.\`available_for_delivery\` AS \`available_for_delivery\`,\`p\`.\`delivery_type\` AS \`delivery_type\`,\`p\`.\`is_new_launch\` AS \`is_new_launch\`,\`p\`.\`launch_date\` AS \`launch_date\`,\`p\`.\`is_preorder\` AS \`is_preorder\`,\`p\`.\`preorder_window_end\` AS \`preorder_window_end\`,\`p\`.\`preorder_ship_start\` AS \`preorder_ship_start\`,\`p\`.\`preorder_ship_end\` AS \`preorder_ship_end\`,\`p\`.\`preorder_badge_text\` AS \`preorder_badge_text\`,\`p\`.\`preorder_policy_text\` AS \`preorder_policy_text\`,\`p\`.\`is_on_offer\` AS \`is_on_offer\`,\`p\`.\`offer_price\` AS \`offer_price\`,\`p\`.\`offer_label\` AS \`offer_label\`,\`p\`.\`offer_start\` AS \`offer_start\`,\`p\`.\`offer_end\` AS \`offer_end\`,\`p\`.\`sede_id\` AS \`sede_id\`,\`p\`.\`created_at\` AS \`created_at\`,\`p\`.\`updated_at\` AS \`updated_at\`,\`p\`.\`created_by\` AS \`created_by\`,\`p\`.\`updated_by\` AS \`updated_by\`,\`c\`.\`name\` AS \`category_name\` from (\`lopbuk\`.\`products\` \`p\` left join \`lopbuk\`.\`categories\` \`c\` on(((\`p\`.\`category\` = \`c\`.\`id\`) and (\`p\`.\`tenant_id\` = \`c\`.\`tenant_id\`)))) where ((\`p\`.\`stock\` <= \`p\`.\`reorder_point\`) and (\`p\`.\`stock\` >= 0)) order by (\`p\`.\`stock\` - \`p\`.\`reorder_point\`)`);
+}).algorithm("undefined").sqlSecurity("definer").as(sql`select \`p\`.\`id\` AS \`id\`,\`p\`.\`tenant_id\` AS \`tenant_id\`,\`p\`.\`name\` AS \`name\`,\`p\`.\`articulo\` AS \`articulo\`,\`p\`.\`category\` AS \`category\`,\`p\`.\`product_type\` AS \`product_type\`,\`p\`.\`brand\` AS \`brand\`,\`p\`.\`model\` AS \`model\`,\`p\`.\`description\` AS \`description\`,\`p\`.\`purchase_price\` AS \`purchase_price\`,\`p\`.\`sale_price\` AS \`sale_price\`,\`p\`.\`sku\` AS \`sku\`,\`p\`.\`barcode\` AS \`barcode\`,\`p\`.\`stock\` AS \`stock\`,\`p\`.\`reorder_point\` AS \`reorder_point\`,\`p\`.\`supplier\` AS \`supplier\`,\`p\`.\`supplier_id\` AS \`supplier_id\`,\`p\`.\`entry_date\` AS \`entry_date\`,\`p\`.\`image_url\` AS \`image_url\`,\`p\`.\`image_urls\` AS \`image_urls\`,\`p\`.\`location_in_store\` AS \`location_in_store\`,\`p\`.\`notes\` AS \`notes\`,\`p\`.\`tags\` AS \`tags\`,\`p\`.\`expiry_date\` AS \`expiry_date\`,\`p\`.\`batch_number\` AS \`batch_number\`,\`p\`.\`net_weight\` AS \`net_weight\`,\`p\`.\`weight_unit\` AS \`weight_unit\`,\`p\`.\`sanitary_registration\` AS \`sanitary_registration\`,\`p\`.\`storage_temperature\` AS \`storage_temperature\`,\`p\`.\`ingredients\` AS \`ingredients\`,\`p\`.\`nutritional_info\` AS \`nutritional_info\`,\`p\`.\`alcohol_content\` AS \`alcohol_content\`,\`p\`.\`allergens\` AS \`allergens\`,\`p\`.\`size\` AS \`size\`,\`p\`.\`color\` AS \`color\`,\`p\`.\`material\` AS \`material\`,\`p\`.\`gender\` AS \`gender\`,\`p\`.\`season\` AS \`season\`,\`p\`.\`garment_type\` AS \`garment_type\`,\`p\`.\`washing_instructions\` AS \`washing_instructions\`,\`p\`.\`country_of_origin\` AS \`country_of_origin\`,\`p\`.\`serial_number\` AS \`serial_number\`,\`p\`.\`warranty_months\` AS \`warranty_months\`,\`p\`.\`technical_specs\` AS \`technical_specs\`,\`p\`.\`voltage\` AS \`voltage\`,\`p\`.\`power_watts\` AS \`power_watts\`,\`p\`.\`compatibility\` AS \`compatibility\`,\`p\`.\`includes_accessories\` AS \`includes_accessories\`,\`p\`.\`product_condition\` AS \`product_condition\`,\`p\`.\`active_ingredient\` AS \`active_ingredient\`,\`p\`.\`concentration\` AS \`concentration\`,\`p\`.\`requires_prescription\` AS \`requires_prescription\`,\`p\`.\`administration_route\` AS \`administration_route\`,\`p\`.\`presentation\` AS \`presentation\`,\`p\`.\`units_per_package\` AS \`units_per_package\`,\`p\`.\`laboratory\` AS \`laboratory\`,\`p\`.\`contraindications\` AS \`contraindications\`,\`p\`.\`dimensions\` AS \`dimensions\`,\`p\`.\`weight\` AS \`weight\`,\`p\`.\`hardware_weight_unit\` AS \`hardware_weight_unit\`,\`p\`.\`caliber\` AS \`caliber\`,\`p\`.\`resistance\` AS \`resistance\`,\`p\`.\`finish\` AS \`finish\`,\`p\`.\`recommended_use\` AS \`recommended_use\`,\`p\`.\`author\` AS \`author\`,\`p\`.\`publisher\` AS \`publisher\`,\`p\`.\`isbn\` AS \`isbn\`,\`p\`.\`pages\` AS \`pages\`,\`p\`.\`language\` AS \`language\`,\`p\`.\`publication_year\` AS \`publication_year\`,\`p\`.\`edition\` AS \`edition\`,\`p\`.\`book_format\` AS \`book_format\`,\`p\`.\`recommended_age\` AS \`recommended_age\`,\`p\`.\`number_of_players\` AS \`number_of_players\`,\`p\`.\`game_type\` AS \`game_type\`,\`p\`.\`requires_batteries\` AS \`requires_batteries\`,\`p\`.\`package_dimensions\` AS \`package_dimensions\`,\`p\`.\`package_contents\` AS \`package_contents\`,\`p\`.\`safety_warnings\` AS \`safety_warnings\`,\`p\`.\`published_in_store\` AS \`published_in_store\`,\`p\`.\`available_for_delivery\` AS \`available_for_delivery\`,\`p\`.\`delivery_type\` AS \`delivery_type\`,\`p\`.\`is_new_launch\` AS \`is_new_launch\`,\`p\`.\`launch_date\` AS \`launch_date\`,\`p\`.\`is_preorder\` AS \`is_preorder\`,\`p\`.\`preorder_window_end\` AS \`preorder_window_end\`,\`p\`.\`preorder_ship_start\` AS \`preorder_ship_start\`,\`p\`.\`preorder_ship_end\` AS \`preorder_ship_end\`,\`p\`.\`preorder_badge_text\` AS \`preorder_badge_text\`,\`p\`.\`preorder_policy_text\` AS \`preorder_policy_text\`,\`p\`.\`is_on_offer\` AS \`is_on_offer\`,\`p\`.\`offer_price\` AS \`offer_price\`,\`p\`.\`offer_label\` AS \`offer_label\`,\`p\`.\`offer_start\` AS \`offer_start\`,\`p\`.\`offer_end\` AS \`offer_end\`,\`p\`.\`sede_id\` AS \`sede_id\`,\`p\`.\`created_at\` AS \`created_at\`,\`p\`.\`updated_at\` AS \`updated_at\`,\`p\`.\`created_by\` AS \`created_by\`,\`p\`.\`updated_by\` AS \`updated_by\`,\`p\`.\`is_menu_item\` AS \`is_menu_item\`,\`p\`.\`is_ingredient\` AS \`is_ingredient\`,\`p\`.\`preparation_area\` AS \`preparation_area\`,\`p\`.\`prep_time_minutes\` AS \`prep_time_minutes\`,\`p\`.\`available_in_menu\` AS \`available_in_menu\`,\`p\`.\`qty_promo\` AS \`qty_promo\`,\`p\`.\`images\` AS \`images\`,\`p\`.\`horma_id\` AS \`horma_id\`,\`p\`.\`base_price\` AS \`base_price\`,\`c\`.\`name\` AS \`category_name\` from (\`lopbuk\`.\`products\` \`p\` left join \`lopbuk\`.\`categories\` \`c\` on(((\`p\`.\`category\` = \`c\`.\`id\`) and (\`p\`.\`tenant_id\` = \`c\`.\`tenant_id\`)))) where ((\`p\`.\`stock\` <= \`p\`.\`reorder_point\`) and (\`p\`.\`stock\` >= 0)) order by (\`p\`.\`stock\` - \`p\`.\`reorder_point\`)`);
 
 export const vProductsStockStatus = mysqlView("v_products_stock_status", {
 	id: varchar({ length: 36 }).notNull(),
@@ -4815,8 +4837,17 @@ export const vProductsStockStatus = mysqlView("v_products_stock_status", {
 	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 	createdBy: varchar("created_by", { length: 50 }),
 	updatedBy: varchar("updated_by", { length: 50 }),
+	isMenuItem: tinyint("is_menu_item").default(0).notNull(),
+	isIngredient: tinyint("is_ingredient").default(0).notNull(),
+	preparationArea: mysqlEnum("preparation_area", ['bar','cocina','ambos']),
+	prepTimeMinutes: int("prep_time_minutes"),
+	availableInMenu: tinyint("available_in_menu").default(1).notNull(),
+	qtyPromo: text("qty_promo"),
+	images: text(),
+	hormaId: varchar("horma_id", { length: 36 }),
+	basePrice: decimal("base_price", { precision: 12, scale: 2 }),
 	stockStatus: varchar("stock_status", { length: 10 }).notNull(),
-}).algorithm("undefined").sqlSecurity("definer").as(sql`select \`p\`.\`id\` AS \`id\`,\`p\`.\`tenant_id\` AS \`tenant_id\`,\`p\`.\`name\` AS \`name\`,\`p\`.\`articulo\` AS \`articulo\`,\`p\`.\`category\` AS \`category\`,\`p\`.\`product_type\` AS \`product_type\`,\`p\`.\`brand\` AS \`brand\`,\`p\`.\`model\` AS \`model\`,\`p\`.\`description\` AS \`description\`,\`p\`.\`purchase_price\` AS \`purchase_price\`,\`p\`.\`sale_price\` AS \`sale_price\`,\`p\`.\`sku\` AS \`sku\`,\`p\`.\`barcode\` AS \`barcode\`,\`p\`.\`stock\` AS \`stock\`,\`p\`.\`reorder_point\` AS \`reorder_point\`,\`p\`.\`supplier\` AS \`supplier\`,\`p\`.\`supplier_id\` AS \`supplier_id\`,\`p\`.\`entry_date\` AS \`entry_date\`,\`p\`.\`image_url\` AS \`image_url\`,\`p\`.\`image_urls\` AS \`image_urls\`,\`p\`.\`location_in_store\` AS \`location_in_store\`,\`p\`.\`notes\` AS \`notes\`,\`p\`.\`tags\` AS \`tags\`,\`p\`.\`expiry_date\` AS \`expiry_date\`,\`p\`.\`batch_number\` AS \`batch_number\`,\`p\`.\`net_weight\` AS \`net_weight\`,\`p\`.\`weight_unit\` AS \`weight_unit\`,\`p\`.\`sanitary_registration\` AS \`sanitary_registration\`,\`p\`.\`storage_temperature\` AS \`storage_temperature\`,\`p\`.\`ingredients\` AS \`ingredients\`,\`p\`.\`nutritional_info\` AS \`nutritional_info\`,\`p\`.\`alcohol_content\` AS \`alcohol_content\`,\`p\`.\`allergens\` AS \`allergens\`,\`p\`.\`size\` AS \`size\`,\`p\`.\`color\` AS \`color\`,\`p\`.\`material\` AS \`material\`,\`p\`.\`gender\` AS \`gender\`,\`p\`.\`season\` AS \`season\`,\`p\`.\`garment_type\` AS \`garment_type\`,\`p\`.\`washing_instructions\` AS \`washing_instructions\`,\`p\`.\`country_of_origin\` AS \`country_of_origin\`,\`p\`.\`serial_number\` AS \`serial_number\`,\`p\`.\`warranty_months\` AS \`warranty_months\`,\`p\`.\`technical_specs\` AS \`technical_specs\`,\`p\`.\`voltage\` AS \`voltage\`,\`p\`.\`power_watts\` AS \`power_watts\`,\`p\`.\`compatibility\` AS \`compatibility\`,\`p\`.\`includes_accessories\` AS \`includes_accessories\`,\`p\`.\`product_condition\` AS \`product_condition\`,\`p\`.\`active_ingredient\` AS \`active_ingredient\`,\`p\`.\`concentration\` AS \`concentration\`,\`p\`.\`requires_prescription\` AS \`requires_prescription\`,\`p\`.\`administration_route\` AS \`administration_route\`,\`p\`.\`presentation\` AS \`presentation\`,\`p\`.\`units_per_package\` AS \`units_per_package\`,\`p\`.\`laboratory\` AS \`laboratory\`,\`p\`.\`contraindications\` AS \`contraindications\`,\`p\`.\`dimensions\` AS \`dimensions\`,\`p\`.\`weight\` AS \`weight\`,\`p\`.\`hardware_weight_unit\` AS \`hardware_weight_unit\`,\`p\`.\`caliber\` AS \`caliber\`,\`p\`.\`resistance\` AS \`resistance\`,\`p\`.\`finish\` AS \`finish\`,\`p\`.\`recommended_use\` AS \`recommended_use\`,\`p\`.\`author\` AS \`author\`,\`p\`.\`publisher\` AS \`publisher\`,\`p\`.\`isbn\` AS \`isbn\`,\`p\`.\`pages\` AS \`pages\`,\`p\`.\`language\` AS \`language\`,\`p\`.\`publication_year\` AS \`publication_year\`,\`p\`.\`edition\` AS \`edition\`,\`p\`.\`book_format\` AS \`book_format\`,\`p\`.\`recommended_age\` AS \`recommended_age\`,\`p\`.\`number_of_players\` AS \`number_of_players\`,\`p\`.\`game_type\` AS \`game_type\`,\`p\`.\`requires_batteries\` AS \`requires_batteries\`,\`p\`.\`package_dimensions\` AS \`package_dimensions\`,\`p\`.\`package_contents\` AS \`package_contents\`,\`p\`.\`safety_warnings\` AS \`safety_warnings\`,\`p\`.\`published_in_store\` AS \`published_in_store\`,\`p\`.\`available_for_delivery\` AS \`available_for_delivery\`,\`p\`.\`delivery_type\` AS \`delivery_type\`,\`p\`.\`is_new_launch\` AS \`is_new_launch\`,\`p\`.\`launch_date\` AS \`launch_date\`,\`p\`.\`is_preorder\` AS \`is_preorder\`,\`p\`.\`preorder_window_end\` AS \`preorder_window_end\`,\`p\`.\`preorder_ship_start\` AS \`preorder_ship_start\`,\`p\`.\`preorder_ship_end\` AS \`preorder_ship_end\`,\`p\`.\`preorder_badge_text\` AS \`preorder_badge_text\`,\`p\`.\`preorder_policy_text\` AS \`preorder_policy_text\`,\`p\`.\`is_on_offer\` AS \`is_on_offer\`,\`p\`.\`offer_price\` AS \`offer_price\`,\`p\`.\`offer_label\` AS \`offer_label\`,\`p\`.\`offer_start\` AS \`offer_start\`,\`p\`.\`offer_end\` AS \`offer_end\`,\`p\`.\`sede_id\` AS \`sede_id\`,\`p\`.\`created_at\` AS \`created_at\`,\`p\`.\`updated_at\` AS \`updated_at\`,\`p\`.\`created_by\` AS \`created_by\`,\`p\`.\`updated_by\` AS \`updated_by\`,(case when (\`p\`.\`stock\` = 0) then 'agotado' when (\`p\`.\`stock\` <= \`p\`.\`reorder_point\`) then 'bajo' else 'suficiente' end) AS \`stock_status\` from \`lopbuk\`.\`products\` \`p\``);
+}).algorithm("undefined").sqlSecurity("definer").as(sql`select \`p\`.\`id\` AS \`id\`,\`p\`.\`tenant_id\` AS \`tenant_id\`,\`p\`.\`name\` AS \`name\`,\`p\`.\`articulo\` AS \`articulo\`,\`p\`.\`category\` AS \`category\`,\`p\`.\`product_type\` AS \`product_type\`,\`p\`.\`brand\` AS \`brand\`,\`p\`.\`model\` AS \`model\`,\`p\`.\`description\` AS \`description\`,\`p\`.\`purchase_price\` AS \`purchase_price\`,\`p\`.\`sale_price\` AS \`sale_price\`,\`p\`.\`sku\` AS \`sku\`,\`p\`.\`barcode\` AS \`barcode\`,\`p\`.\`stock\` AS \`stock\`,\`p\`.\`reorder_point\` AS \`reorder_point\`,\`p\`.\`supplier\` AS \`supplier\`,\`p\`.\`supplier_id\` AS \`supplier_id\`,\`p\`.\`entry_date\` AS \`entry_date\`,\`p\`.\`image_url\` AS \`image_url\`,\`p\`.\`image_urls\` AS \`image_urls\`,\`p\`.\`location_in_store\` AS \`location_in_store\`,\`p\`.\`notes\` AS \`notes\`,\`p\`.\`tags\` AS \`tags\`,\`p\`.\`expiry_date\` AS \`expiry_date\`,\`p\`.\`batch_number\` AS \`batch_number\`,\`p\`.\`net_weight\` AS \`net_weight\`,\`p\`.\`weight_unit\` AS \`weight_unit\`,\`p\`.\`sanitary_registration\` AS \`sanitary_registration\`,\`p\`.\`storage_temperature\` AS \`storage_temperature\`,\`p\`.\`ingredients\` AS \`ingredients\`,\`p\`.\`nutritional_info\` AS \`nutritional_info\`,\`p\`.\`alcohol_content\` AS \`alcohol_content\`,\`p\`.\`allergens\` AS \`allergens\`,\`p\`.\`size\` AS \`size\`,\`p\`.\`color\` AS \`color\`,\`p\`.\`material\` AS \`material\`,\`p\`.\`gender\` AS \`gender\`,\`p\`.\`season\` AS \`season\`,\`p\`.\`garment_type\` AS \`garment_type\`,\`p\`.\`washing_instructions\` AS \`washing_instructions\`,\`p\`.\`country_of_origin\` AS \`country_of_origin\`,\`p\`.\`serial_number\` AS \`serial_number\`,\`p\`.\`warranty_months\` AS \`warranty_months\`,\`p\`.\`technical_specs\` AS \`technical_specs\`,\`p\`.\`voltage\` AS \`voltage\`,\`p\`.\`power_watts\` AS \`power_watts\`,\`p\`.\`compatibility\` AS \`compatibility\`,\`p\`.\`includes_accessories\` AS \`includes_accessories\`,\`p\`.\`product_condition\` AS \`product_condition\`,\`p\`.\`active_ingredient\` AS \`active_ingredient\`,\`p\`.\`concentration\` AS \`concentration\`,\`p\`.\`requires_prescription\` AS \`requires_prescription\`,\`p\`.\`administration_route\` AS \`administration_route\`,\`p\`.\`presentation\` AS \`presentation\`,\`p\`.\`units_per_package\` AS \`units_per_package\`,\`p\`.\`laboratory\` AS \`laboratory\`,\`p\`.\`contraindications\` AS \`contraindications\`,\`p\`.\`dimensions\` AS \`dimensions\`,\`p\`.\`weight\` AS \`weight\`,\`p\`.\`hardware_weight_unit\` AS \`hardware_weight_unit\`,\`p\`.\`caliber\` AS \`caliber\`,\`p\`.\`resistance\` AS \`resistance\`,\`p\`.\`finish\` AS \`finish\`,\`p\`.\`recommended_use\` AS \`recommended_use\`,\`p\`.\`author\` AS \`author\`,\`p\`.\`publisher\` AS \`publisher\`,\`p\`.\`isbn\` AS \`isbn\`,\`p\`.\`pages\` AS \`pages\`,\`p\`.\`language\` AS \`language\`,\`p\`.\`publication_year\` AS \`publication_year\`,\`p\`.\`edition\` AS \`edition\`,\`p\`.\`book_format\` AS \`book_format\`,\`p\`.\`recommended_age\` AS \`recommended_age\`,\`p\`.\`number_of_players\` AS \`number_of_players\`,\`p\`.\`game_type\` AS \`game_type\`,\`p\`.\`requires_batteries\` AS \`requires_batteries\`,\`p\`.\`package_dimensions\` AS \`package_dimensions\`,\`p\`.\`package_contents\` AS \`package_contents\`,\`p\`.\`safety_warnings\` AS \`safety_warnings\`,\`p\`.\`published_in_store\` AS \`published_in_store\`,\`p\`.\`available_for_delivery\` AS \`available_for_delivery\`,\`p\`.\`delivery_type\` AS \`delivery_type\`,\`p\`.\`is_new_launch\` AS \`is_new_launch\`,\`p\`.\`launch_date\` AS \`launch_date\`,\`p\`.\`is_preorder\` AS \`is_preorder\`,\`p\`.\`preorder_window_end\` AS \`preorder_window_end\`,\`p\`.\`preorder_ship_start\` AS \`preorder_ship_start\`,\`p\`.\`preorder_ship_end\` AS \`preorder_ship_end\`,\`p\`.\`preorder_badge_text\` AS \`preorder_badge_text\`,\`p\`.\`preorder_policy_text\` AS \`preorder_policy_text\`,\`p\`.\`is_on_offer\` AS \`is_on_offer\`,\`p\`.\`offer_price\` AS \`offer_price\`,\`p\`.\`offer_label\` AS \`offer_label\`,\`p\`.\`offer_start\` AS \`offer_start\`,\`p\`.\`offer_end\` AS \`offer_end\`,\`p\`.\`sede_id\` AS \`sede_id\`,\`p\`.\`created_at\` AS \`created_at\`,\`p\`.\`updated_at\` AS \`updated_at\`,\`p\`.\`created_by\` AS \`created_by\`,\`p\`.\`updated_by\` AS \`updated_by\`,\`p\`.\`is_menu_item\` AS \`is_menu_item\`,\`p\`.\`is_ingredient\` AS \`is_ingredient\`,\`p\`.\`preparation_area\` AS \`preparation_area\`,\`p\`.\`prep_time_minutes\` AS \`prep_time_minutes\`,\`p\`.\`available_in_menu\` AS \`available_in_menu\`,\`p\`.\`qty_promo\` AS \`qty_promo\`,\`p\`.\`images\` AS \`images\`,\`p\`.\`horma_id\` AS \`horma_id\`,\`p\`.\`base_price\` AS \`base_price\`,(case when (\`p\`.\`stock\` = 0) then 'agotado' when (\`p\`.\`stock\` <= \`p\`.\`reorder_point\`) then 'bajo' else 'suficiente' end) AS \`stock_status\` from \`lopbuk\`.\`products\` \`p\``);
 
 export const vSalesDetail = mysqlView("v_sales_detail", {
 	id: varchar({ length: 36 }).notNull(),
@@ -4853,9 +4884,11 @@ export const vSalesDetail = mysqlView("v_sales_detail", {
 	origin: mysqlEnum(['local','cloud']).default('cloud').notNull(),
 	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
+	dispatchNotes: text("dispatch_notes"),
+	dispatchedAt: timestamp("dispatched_at", { mode: 'string' }),
 	totalItems: bigint("total_items", { mode: "number" }).notNull(),
 	totalQuantity: decimal("total_quantity", { precision: 32, scale: 0 }),
-}).algorithm("undefined").sqlSecurity("definer").as(sql`select \`s\`.\`id\` AS \`id\`,\`s\`.\`tenant_id\` AS \`tenant_id\`,\`s\`.\`invoice_number\` AS \`invoice_number\`,\`s\`.\`customer_id\` AS \`customer_id\`,\`s\`.\`customer_name\` AS \`customer_name\`,\`s\`.\`customer_phone\` AS \`customer_phone\`,\`s\`.\`customer_email\` AS \`customer_email\`,\`s\`.\`subtotal\` AS \`subtotal\`,\`s\`.\`tax\` AS \`tax\`,\`s\`.\`discount\` AS \`discount\`,\`s\`.\`total\` AS \`total\`,\`s\`.\`payment_method\` AS \`payment_method\`,\`s\`.\`amount_paid\` AS \`amount_paid\`,\`s\`.\`change_amount\` AS \`change_amount\`,\`s\`.\`seller_id\` AS \`seller_id\`,\`s\`.\`seller_name\` AS \`seller_name\`,\`s\`.\`cash_session_id\` AS \`cash_session_id\`,\`s\`.\`status\` AS \`status\`,\`s\`.\`credit_status\` AS \`credit_status\`,\`s\`.\`due_date\` AS \`due_date\`,\`s\`.\`notes\` AS \`notes\`,\`s\`.\`mixed_efectivo_amount\` AS \`mixed_efectivo_amount\`,\`s\`.\`mixed_second_method\` AS \`mixed_second_method\`,\`s\`.\`mixed_second_amount\` AS \`mixed_second_amount\`,\`s\`.\`sede_id\` AS \`sede_id\`,\`s\`.\`vehicle_id\` AS \`vehicle_id\`,\`s\`.\`dispatch_status\` AS \`dispatch_status\`,\`s\`.\`total_weight_kg\` AS \`total_weight_kg\`,\`s\`.\`synced\` AS \`synced\`,\`s\`.\`synced_at\` AS \`synced_at\`,\`s\`.\`origin\` AS \`origin\`,\`s\`.\`created_at\` AS \`created_at\`,\`s\`.\`updated_at\` AS \`updated_at\`,count(\`si\`.\`id\`) AS \`total_items\`,sum(\`si\`.\`quantity\`) AS \`total_quantity\` from (\`lopbuk\`.\`sales\` \`s\` left join \`lopbuk\`.\`sale_items\` \`si\` on((\`s\`.\`id\` = \`si\`.\`sale_id\`))) group by \`s\`.\`id\``);
+}).algorithm("undefined").sqlSecurity("definer").as(sql`select \`s\`.\`id\` AS \`id\`,\`s\`.\`tenant_id\` AS \`tenant_id\`,\`s\`.\`invoice_number\` AS \`invoice_number\`,\`s\`.\`customer_id\` AS \`customer_id\`,\`s\`.\`customer_name\` AS \`customer_name\`,\`s\`.\`customer_phone\` AS \`customer_phone\`,\`s\`.\`customer_email\` AS \`customer_email\`,\`s\`.\`subtotal\` AS \`subtotal\`,\`s\`.\`tax\` AS \`tax\`,\`s\`.\`discount\` AS \`discount\`,\`s\`.\`total\` AS \`total\`,\`s\`.\`payment_method\` AS \`payment_method\`,\`s\`.\`amount_paid\` AS \`amount_paid\`,\`s\`.\`change_amount\` AS \`change_amount\`,\`s\`.\`seller_id\` AS \`seller_id\`,\`s\`.\`seller_name\` AS \`seller_name\`,\`s\`.\`cash_session_id\` AS \`cash_session_id\`,\`s\`.\`status\` AS \`status\`,\`s\`.\`credit_status\` AS \`credit_status\`,\`s\`.\`due_date\` AS \`due_date\`,\`s\`.\`notes\` AS \`notes\`,\`s\`.\`mixed_efectivo_amount\` AS \`mixed_efectivo_amount\`,\`s\`.\`mixed_second_method\` AS \`mixed_second_method\`,\`s\`.\`mixed_second_amount\` AS \`mixed_second_amount\`,\`s\`.\`sede_id\` AS \`sede_id\`,\`s\`.\`vehicle_id\` AS \`vehicle_id\`,\`s\`.\`dispatch_status\` AS \`dispatch_status\`,\`s\`.\`total_weight_kg\` AS \`total_weight_kg\`,\`s\`.\`synced\` AS \`synced\`,\`s\`.\`synced_at\` AS \`synced_at\`,\`s\`.\`origin\` AS \`origin\`,\`s\`.\`created_at\` AS \`created_at\`,\`s\`.\`updated_at\` AS \`updated_at\`,\`s\`.\`dispatch_notes\` AS \`dispatch_notes\`,\`s\`.\`dispatched_at\` AS \`dispatched_at\`,count(\`si\`.\`id\`) AS \`total_items\`,sum(\`si\`.\`quantity\`) AS \`total_quantity\` from (\`lopbuk\`.\`sales\` \`s\` left join \`lopbuk\`.\`sale_items\` \`si\` on((\`s\`.\`id\` = \`si\`.\`sale_id\`))) group by \`s\`.\`id\``);
 
 export const vTenantsSummary = mysqlView("v_tenants_summary", {
 	tenantId: varchar("tenant_id", { length: 36 }).notNull(),

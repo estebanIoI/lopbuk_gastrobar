@@ -13,8 +13,8 @@ CREATE TABLE `affiliate_campaigns` (
 	`created_at` timestamp DEFAULT (now()),
 	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `affiliate_campaigns_id` PRIMARY KEY(`id`),
-	CONSTRAINT `idx_campaign_ref` UNIQUE(`ref_token`),
-	CONSTRAINT `idx_campaign_code` UNIQUE(`discount_code`)
+	CONSTRAINT `idx_campaign_code` UNIQUE(`discount_code`),
+	CONSTRAINT `idx_campaign_ref` UNIQUE(`ref_token`)
 );
 --> statement-breakpoint
 CREATE TABLE `affiliate_commissions` (
@@ -657,8 +657,8 @@ CREATE TABLE `community_reactions` (
 	`type` enum('like','save') NOT NULL,
 	`created_at` timestamp DEFAULT (now()),
 	CONSTRAINT `community_reactions_id` PRIMARY KEY(`id`),
-	CONSTRAINT `uq_reaction` UNIQUE(`post_id`,`user_id`,`type`),
-	CONSTRAINT `uq_react_device` UNIQUE(`post_id`,`device_id`,`type`)
+	CONSTRAINT `uq_react_device` UNIQUE(`post_id`,`device_id`,`type`),
+	CONSTRAINT `uq_reaction` UNIQUE(`post_id`,`user_id`,`type`)
 );
 --> statement-breakpoint
 CREATE TABLE `community_settings` (
@@ -1706,9 +1706,10 @@ CREATE TABLE `products` (
 	`qty_promo` text,
 	`images` text,
 	`horma_id` varchar(36),
+	`base_price` decimal(12,2),
 	CONSTRAINT `products_id` PRIMARY KEY(`id`),
-	CONSTRAINT `idx_product_tenant_sku` UNIQUE(`tenant_id`,`sku`),
-	CONSTRAINT `idx_product_tenant_barcode` UNIQUE(`tenant_id`,`barcode`)
+	CONSTRAINT `idx_product_tenant_barcode` UNIQUE(`tenant_id`,`barcode`),
+	CONSTRAINT `idx_product_tenant_sku` UNIQUE(`tenant_id`,`sku`)
 );
 --> statement-breakpoint
 CREATE TABLE `profile_sections` (
@@ -2268,6 +2269,8 @@ CREATE TABLE `sales` (
 	`origin` enum('local','cloud') NOT NULL DEFAULT 'cloud',
 	`created_at` timestamp DEFAULT (now()),
 	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	`dispatch_notes` text,
+	`dispatched_at` timestamp,
 	CONSTRAINT `sales_id` PRIMARY KEY(`id`),
 	CONSTRAINT `idx_sale_tenant_invoice` UNIQUE(`tenant_id`,`invoice_number`)
 );
@@ -2996,8 +2999,8 @@ CREATE TABLE `users` (
 	`email` varchar(255) NOT NULL,
 	`password` varchar(255),
 	`name` varchar(255) NOT NULL,
-	`role` enum('superadmin','comerciante','vendedor','cliente','repartidor','auxiliar_bodega','administrador_rb','cajero','mesero','cocinero','bartender','despachador','asesor_inmobiliario','gerente_inmobiliario','comunidad_admin') NOT NULL DEFAULT 'vendedor',
-	`phone` varchar(500),
+	`role` enum('superadmin','comerciante','vendedor','cliente','repartidor','auxiliar_bodega','administrador_rb','cajero','mesero','cocinero','bartender','despachador') NOT NULL DEFAULT 'vendedor',
+	`phone` text,
 	`avatar` varchar(500),
 	`is_active` tinyint(1) NOT NULL DEFAULT 1,
 	`can_login` tinyint(1) NOT NULL DEFAULT 1,
@@ -3417,69 +3420,69 @@ CREATE INDEX `idx_campaign_tenant` ON `affiliate_campaigns` (`tenant_id`);--> st
 CREATE INDEX `idx_comm_affiliate` ON `affiliate_commissions` (`affiliate_id`,`status`);--> statement-breakpoint
 CREATE INDEX `idx_comm_conversion` ON `affiliate_commissions` (`conversion_id`);--> statement-breakpoint
 CREATE INDEX `idx_conv_campaign` ON `affiliate_conversions` (`campaign_id`);--> statement-breakpoint
-CREATE INDEX `idx_conv_tenant` ON `affiliate_conversions` (`tenant_id`);--> statement-breakpoint
-CREATE INDEX `idx_conv_status` ON `affiliate_conversions` (`status`);--> statement-breakpoint
 CREATE INDEX `idx_conv_order` ON `affiliate_conversions` (`order_id`);--> statement-breakpoint
 CREATE INDEX `idx_conv_sale` ON `affiliate_conversions` (`sale_id`);--> statement-breakpoint
-CREATE INDEX `idx_submission_mission` ON `affiliate_mission_submissions` (`mission_id`,`status`);--> statement-breakpoint
+CREATE INDEX `idx_conv_status` ON `affiliate_conversions` (`status`);--> statement-breakpoint
+CREATE INDEX `idx_conv_tenant` ON `affiliate_conversions` (`tenant_id`);--> statement-breakpoint
 CREATE INDEX `idx_submission_affiliate` ON `affiliate_mission_submissions` (`affiliate_id`);--> statement-breakpoint
+CREATE INDEX `idx_submission_mission` ON `affiliate_mission_submissions` (`mission_id`,`status`);--> statement-breakpoint
 CREATE INDEX `idx_mission_active` ON `affiliate_missions` (`is_active`);--> statement-breakpoint
-CREATE INDEX `package_id` ON `affiliate_package_orders` (`package_id`);--> statement-breakpoint
 CREATE INDEX `idx_pkgorder_affiliate` ON `affiliate_package_orders` (`affiliate_id`,`status`);--> statement-breakpoint
 CREATE INDEX `idx_pkgorder_tenant` ON `affiliate_package_orders` (`tenant_id`,`status`);--> statement-breakpoint
+CREATE INDEX `package_id` ON `affiliate_package_orders` (`package_id`);--> statement-breakpoint
 CREATE INDEX `idx_affpkg_active` ON `affiliate_packages` (`is_active`);--> statement-breakpoint
 CREATE INDEX `idx_withdraw_affiliate` ON `affiliate_withdrawals` (`affiliate_id`,`status`);--> statement-breakpoint
 CREATE INDEX `idx_aff_status` ON `affiliates` (`status`);--> statement-breakpoint
-CREATE INDEX `idx_agent_actions_tenant` ON `agent_actions` (`tenant_id`);--> statement-breakpoint
-CREATE INDEX `idx_agent_actions_session` ON `agent_actions` (`session_id`);--> statement-breakpoint
-CREATE INDEX `idx_agent_actions_tool` ON `agent_actions` (`tenant_id`,`tool_name`);--> statement-breakpoint
 CREATE INDEX `idx_agent_actions_created` ON `agent_actions` (`tenant_id`,`created_at`);--> statement-breakpoint
+CREATE INDEX `idx_agent_actions_session` ON `agent_actions` (`session_id`);--> statement-breakpoint
+CREATE INDEX `idx_agent_actions_tenant` ON `agent_actions` (`tenant_id`);--> statement-breakpoint
+CREATE INDEX `idx_agent_actions_tool` ON `agent_actions` (`tenant_id`,`tool_name`);--> statement-breakpoint
 CREATE INDEX `idx_aul_created` ON `ai_usage_log` (`created_at`);--> statement-breakpoint
 CREATE INDEX `idx_aul_provider` ON `ai_usage_log` (`provider`);--> statement-breakpoint
 CREATE INDEX `idx_af_created` ON `arena_feed` (`created_at`);--> statement-breakpoint
 CREATE INDEX `idx_af_user` ON `arena_feed` (`user_id`,`created_at`);--> statement-breakpoint
 CREATE INDEX `idx_afc_feed` ON `arena_feed_comments` (`feed_id`,`created_at`);--> statement-breakpoint
-CREATE INDEX `idx_audit_tenant` ON `audit_log` (`tenant_id`);--> statement-breakpoint
-CREATE INDEX `idx_audit_user` ON `audit_log` (`user_id`);--> statement-breakpoint
 CREATE INDEX `idx_audit_action` ON `audit_log` (`action`);--> statement-breakpoint
 CREATE INDEX `idx_audit_date` ON `audit_log` (`created_at`);--> statement-breakpoint
 CREATE INDEX `idx_audit_entity` ON `audit_log` (`entity_type`,`entity_id`);--> statement-breakpoint
-CREATE INDEX `idx_audit_tenant_date` ON `audit_log` (`tenant_id`,`created_at`);--> statement-breakpoint
-CREATE INDEX `idx_audit_tenant_action` ON `audit_log` (`tenant_id`,`action`);--> statement-breakpoint
 CREATE INDEX `idx_audit_severity` ON `audit_log` (`severity`);--> statement-breakpoint
+CREATE INDEX `idx_audit_tenant` ON `audit_log` (`tenant_id`);--> statement-breakpoint
+CREATE INDEX `idx_audit_tenant_action` ON `audit_log` (`tenant_id`,`action`);--> statement-breakpoint
+CREATE INDEX `idx_audit_tenant_date` ON `audit_log` (`tenant_id`,`created_at`);--> statement-breakpoint
+CREATE INDEX `idx_audit_user` ON `audit_log` (`user_id`);--> statement-breakpoint
 CREATE INDEX `actividad_id` ON `cartilla_actividad_opciones` (`actividad_id`);--> statement-breakpoint
 CREATE INDEX `actividad_id` ON `cartilla_actividad_ordenar` (`actividad_id`);--> statement-breakpoint
 CREATE INDEX `actividad_id` ON `cartilla_actividad_pares` (`actividad_id`);--> statement-breakpoint
 CREATE INDEX `actividad_id` ON `cartilla_actividad_vf` (`actividad_id`);--> statement-breakpoint
 CREATE INDEX `idx_act_modulo` ON `cartilla_actividades` (`modulo_id`);--> statement-breakpoint
 CREATE INDEX `publicacion_id` ON `cartilla_comentarios` (`publicacion_id`);--> statement-breakpoint
-CREATE INDEX `idx_compra_tenant` ON `cartilla_compras` (`tenant_id`);--> statement-breakpoint
 CREATE INDEX `idx_compra_cartilla` ON `cartilla_compras` (`cartilla_id`);--> statement-breakpoint
+CREATE INDEX `idx_compra_tenant` ON `cartilla_compras` (`tenant_id`);--> statement-breakpoint
 CREATE INDEX `modulo_id` ON `cartilla_modulo_audios` (`modulo_id`);--> statement-breakpoint
 CREATE INDEX `modulo_id` ON `cartilla_modulo_imagenes` (`modulo_id`);--> statement-breakpoint
 CREATE INDEX `modulo_id` ON `cartilla_modulo_secciones` (`modulo_id`);--> statement-breakpoint
-CREATE INDEX `idx_modulo_tenant` ON `cartilla_modulos` (`tenant_id`);--> statement-breakpoint
 CREATE INDEX `idx_modulo_cartilla` ON `cartilla_modulos` (`cartilla_id`);--> statement-breakpoint
+CREATE INDEX `idx_modulo_tenant` ON `cartilla_modulos` (`tenant_id`);--> statement-breakpoint
 CREATE INDEX `idx_progreso_cartilla` ON `cartilla_progreso` (`cartilla_id`);--> statement-breakpoint
-CREATE INDEX `idx_pub_tenant` ON `cartilla_publicaciones` (`tenant_id`);--> statement-breakpoint
 CREATE INDEX `idx_pub_cartilla` ON `cartilla_publicaciones` (`cartilla_id`);--> statement-breakpoint
-CREATE INDEX `idx_reto_tenant` ON `cartilla_retos` (`tenant_id`);--> statement-breakpoint
+CREATE INDEX `idx_pub_tenant` ON `cartilla_publicaciones` (`tenant_id`);--> statement-breakpoint
 CREATE INDEX `idx_reto_cartilla` ON `cartilla_retos` (`cartilla_id`);--> statement-breakpoint
+CREATE INDEX `idx_reto_tenant` ON `cartilla_retos` (`tenant_id`);--> statement-breakpoint
 CREATE INDEX `modulo_id` ON `cartilla_usuario_modulos` (`modulo_id`);--> statement-breakpoint
 CREATE INDEX `actividad_id` ON `cartilla_usuario_respuestas` (`actividad_id`);--> statement-breakpoint
 CREATE INDEX `reto_id` ON `cartilla_usuario_retos` (`reto_id`);--> statement-breakpoint
-CREATE INDEX `idx_vocab_tenant` ON `cartilla_vocabulario` (`tenant_id`);--> statement-breakpoint
 CREATE INDEX `idx_vocab_cartilla` ON `cartilla_vocabulario` (`cartilla_id`);--> statement-breakpoint
-CREATE INDEX `idx_cartilla_tenant` ON `cartillas` (`tenant_id`);--> statement-breakpoint
+CREATE INDEX `idx_vocab_tenant` ON `cartilla_vocabulario` (`tenant_id`);--> statement-breakpoint
 CREATE INDEX `idx_cartilla_publicado` ON `cartillas` (`publicado`,`is_active`);--> statement-breakpoint
+CREATE INDEX `idx_cartilla_tenant` ON `cartillas` (`tenant_id`);--> statement-breakpoint
 CREATE INDEX `created_by` ON `cash_movements` (`created_by`);--> statement-breakpoint
-CREATE INDEX `idx_cash_movement_tenant` ON `cash_movements` (`tenant_id`);--> statement-breakpoint
 CREATE INDEX `idx_cash_movement_session` ON `cash_movements` (`session_id`);--> statement-breakpoint
-CREATE INDEX `opened_by` ON `cash_sessions` (`opened_by`);--> statement-breakpoint
+CREATE INDEX `idx_cash_movement_tenant` ON `cash_movements` (`tenant_id`);--> statement-breakpoint
 CREATE INDEX `closed_by` ON `cash_sessions` (`closed_by`);--> statement-breakpoint
-CREATE INDEX `idx_cash_session_tenant` ON `cash_sessions` (`tenant_id`);--> statement-breakpoint
-CREATE INDEX `idx_cash_session_status` ON `cash_sessions` (`status`);--> statement-breakpoint
 CREATE INDEX `idx_cash_session_opened` ON `cash_sessions` (`opened_at`);--> statement-breakpoint
+CREATE INDEX `idx_cash_session_status` ON `cash_sessions` (`status`);--> statement-breakpoint
+CREATE INDEX `idx_cash_session_tenant` ON `cash_sessions` (`tenant_id`);--> statement-breakpoint
+CREATE INDEX `opened_by` ON `cash_sessions` (`opened_by`);--> statement-breakpoint
 CREATE INDEX `idx_category_tenant` ON `categories` (`tenant_id`);--> statement-breakpoint
 CREATE INDEX `idx_cp_user` ON `challenge_participants` (`user_id`);--> statement-breakpoint
 CREATE INDEX `idx_chatbot_tenant` ON `chatbot_config` (`tenant_id`);--> statement-breakpoint
@@ -3487,19 +3490,19 @@ CREATE INDEX `idx_msg_session` ON `chatbot_messages` (`session_id`);--> statemen
 CREATE INDEX `idx_msg_tenant` ON `chatbot_messages` (`tenant_id`);--> statement-breakpoint
 CREATE INDEX `idx_session_tenant` ON `chatbot_sessions` (`tenant_id`);--> statement-breakpoint
 CREATE INDEX `idx_cfe_booking` ON `coach_feed_entries` (`booking_id`,`created_at`);--> statement-breakpoint
-CREATE INDEX `idx_comment_post` ON `community_comments` (`post_id`,`is_active`,`created_at`);--> statement-breakpoint
 CREATE INDEX `idx_comment_parent` ON `community_comments` (`parent_id`);--> statement-breakpoint
+CREATE INDEX `idx_comment_post` ON `community_comments` (`post_id`,`is_active`,`created_at`);--> statement-breakpoint
 CREATE INDEX `idx_ad_post` ON `community_post_ads` (`post_id`,`order_index`);--> statement-breakpoint
 CREATE INDEX `idx_ad_product` ON `community_post_ads` (`product_id`);--> statement-breakpoint
 CREATE INDEX `idx_media_post` ON `community_post_media` (`post_id`,`order_index`);--> statement-breakpoint
-CREATE INDEX `idx_post_status` ON `community_posts` (`status`,`is_active`,`published_at`);--> statement-breakpoint
 CREATE INDEX `idx_post_author` ON `community_posts` (`author_id`);--> statement-breakpoint
 CREATE INDEX `idx_post_category` ON `community_posts` (`category`);--> statement-breakpoint
-CREATE INDEX `idx_reaction_post` ON `community_reactions` (`post_id`,`type`);--> statement-breakpoint
+CREATE INDEX `idx_post_status` ON `community_posts` (`status`,`is_active`,`published_at`);--> statement-breakpoint
 CREATE INDEX `idx_reaction_device` ON `community_reactions` (`device_id`);--> statement-breakpoint
+CREATE INDEX `idx_reaction_post` ON `community_reactions` (`post_id`,`type`);--> statement-breakpoint
 CREATE INDEX `idx_cac_active` ON `consumer_access_codes` (`is_active`,`scope`,`tier`);--> statement-breakpoint
-CREATE INDEX `idx_cal_user` ON `consumer_access_ledger` (`user_id`,`created_at`);--> statement-breakpoint
 CREATE INDEX `idx_cal_code` ON `consumer_access_ledger` (`code_id`);--> statement-breakpoint
+CREATE INDEX `idx_cal_user` ON `consumer_access_ledger` (`user_id`,`created_at`);--> statement-breakpoint
 CREATE INDEX `idx_ach_user` ON `consumer_achievements` (`user_id`);--> statement-breakpoint
 CREATE INDEX `idx_bl_user` ON `consumer_body_logs` (`user_id`,`logged_on`);--> statement-breakpoint
 CREATE INDEX `idx_dc_user` ON `consumer_daily_checks` (`user_id`,`day`);--> statement-breakpoint
@@ -3509,61 +3512,61 @@ CREATE INDEX `idx_cev_user` ON `consumer_events` (`user_id`,`created_at`);--> st
 CREATE INDEX `idx_cpg_user_active` ON `consumer_plan_grants` (`user_id`,`status`,`expires_at`);--> statement-breakpoint
 CREATE INDEX `idx_cvu_user` ON `consumer_vault_unlocks` (`user_id`);--> statement-breakpoint
 CREATE INDEX `idx_xp_user` ON `consumer_xp_log` (`user_id`,`created_at`);--> statement-breakpoint
-CREATE INDEX `received_by` ON `credit_payments` (`received_by`);--> statement-breakpoint
-CREATE INDEX `idx_credit_payments_tenant` ON `credit_payments` (`tenant_id`);--> statement-breakpoint
-CREATE INDEX `idx_credit_payments_sale` ON `credit_payments` (`sale_id`);--> statement-breakpoint
 CREATE INDEX `idx_credit_payments_customer` ON `credit_payments` (`customer_id`);--> statement-breakpoint
 CREATE INDEX `idx_credit_payments_date` ON `credit_payments` (`created_at`);--> statement-breakpoint
+CREATE INDEX `idx_credit_payments_sale` ON `credit_payments` (`sale_id`);--> statement-breakpoint
+CREATE INDEX `idx_credit_payments_tenant` ON `credit_payments` (`tenant_id`);--> statement-breakpoint
+CREATE INDEX `received_by` ON `credit_payments` (`received_by`);--> statement-breakpoint
 CREATE INDEX `idx_customer_tenant` ON `customers` (`tenant_id`);--> statement-breakpoint
 CREATE INDEX `idx_customers_name` ON `customers` (`name`);--> statement-breakpoint
-CREATE INDEX `user_id` ON `dev_requests` (`user_id`);--> statement-breakpoint
-CREATE INDEX `idx_dev_req_tenant` ON `dev_requests` (`tenant_id`);--> statement-breakpoint
-CREATE INDEX `idx_dev_req_status` ON `dev_requests` (`status`);--> statement-breakpoint
 CREATE INDEX `idx_dev_req_created` ON `dev_requests` (`created_at`);--> statement-breakpoint
-CREATE INDEX `idx_coupon_tenant` ON `discount_coupons` (`tenant_id`);--> statement-breakpoint
+CREATE INDEX `idx_dev_req_status` ON `dev_requests` (`status`);--> statement-breakpoint
+CREATE INDEX `idx_dev_req_tenant` ON `dev_requests` (`tenant_id`);--> statement-breakpoint
+CREATE INDEX `user_id` ON `dev_requests` (`user_id`);--> statement-breakpoint
 CREATE INDEX `idx_coupon_active` ON `discount_coupons` (`is_active`);--> statement-breakpoint
+CREATE INDEX `idx_coupon_tenant` ON `discount_coupons` (`tenant_id`);--> statement-breakpoint
 CREATE INDEX `idx_dc_user` ON `drop_claims` (`user_id`);--> statement-breakpoint
-CREATE INDEX `idx_drop_window` ON `drops` (`starts_at`,`ends_at`);--> statement-breakpoint
 CREATE INDEX `idx_drop_status` ON `drops` (`status`);--> statement-breakpoint
+CREATE INDEX `idx_drop_window` ON `drops` (`starts_at`,`ends_at`);--> statement-breakpoint
 CREATE INDEX `idx_cargos_tenant` ON `employee_cargos` (`tenant_id`);--> statement-breakpoint
-CREATE INDEX `idx_novelties_tenant` ON `employee_novelties` (`tenant_id`);--> statement-breakpoint
-CREATE INDEX `idx_novelties_user` ON `employee_novelties` (`user_id`);--> statement-breakpoint
 CREATE INDEX `idx_novelties_date` ON `employee_novelties` (`tenant_id`,`start_date`);--> statement-breakpoint
-CREATE INDEX `idx_novelties_type` ON `employee_novelties` (`tenant_id`,`type`);--> statement-breakpoint
 CREATE INDEX `idx_novelties_status` ON `employee_novelties` (`tenant_id`,`status`);--> statement-breakpoint
-CREATE INDEX `user_id` ON `employee_vacation_balances` (`user_id`);--> statement-breakpoint
+CREATE INDEX `idx_novelties_tenant` ON `employee_novelties` (`tenant_id`);--> statement-breakpoint
+CREATE INDEX `idx_novelties_type` ON `employee_novelties` (`tenant_id`,`type`);--> statement-breakpoint
+CREATE INDEX `idx_novelties_user` ON `employee_novelties` (`user_id`);--> statement-breakpoint
 CREATE INDEX `idx_vacation_tenant` ON `employee_vacation_balances` (`tenant_id`);--> statement-breakpoint
+CREATE INDEX `user_id` ON `employee_vacation_balances` (`user_id`);--> statement-breakpoint
 CREATE INDEX `category_id` ON `finance_budgets` (`category_id`);--> statement-breakpoint
 CREATE INDEX `idx_budget_period` ON `finance_budgets` (`tenant_id`,`year`,`month`);--> statement-breakpoint
 CREATE INDEX `idx_fin_cat_tenant` ON `finance_categories` (`tenant_id`,`type`);--> statement-breakpoint
 CREATE INDEX `category_id` ON `finance_transactions` (`category_id`);--> statement-breakpoint
 CREATE INDEX `created_by` ON `finance_transactions` (`created_by`);--> statement-breakpoint
+CREATE INDEX `idx_fin_tx_category` ON `finance_transactions` (`tenant_id`,`category_id`);--> statement-breakpoint
+CREATE INDEX `idx_fin_tx_date` ON `finance_transactions` (`tenant_id`,`transaction_date`);--> statement-breakpoint
+CREATE INDEX `idx_fin_tx_recurring` ON `finance_transactions` (`tenant_id`,`is_recurring`);--> statement-breakpoint
+CREATE INDEX `idx_fin_tx_source` ON `finance_transactions` (`source_type`,`source_id`);--> statement-breakpoint
 CREATE INDEX `idx_fin_tx_tenant` ON `finance_transactions` (`tenant_id`);--> statement-breakpoint
 CREATE INDEX `idx_fin_tx_type` ON `finance_transactions` (`tenant_id`,`type`);--> statement-breakpoint
-CREATE INDEX `idx_fin_tx_date` ON `finance_transactions` (`tenant_id`,`transaction_date`);--> statement-breakpoint
-CREATE INDEX `idx_fin_tx_category` ON `finance_transactions` (`tenant_id`,`category_id`);--> statement-breakpoint
-CREATE INDEX `idx_fin_tx_source` ON `finance_transactions` (`source_type`,`source_id`);--> statement-breakpoint
-CREATE INDEX `idx_fin_tx_recurring` ON `finance_transactions` (`tenant_id`,`is_recurring`);--> statement-breakpoint
 CREATE INDEX `created_by` ON `fleet_maintenance` (`created_by`);--> statement-breakpoint
-CREATE INDEX `idx_maintenance_tenant` ON `fleet_maintenance` (`tenant_id`);--> statement-breakpoint
-CREATE INDEX `idx_maintenance_vehicle` ON `fleet_maintenance` (`vehicle_id`);--> statement-breakpoint
 CREATE INDEX `idx_maintenance_scheduled` ON `fleet_maintenance` (`scheduled_date`);--> statement-breakpoint
 CREATE INDEX `idx_maintenance_status` ON `fleet_maintenance` (`status`);--> statement-breakpoint
-CREATE INDEX `idx_fleet_tenant` ON `fleet_vehicles` (`tenant_id`);--> statement-breakpoint
+CREATE INDEX `idx_maintenance_tenant` ON `fleet_maintenance` (`tenant_id`);--> statement-breakpoint
+CREATE INDEX `idx_maintenance_vehicle` ON `fleet_maintenance` (`vehicle_id`);--> statement-breakpoint
 CREATE INDEX `idx_fleet_status` ON `fleet_vehicles` (`status`);--> statement-breakpoint
+CREATE INDEX `idx_fleet_tenant` ON `fleet_vehicles` (`tenant_id`);--> statement-breakpoint
 CREATE INDEX `idx_fleet_type` ON `fleet_vehicles` (`type`);--> statement-breakpoint
 CREATE INDEX `idx_gm_guild` ON `guild_members` (`guild_id`);--> statement-breakpoint
-CREATE INDEX `idx_hc_tenant` ON `horma_colors` (`tenant_id`);--> statement-breakpoint
 CREATE INDEX `idx_hc_horma` ON `horma_colors` (`horma_id`,`tenant_id`);--> statement-breakpoint
+CREATE INDEX `idx_hc_tenant` ON `horma_colors` (`tenant_id`);--> statement-breakpoint
 CREATE INDEX `idx_hormas_tenant` ON `hormas` (`tenant_id`,`is_active`);--> statement-breakpoint
-CREATE INDEX `idx_ih_order` ON `inventory_holds` (`order_id`);--> statement-breakpoint
-CREATE INDEX `idx_ih_tenant` ON `inventory_holds` (`tenant_id`);--> statement-breakpoint
-CREATE INDEX `idx_ih_product_tenant` ON `inventory_holds` (`product_id`,`tenant_id`);--> statement-breakpoint
 CREATE INDEX `idx_ih_expires` ON `inventory_holds` (`expires_at`);--> statement-breakpoint
-CREATE INDEX `idx_im_variant` ON `inventory_movements` (`variant_id`);--> statement-breakpoint
+CREATE INDEX `idx_ih_order` ON `inventory_holds` (`order_id`);--> statement-breakpoint
+CREATE INDEX `idx_ih_product_tenant` ON `inventory_holds` (`product_id`,`tenant_id`);--> statement-breakpoint
+CREATE INDEX `idx_ih_tenant` ON `inventory_holds` (`tenant_id`);--> statement-breakpoint
+CREATE INDEX `idx_im_created` ON `inventory_movements` (`tenant_id`,`created_at`);--> statement-breakpoint
 CREATE INDEX `idx_im_product` ON `inventory_movements` (`product_id`);--> statement-breakpoint
 CREATE INDEX `idx_im_tenant` ON `inventory_movements` (`tenant_id`);--> statement-breakpoint
-CREATE INDEX `idx_im_created` ON `inventory_movements` (`tenant_id`,`created_at`);--> statement-breakpoint
+CREATE INDEX `idx_im_variant` ON `inventory_movements` (`variant_id`);--> statement-breakpoint
 CREATE INDEX `idx_lp_user` ON `legend_purchases` (`user_id`,`status`);--> statement-breakpoint
 CREATE INDEX `idx_la_email_time` ON `login_attempts` (`email`,`attempted_at`);--> statement-breakpoint
 CREATE INDEX `idx_la_ip_time` ON `login_attempts` (`ip_address`,`attempted_at`);--> statement-breakpoint
@@ -3573,178 +3576,179 @@ CREATE INDEX `idx_mec_visible` ON `marketplace_external_cards` (`is_visible`,`so
 CREATE INDEX `idx_ml_product` ON `menu_likes` (`product_id`);--> statement-breakpoint
 CREATE INDEX `idx_ml_tenant` ON `menu_likes` (`tenant_id`);--> statement-breakpoint
 CREATE INDEX `idx_mevent_tenant` ON `merchant_events` (`tenant_id`,`is_active`,`event_date`);--> statement-breakpoint
-CREATE INDEX `idx_notif_tenant_read` ON `merchant_notifications` (`tenant_id`,`is_read`);--> statement-breakpoint
 CREATE INDEX `idx_notif_created` ON `merchant_notifications` (`created_at`);--> statement-breakpoint
+CREATE INDEX `idx_notif_tenant_read` ON `merchant_notifications` (`tenant_id`,`is_read`);--> statement-breakpoint
 CREATE INDEX `idx_notif_tenant` ON `notifications` (`tenant_id`,`is_read`,`created_at`);--> statement-breakpoint
 CREATE INDEX `idx_osh_order` ON `order_status_history` (`order_id`);--> statement-breakpoint
 CREATE INDEX `idx_osh_tenant` ON `order_status_history` (`tenant_id`);--> statement-breakpoint
 CREATE INDEX `idx_pl_tenant` ON `par_levels` (`tenant_id`);--> statement-breakpoint
-CREATE INDEX `seller_id` ON `payroll_adjustments` (`seller_id`);--> statement-breakpoint
-CREATE INDEX `idx_adj_tenant_seller` ON `payroll_adjustments` (`tenant_id`,`seller_id`);--> statement-breakpoint
 CREATE INDEX `idx_adj_period` ON `payroll_adjustments` (`tenant_id`,`period_from`,`period_to`);--> statement-breakpoint
-CREATE INDEX `idx_payroll_tenant` ON `payroll_records` (`tenant_id`);--> statement-breakpoint
-CREATE INDEX `idx_payroll_seller` ON `payroll_records` (`seller_id`);--> statement-breakpoint
+CREATE INDEX `idx_adj_tenant_seller` ON `payroll_adjustments` (`tenant_id`,`seller_id`);--> statement-breakpoint
+CREATE INDEX `seller_id` ON `payroll_adjustments` (`seller_id`);--> statement-breakpoint
 CREATE INDEX `idx_payroll_period` ON `payroll_records` (`tenant_id`,`period_from`,`period_to`);--> statement-breakpoint
+CREATE INDEX `idx_payroll_seller` ON `payroll_records` (`seller_id`);--> statement-breakpoint
 CREATE INDEX `idx_payroll_status` ON `payroll_records` (`tenant_id`,`status`);--> statement-breakpoint
+CREATE INDEX `idx_payroll_tenant` ON `payroll_records` (`tenant_id`);--> statement-breakpoint
 CREATE INDEX `category_id` ON `portfolio_service_options` (`category_id`);--> statement-breakpoint
-CREATE INDEX `idx_price_tenant` ON `price_history` (`tenant_id`);--> statement-breakpoint
 CREATE INDEX `idx_price_product_date` ON `price_history` (`product_id`,`created_at`);--> statement-breakpoint
-CREATE INDEX `idx_printers_tenant` ON `printers` (`tenant_id`);--> statement-breakpoint
+CREATE INDEX `idx_price_tenant` ON `price_history` (`tenant_id`);--> statement-breakpoint
 CREATE INDEX `idx_printers_module` ON `printers` (`tenant_id`,`assigned_module`);--> statement-breakpoint
-CREATE INDEX `product_id` ON `product_alerts` (`product_id`);--> statement-breakpoint
-CREATE INDEX `idx_alert_tenant` ON `product_alerts` (`tenant_id`);--> statement-breakpoint
+CREATE INDEX `idx_printers_tenant` ON `printers` (`tenant_id`);--> statement-breakpoint
 CREATE INDEX `idx_alert_date` ON `product_alerts` (`alert_date`,`is_resolved`);--> statement-breakpoint
-CREATE INDEX `idx_alert_type` ON `product_alerts` (`alert_type`);--> statement-breakpoint
 CREATE INDEX `idx_alert_priority` ON `product_alerts` (`priority`,`is_resolved`);--> statement-breakpoint
+CREATE INDEX `idx_alert_tenant` ON `product_alerts` (`tenant_id`);--> statement-breakpoint
+CREATE INDEX `idx_alert_type` ON `product_alerts` (`alert_type`);--> statement-breakpoint
+CREATE INDEX `product_id` ON `product_alerts` (`product_id`);--> statement-breakpoint
 CREATE INDEX `idx_pmg_product` ON `product_modifier_groups` (`product_id`);--> statement-breakpoint
 CREATE INDEX `idx_pmg_tenant` ON `product_modifier_groups` (`tenant_id`);--> statement-breakpoint
 CREATE INDEX `idx_pmo_group` ON `product_modifier_options` (`group_id`);--> statement-breakpoint
 CREATE INDEX `idx_pmo_tenant` ON `product_modifier_options` (`tenant_id`);--> statement-breakpoint
-CREATE INDEX `ingredient_id` ON `product_recipes` (`ingredient_id`);--> statement-breakpoint
 CREATE INDEX `idx_recipe_product` ON `product_recipes` (`product_id`);--> statement-breakpoint
 CREATE INDEX `idx_recipe_tenant` ON `product_recipes` (`tenant_id`);--> statement-breakpoint
-CREATE INDEX `idx_reviews_tenant` ON `product_reviews` (`tenant_id`);--> statement-breakpoint
+CREATE INDEX `ingredient_id` ON `product_recipes` (`ingredient_id`);--> statement-breakpoint
 CREATE INDEX `idx_reviews_product` ON `product_reviews` (`product_id`);--> statement-breakpoint
 CREATE INDEX `idx_reviews_status` ON `product_reviews` (`tenant_id`,`status`);--> statement-breakpoint
-CREATE INDEX `idx_pv_product` ON `product_variants` (`product_id`);--> statement-breakpoint
-CREATE INDEX `idx_pv_tenant_product` ON `product_variants` (`tenant_id`,`product_id`);--> statement-breakpoint
-CREATE INDEX `idx_pv_supplier` ON `product_variants` (`supplier_id`);--> statement-breakpoint
-CREATE INDEX `idx_pv_sku` ON `product_variants` (`tenant_id`,`sku`);--> statement-breakpoint
+CREATE INDEX `idx_reviews_tenant` ON `product_reviews` (`tenant_id`);--> statement-breakpoint
 CREATE INDEX `idx_pv_horma` ON `product_variants` (`horma_id`);--> statement-breakpoint
-CREATE INDEX `supplier_id` ON `products` (`supplier_id`);--> statement-breakpoint
-CREATE INDEX `idx_product_tenant` ON `products` (`tenant_id`);--> statement-breakpoint
+CREATE INDEX `idx_pv_product` ON `product_variants` (`product_id`);--> statement-breakpoint
+CREATE INDEX `idx_pv_sku` ON `product_variants` (`tenant_id`,`sku`);--> statement-breakpoint
+CREATE INDEX `idx_pv_supplier` ON `product_variants` (`supplier_id`);--> statement-breakpoint
+CREATE INDEX `idx_pv_tenant_product` ON `product_variants` (`tenant_id`,`product_id`);--> statement-breakpoint
 CREATE INDEX `idx_category` ON `products` (`category`);--> statement-breakpoint
-CREATE INDEX `idx_products_store` ON `products` (`tenant_id`,`published_in_store`);--> statement-breakpoint
-CREATE INDEX `idx_products_offer` ON `products` (`tenant_id`,`is_on_offer`);--> statement-breakpoint
-CREATE INDEX `idx_products_expiry` ON `products` (`tenant_id`,`expiry_date`);--> statement-breakpoint
-CREATE INDEX `idx_products_delivery` ON `products` (`tenant_id`,`delivery_type`);--> statement-breakpoint
-CREATE INDEX `idx_products_preorder` ON `products` (`tenant_id`,`is_preorder`);--> statement-breakpoint
 CREATE INDEX `idx_menu_item` ON `products` (`tenant_id`,`is_menu_item`,`available_in_menu`);--> statement-breakpoint
 CREATE INDEX `idx_prep_area` ON `products` (`tenant_id`,`preparation_area`);--> statement-breakpoint
+CREATE INDEX `idx_product_tenant` ON `products` (`tenant_id`);--> statement-breakpoint
+CREATE INDEX `idx_products_delivery` ON `products` (`tenant_id`,`delivery_type`);--> statement-breakpoint
+CREATE INDEX `idx_products_expiry` ON `products` (`tenant_id`,`expiry_date`);--> statement-breakpoint
 CREATE INDEX `idx_products_horma` ON `products` (`horma_id`);--> statement-breakpoint
-CREATE INDEX `idx_psection_tenant` ON `profile_sections` (`tenant_id`,`order_index`);--> statement-breakpoint
+CREATE INDEX `idx_products_offer` ON `products` (`tenant_id`,`is_on_offer`);--> statement-breakpoint
+CREATE INDEX `idx_products_preorder` ON `products` (`tenant_id`,`is_preorder`);--> statement-breakpoint
+CREATE INDEX `idx_products_store` ON `products` (`tenant_id`,`published_in_store`);--> statement-breakpoint
+CREATE INDEX `supplier_id` ON `products` (`supplier_id`);--> statement-breakpoint
 CREATE INDEX `idx_psection_active` ON `profile_sections` (`tenant_id`,`is_active`);--> statement-breakpoint
-CREATE INDEX `tenant_id` ON `purchase_invoice_items` (`tenant_id`);--> statement-breakpoint
+CREATE INDEX `idx_psection_tenant` ON `profile_sections` (`tenant_id`,`order_index`);--> statement-breakpoint
 CREATE INDEX `idx_purchase_items_invoice` ON `purchase_invoice_items` (`invoice_id`);--> statement-breakpoint
 CREATE INDEX `idx_purchase_items_product` ON `purchase_invoice_items` (`product_id`);--> statement-breakpoint
+CREATE INDEX `tenant_id` ON `purchase_invoice_items` (`tenant_id`);--> statement-breakpoint
 CREATE INDEX `created_by` ON `purchase_invoices` (`created_by`);--> statement-breakpoint
-CREATE INDEX `idx_purchase_invoices_tenant` ON `purchase_invoices` (`tenant_id`);--> statement-breakpoint
 CREATE INDEX `idx_purchase_invoices_date` ON `purchase_invoices` (`purchase_date`);--> statement-breakpoint
-CREATE INDEX `idx_purchase_invoices_supplier` ON `purchase_invoices` (`supplier_id`);--> statement-breakpoint
 CREATE INDEX `idx_purchase_invoices_status` ON `purchase_invoices` (`tenant_id`,`payment_status`);--> statement-breakpoint
+CREATE INDEX `idx_purchase_invoices_supplier` ON `purchase_invoices` (`supplier_id`);--> statement-breakpoint
+CREATE INDEX `idx_purchase_invoices_tenant` ON `purchase_invoices` (`tenant_id`);--> statement-breakpoint
 CREATE INDEX `idx_purchases_synced` ON `purchase_invoices` (`synced`);--> statement-breakpoint
 CREATE INDEX `idx_push_user` ON `push_subscriptions` (`user_id`);--> statement-breakpoint
 CREATE INDEX `idx_rb_gastos_tenant_date` ON `rb_gastos` (`tenant_id`,`registered_at`);--> statement-breakpoint
 CREATE INDEX `idx_rb_gastos_fijos_tenant` ON `rb_gastos_fijos` (`tenant_id`,`is_active`);--> statement-breakpoint
 CREATE INDEX `idx_jukebox_tenant` ON `rb_jukebox_queue` (`tenant_id`,`status`,`created_at`);--> statement-breakpoint
-CREATE INDEX `menu_item_id` ON `rb_order_items` (`menu_item_id`);--> statement-breakpoint
+CREATE INDEX `idx_rb_item_area` ON `rb_order_items` (`tenant_id`,`preparation_area`,`status`);--> statement-breakpoint
 CREATE INDEX `idx_rb_item_order` ON `rb_order_items` (`order_id`);--> statement-breakpoint
 CREATE INDEX `idx_rb_item_status` ON `rb_order_items` (`tenant_id`,`status`);--> statement-breakpoint
-CREATE INDEX `idx_rb_item_area` ON `rb_order_items` (`tenant_id`,`preparation_area`,`status`);--> statement-breakpoint
-CREATE INDEX `waiter_id` ON `rb_orders` (`waiter_id`);--> statement-breakpoint
-CREATE INDEX `sale_id` ON `rb_orders` (`sale_id`);--> statement-breakpoint
-CREATE INDEX `idx_rb_order_table` ON `rb_orders` (`table_id`,`status`);--> statement-breakpoint
+CREATE INDEX `menu_item_id` ON `rb_order_items` (`menu_item_id`);--> statement-breakpoint
 CREATE INDEX `idx_rb_order_status` ON `rb_orders` (`tenant_id`,`status`);--> statement-breakpoint
+CREATE INDEX `idx_rb_order_table` ON `rb_orders` (`table_id`,`status`);--> statement-breakpoint
 CREATE INDEX `idx_rb_order_waiter` ON `rb_orders` (`tenant_id`,`waiter_id`);--> statement-breakpoint
+CREATE INDEX `sale_id` ON `rb_orders` (`sale_id`);--> statement-breakpoint
+CREATE INDEX `waiter_id` ON `rb_orders` (`waiter_id`);--> statement-breakpoint
 CREATE INDEX `cashier_id` ON `rb_payments` (`cashier_id`);--> statement-breakpoint
 CREATE INDEX `idx_rb_payment_order` ON `rb_payments` (`order_id`);--> statement-breakpoint
-CREATE INDEX `idx_rb_payment_tenant` ON `rb_payments` (`tenant_id`);--> statement-breakpoint
 CREATE INDEX `idx_rb_payment_session` ON `rb_payments` (`cash_session_id`);--> statement-breakpoint
-CREATE INDEX `idx_rb_res_tenant_status` ON `rb_reservations` (`tenant_id`,`status`);--> statement-breakpoint
+CREATE INDEX `idx_rb_payment_tenant` ON `rb_payments` (`tenant_id`);--> statement-breakpoint
 CREATE INDEX `idx_rb_res_date` ON `rb_reservations` (`tenant_id`,`reservation_date`);--> statement-breakpoint
 CREATE INDEX `idx_rb_res_table_date` ON `rb_reservations` (`table_id`,`reservation_date`);--> statement-breakpoint
 CREATE INDEX `idx_rb_res_tenant_date_status` ON `rb_reservations` (`tenant_id`,`reservation_date`,`status`);--> statement-breakpoint
+CREATE INDEX `idx_rb_res_tenant_status` ON `rb_reservations` (`tenant_id`,`status`);--> statement-breakpoint
 CREATE INDEX `idx_rbtg_session` ON `rb_table_guests` (`session_id`);--> statement-breakpoint
 CREATE INDEX `idx_rbts_table` ON `rb_table_sessions` (`table_id`,`status`);--> statement-breakpoint
 CREATE INDEX `idx_rb_table_status` ON `rb_tables` (`tenant_id`,`status`);--> statement-breakpoint
+CREATE INDEX `idx_re_clients_agent` ON `re_clients` (`assigned_agent_id`);--> statement-breakpoint
 CREATE INDEX `idx_re_clients_tenant` ON `re_clients` (`tenant_id`);--> statement-breakpoint
 CREATE INDEX `idx_re_clients_type` ON `re_clients` (`tenant_id`,`client_type`);--> statement-breakpoint
-CREATE INDEX `idx_re_clients_agent` ON `re_clients` (`assigned_agent_id`);--> statement-breakpoint
-CREATE INDEX `idx_re_con_tenant` ON `re_contracts` (`tenant_id`);--> statement-breakpoint
-CREATE INDEX `idx_re_con_property` ON `re_contracts` (`property_id`);--> statement-breakpoint
 CREATE INDEX `idx_re_con_client` ON `re_contracts` (`client_id`);--> statement-breakpoint
-CREATE INDEX `idx_re_con_status` ON `re_contracts` (`tenant_id`,`status`);--> statement-breakpoint
-CREATE INDEX `idx_re_con_type` ON `re_contracts` (`tenant_id`,`contract_type`);--> statement-breakpoint
 CREATE INDEX `idx_re_con_end` ON `re_contracts` (`end_date`);--> statement-breakpoint
+CREATE INDEX `idx_re_con_property` ON `re_contracts` (`property_id`);--> statement-breakpoint
+CREATE INDEX `idx_re_con_status` ON `re_contracts` (`tenant_id`,`status`);--> statement-breakpoint
+CREATE INDEX `idx_re_con_tenant` ON `re_contracts` (`tenant_id`);--> statement-breakpoint
+CREATE INDEX `idx_re_con_type` ON `re_contracts` (`tenant_id`,`contract_type`);--> statement-breakpoint
 CREATE INDEX `idx_re_act_lead` ON `re_lead_activities` (`lead_id`);--> statement-breakpoint
-CREATE INDEX `idx_re_act_tenant` ON `re_lead_activities` (`tenant_id`);--> statement-breakpoint
 CREATE INDEX `idx_re_act_sched` ON `re_lead_activities` (`tenant_id`,`scheduled_at`);--> statement-breakpoint
-CREATE INDEX `idx_re_leads_tenant` ON `re_leads` (`tenant_id`);--> statement-breakpoint
-CREATE INDEX `idx_re_leads_stage` ON `re_leads` (`tenant_id`,`stage`);--> statement-breakpoint
+CREATE INDEX `idx_re_act_tenant` ON `re_lead_activities` (`tenant_id`);--> statement-breakpoint
 CREATE INDEX `idx_re_leads_agent` ON `re_leads` (`assigned_agent_id`);--> statement-breakpoint
 CREATE INDEX `idx_re_leads_prop` ON `re_leads` (`property_id`);--> statement-breakpoint
-CREATE INDEX `idx_re_maint_tenant` ON `re_maintenances` (`tenant_id`);--> statement-breakpoint
+CREATE INDEX `idx_re_leads_stage` ON `re_leads` (`tenant_id`,`stage`);--> statement-breakpoint
+CREATE INDEX `idx_re_leads_tenant` ON `re_leads` (`tenant_id`);--> statement-breakpoint
+CREATE INDEX `idx_re_maint_priority` ON `re_maintenances` (`tenant_id`,`priority`);--> statement-breakpoint
 CREATE INDEX `idx_re_maint_property` ON `re_maintenances` (`property_id`);--> statement-breakpoint
 CREATE INDEX `idx_re_maint_status` ON `re_maintenances` (`tenant_id`,`status`);--> statement-breakpoint
-CREATE INDEX `idx_re_maint_priority` ON `re_maintenances` (`tenant_id`,`priority`);--> statement-breakpoint
+CREATE INDEX `idx_re_maint_tenant` ON `re_maintenances` (`tenant_id`);--> statement-breakpoint
 CREATE INDEX `idx_re_owners_tenant` ON `re_owners` (`tenant_id`);--> statement-breakpoint
-CREATE INDEX `idx_re_prop_type` ON `re_properties` (`tenant_id`,`property_type`);--> statement-breakpoint
-CREATE INDEX `idx_re_prop_status` ON `re_properties` (`tenant_id`,`status`);--> statement-breakpoint
-CREATE INDEX `idx_re_prop_op` ON `re_properties` (`tenant_id`,`operation_type`);--> statement-breakpoint
-CREATE INDEX `idx_re_prop_published` ON `re_properties` (`tenant_id`,`is_published`);--> statement-breakpoint
-CREATE INDEX `idx_re_prop_featured` ON `re_properties` (`tenant_id`,`is_featured`);--> statement-breakpoint
-CREATE INDEX `idx_re_prop_owner` ON `re_properties` (`owner_id`);--> statement-breakpoint
 CREATE INDEX `idx_re_prop_agent` ON `re_properties` (`assigned_agent_id`);--> statement-breakpoint
+CREATE INDEX `idx_re_prop_featured` ON `re_properties` (`tenant_id`,`is_featured`);--> statement-breakpoint
+CREATE INDEX `idx_re_prop_op` ON `re_properties` (`tenant_id`,`operation_type`);--> statement-breakpoint
+CREATE INDEX `idx_re_prop_owner` ON `re_properties` (`owner_id`);--> statement-breakpoint
+CREATE INDEX `idx_re_prop_published` ON `re_properties` (`tenant_id`,`is_published`);--> statement-breakpoint
+CREATE INDEX `idx_re_prop_status` ON `re_properties` (`tenant_id`,`status`);--> statement-breakpoint
+CREATE INDEX `idx_re_prop_type` ON `re_properties` (`tenant_id`,`property_type`);--> statement-breakpoint
 CREATE INDEX `idx_re_feat_prop` ON `re_property_features` (`property_id`);--> statement-breakpoint
 CREATE INDEX `idx_re_media_prop` ON `re_property_media` (`property_id`);--> statement-breakpoint
 CREATE INDEX `idx_re_media_type` ON `re_property_media` (`property_id`,`media_type`);--> statement-breakpoint
 CREATE INDEX `idx_re_pay_contract` ON `re_rent_payments` (`contract_id`);--> statement-breakpoint
-CREATE INDEX `idx_re_pay_status` ON `re_rent_payments` (`tenant_id`,`status`);--> statement-breakpoint
 CREATE INDEX `idx_re_pay_due` ON `re_rent_payments` (`due_date`);--> statement-breakpoint
 CREATE INDEX `idx_re_pay_period` ON `re_rent_payments` (`contract_id`,`period_year`,`period_month`);--> statement-breakpoint
-CREATE INDEX `idx_re_vis_tenant` ON `re_visits` (`tenant_id`);--> statement-breakpoint
-CREATE INDEX `idx_re_vis_property` ON `re_visits` (`property_id`);--> statement-breakpoint
-CREATE INDEX `idx_re_vis_date` ON `re_visits` (`tenant_id`,`scheduled_at`);--> statement-breakpoint
+CREATE INDEX `idx_re_pay_status` ON `re_rent_payments` (`tenant_id`,`status`);--> statement-breakpoint
 CREATE INDEX `idx_re_vis_agent` ON `re_visits` (`assigned_agent_id`);--> statement-breakpoint
+CREATE INDEX `idx_re_vis_date` ON `re_visits` (`tenant_id`,`scheduled_at`);--> statement-breakpoint
+CREATE INDEX `idx_re_vis_property` ON `re_visits` (`property_id`);--> statement-breakpoint
 CREATE INDEX `idx_re_vis_status` ON `re_visits` (`tenant_id`,`status`);--> statement-breakpoint
-CREATE INDEX `tenant_id` ON `refresh_tokens` (`tenant_id`);--> statement-breakpoint
-CREATE INDEX `idx_rt_user` ON `refresh_tokens` (`user_id`);--> statement-breakpoint
+CREATE INDEX `idx_re_vis_tenant` ON `re_visits` (`tenant_id`);--> statement-breakpoint
 CREATE INDEX `idx_rt_expires` ON `refresh_tokens` (`expires_at`);--> statement-breakpoint
+CREATE INDEX `idx_rt_user` ON `refresh_tokens` (`user_id`);--> statement-breakpoint
 CREATE INDEX `idx_rt_user_valid` ON `refresh_tokens` (`user_id`,`revoked_at`,`expires_at`);--> statement-breakpoint
-CREATE INDEX `idx_sale_items_tenant` ON `sale_items` (`tenant_id`);--> statement-breakpoint
-CREATE INDEX `idx_sale` ON `sale_items` (`sale_id`);--> statement-breakpoint
+CREATE INDEX `tenant_id` ON `refresh_tokens` (`tenant_id`);--> statement-breakpoint
 CREATE INDEX `idx_product` ON `sale_items` (`product_id`);--> statement-breakpoint
+CREATE INDEX `idx_sale` ON `sale_items` (`sale_id`);--> statement-breakpoint
+CREATE INDEX `idx_sale_items_tenant` ON `sale_items` (`tenant_id`);--> statement-breakpoint
 CREATE INDEX `idx_sale_items_tenant_product` ON `sale_items` (`tenant_id`,`product_id`);--> statement-breakpoint
 CREATE INDEX `idx_si_variant` ON `sale_items` (`variant_id`);--> statement-breakpoint
 CREATE INDEX `customer_id` ON `sales` (`customer_id`);--> statement-breakpoint
-CREATE INDEX `seller_id` ON `sales` (`seller_id`);--> statement-breakpoint
+CREATE INDEX `idx_created` ON `sales` (`created_at`);--> statement-breakpoint
+CREATE INDEX `idx_invoice` ON `sales` (`invoice_number`);--> statement-breakpoint
+CREATE INDEX `idx_sale_tenant` ON `sales` (`tenant_id`);--> statement-breakpoint
+CREATE INDEX `idx_sales_credit_status` ON `sales` (`credit_status`);--> statement-breakpoint
+CREATE INDEX `idx_sales_due_date` ON `sales` (`due_date`);--> statement-breakpoint
+CREATE INDEX `idx_sales_payment_method` ON `sales` (`payment_method`);--> statement-breakpoint
+CREATE INDEX `idx_sales_sede_id` ON `sales` (`sede_id`);--> statement-breakpoint
+CREATE INDEX `idx_sales_synced` ON `sales` (`synced`);--> statement-breakpoint
+CREATE INDEX `idx_sales_tenant_customer` ON `sales` (`tenant_id`,`customer_id`);--> statement-breakpoint
 CREATE INDEX `idx_sales_tenant_date` ON `sales` (`tenant_id`,`created_at`);--> statement-breakpoint
 CREATE INDEX `idx_sales_tenant_status_date` ON `sales` (`tenant_id`,`status`,`created_at`);--> statement-breakpoint
-CREATE INDEX `idx_sales_tenant_customer` ON `sales` (`tenant_id`,`customer_id`);--> statement-breakpoint
-CREATE INDEX `idx_sale_tenant` ON `sales` (`tenant_id`);--> statement-breakpoint
-CREATE INDEX `idx_invoice` ON `sales` (`invoice_number`);--> statement-breakpoint
-CREATE INDEX `idx_status` ON `sales` (`status`);--> statement-breakpoint
-CREATE INDEX `idx_created` ON `sales` (`created_at`);--> statement-breakpoint
-CREATE INDEX `idx_sales_credit_status` ON `sales` (`credit_status`);--> statement-breakpoint
-CREATE INDEX `idx_sales_payment_method` ON `sales` (`payment_method`);--> statement-breakpoint
-CREATE INDEX `idx_sales_due_date` ON `sales` (`due_date`);--> statement-breakpoint
-CREATE INDEX `idx_sales_synced` ON `sales` (`synced`);--> statement-breakpoint
-CREATE INDEX `idx_sales_sede_id` ON `sales` (`sede_id`);--> statement-breakpoint
 CREATE INDEX `idx_sales_vehicle` ON `sales` (`vehicle_id`);--> statement-breakpoint
+CREATE INDEX `idx_status` ON `sales` (`status`);--> statement-breakpoint
+CREATE INDEX `seller_id` ON `sales` (`seller_id`);--> statement-breakpoint
 CREATE INDEX `idx_sc_window` ON `seasonal_challenges` (`starts_at`,`ends_at`);--> statement-breakpoint
 CREATE INDEX `idx_sedes_tenant` ON `sedes` (`tenant_id`);--> statement-breakpoint
-CREATE INDEX `tenant_id` ON `service_availability` (`tenant_id`);--> statement-breakpoint
-CREATE INDEX `idx_availability_service` ON `service_availability` (`service_id`);--> statement-breakpoint
 CREATE INDEX `idx_availability_day` ON `service_availability` (`service_id`,`day_of_week`);--> statement-breakpoint
-CREATE INDEX `idx_blocked_tenant_date` ON `service_blocked_periods` (`tenant_id`,`blocked_date`);--> statement-breakpoint
+CREATE INDEX `idx_availability_service` ON `service_availability` (`service_id`);--> statement-breakpoint
+CREATE INDEX `tenant_id` ON `service_availability` (`tenant_id`);--> statement-breakpoint
 CREATE INDEX `idx_blocked_service_date` ON `service_blocked_periods` (`service_id`,`blocked_date`);--> statement-breakpoint
-CREATE INDEX `idx_bookings_tenant` ON `service_bookings` (`tenant_id`);--> statement-breakpoint
+CREATE INDEX `idx_blocked_tenant_date` ON `service_blocked_periods` (`tenant_id`,`blocked_date`);--> statement-breakpoint
+CREATE INDEX `idx_bookings_date` ON `service_bookings` (`tenant_id`,`booking_date`);--> statement-breakpoint
 CREATE INDEX `idx_bookings_service` ON `service_bookings` (`service_id`);--> statement-breakpoint
 CREATE INDEX `idx_bookings_status` ON `service_bookings` (`tenant_id`,`status`);--> statement-breakpoint
-CREATE INDEX `idx_bookings_date` ON `service_bookings` (`tenant_id`,`booking_date`);--> statement-breakpoint
-CREATE INDEX `idx_services_tenant` ON `services` (`tenant_id`);--> statement-breakpoint
+CREATE INDEX `idx_bookings_tenant` ON `service_bookings` (`tenant_id`);--> statement-breakpoint
+CREATE INDEX `idx_bookings_tenant_date` ON `service_bookings` (`tenant_id`,`booking_date`);--> statement-breakpoint
 CREATE INDEX `idx_services_published` ON `services` (`tenant_id`,`is_published`);--> statement-breakpoint
+CREATE INDEX `idx_services_tenant` ON `services` (`tenant_id`);--> statement-breakpoint
 CREATE INDEX `idx_services_type` ON `services` (`service_type`);--> statement-breakpoint
-CREATE INDEX `idx_bonus_session` ON `shift_employee_bonuses` (`session_id`);--> statement-breakpoint
 CREATE INDEX `idx_bonus_emp` ON `shift_employee_bonuses` (`shift_emp_id`);--> statement-breakpoint
+CREATE INDEX `idx_bonus_session` ON `shift_employee_bonuses` (`session_id`);--> statement-breakpoint
 CREATE INDEX `idx_shiftemp_session` ON `shift_employees` (`session_id`);--> statement-breakpoint
 CREATE INDEX `idx_shiftemp_tenant` ON `shift_employees` (`tenant_id`);--> statement-breakpoint
-CREATE INDEX `user_id` ON `stock_movements` (`user_id`);--> statement-breakpoint
-CREATE INDEX `idx_stock_tenant` ON `stock_movements` (`tenant_id`);--> statement-breakpoint
-CREATE INDEX `idx_stock_product` ON `stock_movements` (`product_id`);--> statement-breakpoint
-CREATE INDEX `idx_stock_type` ON `stock_movements` (`type`);--> statement-breakpoint
 CREATE INDEX `idx_stock_created` ON `stock_movements` (`created_at`);--> statement-breakpoint
+CREATE INDEX `idx_stock_product` ON `stock_movements` (`product_id`);--> statement-breakpoint
+CREATE INDEX `idx_stock_tenant` ON `stock_movements` (`tenant_id`);--> statement-breakpoint
 CREATE INDEX `idx_stock_tenant_date` ON `stock_movements` (`tenant_id`,`created_at`);--> statement-breakpoint
+CREATE INDEX `idx_stock_type` ON `stock_movements` (`type`);--> statement-breakpoint
+CREATE INDEX `user_id` ON `stock_movements` (`user_id`);--> statement-breakpoint
 CREATE INDEX `idx_banner_tenant_pos` ON `store_banners` (`tenant_id`,`position`);--> statement-breakpoint
 CREATE INDEX `idx_custom_section_tenant` ON `store_custom_sections` (`tenant_id`);--> statement-breakpoint
 CREATE INDEX `product_id` ON `store_drop_products` (`product_id`);--> statement-breakpoint
@@ -3753,26 +3757,26 @@ CREATE INDEX `product_id` ON `store_featured_products` (`product_id`);--> statem
 CREATE INDEX `idx_store_municipality` ON `store_info` (`municipality`);--> statement-breakpoint
 CREATE INDEX `idx_location_tenant` ON `store_locations` (`tenant_id`);--> statement-breakpoint
 CREATE INDEX `idx_location_zone` ON `store_locations` (`zone`);--> statement-breakpoint
-CREATE INDEX `product_id` ON `storefront_order_items` (`product_id`);--> statement-breakpoint
 CREATE INDEX `idx_order_item_order` ON `storefront_order_items` (`order_id`);--> statement-breakpoint
 CREATE INDEX `idx_soi_variant` ON `storefront_order_items` (`variant_id`);--> statement-breakpoint
-CREATE INDEX `idx_order_tenant` ON `storefront_orders` (`tenant_id`);--> statement-breakpoint
-CREATE INDEX `idx_order_tenant_status` ON `storefront_orders` (`tenant_id`,`status`);--> statement-breakpoint
-CREATE INDEX `idx_order_tenant_date` ON `storefront_orders` (`tenant_id`,`created_at`);--> statement-breakpoint
-CREATE INDEX `idx_order_number` ON `storefront_orders` (`order_number`);--> statement-breakpoint
-CREATE INDEX `idx_order_created` ON `storefront_orders` (`created_at`);--> statement-breakpoint
-CREATE INDEX `idx_order_driver` ON `storefront_orders` (`delivery_driver_id`);--> statement-breakpoint
+CREATE INDEX `product_id` ON `storefront_order_items` (`product_id`);--> statement-breakpoint
 CREATE INDEX `idx_order_client` ON `storefront_orders` (`client_user_id`);--> statement-breakpoint
-CREATE INDEX `idx_order_vehicle` ON `storefront_orders` (`vehicle_id`);--> statement-breakpoint
+CREATE INDEX `idx_order_created` ON `storefront_orders` (`created_at`);--> statement-breakpoint
 CREATE INDEX `idx_order_dispatch_status` ON `storefront_orders` (`dispatch_status`);--> statement-breakpoint
-CREATE INDEX `idx_sp_supplier` ON `supplier_products` (`supplier_id`);--> statement-breakpoint
+CREATE INDEX `idx_order_driver` ON `storefront_orders` (`delivery_driver_id`);--> statement-breakpoint
+CREATE INDEX `idx_order_number` ON `storefront_orders` (`order_number`);--> statement-breakpoint
+CREATE INDEX `idx_order_tenant` ON `storefront_orders` (`tenant_id`);--> statement-breakpoint
+CREATE INDEX `idx_order_tenant_date` ON `storefront_orders` (`tenant_id`,`created_at`);--> statement-breakpoint
+CREATE INDEX `idx_order_tenant_status` ON `storefront_orders` (`tenant_id`,`status`);--> statement-breakpoint
+CREATE INDEX `idx_order_vehicle` ON `storefront_orders` (`vehicle_id`);--> statement-breakpoint
 CREATE INDEX `idx_sp_product` ON `supplier_products` (`product_id`);--> statement-breakpoint
+CREATE INDEX `idx_sp_supplier` ON `supplier_products` (`supplier_id`);--> statement-breakpoint
 CREATE INDEX `idx_sp_supplier_product` ON `supplier_products` (`supplier_id`,`product_id`);--> statement-breakpoint
-CREATE INDEX `idx_supplier_tenant` ON `suppliers` (`tenant_id`);--> statement-breakpoint
-CREATE INDEX `idx_supplier_name` ON `suppliers` (`name`);--> statement-breakpoint
 CREATE INDEX `idx_supplier_active` ON `suppliers` (`is_active`);--> statement-breakpoint
-CREATE INDEX `idx_tenant_status` ON `tenants` (`status`);--> statement-breakpoint
+CREATE INDEX `idx_supplier_name` ON `suppliers` (`name`);--> statement-breakpoint
+CREATE INDEX `idx_supplier_tenant` ON `suppliers` (`tenant_id`);--> statement-breakpoint
 CREATE INDEX `idx_tenant_slug` ON `tenants` (`slug`);--> statement-breakpoint
+CREATE INDEX `idx_tenant_status` ON `tenants` (`status`);--> statement-breakpoint
 CREATE INDEX `idx_t4fleet_tenant` ON `theme4_fleet` (`tenant_id`,`is_active`);--> statement-breakpoint
 CREATE INDEX `idx_t4proj_tenant` ON `theme4_projects` (`tenant_id`,`is_active`,`order_index`);--> statement-breakpoint
 CREATE INDEX `idx_t4routes_tenant` ON `theme4_routes` (`tenant_id`,`is_active`);--> statement-breakpoint
@@ -3781,10 +3785,10 @@ CREATE INDEX `idx_t4stats_tenant` ON `theme4_stats` (`tenant_id`,`is_active`,`or
 CREATE INDEX `idx_t4steps_tenant` ON `theme4_steps` (`tenant_id`,`is_active`,`step_number`);--> statement-breakpoint
 CREATE INDEX `idx_t4team_tenant` ON `theme4_team` (`tenant_id`,`is_active`,`order_index`);--> statement-breakpoint
 CREATE INDEX `idx_t4test_tenant` ON `theme4_testimonials` (`tenant_id`,`is_active`,`order_index`);--> statement-breakpoint
-CREATE INDEX `offer_id` ON `trainer_bookings` (`offer_id`);--> statement-breakpoint
-CREATE INDEX `idx_trbk_user` ON `trainer_bookings` (`user_id`,`status`);--> statement-breakpoint
-CREATE INDEX `idx_trbk_trainer` ON `trainer_bookings` (`trainer_id`,`status`);--> statement-breakpoint
 CREATE INDEX `idx_trbk_ref` ON `trainer_bookings` (`wompi_reference`);--> statement-breakpoint
+CREATE INDEX `idx_trbk_trainer` ON `trainer_bookings` (`trainer_id`,`status`);--> statement-breakpoint
+CREATE INDEX `idx_trbk_user` ON `trainer_bookings` (`user_id`,`status`);--> statement-breakpoint
+CREATE INDEX `offer_id` ON `trainer_bookings` (`offer_id`);--> statement-breakpoint
 CREATE INDEX `booking_id` ON `trainer_commissions` (`booking_id`);--> statement-breakpoint
 CREATE INDEX `idx_trcomm_trainer` ON `trainer_commissions` (`trainer_id`,`status`);--> statement-breakpoint
 CREATE INDEX `idx_troffer_trainer` ON `trainer_offers` (`trainer_id`,`is_active`);--> statement-breakpoint
@@ -3792,31 +3796,31 @@ CREATE INDEX `idx_trrev_trainer` ON `trainer_reviews` (`trainer_id`);--> stateme
 CREATE INDEX `idx_trwd_trainer` ON `trainer_withdrawals` (`trainer_id`,`status`);--> statement-breakpoint
 CREATE INDEX `idx_tr_status` ON `trainers` (`status`);--> statement-breakpoint
 CREATE INDEX `idx_ua_user` ON `user_addresses` (`user_id`);--> statement-breakpoint
-CREATE INDEX `idx_users_tenant` ON `users` (`tenant_id`);--> statement-breakpoint
-CREATE INDEX `idx_users_role` ON `users` (`role`);--> statement-breakpoint
-CREATE INDEX `idx_users_active` ON `users` (`is_active`);--> statement-breakpoint
 CREATE INDEX `idx_google_id` ON `users` (`google_id`);--> statement-breakpoint
+CREATE INDEX `idx_users_active` ON `users` (`is_active`);--> statement-breakpoint
+CREATE INDEX `idx_users_role` ON `users` (`role`);--> statement-breakpoint
+CREATE INDEX `idx_users_tenant` ON `users` (`tenant_id`);--> statement-breakpoint
+CREATE INDEX `idx_vpt_tenant` ON `variant_price_tiers` (`tenant_id`);--> statement-breakpoint
 CREATE INDEX `idx_vpt_variant` ON `variant_price_tiers` (`variant_id`);--> statement-breakpoint
 CREATE INDEX `idx_vpt_variant_minqty` ON `variant_price_tiers` (`variant_id`,`tenant_id`,`min_qty`);--> statement-breakpoint
-CREATE INDEX `idx_vpt_tenant` ON `variant_price_tiers` (`tenant_id`);--> statement-breakpoint
 CREATE INDEX `idx_vkr_user` ON `vault_key_redemptions` (`user_id`);--> statement-breakpoint
 CREATE INDEX `idx_vk_status` ON `vault_keys` (`status`);--> statement-breakpoint
-CREATE INDEX `idx_wr_tenant_date` ON `waste_records` (`tenant_id`,`created_at`);--> statement-breakpoint
-CREATE INDEX `idx_wr_product` ON `waste_records` (`product_id`);--> statement-breakpoint
 CREATE INDEX `idx_wr_area` ON `waste_records` (`area`);--> statement-breakpoint
+CREATE INDEX `idx_wr_product` ON `waste_records` (`product_id`);--> statement-breakpoint
+CREATE INDEX `idx_wr_tenant_date` ON `waste_records` (`tenant_id`,`created_at`);--> statement-breakpoint
+CREATE INDEX `idx_wtx_context` ON `wompi_transactions` (`context`,`context_id`);--> statement-breakpoint
 CREATE INDEX `idx_wtx_status` ON `wompi_transactions` (`status`);--> statement-breakpoint
 CREATE INDEX `idx_wtx_tenant` ON `wompi_transactions` (`tenant_id`);--> statement-breakpoint
-CREATE INDEX `idx_wtx_context` ON `wompi_transactions` (`context`,`context_id`);--> statement-breakpoint
-CREATE INDEX `tenant_id` ON `work_order_materials` (`tenant_id`);--> statement-breakpoint
 CREATE INDEX `idx_wo_mat_order` ON `work_order_materials` (`work_order_id`);--> statement-breakpoint
-CREATE INDEX `received_by` ON `work_order_payments` (`received_by`);--> statement-breakpoint
+CREATE INDEX `tenant_id` ON `work_order_materials` (`tenant_id`);--> statement-breakpoint
 CREATE INDEX `idx_wo_pay_order` ON `work_order_payments` (`work_order_id`);--> statement-breakpoint
 CREATE INDEX `idx_wo_pay_tenant` ON `work_order_payments` (`tenant_id`);--> statement-breakpoint
+CREATE INDEX `received_by` ON `work_order_payments` (`received_by`);--> statement-breakpoint
 CREATE INDEX `assigned_to` ON `work_orders` (`assigned_to`);--> statement-breakpoint
 CREATE INDEX `created_by` ON `work_orders` (`created_by`);--> statement-breakpoint
-CREATE INDEX `idx_wo_tenant_status` ON `work_orders` (`tenant_id`,`status`);--> statement-breakpoint
-CREATE INDEX `idx_wo_promised` ON `work_orders` (`tenant_id`,`promised_at`);--> statement-breakpoint
 CREATE INDEX `idx_wo_customer` ON `work_orders` (`tenant_id`,`customer_name`);--> statement-breakpoint
+CREATE INDEX `idx_wo_promised` ON `work_orders` (`tenant_id`,`promised_at`);--> statement-breakpoint
+CREATE INDEX `idx_wo_tenant_status` ON `work_orders` (`tenant_id`,`status`);--> statement-breakpoint
 CREATE INDEX `idx_we_session` ON `workout_exercises` (`session_id`,`exercise_order`);--> statement-breakpoint
 CREATE INDEX `idx_we_user_ex` ON `workout_exercises` (`user_id`,`exercise_id`);--> statement-breakpoint
 CREATE INDEX `idx_ws_user` ON `workout_sessions` (`user_id`,`status`);--> statement-breakpoint
@@ -3827,16 +3831,16 @@ SQL SECURITY definer
 VIEW `v_customer_balances` AS (select `c`.`id` AS `customer_id`,`c`.`tenant_id` AS `tenant_id`,`c`.`cedula` AS `cedula`,`c`.`name` AS `customer_name`,`c`.`phone` AS `phone`,`c`.`email` AS `email`,`c`.`address` AS `address`,`c`.`credit_limit` AS `credit_limit`,`c`.`notes` AS `notes`,coalesce(`s_agg`.`total_credit`,0) AS `total_credit`,coalesce(`cp_agg`.`total_paid`,0) AS `total_paid`,(coalesce(`s_agg`.`total_credit`,0) - coalesce(`cp_agg`.`total_paid`,0)) AS `balance`,`c`.`created_at` AS `created_at`,`c`.`updated_at` AS `updated_at` from ((`customers` `c` left join (select `sales`.`customer_id` AS `customer_id`,sum(`sales`.`total`) AS `total_credit` from `sales` where ((`sales`.`payment_method` = 'fiado') and (`sales`.`status` = 'completada')) group by `sales`.`customer_id`) `s_agg` on((`s_agg`.`customer_id` = `c`.`id`))) left join (select `credit_payments`.`customer_id` AS `customer_id`,sum(`credit_payments`.`amount`) AS `total_paid` from `credit_payments` group by `credit_payments`.`customer_id`) `cp_agg` on((`cp_agg`.`customer_id` = `c`.`id`))));--> statement-breakpoint
 CREATE ALGORITHM = undefined
 SQL SECURITY definer
-VIEW `v_products_expiring_soon` AS (select `p`.`id` AS `id`,`p`.`tenant_id` AS `tenant_id`,`p`.`name` AS `name`,`p`.`articulo` AS `articulo`,`p`.`category` AS `category`,`p`.`product_type` AS `product_type`,`p`.`brand` AS `brand`,`p`.`model` AS `model`,`p`.`description` AS `description`,`p`.`purchase_price` AS `purchase_price`,`p`.`sale_price` AS `sale_price`,`p`.`sku` AS `sku`,`p`.`barcode` AS `barcode`,`p`.`stock` AS `stock`,`p`.`reorder_point` AS `reorder_point`,`p`.`supplier` AS `supplier`,`p`.`supplier_id` AS `supplier_id`,`p`.`entry_date` AS `entry_date`,`p`.`image_url` AS `image_url`,`p`.`image_urls` AS `image_urls`,`p`.`location_in_store` AS `location_in_store`,`p`.`notes` AS `notes`,`p`.`tags` AS `tags`,`p`.`expiry_date` AS `expiry_date`,`p`.`batch_number` AS `batch_number`,`p`.`net_weight` AS `net_weight`,`p`.`weight_unit` AS `weight_unit`,`p`.`sanitary_registration` AS `sanitary_registration`,`p`.`storage_temperature` AS `storage_temperature`,`p`.`ingredients` AS `ingredients`,`p`.`nutritional_info` AS `nutritional_info`,`p`.`alcohol_content` AS `alcohol_content`,`p`.`allergens` AS `allergens`,`p`.`size` AS `size`,`p`.`color` AS `color`,`p`.`material` AS `material`,`p`.`gender` AS `gender`,`p`.`season` AS `season`,`p`.`garment_type` AS `garment_type`,`p`.`washing_instructions` AS `washing_instructions`,`p`.`country_of_origin` AS `country_of_origin`,`p`.`serial_number` AS `serial_number`,`p`.`warranty_months` AS `warranty_months`,`p`.`technical_specs` AS `technical_specs`,`p`.`voltage` AS `voltage`,`p`.`power_watts` AS `power_watts`,`p`.`compatibility` AS `compatibility`,`p`.`includes_accessories` AS `includes_accessories`,`p`.`product_condition` AS `product_condition`,`p`.`active_ingredient` AS `active_ingredient`,`p`.`concentration` AS `concentration`,`p`.`requires_prescription` AS `requires_prescription`,`p`.`administration_route` AS `administration_route`,`p`.`presentation` AS `presentation`,`p`.`units_per_package` AS `units_per_package`,`p`.`laboratory` AS `laboratory`,`p`.`contraindications` AS `contraindications`,`p`.`dimensions` AS `dimensions`,`p`.`weight` AS `weight`,`p`.`hardware_weight_unit` AS `hardware_weight_unit`,`p`.`caliber` AS `caliber`,`p`.`resistance` AS `resistance`,`p`.`finish` AS `finish`,`p`.`recommended_use` AS `recommended_use`,`p`.`author` AS `author`,`p`.`publisher` AS `publisher`,`p`.`isbn` AS `isbn`,`p`.`pages` AS `pages`,`p`.`language` AS `language`,`p`.`publication_year` AS `publication_year`,`p`.`edition` AS `edition`,`p`.`book_format` AS `book_format`,`p`.`recommended_age` AS `recommended_age`,`p`.`number_of_players` AS `number_of_players`,`p`.`game_type` AS `game_type`,`p`.`requires_batteries` AS `requires_batteries`,`p`.`package_dimensions` AS `package_dimensions`,`p`.`package_contents` AS `package_contents`,`p`.`safety_warnings` AS `safety_warnings`,`p`.`published_in_store` AS `published_in_store`,`p`.`available_for_delivery` AS `available_for_delivery`,`p`.`delivery_type` AS `delivery_type`,`p`.`is_new_launch` AS `is_new_launch`,`p`.`launch_date` AS `launch_date`,`p`.`is_preorder` AS `is_preorder`,`p`.`preorder_window_end` AS `preorder_window_end`,`p`.`preorder_ship_start` AS `preorder_ship_start`,`p`.`preorder_ship_end` AS `preorder_ship_end`,`p`.`preorder_badge_text` AS `preorder_badge_text`,`p`.`preorder_policy_text` AS `preorder_policy_text`,`p`.`is_on_offer` AS `is_on_offer`,`p`.`offer_price` AS `offer_price`,`p`.`offer_label` AS `offer_label`,`p`.`offer_start` AS `offer_start`,`p`.`offer_end` AS `offer_end`,`p`.`sede_id` AS `sede_id`,`p`.`created_at` AS `created_at`,`p`.`updated_at` AS `updated_at`,`p`.`created_by` AS `created_by`,`p`.`updated_by` AS `updated_by`,`c`.`name` AS `category_name`,(to_days(`p`.`expiry_date`) - to_days(curdate())) AS `days_until_expiry` from (`products` `p` left join `categories` `c` on(((`p`.`category` = `c`.`id`) and (`p`.`tenant_id` = `c`.`tenant_id`)))) where ((`p`.`expiry_date` is not null) and (`p`.`expiry_date` <= (curdate() + interval 30 day)) and (`p`.`expiry_date` >= curdate())) order by `p`.`expiry_date`);--> statement-breakpoint
+VIEW `v_products_expiring_soon` AS (select `p`.`id` AS `id`,`p`.`tenant_id` AS `tenant_id`,`p`.`name` AS `name`,`p`.`articulo` AS `articulo`,`p`.`category` AS `category`,`p`.`product_type` AS `product_type`,`p`.`brand` AS `brand`,`p`.`model` AS `model`,`p`.`description` AS `description`,`p`.`purchase_price` AS `purchase_price`,`p`.`sale_price` AS `sale_price`,`p`.`sku` AS `sku`,`p`.`barcode` AS `barcode`,`p`.`stock` AS `stock`,`p`.`reorder_point` AS `reorder_point`,`p`.`supplier` AS `supplier`,`p`.`supplier_id` AS `supplier_id`,`p`.`entry_date` AS `entry_date`,`p`.`image_url` AS `image_url`,`p`.`image_urls` AS `image_urls`,`p`.`location_in_store` AS `location_in_store`,`p`.`notes` AS `notes`,`p`.`tags` AS `tags`,`p`.`expiry_date` AS `expiry_date`,`p`.`batch_number` AS `batch_number`,`p`.`net_weight` AS `net_weight`,`p`.`weight_unit` AS `weight_unit`,`p`.`sanitary_registration` AS `sanitary_registration`,`p`.`storage_temperature` AS `storage_temperature`,`p`.`ingredients` AS `ingredients`,`p`.`nutritional_info` AS `nutritional_info`,`p`.`alcohol_content` AS `alcohol_content`,`p`.`allergens` AS `allergens`,`p`.`size` AS `size`,`p`.`color` AS `color`,`p`.`material` AS `material`,`p`.`gender` AS `gender`,`p`.`season` AS `season`,`p`.`garment_type` AS `garment_type`,`p`.`washing_instructions` AS `washing_instructions`,`p`.`country_of_origin` AS `country_of_origin`,`p`.`serial_number` AS `serial_number`,`p`.`warranty_months` AS `warranty_months`,`p`.`technical_specs` AS `technical_specs`,`p`.`voltage` AS `voltage`,`p`.`power_watts` AS `power_watts`,`p`.`compatibility` AS `compatibility`,`p`.`includes_accessories` AS `includes_accessories`,`p`.`product_condition` AS `product_condition`,`p`.`active_ingredient` AS `active_ingredient`,`p`.`concentration` AS `concentration`,`p`.`requires_prescription` AS `requires_prescription`,`p`.`administration_route` AS `administration_route`,`p`.`presentation` AS `presentation`,`p`.`units_per_package` AS `units_per_package`,`p`.`laboratory` AS `laboratory`,`p`.`contraindications` AS `contraindications`,`p`.`dimensions` AS `dimensions`,`p`.`weight` AS `weight`,`p`.`hardware_weight_unit` AS `hardware_weight_unit`,`p`.`caliber` AS `caliber`,`p`.`resistance` AS `resistance`,`p`.`finish` AS `finish`,`p`.`recommended_use` AS `recommended_use`,`p`.`author` AS `author`,`p`.`publisher` AS `publisher`,`p`.`isbn` AS `isbn`,`p`.`pages` AS `pages`,`p`.`language` AS `language`,`p`.`publication_year` AS `publication_year`,`p`.`edition` AS `edition`,`p`.`book_format` AS `book_format`,`p`.`recommended_age` AS `recommended_age`,`p`.`number_of_players` AS `number_of_players`,`p`.`game_type` AS `game_type`,`p`.`requires_batteries` AS `requires_batteries`,`p`.`package_dimensions` AS `package_dimensions`,`p`.`package_contents` AS `package_contents`,`p`.`safety_warnings` AS `safety_warnings`,`p`.`published_in_store` AS `published_in_store`,`p`.`available_for_delivery` AS `available_for_delivery`,`p`.`delivery_type` AS `delivery_type`,`p`.`is_new_launch` AS `is_new_launch`,`p`.`launch_date` AS `launch_date`,`p`.`is_preorder` AS `is_preorder`,`p`.`preorder_window_end` AS `preorder_window_end`,`p`.`preorder_ship_start` AS `preorder_ship_start`,`p`.`preorder_ship_end` AS `preorder_ship_end`,`p`.`preorder_badge_text` AS `preorder_badge_text`,`p`.`preorder_policy_text` AS `preorder_policy_text`,`p`.`is_on_offer` AS `is_on_offer`,`p`.`offer_price` AS `offer_price`,`p`.`offer_label` AS `offer_label`,`p`.`offer_start` AS `offer_start`,`p`.`offer_end` AS `offer_end`,`p`.`sede_id` AS `sede_id`,`p`.`created_at` AS `created_at`,`p`.`updated_at` AS `updated_at`,`p`.`created_by` AS `created_by`,`p`.`updated_by` AS `updated_by`,`p`.`is_menu_item` AS `is_menu_item`,`p`.`is_ingredient` AS `is_ingredient`,`p`.`preparation_area` AS `preparation_area`,`p`.`prep_time_minutes` AS `prep_time_minutes`,`p`.`available_in_menu` AS `available_in_menu`,`p`.`qty_promo` AS `qty_promo`,`p`.`images` AS `images`,`p`.`horma_id` AS `horma_id`,`p`.`base_price` AS `base_price`,`c`.`name` AS `category_name`,(to_days(`p`.`expiry_date`) - to_days(curdate())) AS `days_until_expiry` from (`products` `p` left join `categories` `c` on(((`p`.`category` = `c`.`id`) and (`p`.`tenant_id` = `c`.`tenant_id`)))) where ((`p`.`expiry_date` is not null) and (`p`.`expiry_date` <= (curdate() + interval 30 day)) and (`p`.`expiry_date` >= curdate())) order by `p`.`expiry_date`);--> statement-breakpoint
 CREATE ALGORITHM = undefined
 SQL SECURITY definer
-VIEW `v_products_low_stock` AS (select `p`.`id` AS `id`,`p`.`tenant_id` AS `tenant_id`,`p`.`name` AS `name`,`p`.`articulo` AS `articulo`,`p`.`category` AS `category`,`p`.`product_type` AS `product_type`,`p`.`brand` AS `brand`,`p`.`model` AS `model`,`p`.`description` AS `description`,`p`.`purchase_price` AS `purchase_price`,`p`.`sale_price` AS `sale_price`,`p`.`sku` AS `sku`,`p`.`barcode` AS `barcode`,`p`.`stock` AS `stock`,`p`.`reorder_point` AS `reorder_point`,`p`.`supplier` AS `supplier`,`p`.`supplier_id` AS `supplier_id`,`p`.`entry_date` AS `entry_date`,`p`.`image_url` AS `image_url`,`p`.`image_urls` AS `image_urls`,`p`.`location_in_store` AS `location_in_store`,`p`.`notes` AS `notes`,`p`.`tags` AS `tags`,`p`.`expiry_date` AS `expiry_date`,`p`.`batch_number` AS `batch_number`,`p`.`net_weight` AS `net_weight`,`p`.`weight_unit` AS `weight_unit`,`p`.`sanitary_registration` AS `sanitary_registration`,`p`.`storage_temperature` AS `storage_temperature`,`p`.`ingredients` AS `ingredients`,`p`.`nutritional_info` AS `nutritional_info`,`p`.`alcohol_content` AS `alcohol_content`,`p`.`allergens` AS `allergens`,`p`.`size` AS `size`,`p`.`color` AS `color`,`p`.`material` AS `material`,`p`.`gender` AS `gender`,`p`.`season` AS `season`,`p`.`garment_type` AS `garment_type`,`p`.`washing_instructions` AS `washing_instructions`,`p`.`country_of_origin` AS `country_of_origin`,`p`.`serial_number` AS `serial_number`,`p`.`warranty_months` AS `warranty_months`,`p`.`technical_specs` AS `technical_specs`,`p`.`voltage` AS `voltage`,`p`.`power_watts` AS `power_watts`,`p`.`compatibility` AS `compatibility`,`p`.`includes_accessories` AS `includes_accessories`,`p`.`product_condition` AS `product_condition`,`p`.`active_ingredient` AS `active_ingredient`,`p`.`concentration` AS `concentration`,`p`.`requires_prescription` AS `requires_prescription`,`p`.`administration_route` AS `administration_route`,`p`.`presentation` AS `presentation`,`p`.`units_per_package` AS `units_per_package`,`p`.`laboratory` AS `laboratory`,`p`.`contraindications` AS `contraindications`,`p`.`dimensions` AS `dimensions`,`p`.`weight` AS `weight`,`p`.`hardware_weight_unit` AS `hardware_weight_unit`,`p`.`caliber` AS `caliber`,`p`.`resistance` AS `resistance`,`p`.`finish` AS `finish`,`p`.`recommended_use` AS `recommended_use`,`p`.`author` AS `author`,`p`.`publisher` AS `publisher`,`p`.`isbn` AS `isbn`,`p`.`pages` AS `pages`,`p`.`language` AS `language`,`p`.`publication_year` AS `publication_year`,`p`.`edition` AS `edition`,`p`.`book_format` AS `book_format`,`p`.`recommended_age` AS `recommended_age`,`p`.`number_of_players` AS `number_of_players`,`p`.`game_type` AS `game_type`,`p`.`requires_batteries` AS `requires_batteries`,`p`.`package_dimensions` AS `package_dimensions`,`p`.`package_contents` AS `package_contents`,`p`.`safety_warnings` AS `safety_warnings`,`p`.`published_in_store` AS `published_in_store`,`p`.`available_for_delivery` AS `available_for_delivery`,`p`.`delivery_type` AS `delivery_type`,`p`.`is_new_launch` AS `is_new_launch`,`p`.`launch_date` AS `launch_date`,`p`.`is_preorder` AS `is_preorder`,`p`.`preorder_window_end` AS `preorder_window_end`,`p`.`preorder_ship_start` AS `preorder_ship_start`,`p`.`preorder_ship_end` AS `preorder_ship_end`,`p`.`preorder_badge_text` AS `preorder_badge_text`,`p`.`preorder_policy_text` AS `preorder_policy_text`,`p`.`is_on_offer` AS `is_on_offer`,`p`.`offer_price` AS `offer_price`,`p`.`offer_label` AS `offer_label`,`p`.`offer_start` AS `offer_start`,`p`.`offer_end` AS `offer_end`,`p`.`sede_id` AS `sede_id`,`p`.`created_at` AS `created_at`,`p`.`updated_at` AS `updated_at`,`p`.`created_by` AS `created_by`,`p`.`updated_by` AS `updated_by`,`c`.`name` AS `category_name` from (`products` `p` left join `categories` `c` on(((`p`.`category` = `c`.`id`) and (`p`.`tenant_id` = `c`.`tenant_id`)))) where ((`p`.`stock` <= `p`.`reorder_point`) and (`p`.`stock` >= 0)) order by (`p`.`stock` - `p`.`reorder_point`));--> statement-breakpoint
+VIEW `v_products_low_stock` AS (select `p`.`id` AS `id`,`p`.`tenant_id` AS `tenant_id`,`p`.`name` AS `name`,`p`.`articulo` AS `articulo`,`p`.`category` AS `category`,`p`.`product_type` AS `product_type`,`p`.`brand` AS `brand`,`p`.`model` AS `model`,`p`.`description` AS `description`,`p`.`purchase_price` AS `purchase_price`,`p`.`sale_price` AS `sale_price`,`p`.`sku` AS `sku`,`p`.`barcode` AS `barcode`,`p`.`stock` AS `stock`,`p`.`reorder_point` AS `reorder_point`,`p`.`supplier` AS `supplier`,`p`.`supplier_id` AS `supplier_id`,`p`.`entry_date` AS `entry_date`,`p`.`image_url` AS `image_url`,`p`.`image_urls` AS `image_urls`,`p`.`location_in_store` AS `location_in_store`,`p`.`notes` AS `notes`,`p`.`tags` AS `tags`,`p`.`expiry_date` AS `expiry_date`,`p`.`batch_number` AS `batch_number`,`p`.`net_weight` AS `net_weight`,`p`.`weight_unit` AS `weight_unit`,`p`.`sanitary_registration` AS `sanitary_registration`,`p`.`storage_temperature` AS `storage_temperature`,`p`.`ingredients` AS `ingredients`,`p`.`nutritional_info` AS `nutritional_info`,`p`.`alcohol_content` AS `alcohol_content`,`p`.`allergens` AS `allergens`,`p`.`size` AS `size`,`p`.`color` AS `color`,`p`.`material` AS `material`,`p`.`gender` AS `gender`,`p`.`season` AS `season`,`p`.`garment_type` AS `garment_type`,`p`.`washing_instructions` AS `washing_instructions`,`p`.`country_of_origin` AS `country_of_origin`,`p`.`serial_number` AS `serial_number`,`p`.`warranty_months` AS `warranty_months`,`p`.`technical_specs` AS `technical_specs`,`p`.`voltage` AS `voltage`,`p`.`power_watts` AS `power_watts`,`p`.`compatibility` AS `compatibility`,`p`.`includes_accessories` AS `includes_accessories`,`p`.`product_condition` AS `product_condition`,`p`.`active_ingredient` AS `active_ingredient`,`p`.`concentration` AS `concentration`,`p`.`requires_prescription` AS `requires_prescription`,`p`.`administration_route` AS `administration_route`,`p`.`presentation` AS `presentation`,`p`.`units_per_package` AS `units_per_package`,`p`.`laboratory` AS `laboratory`,`p`.`contraindications` AS `contraindications`,`p`.`dimensions` AS `dimensions`,`p`.`weight` AS `weight`,`p`.`hardware_weight_unit` AS `hardware_weight_unit`,`p`.`caliber` AS `caliber`,`p`.`resistance` AS `resistance`,`p`.`finish` AS `finish`,`p`.`recommended_use` AS `recommended_use`,`p`.`author` AS `author`,`p`.`publisher` AS `publisher`,`p`.`isbn` AS `isbn`,`p`.`pages` AS `pages`,`p`.`language` AS `language`,`p`.`publication_year` AS `publication_year`,`p`.`edition` AS `edition`,`p`.`book_format` AS `book_format`,`p`.`recommended_age` AS `recommended_age`,`p`.`number_of_players` AS `number_of_players`,`p`.`game_type` AS `game_type`,`p`.`requires_batteries` AS `requires_batteries`,`p`.`package_dimensions` AS `package_dimensions`,`p`.`package_contents` AS `package_contents`,`p`.`safety_warnings` AS `safety_warnings`,`p`.`published_in_store` AS `published_in_store`,`p`.`available_for_delivery` AS `available_for_delivery`,`p`.`delivery_type` AS `delivery_type`,`p`.`is_new_launch` AS `is_new_launch`,`p`.`launch_date` AS `launch_date`,`p`.`is_preorder` AS `is_preorder`,`p`.`preorder_window_end` AS `preorder_window_end`,`p`.`preorder_ship_start` AS `preorder_ship_start`,`p`.`preorder_ship_end` AS `preorder_ship_end`,`p`.`preorder_badge_text` AS `preorder_badge_text`,`p`.`preorder_policy_text` AS `preorder_policy_text`,`p`.`is_on_offer` AS `is_on_offer`,`p`.`offer_price` AS `offer_price`,`p`.`offer_label` AS `offer_label`,`p`.`offer_start` AS `offer_start`,`p`.`offer_end` AS `offer_end`,`p`.`sede_id` AS `sede_id`,`p`.`created_at` AS `created_at`,`p`.`updated_at` AS `updated_at`,`p`.`created_by` AS `created_by`,`p`.`updated_by` AS `updated_by`,`p`.`is_menu_item` AS `is_menu_item`,`p`.`is_ingredient` AS `is_ingredient`,`p`.`preparation_area` AS `preparation_area`,`p`.`prep_time_minutes` AS `prep_time_minutes`,`p`.`available_in_menu` AS `available_in_menu`,`p`.`qty_promo` AS `qty_promo`,`p`.`images` AS `images`,`p`.`horma_id` AS `horma_id`,`p`.`base_price` AS `base_price`,`c`.`name` AS `category_name` from (`products` `p` left join `categories` `c` on(((`p`.`category` = `c`.`id`) and (`p`.`tenant_id` = `c`.`tenant_id`)))) where ((`p`.`stock` <= `p`.`reorder_point`) and (`p`.`stock` >= 0)) order by (`p`.`stock` - `p`.`reorder_point`));--> statement-breakpoint
 CREATE ALGORITHM = undefined
 SQL SECURITY definer
-VIEW `v_products_stock_status` AS (select `p`.`id` AS `id`,`p`.`tenant_id` AS `tenant_id`,`p`.`name` AS `name`,`p`.`articulo` AS `articulo`,`p`.`category` AS `category`,`p`.`product_type` AS `product_type`,`p`.`brand` AS `brand`,`p`.`model` AS `model`,`p`.`description` AS `description`,`p`.`purchase_price` AS `purchase_price`,`p`.`sale_price` AS `sale_price`,`p`.`sku` AS `sku`,`p`.`barcode` AS `barcode`,`p`.`stock` AS `stock`,`p`.`reorder_point` AS `reorder_point`,`p`.`supplier` AS `supplier`,`p`.`supplier_id` AS `supplier_id`,`p`.`entry_date` AS `entry_date`,`p`.`image_url` AS `image_url`,`p`.`image_urls` AS `image_urls`,`p`.`location_in_store` AS `location_in_store`,`p`.`notes` AS `notes`,`p`.`tags` AS `tags`,`p`.`expiry_date` AS `expiry_date`,`p`.`batch_number` AS `batch_number`,`p`.`net_weight` AS `net_weight`,`p`.`weight_unit` AS `weight_unit`,`p`.`sanitary_registration` AS `sanitary_registration`,`p`.`storage_temperature` AS `storage_temperature`,`p`.`ingredients` AS `ingredients`,`p`.`nutritional_info` AS `nutritional_info`,`p`.`alcohol_content` AS `alcohol_content`,`p`.`allergens` AS `allergens`,`p`.`size` AS `size`,`p`.`color` AS `color`,`p`.`material` AS `material`,`p`.`gender` AS `gender`,`p`.`season` AS `season`,`p`.`garment_type` AS `garment_type`,`p`.`washing_instructions` AS `washing_instructions`,`p`.`country_of_origin` AS `country_of_origin`,`p`.`serial_number` AS `serial_number`,`p`.`warranty_months` AS `warranty_months`,`p`.`technical_specs` AS `technical_specs`,`p`.`voltage` AS `voltage`,`p`.`power_watts` AS `power_watts`,`p`.`compatibility` AS `compatibility`,`p`.`includes_accessories` AS `includes_accessories`,`p`.`product_condition` AS `product_condition`,`p`.`active_ingredient` AS `active_ingredient`,`p`.`concentration` AS `concentration`,`p`.`requires_prescription` AS `requires_prescription`,`p`.`administration_route` AS `administration_route`,`p`.`presentation` AS `presentation`,`p`.`units_per_package` AS `units_per_package`,`p`.`laboratory` AS `laboratory`,`p`.`contraindications` AS `contraindications`,`p`.`dimensions` AS `dimensions`,`p`.`weight` AS `weight`,`p`.`hardware_weight_unit` AS `hardware_weight_unit`,`p`.`caliber` AS `caliber`,`p`.`resistance` AS `resistance`,`p`.`finish` AS `finish`,`p`.`recommended_use` AS `recommended_use`,`p`.`author` AS `author`,`p`.`publisher` AS `publisher`,`p`.`isbn` AS `isbn`,`p`.`pages` AS `pages`,`p`.`language` AS `language`,`p`.`publication_year` AS `publication_year`,`p`.`edition` AS `edition`,`p`.`book_format` AS `book_format`,`p`.`recommended_age` AS `recommended_age`,`p`.`number_of_players` AS `number_of_players`,`p`.`game_type` AS `game_type`,`p`.`requires_batteries` AS `requires_batteries`,`p`.`package_dimensions` AS `package_dimensions`,`p`.`package_contents` AS `package_contents`,`p`.`safety_warnings` AS `safety_warnings`,`p`.`published_in_store` AS `published_in_store`,`p`.`available_for_delivery` AS `available_for_delivery`,`p`.`delivery_type` AS `delivery_type`,`p`.`is_new_launch` AS `is_new_launch`,`p`.`launch_date` AS `launch_date`,`p`.`is_preorder` AS `is_preorder`,`p`.`preorder_window_end` AS `preorder_window_end`,`p`.`preorder_ship_start` AS `preorder_ship_start`,`p`.`preorder_ship_end` AS `preorder_ship_end`,`p`.`preorder_badge_text` AS `preorder_badge_text`,`p`.`preorder_policy_text` AS `preorder_policy_text`,`p`.`is_on_offer` AS `is_on_offer`,`p`.`offer_price` AS `offer_price`,`p`.`offer_label` AS `offer_label`,`p`.`offer_start` AS `offer_start`,`p`.`offer_end` AS `offer_end`,`p`.`sede_id` AS `sede_id`,`p`.`created_at` AS `created_at`,`p`.`updated_at` AS `updated_at`,`p`.`created_by` AS `created_by`,`p`.`updated_by` AS `updated_by`,(case when (`p`.`stock` = 0) then 'agotado' when (`p`.`stock` <= `p`.`reorder_point`) then 'bajo' else 'suficiente' end) AS `stock_status` from `products` `p`);--> statement-breakpoint
+VIEW `v_products_stock_status` AS (select `p`.`id` AS `id`,`p`.`tenant_id` AS `tenant_id`,`p`.`name` AS `name`,`p`.`articulo` AS `articulo`,`p`.`category` AS `category`,`p`.`product_type` AS `product_type`,`p`.`brand` AS `brand`,`p`.`model` AS `model`,`p`.`description` AS `description`,`p`.`purchase_price` AS `purchase_price`,`p`.`sale_price` AS `sale_price`,`p`.`sku` AS `sku`,`p`.`barcode` AS `barcode`,`p`.`stock` AS `stock`,`p`.`reorder_point` AS `reorder_point`,`p`.`supplier` AS `supplier`,`p`.`supplier_id` AS `supplier_id`,`p`.`entry_date` AS `entry_date`,`p`.`image_url` AS `image_url`,`p`.`image_urls` AS `image_urls`,`p`.`location_in_store` AS `location_in_store`,`p`.`notes` AS `notes`,`p`.`tags` AS `tags`,`p`.`expiry_date` AS `expiry_date`,`p`.`batch_number` AS `batch_number`,`p`.`net_weight` AS `net_weight`,`p`.`weight_unit` AS `weight_unit`,`p`.`sanitary_registration` AS `sanitary_registration`,`p`.`storage_temperature` AS `storage_temperature`,`p`.`ingredients` AS `ingredients`,`p`.`nutritional_info` AS `nutritional_info`,`p`.`alcohol_content` AS `alcohol_content`,`p`.`allergens` AS `allergens`,`p`.`size` AS `size`,`p`.`color` AS `color`,`p`.`material` AS `material`,`p`.`gender` AS `gender`,`p`.`season` AS `season`,`p`.`garment_type` AS `garment_type`,`p`.`washing_instructions` AS `washing_instructions`,`p`.`country_of_origin` AS `country_of_origin`,`p`.`serial_number` AS `serial_number`,`p`.`warranty_months` AS `warranty_months`,`p`.`technical_specs` AS `technical_specs`,`p`.`voltage` AS `voltage`,`p`.`power_watts` AS `power_watts`,`p`.`compatibility` AS `compatibility`,`p`.`includes_accessories` AS `includes_accessories`,`p`.`product_condition` AS `product_condition`,`p`.`active_ingredient` AS `active_ingredient`,`p`.`concentration` AS `concentration`,`p`.`requires_prescription` AS `requires_prescription`,`p`.`administration_route` AS `administration_route`,`p`.`presentation` AS `presentation`,`p`.`units_per_package` AS `units_per_package`,`p`.`laboratory` AS `laboratory`,`p`.`contraindications` AS `contraindications`,`p`.`dimensions` AS `dimensions`,`p`.`weight` AS `weight`,`p`.`hardware_weight_unit` AS `hardware_weight_unit`,`p`.`caliber` AS `caliber`,`p`.`resistance` AS `resistance`,`p`.`finish` AS `finish`,`p`.`recommended_use` AS `recommended_use`,`p`.`author` AS `author`,`p`.`publisher` AS `publisher`,`p`.`isbn` AS `isbn`,`p`.`pages` AS `pages`,`p`.`language` AS `language`,`p`.`publication_year` AS `publication_year`,`p`.`edition` AS `edition`,`p`.`book_format` AS `book_format`,`p`.`recommended_age` AS `recommended_age`,`p`.`number_of_players` AS `number_of_players`,`p`.`game_type` AS `game_type`,`p`.`requires_batteries` AS `requires_batteries`,`p`.`package_dimensions` AS `package_dimensions`,`p`.`package_contents` AS `package_contents`,`p`.`safety_warnings` AS `safety_warnings`,`p`.`published_in_store` AS `published_in_store`,`p`.`available_for_delivery` AS `available_for_delivery`,`p`.`delivery_type` AS `delivery_type`,`p`.`is_new_launch` AS `is_new_launch`,`p`.`launch_date` AS `launch_date`,`p`.`is_preorder` AS `is_preorder`,`p`.`preorder_window_end` AS `preorder_window_end`,`p`.`preorder_ship_start` AS `preorder_ship_start`,`p`.`preorder_ship_end` AS `preorder_ship_end`,`p`.`preorder_badge_text` AS `preorder_badge_text`,`p`.`preorder_policy_text` AS `preorder_policy_text`,`p`.`is_on_offer` AS `is_on_offer`,`p`.`offer_price` AS `offer_price`,`p`.`offer_label` AS `offer_label`,`p`.`offer_start` AS `offer_start`,`p`.`offer_end` AS `offer_end`,`p`.`sede_id` AS `sede_id`,`p`.`created_at` AS `created_at`,`p`.`updated_at` AS `updated_at`,`p`.`created_by` AS `created_by`,`p`.`updated_by` AS `updated_by`,`p`.`is_menu_item` AS `is_menu_item`,`p`.`is_ingredient` AS `is_ingredient`,`p`.`preparation_area` AS `preparation_area`,`p`.`prep_time_minutes` AS `prep_time_minutes`,`p`.`available_in_menu` AS `available_in_menu`,`p`.`qty_promo` AS `qty_promo`,`p`.`images` AS `images`,`p`.`horma_id` AS `horma_id`,`p`.`base_price` AS `base_price`,(case when (`p`.`stock` = 0) then 'agotado' when (`p`.`stock` <= `p`.`reorder_point`) then 'bajo' else 'suficiente' end) AS `stock_status` from `products` `p`);--> statement-breakpoint
 CREATE ALGORITHM = undefined
 SQL SECURITY definer
-VIEW `v_sales_detail` AS (select `s`.`id` AS `id`,`s`.`tenant_id` AS `tenant_id`,`s`.`invoice_number` AS `invoice_number`,`s`.`customer_id` AS `customer_id`,`s`.`customer_name` AS `customer_name`,`s`.`customer_phone` AS `customer_phone`,`s`.`customer_email` AS `customer_email`,`s`.`subtotal` AS `subtotal`,`s`.`tax` AS `tax`,`s`.`discount` AS `discount`,`s`.`total` AS `total`,`s`.`payment_method` AS `payment_method`,`s`.`amount_paid` AS `amount_paid`,`s`.`change_amount` AS `change_amount`,`s`.`seller_id` AS `seller_id`,`s`.`seller_name` AS `seller_name`,`s`.`cash_session_id` AS `cash_session_id`,`s`.`status` AS `status`,`s`.`credit_status` AS `credit_status`,`s`.`due_date` AS `due_date`,`s`.`notes` AS `notes`,`s`.`mixed_efectivo_amount` AS `mixed_efectivo_amount`,`s`.`mixed_second_method` AS `mixed_second_method`,`s`.`mixed_second_amount` AS `mixed_second_amount`,`s`.`sede_id` AS `sede_id`,`s`.`vehicle_id` AS `vehicle_id`,`s`.`dispatch_status` AS `dispatch_status`,`s`.`total_weight_kg` AS `total_weight_kg`,`s`.`synced` AS `synced`,`s`.`synced_at` AS `synced_at`,`s`.`origin` AS `origin`,`s`.`created_at` AS `created_at`,`s`.`updated_at` AS `updated_at`,count(`si`.`id`) AS `total_items`,sum(`si`.`quantity`) AS `total_quantity` from (`sales` `s` left join `sale_items` `si` on((`s`.`id` = `si`.`sale_id`))) group by `s`.`id`);--> statement-breakpoint
+VIEW `v_sales_detail` AS (select `s`.`id` AS `id`,`s`.`tenant_id` AS `tenant_id`,`s`.`invoice_number` AS `invoice_number`,`s`.`customer_id` AS `customer_id`,`s`.`customer_name` AS `customer_name`,`s`.`customer_phone` AS `customer_phone`,`s`.`customer_email` AS `customer_email`,`s`.`subtotal` AS `subtotal`,`s`.`tax` AS `tax`,`s`.`discount` AS `discount`,`s`.`total` AS `total`,`s`.`payment_method` AS `payment_method`,`s`.`amount_paid` AS `amount_paid`,`s`.`change_amount` AS `change_amount`,`s`.`seller_id` AS `seller_id`,`s`.`seller_name` AS `seller_name`,`s`.`cash_session_id` AS `cash_session_id`,`s`.`status` AS `status`,`s`.`credit_status` AS `credit_status`,`s`.`due_date` AS `due_date`,`s`.`notes` AS `notes`,`s`.`mixed_efectivo_amount` AS `mixed_efectivo_amount`,`s`.`mixed_second_method` AS `mixed_second_method`,`s`.`mixed_second_amount` AS `mixed_second_amount`,`s`.`sede_id` AS `sede_id`,`s`.`vehicle_id` AS `vehicle_id`,`s`.`dispatch_status` AS `dispatch_status`,`s`.`total_weight_kg` AS `total_weight_kg`,`s`.`synced` AS `synced`,`s`.`synced_at` AS `synced_at`,`s`.`origin` AS `origin`,`s`.`created_at` AS `created_at`,`s`.`updated_at` AS `updated_at`,`s`.`dispatch_notes` AS `dispatch_notes`,`s`.`dispatched_at` AS `dispatched_at`,count(`si`.`id`) AS `total_items`,sum(`si`.`quantity`) AS `total_quantity` from (`sales` `s` left join `sale_items` `si` on((`s`.`id` = `si`.`sale_id`))) group by `s`.`id`);--> statement-breakpoint
 CREATE ALGORITHM = undefined
 SQL SECURITY definer
 VIEW `v_tenants_summary` AS (select `t`.`id` AS `tenant_id`,`t`.`name` AS `tenant_name`,`t`.`slug` AS `slug`,`t`.`business_type` AS `business_type`,`t`.`status` AS `status`,`t`.`plan` AS `plan`,`t`.`created_at` AS `created_at`,`u`.`name` AS `owner_name`,`u`.`email` AS `owner_email`,coalesce(`usr_agg`.`total_users`,0) AS `total_users`,coalesce(`prod_agg`.`total_products`,0) AS `total_products`,coalesce(`prod_agg`.`inventory_value`,0) AS `inventory_value`,coalesce(`cust_agg`.`total_customers`,0) AS `total_customers`,coalesce(`sale_agg`.`total_sales_count`,0) AS `total_sales_count`,coalesce(`sale_agg`.`total_sales_amount`,0) AS `total_sales_amount` from (((((`tenants` `t` left join `users` `u` on((`t`.`owner_id` = `u`.`id`))) left join (select `users`.`tenant_id` AS `tenant_id`,count(0) AS `total_users` from `users` group by `users`.`tenant_id`) `usr_agg` on((`usr_agg`.`tenant_id` = `t`.`id`))) left join (select `products`.`tenant_id` AS `tenant_id`,count(0) AS `total_products`,sum((`products`.`stock` * `products`.`sale_price`)) AS `inventory_value` from `products` group by `products`.`tenant_id`) `prod_agg` on((`prod_agg`.`tenant_id` = `t`.`id`))) left join (select `customers`.`tenant_id` AS `tenant_id`,count(0) AS `total_customers` from `customers` group by `customers`.`tenant_id`) `cust_agg` on((`cust_agg`.`tenant_id` = `t`.`id`))) left join (select `sales`.`tenant_id` AS `tenant_id`,count(0) AS `total_sales_count`,sum(`sales`.`total`) AS `total_sales_amount` from `sales` where (`sales`.`status` = 'completada') group by `sales`.`tenant_id`) `sale_agg` on((`sale_agg`.`tenant_id` = `t`.`id`))));
