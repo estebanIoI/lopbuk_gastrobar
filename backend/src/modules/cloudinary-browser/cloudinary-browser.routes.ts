@@ -1,32 +1,62 @@
 import { Router, Request, Response } from 'express';
 import pool from '../../config/database';
 import { authenticate } from '../../common/middleware';
+import { encrypt, decrypt } from '../../utils/crypto';
 
 const router: ReturnType<typeof Router> = Router();
 
 // Cualquier usuario autenticado puede explorar Cloudinary del tenant/plataforma
 router.use(authenticate);
 
-// ── Helper: obtener credenciales Admin API desde platform_settings ──────────
-async function getAdminCredentials(): Promise<{ cloudName: string; apiKey: string; apiSecret: string } | null> {
+// ── Credenciales globales (platform_settings, superadmin) ───────────────────
+async function getGlobalAdminCredentials(): Promise<{ cloudName: string; apiKey: string; apiSecret: string } | null> {
   const [rows] = await pool.query(
     "SELECT setting_key, setting_value FROM platform_settings WHERE setting_key IN ('cloudinary_cloud_name','cloudinary_api_key','cloudinary_api_secret')"
   ) as any;
-
   const s: Record<string, string> = {};
-  for (const row of (rows as any[])) {
-    s[row.setting_key] = row.setting_value || '';
-  }
+  for (const row of (rows as any[])) s[row.setting_key] = row.setting_value || '';
+  if (!s['cloudinary_cloud_name'] || !s['cloudinary_api_key'] || !s['cloudinary_api_secret']) return null;
+  return { cloudName: s['cloudinary_cloud_name'], apiKey: s['cloudinary_api_key'], apiSecret: s['cloudinary_api_secret'] };
+}
 
-  if (!s['cloudinary_cloud_name'] || !s['cloudinary_api_key'] || !s['cloudinary_api_secret']) {
-    return null;
-  }
+// ── Credenciales del comercio (store_info) ──────────────────────────────────
+async function getTenantAdminCredentials(tenantId: string): Promise<{ cloudName: string; apiKey: string; apiSecret: string } | null> {
+  if (!tenantId) return null;
+  const [rows] = await pool.query(
+    'SELECT cloudinary_cloud_name AS cn, cloudinary_api_key AS ak, cloudinary_api_secret AS asec FROM store_info WHERE tenant_id = ? LIMIT 1',
+    [tenantId]
+  ) as any;
+  const r = rows?.[0];
+  if (!r || !r.cn || !r.ak || !r.asec) return null;
+  return { cloudName: r.cn, apiKey: r.ak, apiSecret: decrypt(r.asec) };
+}
 
-  return {
-    cloudName: s['cloudinary_cloud_name'],
-    apiKey: s['cloudinary_api_key'],
-    apiSecret: s['cloudinary_api_secret'],
-  };
+// ── Credenciales Admin API: comercio primero, fallback a global ─────────────
+async function getAdminCredentials(tenantId?: string | null): Promise<{ cloudName: string; apiKey: string; apiSecret: string } | null> {
+  if (tenantId) {
+    const tenant = await getTenantAdminCredentials(tenantId);
+    if (tenant) return tenant;
+  }
+  return getGlobalAdminCredentials();
+}
+
+// ── Config de UPLOAD (cloud_name + upload_preset): comercio primero, fallback global.
+// La usa el componente CloudinaryUpload del frontend (subida unsigned desde el browser).
+async function getUploadConfig(tenantId?: string | null): Promise<{ cloudName: string; uploadPreset: string }> {
+  if (tenantId) {
+    const [rows] = await pool.query(
+      'SELECT cloudinary_cloud_name AS cn, cloudinary_upload_preset AS up FROM store_info WHERE tenant_id = ? LIMIT 1',
+      [tenantId]
+    ) as any;
+    const r = rows?.[0];
+    if (r?.cn && r?.up) return { cloudName: r.cn, uploadPreset: r.up };
+  }
+  const [g] = await pool.query(
+    "SELECT setting_key, setting_value FROM platform_settings WHERE setting_key IN ('cloudinary_cloud_name','cloudinary_upload_preset')"
+  ) as any;
+  const s: Record<string, string> = {};
+  for (const row of (g as any[])) s[row.setting_key] = row.setting_value || '';
+  return { cloudName: s['cloudinary_cloud_name'] || '', uploadPreset: s['cloudinary_upload_preset'] || '' };
 }
 
 // ── Helper: llamar a Cloudinary Admin API (autenticación HTTP Basic) ────────
@@ -64,7 +94,7 @@ async function cloudinaryAdminRequest(
 // =============================================
 router.get('/folders', async (req: Request, res: Response) => {
   try {
-    const creds = await getAdminCredentials();
+    const creds = await getAdminCredentials((req as any).user?.tenantId);
     if (!creds) {
       res.status(400).json({
         success: false,
@@ -98,7 +128,7 @@ router.get('/folders', async (req: Request, res: Response) => {
 // =============================================
 router.get('/subfolders', async (req: Request, res: Response) => {
   try {
-    const creds = await getAdminCredentials();
+    const creds = await getAdminCredentials((req as any).user?.tenantId);
     if (!creds) {
       res.status(400).json({ success: false, error: 'Cloudinary Admin API no configurado.' });
       return;
@@ -140,7 +170,7 @@ router.get('/subfolders', async (req: Request, res: Response) => {
 // =============================================
 router.get('/images', async (req: Request, res: Response) => {
   try {
-    const creds = await getAdminCredentials();
+    const creds = await getAdminCredentials((req as any).user?.tenantId);
     if (!creds) {
       res.status(400).json({ success: false, error: 'Cloudinary Admin API no configurado.' });
       return;
@@ -213,7 +243,7 @@ router.get('/images', async (req: Request, res: Response) => {
 // =============================================
 router.get('/folder-stats', async (req: Request, res: Response) => {
   try {
-    const creds = await getAdminCredentials();
+    const creds = await getAdminCredentials((req as any).user?.tenantId);
     if (!creds) {
       res.status(400).json({ success: false, error: 'Cloudinary Admin API no configurado.' });
       return;
@@ -242,6 +272,81 @@ router.get('/folder-stats', async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('Cloudinary folder-stats error:', error);
     res.status(500).json({ success: false, error: error.message || 'Error al obtener stats' });
+  }
+});
+
+// =============================================
+// GET /api/cloudinary/config
+// Config Cloudinary del comercio (secret enmascarado) + de dónde sale la efectiva.
+// =============================================
+router.get('/config', async (req: Request, res: Response) => {
+  try {
+    const tenantId = (req as any).user?.tenantId;
+    let tenant: any = null;
+    if (tenantId) {
+      const [rows] = await pool.query(
+        'SELECT cloudinary_cloud_name AS cn, cloudinary_upload_preset AS up, cloudinary_api_key AS ak, cloudinary_api_secret AS asec FROM store_info WHERE tenant_id = ? LIMIT 1',
+        [tenantId]
+      ) as any;
+      tenant = rows?.[0] || null;
+    }
+    const global = await getGlobalAdminCredentials();
+    const effective = await getAdminCredentials(tenantId);
+    const upload = await getUploadConfig(tenantId);
+
+    res.json({
+      success: true,
+      data: {
+        cloudName: tenant?.cn || '',
+        uploadPreset: tenant?.up || '',
+        apiKey: tenant?.ak ? '••••••' + String(tenant.ak).slice(-4) : '',
+        apiKeySet: !!tenant?.ak,
+        apiSecretSet: !!tenant?.asec,
+        // config efectiva de upload (lo que realmente usa el browser; tenant o global)
+        effectiveCloudName: upload.cloudName,
+        effectiveUploadPreset: upload.uploadPreset,
+        // contexto para la UI: si el comercio no configuró Admin API, qué se usa
+        source: tenant?.cn && tenant?.ak && tenant?.asec ? 'tenant' : (effective ? 'global' : 'none'),
+        globalConfigured: !!global,
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message || 'Error al leer config' });
+  }
+});
+
+// =============================================
+// PUT /api/cloudinary/config
+// Guarda la config Cloudinary del comercio (secret cifrado). Campos vacíos no se tocan;
+// enviar null/"" explícito en un campo lo limpia.
+// =============================================
+router.put('/config', async (req: Request, res: Response) => {
+  try {
+    const tenantId = (req as any).user?.tenantId;
+    if (!tenantId) {
+      res.status(400).json({ success: false, error: 'Solo un comercio puede guardar su config Cloudinary' });
+      return;
+    }
+    const { cloudName, uploadPreset, apiKey, apiSecret } = req.body as Record<string, string | null>;
+
+    const sets: string[] = [];
+    const vals: any[] = [];
+    if (cloudName !== undefined)    { sets.push('cloudinary_cloud_name = ?');    vals.push(cloudName || null); }
+    if (uploadPreset !== undefined) { sets.push('cloudinary_upload_preset = ?'); vals.push(uploadPreset || null); }
+    if (apiKey !== undefined)       { sets.push('cloudinary_api_key = ?');       vals.push(apiKey || null); }
+    // El secret solo se actualiza si llega un valor nuevo (no el placeholder de máscara).
+    if (apiSecret !== undefined && apiSecret !== null && !apiSecret.startsWith('••')) {
+      sets.push('cloudinary_api_secret = ?'); vals.push(apiSecret ? encrypt(apiSecret) : null);
+    }
+    if (sets.length === 0) {
+      res.json({ success: true });
+      return;
+    }
+    vals.push(tenantId);
+    await pool.query(`UPDATE store_info SET ${sets.join(', ')} WHERE tenant_id = ?`, vals);
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message || 'Error al guardar config' });
   }
 });
 

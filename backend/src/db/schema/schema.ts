@@ -3580,6 +3580,11 @@ export const storeInfo = mysqlTable("store_info", {
 	cartDeliveryFee: int("cart_delivery_fee").default(0).notNull(),
 	socialX: varchar("social_x", { length: 500 }),
 	socialSnapchat: varchar("social_snapchat", { length: 500 }),
+	// ── Cloudinary por comercio (fallback a platform_settings global) ──────────
+	cloudinaryCloudName: varchar("cloudinary_cloud_name", { length: 120 }),
+	cloudinaryUploadPreset: varchar("cloudinary_upload_preset", { length: 120 }),
+	cloudinaryApiKey: varchar("cloudinary_api_key", { length: 120 }),
+	cloudinaryApiSecret: varchar("cloudinary_api_secret", { length: 255 }), // cifrado (crypto.ts)
 },
 (table) => {
 	return {
