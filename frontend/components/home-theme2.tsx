@@ -556,8 +556,15 @@ export function MarketplaceHomeGovCo({
   const [megaOpen, setMegaOpen] = useState(false)
   const [mobileNav, setMobileNav] = useState(false)
   const [alertOpen, setAlertOpen] = useState(true)
+  const [scrolled, setScrolled] = useState(false)
   const gridRef = useRef<HTMLDivElement>(null)
   const accesosRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 20)
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
 
   // ── Branch responsive (Fase 1 rediseño móvil) ──────────────────────────────
   // useIsDesktop devuelve null hasta montar → SSR/primer render = desktop (sin
@@ -811,79 +818,180 @@ export function MarketplaceHomeGovCo({
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-800 flex flex-col" style={brandVars}>
-      {/* ══ Header ══ */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-40">
-        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center gap-3 sm:gap-5">
-          <button onClick={scrollToGrid} className="flex items-center gap-2 shrink-0">
+      {/* ══ CAPA 1: TopBar informativa (se desplaza, no sticky) ══ */}
+      <div className="hidden sm:flex items-center justify-center h-[34px] shrink-0 overflow-hidden" style={{ background: GREEN_DARK }}>
+        <div className="flex items-center gap-5 text-white/85 text-[11px] font-medium tracking-wide select-none">
+          <span className="flex items-center gap-1.5"><Zap className="w-3 h-3 opacity-80" /> Comercios activos</span>
+          <span className="w-px h-3 bg-white/20" />
+          <span className="flex items-center gap-1.5"><Sparkles className="w-3 h-3 opacity-80" /> IA asistencial para negocios</span>
+          <span className="w-px h-3 bg-white/20" />
+          <span className="flex items-center gap-1.5"><Tag className="w-3 h-3 opacity-80" /> Descubre ofertas exclusivas</span>
+          <span className="w-px h-3 bg-white/20" />
+          <button onClick={onGoToLogin} className="underline underline-offset-2 hover:text-white transition-colors">Acceder al OS →</button>
+        </div>
+      </div>
+
+      {/* ══ CAPA 2: Main Header (glassmorphism · sticky · morphing) ══ */}
+      <header
+        className="sticky top-0 z-40 transition-all duration-300"
+        style={{
+          height: scrolled ? '60px' : '72px',
+          background: scrolled ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.97)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          boxShadow: scrolled ? '0 4px 24px rgba(0,0,0,0.10)' : '0 1px 0 rgba(0,0,0,0.07)',
+          borderBottom: '1px solid rgba(0,0,0,0.06)',
+        }}
+      >
+        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 h-full flex items-center gap-3 sm:gap-4">
+          {/* Logo */}
+          <button onClick={scrollToGrid} className="flex items-center gap-2.5 shrink-0 group">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={brandLogo} alt={BRAND.name} className="w-9 h-9 object-contain rounded-lg shrink-0" />
-            <span className="text-lg sm:text-xl font-extrabold tracking-tight" style={{ color: GREEN_DARK }}>{BRAND.name}</span>
+            <img
+              src={brandLogo} alt={BRAND.name}
+              className="object-contain rounded-xl transition-all duration-300 shrink-0"
+              style={{ width: scrolled ? '34px' : '42px', height: scrolled ? '34px' : '42px' }}
+            />
+            <span
+              className="font-extrabold tracking-tight hidden sm:block transition-all duration-300 group-hover:opacity-80"
+              style={{ fontSize: scrolled ? '17px' : '20px', color: GREEN_DARK }}
+            >
+              {BRAND.name}
+            </span>
           </button>
 
-          <div className="relative flex-1 max-w-2xl">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          {/* Search — protagonista */}
+          <div className="relative flex-1 max-w-2xl group">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-green-600 transition-colors pointer-events-none" />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Buscar comercios, productos o categorías…"
-              className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:border-transparent"
-              style={{ ['--tw-ring-color' as any]: GREEN }}
+              className="w-full pl-10 pr-16 rounded-2xl border text-sm bg-gray-50/80 focus:bg-white focus:outline-none transition-all duration-200"
+              style={{
+                height: scrolled ? '38px' : '44px',
+                borderColor: 'rgba(0,0,0,0.12)',
+                boxShadow: 'none',
+              }}
+              onFocus={e => { e.currentTarget.style.borderColor = 'var(--brand-green, #00833E)'; e.currentTarget.style.boxShadow = '0 0 0 3px color-mix(in srgb, var(--brand-green,#00833E) 12%, transparent)' }}
+              onBlur={e => { e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)'; e.currentTarget.style.boxShadow = 'none' }}
             />
+            {/* AI badge dentro del buscador */}
+            <span className="absolute right-3.5 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full pointer-events-none"
+              style={{ background: 'color-mix(in srgb, var(--brand-green,#00833E) 10%, transparent)', color: 'var(--brand-green-dark,#005C2A)' }}>
+              <Sparkles className="w-2.5 h-2.5" /> IA
+            </span>
           </div>
 
-          <span className="hidden sm:block shrink-0 pt-3">
-            <FlameButton onClick={onGoToLogin}>Acceder</FlameButton>
-          </span>
-          <button onClick={() => setMobileNav(v => !v)} className="sm:hidden p-2 rounded-lg border border-gray-300 text-gray-600" aria-label="Menú">
+          {/* AI Action Button */}
+          <button
+            onClick={onGoToLogin}
+            className="hidden lg:flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-semibold shrink-0 transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0"
+            style={{
+              background: `linear-gradient(135deg, var(--brand-green,#00833E), var(--brand-green-dark,#005C2A))`,
+              color: '#fff',
+              boxShadow: '0 4px 14px color-mix(in srgb, var(--brand-green,#00833E) 35%, transparent)',
+            }}
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            Buscar con IA
+          </button>
+
+          {/* Entrar — premium pill */}
+          <button
+            onClick={onGoToLogin}
+            className="hidden sm:flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-semibold shrink-0 border transition-all duration-200 hover:bg-gray-50 hover:-translate-y-0.5 active:translate-y-0"
+            style={{ borderColor: 'rgba(0,0,0,0.12)', color: GREEN_DARK }}
+          >
+            <UserIcon className="w-4 h-4" />
+            Entrar
+          </button>
+
+          {/* Mobile hamburger */}
+          <button onClick={() => setMobileNav(v => !v)} className="sm:hidden p-2 rounded-xl border border-gray-200 text-gray-600" aria-label="Menú">
             <Menu className="w-5 h-5" />
           </button>
         </div>
       </header>
 
-      {/* ══ Navbar verde ══ */}
-      <nav className="text-white sticky top-[57px] z-30 shadow-sm" style={{ background: GREEN }}>
+      {/* ══ CAPA 3: Nav chips (glassmorphism · sticky bajo el header) ══ */}
+      <nav
+        className="sticky z-30 transition-all duration-300"
+        style={{
+          top: scrolled ? '60px' : '72px',
+          background: 'rgba(255,255,255,0.80)',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          borderBottom: '1px solid rgba(0,0,0,0.06)',
+          boxShadow: '0 2px 12px rgba(0,0,0,0.04)',
+        }}
+      >
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
-          <div className={`${mobileNav ? 'flex' : 'hidden'} sm:flex flex-col sm:flex-row sm:items-stretch`}>
-            <button onClick={() => { setTab('comercios'); onSelectBusinessType('all'); setMobileNav(false); setTimeout(scrollToGrid, 50) }} className="relative text-left px-4 py-3 text-sm font-medium hover:bg-black/10 transition-colors">
+          <div className={`${mobileNav ? 'flex' : 'hidden'} sm:flex flex-col sm:flex-row sm:items-center gap-0.5 py-2 overflow-x-auto scrollbar-hide`}>
+            {/* Inicio */}
+            <button
+              onClick={() => { setTab('comercios'); onSelectBusinessType('all'); setMobileNav(false); setTimeout(scrollToGrid, 50) }}
+              className="shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-200 hover:-translate-y-0.5 text-left"
+              style={tab === 'comercios' && !query
+                ? { background: `var(--brand-green,#00833E)`, color: '#fff' }
+                : { color: '#374151' }}
+            >
               Inicio
             </button>
+
             {/* Mega-menú categorías */}
-            <div className="relative" onMouseEnter={() => setMegaOpen(true)} onMouseLeave={() => setMegaOpen(false)}>
-              <button onClick={() => setMegaOpen(v => !v)} className="w-full sm:w-auto flex items-center gap-1 px-4 py-3 text-sm font-medium hover:bg-black/10 transition-colors">
-                Categorías <ChevronDown className="w-3.5 h-3.5" />
+            <div className="relative shrink-0" onMouseEnter={() => setMegaOpen(true)} onMouseLeave={() => setMegaOpen(false)}>
+              <button
+                onClick={() => setMegaOpen(v => !v)}
+                className="flex items-center gap-1 px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-200 hover:-translate-y-0.5"
+                style={{ color: '#374151' }}
+              >
+                Categorías <ChevronDown className="w-3.5 h-3.5 opacity-60" />
               </button>
               {megaOpen && rubros.length > 0 && (
-                <div className="absolute left-0 top-full z-40 w-[min(92vw,640px)] bg-white text-gray-800 rounded-b-xl shadow-2xl border border-gray-200 p-4">
+                <div className="absolute left-0 top-full mt-1 z-40 w-[min(92vw,640px)] bg-white text-gray-800 rounded-2xl shadow-2xl border border-gray-100 p-4">
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    <button onClick={() => pickRubro('all')} className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-50 text-sm">
-                      <span className="w-8 h-8 rounded-lg flex items-center justify-center text-white" style={{ background: GREEN }}><Store className="w-4 h-4" /></span>
+                    <button onClick={() => pickRubro('all')} className="flex items-center gap-2 p-2.5 rounded-xl hover:bg-gray-50 text-sm transition-colors">
+                      <span className="w-8 h-8 rounded-lg flex items-center justify-center text-white shrink-0" style={{ background: `var(--brand-green,#00833E)` }}><Store className="w-4 h-4" /></span>
                       Todos los comercios
                     </button>
                     {rubros.map(({ type, count }) => (
-                      <button key={type} onClick={() => pickRubro(type)} className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-50 text-sm capitalize">
-                        <span className="w-8 h-8 rounded-lg flex items-center justify-center text-white shrink-0" style={{ background: GREEN }}><span className="w-4 h-4 inline-flex">{rubroIcon(type)}</span></span>
+                      <button key={type} onClick={() => pickRubro(type)} className="flex items-center gap-2 p-2.5 rounded-xl hover:bg-gray-50 text-sm capitalize transition-colors">
+                        <span className="w-8 h-8 rounded-lg flex items-center justify-center text-white shrink-0" style={{ background: `var(--brand-green,#00833E)` }}><span className="w-4 h-4 inline-flex">{rubroIcon(type)}</span></span>
                         <span className="min-w-0 truncate">{type}</span>
-                        <span className="ml-auto text-[10px] text-gray-400">{count}</span>
+                        <span className="ml-auto text-[10px] text-gray-400 shrink-0">{count}</span>
                       </button>
                     ))}
                   </div>
                 </div>
               )}
             </div>
+
+            {/* Tabs de contenido como chips */}
             {navItems.filter(n => n.key !== 'comercios').map(item => {
               const active = tab === item.key
               return (
                 <button
                   key={item.key}
                   onClick={() => { setTab(item.key as MainTab); setMobileNav(false); setTimeout(scrollToGrid, 50) }}
-                  className="relative px-4 py-3 text-sm font-medium hover:bg-black/10 transition-colors text-left"
-                  style={active ? { boxShadow: `inset 0 -3px 0 ${GOLD}` } : undefined}
+                  className="shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-200 hover:-translate-y-0.5 text-left"
+                  style={active ? { background: `var(--brand-green,#00833E)`, color: '#fff' } : { color: '#374151' }}
                 >
                   {item.label}
                 </button>
               )
             })}
-            <a href="https://api.whatsapp.com/send" target="_blank" rel="noopener noreferrer" className="px-4 py-3 text-sm font-medium hover:bg-black/10 transition-colors">Contacto</a>
+
+            {/* Contacto */}
+            <a
+              href="https://api.whatsapp.com/send"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-200 hover:-translate-y-0.5"
+              style={{ color: '#374151' }}
+            >
+              Contacto
+            </a>
           </div>
         </div>
       </nav>

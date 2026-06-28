@@ -3808,11 +3808,20 @@ export const tenants = mysqlTable("tenants", {
 	realestateEnabled: tinyint("realestate_enabled").default(0).notNull(),
 	moduleWorkorders: tinyint("module_workorders").default(0).notNull(),
 	enabledModules: json("enabled_modules"),
+	// ── Hidden Layer (DAIMUZ Hidden Access) ────────────────────────────────
+	isHidden: tinyint("is_hidden").default(0).notNull(),
+	hiddenAccessToken: varchar("hidden_access_token", { length: 128 }),
+	hiddenAccessCode: varchar("hidden_access_code", { length: 32 }),
+	hiddenTokenExpiresAt: timestamp("hidden_token_expires_at", { mode: 'string' }),
+	allowRegeneration: tinyint("allow_regeneration").default(1).notNull(),
+	hiddenTheme: varchar("hidden_theme", { length: 50 }).default('default'),
+	vipIntroEnabled: tinyint("vip_intro_enabled").default(1).notNull(),
 },
 (table) => {
 	return {
 		idxTenantSlug: index("idx_tenant_slug").on(table.slug),
 		idxTenantStatus: index("idx_tenant_status").on(table.status),
+		idxTenantHiddenToken: index("idx_tenant_hidden_token").on(table.hiddenAccessToken),
 		tenantsId: primaryKey({ columns: [table.id], name: "tenants_id"}),
 		slug: unique("slug").on(table.slug),
 	}

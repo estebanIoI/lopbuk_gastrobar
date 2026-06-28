@@ -69,6 +69,7 @@ import pushRoutes from './modules/push/push.routes';
 import paymentsRoutes from './modules/payments/payments.routes';
 import suppliersRoutes from './modules/suppliers/suppliers.routes';
 import hormasRoutes from './modules/hormas/hormas.routes';
+import hiddenAccessRoutes from './modules/hidden-access/hidden-access.routes';
 import locationsRoutes from './modules/locations/locations.routes';
 import { gymRoutes } from './modules/gym';
 import assistantRoutes from './modules/assistant/assistant.routes';
@@ -224,6 +225,7 @@ app.use(`${apiPrefix}/theme4`, theme4Routes);
 app.use(`${apiPrefix}`, variantsRoutes);
 app.use(`${apiPrefix}/suppliers`, suppliersRoutes);
 app.use(`${apiPrefix}/hormas`, hormasRoutes);
+app.use(`${apiPrefix}/hidden-access`, hiddenAccessRoutes);
 app.use(`${apiPrefix}/locations`, locationsRoutes);
 
 // Error handling

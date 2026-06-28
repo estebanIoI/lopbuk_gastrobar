@@ -394,6 +394,7 @@ router.get('/stores', async (req: Request, res: Response) => {
        FROM tenants t
        LEFT JOIN store_info si ON si.tenant_id = t.id
        WHERE t.status = 'activo'
+         AND (t.is_hidden IS NULL OR t.is_hidden = 0)
          AND (si.marketplace_visible IS NULL OR si.marketplace_visible = 1)
        ${municipalityFilter}
        ORDER BY COALESCE(si.marketplace_order, 0) ASC, t.name ASC`,
