@@ -4,7 +4,7 @@ import { useState } from 'react'
 import dynamic from 'next/dynamic'
 import {
   Briefcase, CreditCard, LayoutTemplate, MessageSquarePlus,
-  Plug, Star, Store, TrendingUp, ShoppingBag, Sparkles, Wallet, Crown, Dumbbell, KeyRound, Flame, Target, UserCog, Cloud,
+  Plug, Star, Store, TrendingUp, ShoppingBag, Sparkles, Wallet, Crown, Dumbbell, KeyRound, Flame, Target, UserCog, Cloud, Rocket,
 } from 'lucide-react'
 import { RefreshCw } from 'lucide-react'
 
@@ -18,6 +18,7 @@ const IntegrationsTab   = dynamic(() => import('./tabs/IntegrationsTab').then(m 
 const SubscriptionsTab  = dynamic(() => import('./tabs/SubscriptionsTab').then(m => ({ default: m.SubscriptionsTab })), { loading: () => <TabLoader /> })
 const PaymentGatewayTab = dynamic(() => import('./tabs/PaymentGatewayTab').then(m => ({ default: m.PaymentGatewayTab })), { loading: () => <TabLoader /> })
 const PortfolioTab      = dynamic(() => import('./tabs/PortfolioTab').then(m => ({ default: m.PortfolioTab })), { loading: () => <TabLoader /> })
+const LopbukLandingTab  = dynamic(() => import('./tabs/LopbukLandingTab').then(m => ({ default: m.LopbukLandingTab })), { loading: () => <TabLoader /> })
 const DevRequestsTab    = dynamic(() => import('./tabs/DevRequestsTab').then(m => ({ default: m.DevRequestsTab })), { loading: () => <TabLoader /> })
 const OrdersCenterTab   = dynamic(() => import('./tabs/OrdersCenterTab').then(m => ({ default: m.OrdersCenterTab })), { loading: () => <TabLoader /> })
 const CommunityTab      = dynamic(() => import('./tabs/CommunityTab').then(m => ({ default: m.CommunityTab })), { loading: () => <TabLoader /> })
@@ -31,7 +32,7 @@ const CloudinaryImportTab = dynamic(() => import('./tabs/CloudinaryImportTab').t
 
 // ── Tab definitions ───────────────────────────────────────────────────────────
 
-type TabId = 'pedidos' | 'pagina' | 'comercios' | 'timeline' | 'destacados' | 'integraciones' | 'pagos' | 'pasarela' | 'portafolio' | 'solicitudes' | 'comunidad' | 'legend' | 'coaches' | 'vault' | 'drops' | 'retos' | 'usuarios' | 'cloudinary'
+type TabId = 'pedidos' | 'pagina' | 'comercios' | 'timeline' | 'destacados' | 'integraciones' | 'pagos' | 'pasarela' | 'portafolio' | 'solicitudes' | 'comunidad' | 'legend' | 'coaches' | 'vault' | 'drops' | 'retos' | 'usuarios' | 'cloudinary' | 'lopbuk'
 
 const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
   { id: 'pedidos',       label: 'Pedidos',          icon: ShoppingBag },
@@ -44,6 +45,7 @@ const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
   { id: 'pagos',         label: 'Suscripciones',    icon: CreditCard },
   { id: 'pasarela',      label: 'Pasarela',         icon: Wallet },
   { id: 'portafolio',    label: 'Portafolio',       icon: Briefcase },
+  { id: 'lopbuk',        label: 'Lopbuk',           icon: Rocket },
   { id: 'comunidad',     label: 'Comunidad',        icon: Sparkles },
   { id: 'legend',        label: 'LEGEND',           icon: Crown },
   { id: 'coaches',       label: 'Coaches',          icon: Dumbbell },
@@ -114,6 +116,7 @@ export function SuperadminLayout() {
       {activeTab === 'pagos'         && <SubscriptionsTab />}
       {activeTab === 'pasarela'      && <PaymentGatewayTab />}
       {activeTab === 'portafolio'    && <PortfolioTab />}
+      {activeTab === 'lopbuk'        && <LopbukLandingTab />}
       {activeTab === 'comunidad'     && <CommunityTab />}
       {activeTab === 'legend'        && <LegendCodesTab />}
       {activeTab === 'coaches'       && <CoachPayoutsTab />}

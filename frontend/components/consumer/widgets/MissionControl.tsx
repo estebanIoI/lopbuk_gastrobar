@@ -6,8 +6,10 @@
  * accionable, y CTA para iniciar la rutina. Convierte el dashboard en un plan.
  */
 import { useEffect, useState } from 'react'
-import { Flame, Dumbbell, Check, ChevronRight } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Flame, Dumbbell, Check, ChevronRight, Loader2 } from 'lucide-react'
 import { api } from '@/lib/api'
+import { workoutApi } from '@/lib/workout-api'
 import type { ConsumerTab } from '../hooks/useConsumerData'
 import LegendUpsell from './LegendUpsell'
 import XpWidget from './XpWidget'
@@ -18,8 +20,10 @@ const GOAL_LABEL: Record<string, string> = {
 }
 
 export default function MissionControl({ onGoTo }: { onGoTo: (t: ConsumerTab) => void }) {
+  const router = useRouter()
   const [m, setM] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [starting, setStarting] = useState(false)
 
   const load = async () => { const r = await api.getTodayMission(); if (r.success) setM(r.data); setLoading(false) }
   useEffect(() => { load() }, [])
@@ -29,6 +33,16 @@ export default function MissionControl({ onGoTo }: { onGoTo: (t: ConsumerTab) =>
     setM((prev: any) => prev ? { ...prev, checklist: prev.checklist.map((c: any) => c.key === item ? { ...c, done } : c), completed: prev.completed + (done ? 1 : -1) } : prev)
     const r = await api.toggleDailyCheck(item, done)
     if (r.success) setM(r.data)
+  }
+
+  // Inicia la sesión de hoy en el backend (que arma el plan + pesos sugeridos)
+  // y entra al modo entrenamiento. Si falla, cae a la pestaña de rutina.
+  const startWorkout = async () => {
+    if (starting) return
+    setStarting(true)
+    const r = await workoutApi.startToday(m?.todaySession || undefined)
+    if (r.success && r.data) router.push(`/workout/session/${r.data.id}`)
+    else { setStarting(false); onGoTo('rutina') }
   }
 
   if (loading) return <div className="px-4 pt-3"><div className="rounded-2xl bg-neutral-100 animate-pulse h-32" /></div>
@@ -50,8 +64,10 @@ export default function MissionControl({ onGoTo }: { onGoTo: (t: ConsumerTab) =>
           {[m.calorieTarget ? `${m.calorieTarget} kcal` : '', m.proteinG ? `${m.proteinG}g proteína` : '', m.waterMl ? `${(m.waterMl / 1000).toFixed(1)}L agua` : ''].filter(Boolean).join(' · ')}
         </p>
         {!m.isRestDay && (
-          <button onClick={() => onGoTo('rutina')} className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-amber-400 text-neutral-900 font-bold text-sm px-4 py-2 active:scale-[0.98]">
-            <Dumbbell className="w-4 h-4" /> Iniciar rutina <ChevronRight className="w-4 h-4" />
+          <button onClick={startWorkout} disabled={starting} className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-amber-400 text-neutral-900 font-bold text-sm px-4 py-2 active:scale-[0.98] disabled:opacity-70">
+            {starting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Dumbbell className="w-4 h-4" />}
+            {starting ? 'Preparando…' : 'Iniciar rutina'}
+            {!starting && <ChevronRight className="w-4 h-4" />}
           </button>
         )}
       </div>

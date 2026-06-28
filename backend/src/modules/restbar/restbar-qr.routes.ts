@@ -17,35 +17,10 @@ import { ensureLoyaltyTables, getLoyaltyConfig, ensureAccount } from '../loyalty
 
 const router: ReturnType<typeof Router> = Router();
 
-let ensured = false;
-async function ensureTables() {
-  if (ensured) return;
-  await pool.query(`CREATE TABLE IF NOT EXISTS rb_table_sessions (
-    id VARCHAR(36) PRIMARY KEY, tenant_id VARCHAR(36) NOT NULL, table_id VARCHAR(36) NOT NULL,
-    token VARCHAR(48) NOT NULL, waiter_id VARCHAR(36) NOT NULL, waiter_name VARCHAR(255) NOT NULL, order_id VARCHAR(36) NULL,
-    status ENUM('active','closed') NOT NULL DEFAULT 'active', expires_at TIMESTAMP NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE INDEX idx_rbts_token (token), INDEX idx_rbts_table (table_id, status)
-  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
-  await pool.query(`CREATE TABLE IF NOT EXISTS rb_table_guests (
-    id VARCHAR(36) PRIMARY KEY, session_id VARCHAR(36) NOT NULL, name VARCHAR(120) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, INDEX idx_rbtg_session (session_id)
-  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
-  await pool.query('ALTER TABLE rb_table_sessions ADD COLUMN IF NOT EXISTS order_id VARCHAR(36) NULL').catch(() => {});
-  // Unión de mesas: las mesas con el mismo merge_group comparten cuenta/total.
-  await pool.query('ALTER TABLE rb_tables ADD COLUMN merge_group VARCHAR(36) NULL').catch(() => {});
-  await pool.query(`CREATE TABLE IF NOT EXISTS rb_jukebox_queue (
-    id VARCHAR(36) PRIMARY KEY, tenant_id VARCHAR(36) NOT NULL, table_session_id VARCHAR(36) NULL,
-    title VARCHAR(200) NOT NULL, url VARCHAR(500) NULL, requested_by VARCHAR(120) NULL,
-    status ENUM('queued','playing','played','skipped') NOT NULL DEFAULT 'queued',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_jukebox_tenant (tenant_id, status, created_at)
-  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
-  await pool.query(`CREATE TABLE IF NOT EXISTS rb_jukebox_config (
-    tenant_id VARCHAR(36) PRIMARY KEY, enabled TINYINT NOT NULL DEFAULT 1, threshold DECIMAL(12,2) NOT NULL DEFAULT 50000
-  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
-  ensured = true;
-}
+// DDL congelado: las tablas rb_table_sessions/guests/jukebox_* y las columnas
+// rb_table_sessions.order_id / rb_tables.merge_group viven en el baseline Drizzle
+// (src/db/migrations). Función no-op conservada porque la invocan varios handlers. Ver CLAUDE.md.
+async function ensureTables() { /* no-op: esquema en migraciones */ }
 
 /** Config de la rocola del local (con defaults si no existe fila). */
 async function jukeboxConfig(tenantId: string): Promise<{ enabled: boolean; threshold: number }> {

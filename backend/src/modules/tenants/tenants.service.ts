@@ -38,6 +38,11 @@ interface TenantSummaryRow extends RowDataPacket {
   total_sales: number;
   created_at: Date;
   updated_at: Date;
+  is_hidden?: number;
+  hidden_access_token?: string | null;
+  hidden_access_code?: string | null;
+  hidden_token_expires_at?: Date | null;
+  allow_regeneration?: number;
 }
 
 interface CountRow extends RowDataPacket {
@@ -66,6 +71,11 @@ export interface TenantWithSummary extends Tenant {
   totalUsers: number;
   totalProducts: number;
   totalSales: number;
+  isHidden?: boolean;
+  hiddenAccessToken?: string | null;
+  hiddenAccessCode?: string | null;
+  hiddenTokenExpiresAt?: string | null;
+  allowRegeneration?: boolean;
 }
 
 export class TenantsService {
@@ -104,6 +114,11 @@ export class TenantsService {
       totalSales: Number(row.total_sales) || 0,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
+      isHidden: Boolean(row.is_hidden),
+      hiddenAccessToken: row.hidden_access_token ?? null,
+      hiddenAccessCode: row.hidden_access_code ?? null,
+      hiddenTokenExpiresAt: row.hidden_token_expires_at ? new Date(row.hidden_token_expires_at).toISOString() : null,
+      allowRegeneration: row.allow_regeneration === undefined ? true : Boolean(row.allow_regeneration),
     };
   }
 
@@ -134,6 +149,7 @@ export class TenantsService {
       `SELECT
         t.id, t.name, t.slug, t.business_type, t.owner_id, t.plan, t.status,
         t.max_users, t.max_products, t.bg_color, t.trial_ends_at, t.created_at, t.updated_at,
+        t.is_hidden, t.hidden_access_token, t.hidden_access_code, t.hidden_token_expires_at, t.allow_regeneration,
         u.name as owner_name, u.email as owner_email,
         (SELECT COUNT(*) FROM users WHERE tenant_id = t.id) as total_users,
         (SELECT COUNT(*) FROM products WHERE tenant_id = t.id) as total_products,
@@ -162,6 +178,7 @@ export class TenantsService {
       `SELECT
         t.id, t.name, t.slug, t.business_type, t.owner_id, t.plan, t.status,
         t.max_users, t.max_products, t.bg_color, t.trial_ends_at, t.created_at, t.updated_at,
+        t.is_hidden, t.hidden_access_token, t.hidden_access_code, t.hidden_token_expires_at, t.allow_regeneration,
         u.name as owner_name, u.email as owner_email,
         (SELECT COUNT(*) FROM users WHERE tenant_id = t.id) as total_users,
         (SELECT COUNT(*) FROM products WHERE tenant_id = t.id) as total_products,
@@ -668,29 +685,9 @@ export class TenantsService {
 
   // ── Tarjetas externas (comercios fuera del aplicativo) ──────────────────────
   // Tarjetas de la página principal que NO son tenants: redirigen a un link externo.
-  private externalEnsured = false;
-  async ensureExternalCardsTable(): Promise<void> {
-    if (this.externalEnsured) return;
-    await db.execute(
-      `CREATE TABLE IF NOT EXISTS marketplace_external_cards (
-        id           VARCHAR(36) PRIMARY KEY,
-        name         VARCHAR(255) NOT NULL,
-        slug         VARCHAR(255) NULL,
-        logo_url     VARCHAR(800) NULL,
-        cover_url    VARCHAR(800) NULL,
-        description  VARCHAR(500) NULL,
-        external_url VARCHAR(1000) NOT NULL,
-        city         VARCHAR(255) NULL,
-        is_verified  TINYINT(1) NOT NULL DEFAULT 0,
-        is_visible   TINYINT(1) NOT NULL DEFAULT 1,
-        sort_order   INT NOT NULL DEFAULT 0,
-        created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        INDEX idx_mec_visible (is_visible, sort_order)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
-    );
-    this.externalEnsured = true;
-  }
+  // DDL congelado: la tabla marketplace_external_cards vive en el baseline Drizzle
+  // (src/db/migrations). Método no-op conservado porque lo invocan varios métodos. Ver CLAUDE.md.
+  async ensureExternalCardsTable(): Promise<void> { /* no-op: esquema en migraciones */ }
 
   private mapExternalCard = (r: any) => ({
     id: r.id, name: r.name, slug: r.slug, logoUrl: r.logo_url, coverUrl: r.cover_url,

@@ -146,6 +146,9 @@ export class HormasService {
   // por horma_id en cada variante) y necesita poder asegurarla primero.
   private tablesEnsured = false;
   async ensureTables(): Promise<void> {
+    return; // DDL congelado: tablas hormas/horma_colors y columnas horma_id viven en
+            // el baseline Drizzle (src/db/migrations). Ver CLAUDE.md.
+    // eslint-disable-next-line no-unreachable
     if (this.tablesEnsured) return;
     await db.query(`CREATE TABLE IF NOT EXISTS hormas (
       id          VARCHAR(36)   NOT NULL PRIMARY KEY,

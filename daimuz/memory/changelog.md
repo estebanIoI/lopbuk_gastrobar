@@ -5,6 +5,49 @@
 ---
 
 
+## [2026-06-28] — Merge de main (feature hormas) integrado al baseline Drizzle
+
+Se mergeó `origin/main` en `esteban` para unir el trabajo de Drizzle con la feature **hormas** (siluetas de calzado) que vivía solo en main.
+
+- **Merge:** trae módulo `backend/src/modules/hormas/` + frontend + migraciones v40-v46 (archivadas en `db-legacy/migrations-root-legacy/`). Conflicto de `package-lock.json` resuelto eliminándolo (el proyecto usa pnpm). `index.ts` conserva la excisión de DDL **y** monta `/api/hormas`.
+- **Hormas en el baseline:** se aplicó el DDL de hormas (tablas `hormas`/`horma_colors` + `horma_id` en `products`/`product_variants` + `weight_grams`/`shelf`) y se **regeneró el baseline** por introspección → `0000_dizzy_mongoose.sql` = **203 tablas + 6 vistas + 196 FKs**. Se agregó `tablesFilter: ['!__drizzle_migrations']` al config.
+- **DDL de runtime de hormas congelado:** `hormas.service.ts` y `variants.service.ts` `ensureTables()` → no-op.
+- **Verificado:** `tsc` sin errores nuevos (5 preexistentes de main); BD fresca crea hormas; backend bootea (migrate salta); `GET /api/hormas` → 200. Hash baseline `f07c8909…`.
+
+
+## [2026-06-27] — Drizzle Kit FASE 2: baseline completo (201 tablas) + DDL de runtime congelado
+
+Continuación de FASE 1. Dos logros: (a) **completar el baseline** con TODO el esquema real, (b) **eliminar el DDL de runtime**.
+
+- **Baseline incompleto (corrección de FASE 1):** el `stockpro_truth` de FASE 1 se armó solo desde `schema_FULL.sql` (149 tablas) y **faltaban 52 tablas** de runtime (Vault, Coach/trainers, guilds, arena, drops, gamificación consumer, loyalty, portfolio, jukebox, workout, etc.) + decenas de columnas. Causa: se omitió el paso de capturar el DDL embebido.
+- **Captura por extracción (sin boot):** script Node que extrae TODO el DDL estático de `index.ts` + 10 archivos de módulos (101 CREATE + 107 ALTER). Hubo que iterar la extracción para cubrir **todas las formas**: `.query(\`…\`)`, helpers (`addCol`/`addArenaCol`/`addOb`/`addTrCol`), comillas simples (`'ALTER…'`), interpolación dinámica (`${col}`) y verificar que no hubiera concatenación. Cross-check dev-vs-truth para validar (gap final: 9 columnas, añadidas a mano). Resultado: **baseline definitivo `0000_nervous_norman_osborn` = 201 tablas + 6 vistas + 196 FKs + 2672 columnas**, reconstruye 1:1.
+- **DDL de runtime congelado:** bloque de `index.ts` (líneas 255-1472, ~21 try/catch, 1213 líneas) **excisado**. Funciones `ensure*` (loyalty, restbar, portfolio×3, storefront, lopbuk-landing, tenants, workout, variants) con `return` temprano. DDL inline en handlers (storefront `store_order_bump`/`store_info` ALTERs, superadmin `order_status_history` IIFE, portfolio `portfolio_config`, restbar `priority`) reemplazado por comentarios.
+- **Verificación:** `tsc --noEmit` = 0 errores. **Boot real OK** (backend arranca contra la BD marcada: conecta, `runMigrations` salta el baseline, imprime banner, STDERR vacío). Hash baseline `2d6234c6…`, created_at `1782588720972` (mark script actualizado).
+- **Gobernanza:** CLAUDE.md ya prohíbe DDL en runtime (regla 8). Cada `ensure*`/inline lleva comentario "DDL congelado → baseline Drizzle".
+
+
+## [2026-06-27] — Drizzle Kit: baseline schema-as-history (FASE 1 completa)
+
+Migración de **schema-on-runtime** (DDL embebido en TS) a **schema-as-history** (migraciones versionadas). Driver `mysql2` y todo el SQL raw SE QUEDAN; Drizzle convive. Plan completo en `daimuz/decisions/drizzle-migrations-plan.md`.
+
+- **Scaffolding** — `backend/src/db/`: `index.ts` (cliente drizzle sobre el pool mysql2 existente), `migrate.ts` (`runMigrations()`), `schema/` (TS), `migrations/` (historial). `drizzle.config.ts` usa **`url`** de conexión (drizzle-kit rechaza password vacío de root local). Scripts: `db:pull`, `db:generate`, `migrate`. `runMigrations()` ya cableado en `index.ts` antes del `listen` (solo `NODE_ENV !== 'production'`).
+- **BD verdad** — `stockpro_truth` provisionada cargando `schema_FULL.sql` (MySQL 8.4.3 Laragon; se quitaron `USE stockpro_db`/`CREATE DATABASE` internos y se convirtió `ADD COLUMN IF NOT EXISTS` MariaDB→`ADD COLUMN`). Reveló que el dev DB `stockpro_db` estaba **incompleto** (le faltaban 56 tablas: módulos affiliates/cartilla/community/theme4/consumer/landing/notifications).
+- **Baseline `0000_quiet_swarm.sql`** — por introspección (`db:pull`): 149 tablas + 6 vistas + 179 FKs. Descomentado (ejecutable), vistas portables (quitado el qualifier `stockpro_truth`). **Validado: reconstruye una BD vacía 1:1 con la verdad** (tablas/vistas/columnas/FKs idénticos).
+- **Nombres de FK (escollo resuelto)** — el `generate` desde `schema.ts` produce nombres canónicos de drizzle, 5 de los cuales **superan los 64 chars** de MySQL y rompen el `migrate`. Solución **híbrida**: el `.sql` ejecutable conserva los **nombres cortos nativos** (`_ibfk_N`, = prod), mientras el snapshot/`schema.ts` usan los canónicos → **`generate` queda limpio** ("No schema changes") y el SQL ejecutado nunca toca los nombres largos.
+- **Marcar BDs existentes** — `src/db/baseline-mark-applied.sql` registra el 0000 en `__drizzle_migrations` (hash `acb1633a…`, created_at `1782567439458`) **sin recrear**. Aplicado a `stockpro_db`; **validado: `migrate()` salta el baseline** (delta 0 tablas). Para prod: correr ese script UNA vez.
+- `tsc --noEmit` = 0 errores (incluye `schema.ts`/`relations.ts`). `schema_FULL.sql` deja de ser fuente de verdad → snapshot. **Pendiente FASE 2** (congelar DDL en runtime: sacar `ensureTable()` y el bloque inline de `index.ts`) — NO iniciada (requiere OK).
+
+
+## [2026-06-25] — Workout Engine: Progression Engine + Runtime + Workout Mode UI (Fitness OS)
+
+Construido el corazón del "Iniciar rutina" como sistema determinístico por capas. **NO deployado** (pendiente `pnpm exec tsc --noEmit` front+back + push + Komodo). Migraciones corren al boot.
+
+- **Progression Engine (determinístico, sin deps)** — `backend/src/modules/progression/`. Núcleo puro hipertrofia + double progression (rango 8-12). Capas: `shared` (enums/constants/`schema.ts` validación estilo zod sin instalar zod), `domain` (entities, `rules/goal-rules.ts` = **único RuleEngine**, calculators volume/completion-rate/1RM, evaluator, strategies + factory), `application` (ProgressionService + evento `progression_computed`). Decisión: todas las series al tope → `increase` (+2.5 upper / +5 lower); dentro de rango → `maintain`; bajo mínimo o rate<0.8 → `decrease`. `strength`/`endurance` y `linear`/`rir_based` LANZAN a propósito (anti-alucinación). **19 tests** node:test verdes, tsc 0 errores.
+- **Workout Runtime (Fase 5)** — `backend/src/modules/workout/` (scope consumidor = `users.id`, como `rutina`; NO tenant). State machine explícita (`pending→active→paused→completed/cancelled`). Tablas idempotentes: `workout_sessions`, `workout_exercises`, `workout_sets`, `exercise_progressions` (snapshot por user+ejercicio = source of truth). Repository único user-scoped+transaccional. Services: lifecycle + set-tracking + **progression-bridge** (al completar la sesión corre el engine por ejercicio → upsert snapshot → eventos). Event publisher no-op extensible. **12 tests** verdes. Montado en `index.ts`: `/api/workouts` + `ensureWorkoutSchema()` al boot.
+- **Workout Mode UI (Fase 6, slice vertical)** — Backend glue `today-plan.service.ts` + `POST /workouts/start-today` (arma template por tipo de sesión + **peso sugerido = `nextWeight` del snapshot**). Frontend: `lib/workout-api.ts` (módulo aparte, NO se tocó el `api.ts` gigante), `components/workout/` (WorkoutSessionScreen, ExerciseCard, SetTracker, RestTimer 90s, WorkoutSummary), ruta `app/workout/session/[id]/page.tsx`, y botón "Iniciar rutina" de `MissionControl.tsx` cableado → `startToday` → `router.push`. **Regla:** el front NO calcula nada; solo renderiza `action`/`nextWeight` del backend. tsc 0 errores en archivos nuevos.
+- **Verificación:** el mount del sandbox quedó stale otra vez (glitch conocido: trunca archivos grandes y no refleja sobreescrituras vía bash). Se verificó reconstruyendo el contenido correcto en `/tmp` y leyendo el workspace con file-tools. Correr `pnpm exec tsc --noEmit` en Windows.
+
+
 ## [2026-06-24] — Chatbot: limpiar llamados de herramienta filtrados como texto
 
 - **Síntoma:** el modelo escribía el tool-call COMO TEXTO en el chat (`<function=registrar_pedido>{...}</function>`), visible para el usuario, además de hacer varias preguntas juntas. Pasa cuando el tool-calling nativo del proveedor no engancha y el modelo improvisa el llamado en texto.
@@ -372,7 +415,7 @@ Cierre de los 4 pendientes de variantes (tsc back+front: **0 errores**):
 
 ## [2026-06-18] — Variantes en todo el storefront + selección dinámica (Tema 2) + reserva atómica en pedidos + preventa (backorder) + producto AnMarg
 
-**Producto AnMarg (Camiseta Clásica) — datos de carga:** `imports/anmarg-camiseta-clasica/` con CSV de 90 variantes (18 colores × 5 tallas, handle `camiseta-clasica`, material `100% Algodon 160g`, proveedor AnMarg, venta $56.000, costo $28.000, SKU `CC-<COLOR>-<TALLA>`), SQL de tiers por volumen (6+/12+/24+) y README. El importador solo crea el tier base (min_qty=1); los escalones van por el SQL complementario.
+**Producto AnMarg (Camiseta Clásica) — datos de carga:** `backend/imports/anmarg-camiseta-clasica/` con CSV de 90 variantes (18 colores × 5 tallas, handle `camiseta-clasica`, material `100% Algodon 160g`, proveedor AnMarg, venta $56.000, costo $28.000, SKU `CC-<COLOR>-<TALLA>`), SQL de tiers por volumen (6+/12+/24+) y README. El importador solo crea el tier base (min_qty=1); los escalones van por el SQL complementario.
 
 **Selección de variantes dinámica en Tema 2 (`theme2-order-flow.tsx`):** se integró el `VariantSelector` existente en el flujo compacto. Al abrir el detalle de un producto con variantes, el cliente elige color/talla y se actualizan precio, imagen y disponibilidad al instante; bloqueo de "Agregar" hasta elegir variante válida; carrito/WhatsApp/ticket/pedido llevan la variante (label + `variantId`); el "+" y "Ordenar Ahora" abren el detalle si hay variantes. Tema 1 (`landing-page`) ya lo tenía; se le agregó `variantId` a los 4 `items.map` (público + 3 pasarelas).
 

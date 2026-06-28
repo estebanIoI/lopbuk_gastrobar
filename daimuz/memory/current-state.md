@@ -2,6 +2,39 @@
 
 > Actualiza este archivo después de cada sesión de trabajo significativa.
 
+## 🆕 [2026-06-27] Drizzle Kit — Baseline completo + DDL de runtime congelado (FASE 1 y 2 ✅)
+
+> El esquema ahora es **migraciones versionadas**; **prohibido DDL en runtime**. Detalle en `changelog.md` y `daimuz/decisions/drizzle-migrations-plan.md`.
+
+**Listo y validado (local, MySQL 8.4.3 Laragon):**
+- ✅ Scaffolding Drizzle en `backend/src/db/` (cliente, `runMigrations()`, schema TS, migrations). Convive con `mysql2`/SQL raw.
+- ✅ **Baseline `0000_nervous_norman_osborn.sql` = esquema COMPLETO** (201 tablas + 6 vistas + 196 FKs + 2672 columnas) que **reconstruye la BD 1:1**. Incluye `schema_FULL.sql` + TODO el DDL que antes vivía en runtime. FK con nombres cortos nativos (evita límite 64 chars); snapshot canónico → `generate` limpio.
+- ✅ **DDL de runtime ELIMINADO**: bloque de `index.ts` (255-1472) excisado; `ensure*` con `return` temprano; DDL inline en handlers comentado. `tsc` 0 errores; **boot real OK** (arranca, `runMigrations` salta el baseline marcado).
+- ✅ `src/db/baseline-mark-applied.sql` (hash `2d6234c6…`) para marcar BDs existentes sin recrear. Aplicado/validado en `stockpro_db`.
+- ✅ Flujo en `CLAUDE.md`: editar `schema.ts` → `npm run db:generate` → `npm run migrate`.
+
+**⏳ PENDIENTE:**
+1. **Prod/staging:** correr `src/db/baseline-mark-applied.sql` UNA vez (marca el 0000, no recrea). NO correr `migrate()` al boot en prod.
+2. **Dev local:** `stockpro_db` está incompleta (100 tablas) y marcada. Para un dev limpio con las 201: `drop` + `npm run migrate`. (El DDL de runtime ya no autocrea tablas.)
+3. **Limpieza opcional:** archivar `schema_FULL.sql` y `src/migrations/*.sql` (representados en el 0000). `stockpro_truth` quedó como BD de referencia. ✅ El código muerto de las funciones `ensure*` ya se borró (ahora son no-op limpios de 1 línea).
+
+## 🆕 [2026-06-25] Workout Engine — Progression + Runtime + Workout Mode UI
+
+> Construido pero **NO deployado**. Verificar `pnpm exec tsc --noEmit` (front+back) antes de push + Komodo. Migraciones al boot. Detalle en `changelog.md` y `current-sprint.md`.
+
+El botón "Iniciar rutina" ahora SÍ lleva a un modo entrenamiento real con progresión inteligente, construido como sistema **determinístico por capas** (la IA interpreta, el motor ejecuta).
+
+**Listo (código en disco, verificado tsc 0 errores + 31 tests):**
+- ✅ **Progression Engine** (`backend/src/modules/progression/`) — núcleo puro, sin deps, hipertrofia + double progression. RuleEngine centralizado (única fuente de reglas fitness), strategies desacopladas, contratos validados, decisiones auditables (`reasons`). 19 tests. `strength`/`endurance` lanzan a propósito (V2/V3).
+- ✅ **Workout Runtime** (`backend/src/modules/workout/`) — scope consumidor (user, NO tenant). State machine, persistencia (sessions/exercises/sets + `exercise_progressions` snapshot), repository transaccional, services lifecycle/set-tracking, **progression-bridge** (conecta runtime↔motor al completar), eventos. 12 tests. Endpoints `/api/workouts/*`.
+- ✅ **Workout Mode UI** (`frontend/`) — `lib/workout-api.ts`, `components/workout/*` (sesión inmersiva, set tracker, rest timer, summary con progresión), ruta `/workout/session/[id]`, botón "Iniciar rutina" cableado. Front NO calcula: renderiza decisiones del backend.
+
+**⏳ PENDIENTE (próxima sesión / próximo agente):**
+1. **Deploy:** `pnpm exec tsc --noEmit` front+back → push → Komodo. Migraciones al boot: `workout_sessions`, `workout_exercises`, `workout_sets`, `exercise_progressions`.
+2. **Probar loop en vivo:** "Iniciar rutina" → `/workout/session/:id` → completar sets → rest timer → completar → ver progresión (+2.5kg) + PRs.
+3. **Decisión de producto pendiente:** hoy `start-today` usa **templates** de ejercicios (Tren superior/inferior/Full body por keyword del título) porque `rutina_actividades` no tiene ejercicios estructurados con cargas. Evaluar si los ejercicios deben salir de la rutina real del usuario (requeriría estructurar la rutina con sets/reps/peso).
+4. **Siguientes capas del plan (NO hechas):** RestTimer/volumen ya están en UI; faltan fatigue engine, PR system avanzado, gamificación XP enganchada a los eventos workout (el publisher ya existe, falta suscriptor), IA coach (presentational), objetivos fuerza/resistencia (nuevas strategies en el engine).
+
 ## 🆕 [2026-06-22] DAIMUZ Fitness Lifestyle OS — Fases 2, 3 y 4.1
 
 > Construido pero **NO deployado** (push + Komodo Deploy pendientes del usuario). Verificar `pnpm exec tsc --noEmit` en front y back antes. Las migraciones corren al boot del backend. Detalle en `context/current-sprint.md` y `changelog.md`.
@@ -89,7 +122,7 @@
 - **Selección dinámica en Tema 2:** `VariantSelector` integrado en `theme2-order-flow.tsx` (precio/imagen/stock al instante, bloqueo hasta elegir, variante en carrito/WhatsApp/pedido). Tema 1 ya lo tenía; se le agregó `variantId` al payload.
 - **Reserva atómica de stock en `/orders/public`:** `variants.service.reserveForPublicOrder()` (incrementa `reserved_stock` race-safe, transaccional, movimiento `'reserva'`) + `releaseForOrder()` (cancelación/rollback). `checkStockAvailability` ignora ítems con `variantId`. La tienda oculta el combo agotado al instante (filtra `stock - reserved_stock`).
 - **Preventa (backorder):** variantes agotadas seleccionables (`allowOutOfStock` en `VariantSelector`); en `/orders/public`, ítems de variante con `isPreorder` NO reservan stock (venta ilimitada). Para embudos de venta masivos.
-- **Producto AnMarg** (Camiseta Clásica): datos de carga en `imports/anmarg-camiseta-clasica/` (CSV 90 variantes + SQL tiers + README). No cargado en BD todavía.
+- **Producto AnMarg** (Camiseta Clásica): datos de carga en `backend/imports/anmarg-camiseta-clasica/` (CSV 90 variantes + SQL tiers + README). No cargado en BD todavía.
 - **(2026-06-18 parte 2) Integración COMPLETA:** asiento al confirmar (`settleVariantForSale` descuenta stock de variante + congela `variant_id`/costo/margen en `sale_items`); reserva en las 3 pasarelas (MP/ADDI/Sistecrédito) con liberación en webhooks; columna `variant_id` en `storefront_order_items` + congeladas en `sale_items` (migración idempotente); cupo de preventa por variante (`preorder_limit`/`preorder_count`, enforce atómico, campo en panel). tsc back+front 0 errores.
 - ⚠️ **Solo queda operativo:** arrancar backend (corre migraciones idempotentes) + cargar AnMarg + **Deploy en Komodo**.
 
@@ -230,7 +263,7 @@ Implementación full-stack completa. Ver `daimuz/brain/variants-implementation-p
 > Agrega aquí cada vez que termines algo significativo
 
 - `[2026-06-18 p2]` — **Integración de variantes COMPLETA**: asiento al confirmar (`settleVariantForSale`), reserva en pasarelas (MP/ADDI/Sistecrédito) + liberación en webhooks, columna `variant_id` en `storefront_order_items` + congeladas en `sale_items` (migración idempotente en `index.ts`), cupo de preventa por variante (`preorder_limit`/`preorder_count`, enforce atómico, campo en `variant-manager`). tsc back+front 0 errores. Solo queda arrancar backend + cargar AnMarg + Deploy en Komodo.
-- `[2026-06-18]` — **Variantes en todo el storefront + selección dinámica (Tema 2) + reserva atómica + preventa**: helper `attachVariants()` aplicado a todos los endpoints públicos de producto (fix: variantes no cargaban hasta recargar); visibilidad por variante en la lista (`EXISTS` sobre `product_variants`, los productos con `stock=0` ya aparecen); `VariantSelector` integrado en `theme2-order-flow.tsx`; reserva atómica de `reserved_stock` en `POST /orders/public` (`reserveForPublicOrder`/`releaseForOrder` en `variants.service.ts`, `checkStockAvailability` ignora `variantId`, libera en `cancel-gateway`); preventa backorder (`allowOutOfStock` en selector; ítems `isPreorder` no reservan stock). Producto AnMarg en `imports/anmarg-camiseta-clasica/`. tsc back+front 0 errores. Falta Deploy en Komodo.
+- `[2026-06-18]` — **Variantes en todo el storefront + selección dinámica (Tema 2) + reserva atómica + preventa**: helper `attachVariants()` aplicado a todos los endpoints públicos de producto (fix: variantes no cargaban hasta recargar); visibilidad por variante en la lista (`EXISTS` sobre `product_variants`, los productos con `stock=0` ya aparecen); `VariantSelector` integrado en `theme2-order-flow.tsx`; reserva atómica de `reserved_stock` en `POST /orders/public` (`reserveForPublicOrder`/`releaseForOrder` en `variants.service.ts`, `checkStockAvailability` ignora `variantId`, libera en `cancel-gateway`); preventa backorder (`allowOutOfStock` en selector; ítems `isPreorder` no reservan stock). Producto AnMarg en `backend/imports/anmarg-camiseta-clasica/`. tsc back+front 0 errores. Falta Deploy en Komodo.
 - `[2026-06-16]` — **Modo Chat Daimuz (slice Restbar)**: el agente opera mesas por chat (`/api/daimuz-chat`, página `/modo-chat`) con confirmación antes de ejecutar (abrir mesa / tomar pedido / enviar a cocina). Además: asistentes ahora aceptan OpenAI (`sk-`) con base URL configurable, y las AI keys se enmascaran en el panel con opción 'revelar'. Base de la visión 'el panel se vuelve chat y mueve los módulos'. Pendiente: cobrar, más módulos, Gemini, y el toggle de panel completo.
 - `[2026-06-14]` — **Colorimetría de marca por IA (2 niveles) + fixes**: paleta de plataforma (superadmin → home/login/default paneles) y paleta individual del comercio (tienda full + acento de panel); auto-colorimetría al subir el logo del comercio con toast "Colorimetría aplicada ¿desea editar?". Nuevos: `lib/platform-theme.ts`, `components/platform-theme-loader.tsx`, `components/platform-theme-generator.tsx`. Editados: `app/layout.tsx`, `superadmin/tabs/LandingConfigTab.tsx`, `logo-theme-generator.tsx`, `store-customization.tsx`, `landing-page.tsx`, `merchant-panel.tsx`. Fixes: favicon → `daimuz-icon-transparent.png`; "Tarjeta del comercio" guarda el tema al instante (`store-card-config.tsx`); backend `card-config` ya no falla con INSERT duplicado al reguardar sin cambios (`storefront.routes.ts`). Sin cambios de schema (reutiliza `platform_settings` y `/storefront/theme/*`).
 - `[2026-06-12]` — **Panel Superadmin — Sprints 0-4 completados**: refactor monolito (3444 líneas → 25 archivos modulares), Centro de Pedidos cross-tenant con SSE, wizard creación de comercios, papelera/restaurar tenants, dashboard analítica con heatmap. Backend: 8 endpoints `/api/superadmin/*`. DB: columna `assigned_to` en `storefront_orders` + tabla `order_status_history`.

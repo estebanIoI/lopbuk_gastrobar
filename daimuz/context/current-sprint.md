@@ -4,6 +4,20 @@
 
 ## Sprint activo: Junio 2026
 
+### ✅ [2026-06-25]: Workout Engine — Progression + Runtime + Workout Mode UI
+
+Objetivo: convertir "Iniciar rutina" en un **WORKOUT ENGINE determinístico** (la IA interpreta, el motor ejecuta). Construido por capas, en orden quirúrgico. **NO deployado** (tsc + push + Komodo pendientes).
+
+| Paso | Estado | Qué |
+|---|---|---|
+| Progression Engine (hipertrofia, double progression) | ✅ | `backend/src/modules/progression/` — núcleo PURO sin deps. `shared` (enums/constants/`schema.ts` validación estilo zod sin zod), `domain/rules/goal-rules.ts` = **único RuleEngine** (prohibido `if(goal===…)` fuera de aquí), calculators (volume/completion-rate/1RM), evaluator, strategies + factory (`double-progression`), `application` ProgressionService + evento `progression_computed`. Decisión: todas al tope→`increase`(+2.5 upper/+5 lower); en rango→`maintain`; bajo mín o rate<0.8→`decrease`. `strength`/`endurance`+`linear`/`rir_based` LANZAN (anti-alucinación, V2/V3). **19 tests** node:test, tsc 0 err. README en el módulo. |
+| Workout Runtime (Fase 5) | ✅ | `backend/src/modules/workout/` (scope user, NO tenant). State machine explícita. Tablas idempotentes `workout_sessions`/`workout_exercises`/`workout_sets`/`exercise_progressions` (snapshot user+ejercicio = source of truth, NO recálculo). Repository único user-scoped+transaccional. Services lifecycle (start/pause/resume/cancel/complete) + set-tracking + **progression-bridge** (al completar: corre engine por ejercicio → upsert snapshot → publica eventos). Event publisher no-op extensible (suscriptores futuros: XP/analytics/IA). **12 tests**. Montado: `/api/workouts` + `ensureWorkoutSchema()` al boot en `index.ts`. |
+| Workout Mode UI (Fase 6, slice vertical) | ✅ | Backend glue `today-plan.service.ts` + `POST /workouts/start-today` (template por keyword del título + **peso sugerido = `nextWeight` del snapshot**, continuidad real). Frontend: `lib/workout-api.ts` (módulo aparte, NO se tocó `api.ts`), `components/workout/` (WorkoutSessionScreen, ExerciseCard, SetTracker, RestTimer 90s con anillo+vibración, WorkoutSummary con progresión+PRs), ruta `app/workout/session/[id]/page.tsx`, botón "Iniciar rutina" de `MissionControl.tsx` → `startToday` → `router.push`. **Front NO calcula**: solo renderiza `action`/`nextWeight`. tsc 0 err en archivos nuevos. |
+
+**Acción requerida:** `pnpm exec tsc --noEmit` front+back + **redeploy** (migraciones al boot: workout_sessions/exercises/sets, exercise_progressions). NO push (lo hace el usuario).
+
+**Pendiente próxima sesión:** (1) probar loop en vivo; (2) **decidir** si `start-today` debe usar la rutina real del usuario en vez de templates (hoy `rutina_actividades` no tiene ejercicios con cargas); (3) enganchar suscriptor de XP/gamificación al event publisher de workout; (4) objetivos fuerza/resistencia = nuevas strategies en el engine; (5) fatigue engine + IA coach (presentational, nunca decisional).
+
 ### ✅ [2026-06-22]: Vault / Access Ecosystem (Fase 3) — slice V1
 
 Plan: `context/plan-gamificacion-ecosistema.md`. Canon: "Vault Key/Access Pass", NO "código"; las llaves desbloquean **interfaces ocultas** del OS, no solo productos.
@@ -167,7 +181,7 @@ Visión: el panel del `cliente` es el producto; el marketplace es una función (
 
 | Tarea | Estado | Descripción |
 |---|---|---|
-| Producto AnMarg (carga) | ✅ | `imports/anmarg-camiseta-clasica/`: CSV 90 variantes + SQL tiers (6+/12+/24+) + README. No cargado en BD aún. |
+| Producto AnMarg (carga) | ✅ | `backend/imports/anmarg-camiseta-clasica/`: CSV 90 variantes + SQL tiers (6+/12+/24+) + README. No cargado en BD aún. |
 | Selector dinámico Tema 2 | ✅ | `VariantSelector` integrado en `theme2-order-flow.tsx`: precio/imagen/stock al instante, bloqueo hasta elegir, variante en carrito/WhatsApp/pedido, `+`/"Ordenar Ahora" abren detalle si hay variantes |
 | Tema 1 payload variantId | ✅ | `variantId` agregado a los 4 `items.map` de `landing-page` (público + 3 pasarelas) |
 | Attach variantes centralizado | ✅ | helper `attachVariants()` en `storefront.routes.ts` aplicado a lista, /offers, /new-launches, /platform-featured, /drop/:id, store-config featured+trending (fix: no cargaban hasta recargar) |
@@ -179,7 +193,7 @@ Visión: el panel del `cliente` es el producto; el marketplace es una función (
 **Archivos clave:**
 - Backend: `storefront.routes.ts` (helper `attachVariants` + visibilidad por variante), `orders.routes.ts` (`/public` reserva + `cancel-gateway` libera + `checkStockAvailability` variant-aware), `variants.service.ts` (`reserveForPublicOrder`/`releaseForOrder`)
 - Frontend: `theme2/theme2-order-flow.tsx`, `variant-selector.tsx` (prop `allowOutOfStock`), `landing-page.tsx`
-- Datos: `imports/anmarg-camiseta-clasica/` (CSV + SQL + README)
+- Datos: `backend/imports/anmarg-camiseta-clasica/` (CSV + SQL + README)
 
 **Pendiente variantes:** asiento al confirmar (pedido→venta) para variantes (hoy descuenta `products.stock`, no asienta `reserved_stock`→`stock`); reserva en flujos de pasarela (solo `/public`); columna `variant_id` en `storefront_order_items` (cambio de schema, no hecho por la regla); cupo máximo de preventa por variante. **Falta Deploy en Komodo.**
 

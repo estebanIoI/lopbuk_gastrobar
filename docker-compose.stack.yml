@@ -1,0 +1,90 @@
+# ============================================================
+# docker-compose.stack.yml — Stack de pruebas LOCAL (1 sola orquestación)
+# ============================================================
+#  Servicios: db (MySQL 8) + backend (Express/ts-node-dev) + frontend (Next.js)
+#  La BD arranca VACÍA: el backend, al bootear en NODE_ENV=development, corre
+#  runMigrations() y construye el esquema completo (201 tablas) desde el baseline
+#  Drizzle (backend/src/db/migrations/0000_*). No usa schema.sql.
+#
+#  Uso:  docker compose -f docker-compose.stack.yml up -d
+#        docker compose -f docker-compose.stack.yml logs -f backend
+#        docker compose -f docker-compose.stack.yml down        (conserva datos)
+#        docker compose -f docker-compose.stack.yml down -v     (borra la BD)
+#
+#  URLs: frontend http://localhost:3000 · backend http://localhost:3001/api
+#        db (host) localhost:3307  →  3306 dentro de la red de compose
+# ============================================================
+
+services:
+  db:
+    image: mysql:8.0
+    container_name: lopbuk_db
+    restart: unless-stopped
+    command: ["--default-authentication-plugin=mysql_native_password"]
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+    volumes:
+      - lopbuk_db_data:/var/lib/mysql
+    ports:
+      - "3307:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 40s
+
+  backend:
+    image: node:20-alpine
+    container_name: lopbuk_backend
+    working_dir: /app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development      # dev → runMigrations() aplica el baseline al boot
+      PORT: 3001
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME}
+      DB_USER: root
+      DB_PASSWORD: ${DB_ROOT_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: 24h
+      CORS_ORIGIN: http://localhost:3000
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      IS_LOCAL_INSTANCE: "false"  # sin scheduler de sync en el stack de pruebas
+    volumes:
+      - ./backend:/app
+      - backend_node_modules:/app/node_modules
+    command: sh -c "npm install --legacy-peer-deps && npm run dev"
+    ports:
+      - "3001:3001"
+
+  frontend:
+    image: node:20-alpine
+    container_name: lopbuk_frontend
+    working_dir: /app
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:3001/api
+      CHOKIDAR_USEPOLLING: "true"
+      WATCHPACK_POLLING: "true"
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+    command: sh -c "npm install --legacy-peer-deps && npm run dev"
+    ports:
+      - "3000:3000"
+
+volumes:
+  lopbuk_db_data:
+    name: lopbuk_stack_db_data
+  backend_node_modules:
+    name: lopbuk_stack_backend_nm
+  frontend_node_modules:
+    name: lopbuk_stack_frontend_nm

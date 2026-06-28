@@ -12,6 +12,7 @@
  *  - Las tarjetas de presentación de los comercios se renderizan TAL CUAL
  *    (mismo markup que la landing original).
  *  - El carrusel reutiliza los slides gestionados en superadmin.
+ *  - Fase 1 rediseño móvil: branch mobile-first (ver if (isMobile)).
  * ============================================================================
  */
 
@@ -19,12 +20,13 @@ import { useEffect, useMemo, useRef, useState, type ReactNode, type CSSPropertie
 import { BRAND } from '@/lib/brand'
 import { DaimuzWelcomeFrame } from '@/components/daimuz-welcome-frame'
 import { FlameButton } from '@/components/ui/flame-button'
+import { useIsDesktop } from '@/components/consumer/hooks/useIsDesktop'
 import {
   ChevronLeft, ChevronRight, Store, UtensilsCrossed, Zap, Tag, Package,
   Sparkles, ShoppingBag, Pill, Apple, Wrench, Scissors, Dog, Wine,
   Croissant, Coffee, Shirt, Gem, Flower2, ArrowRight, Search,
   ChevronDown, MapPin, Flame, Bell, Facebook, Instagram, Phone,
-  Mail, TrendingUp, X, Menu,
+  Mail, TrendingUp, X, Menu, Compass, User as UserIcon, Home as HomeIcon,
 } from 'lucide-react'
 
 // ── Paleta institucional ────────────────────────────────────────────────────
@@ -554,8 +556,26 @@ export function MarketplaceHomeGovCo({
   const [megaOpen, setMegaOpen] = useState(false)
   const [mobileNav, setMobileNav] = useState(false)
   const [alertOpen, setAlertOpen] = useState(true)
+  const [scrolled, setScrolled] = useState(false)
   const gridRef = useRef<HTMLDivElement>(null)
   const accesosRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 20)
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
+  // ── Branch responsive (Fase 1 rediseño móvil) ──────────────────────────────
+  // useIsDesktop devuelve null hasta montar → SSR/primer render = desktop (sin
+  // mismatch de hidratación); tras montar, si es móvil, se renderiza el shell
+  // mobile-first. Mismo componente, mismos datos y handlers (sin doble fetch).
+  const isDesktop = useIsDesktop()
+  const isMobile = isDesktop === false
+  const [mobileNavTab, setMobileNavTab] = useState<'inicio' | 'explorar' | 'tiendas' | 'ofertas'>('inicio')
+  const mTopRef = useRef<HTMLDivElement>(null)
+  const mOffersRef = useRef<HTMLDivElement>(null)
+  const mNewRef = useRef<HTMLDivElement>(null)
 
   // Producto destacado para el panel derecho del hero (60/40)
   const topFeatured: MarketProduct | undefined = featured[0] || offers[0] || products[0]
@@ -658,81 +678,320 @@ export function MarketplaceHomeGovCo({
       } as CSSProperties)
     : undefined
 
+  // ════════════════════════════════════════════════════════════════════════════
+  //  RENDER MÓVIL (Fase 1 rediseño) — mobile-first, sin tabs/navbar redundantes.
+  //  Reusa los mismos datos, handlers y tarjetas (StoreCard/ProductCard) que el
+  //  desktop. Desktop queda intacto debajo.
+  // ════════════════════════════════════════════════════════════════════════════
+  if (isMobile) {
+    const goTop = () => { setMobileNavTab('inicio'); mTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
+    const goStores = () => { setMobileNavTab('tiendas'); gridRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
+    const goOffers = () => { setMobileNavTab('ofertas'); mOffersRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
+    const goExplore = () => { setMobileNavTab('explorar'); mNewRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
+    const heroHasSlides = heroSlides.filter(s => s.url).length > 0
+    const navItemsM: { key: typeof mobileNavTab | 'cuenta'; label: string; icon: ReactNode; onClick: () => void }[] = [
+      { key: 'inicio', label: 'Inicio', icon: <HomeIcon className="w-5 h-5" />, onClick: goTop },
+      { key: 'explorar', label: 'Explorar', icon: <Compass className="w-5 h-5" />, onClick: goExplore },
+      { key: 'tiendas', label: 'Tiendas', icon: <Store className="w-5 h-5" />, onClick: goStores },
+      { key: 'ofertas', label: 'Ofertas', icon: <Tag className="w-5 h-5" />, onClick: goOffers },
+      { key: 'cuenta', label: 'Cuenta', icon: <UserIcon className="w-5 h-5" />, onClick: onGoToLogin },
+    ]
+    const chipStyle = (selected: boolean): CSSProperties =>
+      selected ? { background: GREEN, color: '#fff', borderColor: GREEN } : { color: '#4b5563', borderColor: '#d7dbe0', background: '#fff' }
+    return (
+      <div ref={mTopRef} className="min-h-screen bg-gray-50 text-gray-800 flex flex-col pb-24" style={brandVars}>
+        {/* ── TopBar: logo + búsqueda + acceder ── */}
+        <header className="bg-white/95 backdrop-blur sticky top-0 z-40 border-b border-gray-200">
+          <div className="px-4 py-2.5 flex items-center gap-2.5">
+            <button onClick={goTop} className="shrink-0" aria-label="Inicio">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={brandLogo} alt={BRAND.name} className="w-8 h-8 object-contain rounded-lg" />
+            </button>
+            <div className="relative flex-1 min-w-0">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Buscar productos o tiendas"
+                className="w-full pl-9 pr-3 py-2 rounded-xl bg-gray-100 text-sm focus:outline-none focus:ring-2 focus:bg-white"
+                style={{ ['--tw-ring-color' as any]: GREEN }}
+              />
+            </div>
+            <button onClick={onGoToLogin} className="text-sm font-semibold shrink-0" style={{ color: GREEN_DARK }}>Acceder</button>
+          </div>
+          {/* ── Chips de categoría: única capa de filtro ── */}
+          {rubros.length > 0 && (
+            <div className="flex gap-2 overflow-x-auto scrollbar-hide px-4 pb-2.5">
+              <button onClick={() => onSelectBusinessType('all')} className="shrink-0 px-3.5 py-1.5 rounded-full text-sm font-medium border whitespace-nowrap transition-colors" style={chipStyle(businessTypeFilter === 'all')}>Todos</button>
+              {rubros.slice(0, 8).map(({ type }) => (
+                <button key={type} onClick={() => onSelectBusinessType(type)} className="shrink-0 px-3.5 py-1.5 rounded-full text-sm font-medium border whitespace-nowrap capitalize transition-colors" style={chipStyle(businessTypeFilter === type)}>{type}</button>
+              ))}
+            </div>
+          )}
+        </header>
+
+        <main className="flex-1 px-4 py-4 space-y-8">
+          {/* ── Hero único ── */}
+          <section>
+            {heroHasSlides ? (
+              <div className="rounded-2xl overflow-hidden"><HomeHeroCarousel slides={heroSlides} isMobile intervalMs={5000} /></div>
+            ) : (
+              <div className="relative rounded-2xl overflow-hidden p-6 min-h-[200px] flex flex-col justify-end text-white" style={{ background: `linear-gradient(135deg, ${GREEN_DARK}, ${GREEN})` }}>
+                <h1 className="text-xl font-extrabold leading-tight max-w-[220px]">{heroTitle || 'Tu marketplace local'}</h1>
+                <p className="text-white/80 text-sm mt-1.5 max-w-[240px]">{heroSubtitle || 'Tiendas, ofertas y novedades en un solo lugar.'}</p>
+                <button onClick={goStores} className="mt-4 self-start text-sm font-semibold px-5 py-2 rounded-full" style={{ background: GOLD, color: GOLD_TEXT }}>Explorar</button>
+              </div>
+            )}
+          </section>
+
+          {/* ── Comercios (1 columna, cards grandes) ── */}
+          <section ref={gridRef}>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-[15px] font-bold" style={{ color: GREEN_DARK }}>Comercios</h2>
+              {!loadingStores && <span className="text-xs text-gray-400">{visibleStores.length}</span>}
+            </div>
+            {loadingStores ? (
+              <div className="grid grid-cols-1 gap-3">
+                {[0, 1, 2].map(i => (
+                  <div key={i} className="bg-white rounded-2xl overflow-hidden animate-pulse border border-gray-100">
+                    <div className="bg-gray-100" style={{ aspectRatio: '16/9' }} />
+                    <div className="p-3 space-y-2"><div className="h-3 bg-gray-200 rounded w-2/3" /><div className="h-2 bg-gray-100 rounded w-1/3" /></div>
+                  </div>
+                ))}
+              </div>
+            ) : visibleStores.length === 0 ? (
+              <div className="text-center py-12 space-y-2"><Store className="w-10 h-10 text-gray-300 mx-auto" /><p className="text-gray-500 text-sm">No hay comercios para esta búsqueda</p></div>
+            ) : (
+              <div className="grid grid-cols-1 gap-3">
+                {visibleStores.map(store => (
+                  <StoreCard key={store.id} store={store} onOpenStore={onOpenStore} hasServices={storesWithServices.has(store.slug)} ensureAbsoluteUrl={ensureAbsoluteUrl} />
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* ── Ofertas ── */}
+          {visibleOffers.length > 0 && (
+            <section ref={mOffersRef}>
+              <h2 className="text-[15px] font-bold mb-3" style={{ color: GREEN_DARK }}>Ofertas</h2>
+              <div className="grid grid-cols-2 gap-3">
+                {visibleOffers.slice(0, 12).map(p => <ProductCard key={p.id} product={p} onOpen={onOpenProduct} />)}
+              </div>
+            </section>
+          )}
+
+          {/* ── Novedades ── */}
+          {visibleFeatured.length > 0 && (
+            <section ref={mNewRef}>
+              <h2 className="text-[15px] font-bold mb-3" style={{ color: GREEN_DARK }}>Novedades</h2>
+              <div className="grid grid-cols-2 gap-3">
+                {visibleFeatured.slice(0, 12).map(p => <ProductCard key={p.id} product={p} onOpen={onOpenProduct} />)}
+              </div>
+            </section>
+          )}
+
+          {/* ── Únete (banner simple, no 3 cards) ── */}
+          <section className="rounded-2xl p-5 text-white" style={{ background: `linear-gradient(135deg, ${GREEN_DARK}, ${GREEN})` }}>
+            <h3 className="font-bold text-base">¿Tienes un comercio?</h3>
+            <p className="text-white/80 text-sm mt-1">Publica tu tienda y recibe pedidos online desde un solo panel.</p>
+            <button onClick={onGoToLogin} className="mt-4 inline-flex items-center gap-1.5 text-sm font-bold px-4 py-2.5 rounded-xl" style={{ background: GOLD, color: GOLD_TEXT }}>Registrar mi comercio <ArrowRight className="w-4 h-4" /></button>
+          </section>
+        </main>
+
+        {/* ── Bottom nav flotante ── */}
+        <nav className="fixed bottom-0 inset-x-0 z-50 bg-white/95 backdrop-blur border-t border-gray-200" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+          <div className="grid grid-cols-5">
+            {navItemsM.map(it => {
+              const active = mobileNavTab === it.key
+              return (
+                <button key={it.key} onClick={it.onClick} className="flex flex-col items-center gap-0.5 py-2 transition-colors" style={{ color: active ? GREEN : '#9aa0a8' }}>
+                  {it.icon}
+                  <span className="text-[10px] font-medium">{it.label}</span>
+                </button>
+              )
+            })}
+          </div>
+        </nav>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 text-gray-800 flex flex-col" style={brandVars}>
-      {/* ══ Header ══ */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-40">
-        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center gap-3 sm:gap-5">
-          <button onClick={scrollToGrid} className="flex items-center gap-2 shrink-0">
+      {/* ══ CAPA 1: TopBar informativa (se desplaza, no sticky) ══ */}
+      <div className="hidden sm:flex items-center justify-center h-[34px] shrink-0 overflow-hidden" style={{ background: GREEN_DARK }}>
+        <div className="flex items-center gap-5 text-white/85 text-[11px] font-medium tracking-wide select-none">
+          <span className="flex items-center gap-1.5"><Zap className="w-3 h-3 opacity-80" /> Comercios activos</span>
+          <span className="w-px h-3 bg-white/20" />
+          <span className="flex items-center gap-1.5"><Sparkles className="w-3 h-3 opacity-80" /> IA asistencial para negocios</span>
+          <span className="w-px h-3 bg-white/20" />
+          <span className="flex items-center gap-1.5"><Tag className="w-3 h-3 opacity-80" /> Descubre ofertas exclusivas</span>
+          <span className="w-px h-3 bg-white/20" />
+          <button onClick={onGoToLogin} className="underline underline-offset-2 hover:text-white transition-colors">Acceder al OS →</button>
+        </div>
+      </div>
+
+      {/* ══ CAPA 2: Main Header (glassmorphism · sticky · morphing) ══ */}
+      <header
+        className="sticky top-0 z-40 transition-all duration-300"
+        style={{
+          height: scrolled ? '60px' : '72px',
+          background: scrolled ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.97)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          boxShadow: scrolled ? '0 4px 24px rgba(0,0,0,0.10)' : '0 1px 0 rgba(0,0,0,0.07)',
+          borderBottom: '1px solid rgba(0,0,0,0.06)',
+        }}
+      >
+        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 h-full flex items-center gap-3 sm:gap-4">
+          {/* Logo */}
+          <button onClick={scrollToGrid} className="flex items-center gap-2.5 shrink-0 group">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={brandLogo} alt={BRAND.name} className="w-9 h-9 object-contain rounded-lg shrink-0" />
-            <span className="text-lg sm:text-xl font-extrabold tracking-tight" style={{ color: GREEN_DARK }}>{BRAND.name}</span>
+            <img
+              src={brandLogo} alt={BRAND.name}
+              className="object-contain rounded-xl transition-all duration-300 shrink-0"
+              style={{ width: scrolled ? '34px' : '42px', height: scrolled ? '34px' : '42px' }}
+            />
+            <span
+              className="font-extrabold tracking-tight hidden sm:block transition-all duration-300 group-hover:opacity-80"
+              style={{ fontSize: scrolled ? '17px' : '20px', color: GREEN_DARK }}
+            >
+              {BRAND.name}
+            </span>
           </button>
 
-          <div className="relative flex-1 max-w-2xl">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          {/* Search — protagonista */}
+          <div className="relative flex-1 max-w-2xl group">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-green-600 transition-colors pointer-events-none" />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Buscar comercios, productos o categorías…"
-              className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:border-transparent"
-              style={{ ['--tw-ring-color' as any]: GREEN }}
+              className="w-full pl-10 pr-16 rounded-2xl border text-sm bg-gray-50/80 focus:bg-white focus:outline-none transition-all duration-200"
+              style={{
+                height: scrolled ? '38px' : '44px',
+                borderColor: 'rgba(0,0,0,0.12)',
+                boxShadow: 'none',
+              }}
+              onFocus={e => { e.currentTarget.style.borderColor = 'var(--brand-green, #00833E)'; e.currentTarget.style.boxShadow = '0 0 0 3px color-mix(in srgb, var(--brand-green,#00833E) 12%, transparent)' }}
+              onBlur={e => { e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)'; e.currentTarget.style.boxShadow = 'none' }}
             />
+            {/* AI badge dentro del buscador */}
+            <span className="absolute right-3.5 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full pointer-events-none"
+              style={{ background: 'color-mix(in srgb, var(--brand-green,#00833E) 10%, transparent)', color: 'var(--brand-green-dark,#005C2A)' }}>
+              <Sparkles className="w-2.5 h-2.5" /> IA
+            </span>
           </div>
 
-          <span className="hidden sm:block shrink-0 pt-3">
-            <FlameButton onClick={onGoToLogin}>Acceder</FlameButton>
-          </span>
-          <button onClick={() => setMobileNav(v => !v)} className="sm:hidden p-2 rounded-lg border border-gray-300 text-gray-600" aria-label="Menú">
+          {/* AI Action Button */}
+          <button
+            onClick={onGoToLogin}
+            className="hidden lg:flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-semibold shrink-0 transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0"
+            style={{
+              background: `linear-gradient(135deg, var(--brand-green,#00833E), var(--brand-green-dark,#005C2A))`,
+              color: '#fff',
+              boxShadow: '0 4px 14px color-mix(in srgb, var(--brand-green,#00833E) 35%, transparent)',
+            }}
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            Buscar con IA
+          </button>
+
+          {/* Entrar — premium pill */}
+          <button
+            onClick={onGoToLogin}
+            className="hidden sm:flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-semibold shrink-0 border transition-all duration-200 hover:bg-gray-50 hover:-translate-y-0.5 active:translate-y-0"
+            style={{ borderColor: 'rgba(0,0,0,0.12)', color: GREEN_DARK }}
+          >
+            <UserIcon className="w-4 h-4" />
+            Entrar
+          </button>
+
+          {/* Mobile hamburger */}
+          <button onClick={() => setMobileNav(v => !v)} className="sm:hidden p-2 rounded-xl border border-gray-200 text-gray-600" aria-label="Menú">
             <Menu className="w-5 h-5" />
           </button>
         </div>
       </header>
 
-      {/* ══ Navbar verde ══ */}
-      <nav className="text-white sticky top-[57px] z-30 shadow-sm" style={{ background: GREEN }}>
+      {/* ══ CAPA 3: Nav chips (glassmorphism · sticky bajo el header) ══ */}
+      <nav
+        className="sticky z-30 transition-all duration-300"
+        style={{
+          top: scrolled ? '60px' : '72px',
+          background: 'rgba(255,255,255,0.80)',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          borderBottom: '1px solid rgba(0,0,0,0.06)',
+          boxShadow: '0 2px 12px rgba(0,0,0,0.04)',
+        }}
+      >
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
-          <div className={`${mobileNav ? 'flex' : 'hidden'} sm:flex flex-col sm:flex-row sm:items-stretch`}>
-            <button onClick={() => { setTab('comercios'); onSelectBusinessType('all'); setMobileNav(false); setTimeout(scrollToGrid, 50) }} className="relative text-left px-4 py-3 text-sm font-medium hover:bg-black/10 transition-colors">
+          <div className={`${mobileNav ? 'flex' : 'hidden'} sm:flex flex-col sm:flex-row sm:items-center gap-0.5 py-2 overflow-x-auto scrollbar-hide`}>
+            {/* Inicio */}
+            <button
+              onClick={() => { setTab('comercios'); onSelectBusinessType('all'); setMobileNav(false); setTimeout(scrollToGrid, 50) }}
+              className="shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-200 hover:-translate-y-0.5 text-left"
+              style={tab === 'comercios' && !query
+                ? { background: `var(--brand-green,#00833E)`, color: '#fff' }
+                : { color: '#374151' }}
+            >
               Inicio
             </button>
+
             {/* Mega-menú categorías */}
-            <div className="relative" onMouseEnter={() => setMegaOpen(true)} onMouseLeave={() => setMegaOpen(false)}>
-              <button onClick={() => setMegaOpen(v => !v)} className="w-full sm:w-auto flex items-center gap-1 px-4 py-3 text-sm font-medium hover:bg-black/10 transition-colors">
-                Categorías <ChevronDown className="w-3.5 h-3.5" />
+            <div className="relative shrink-0" onMouseEnter={() => setMegaOpen(true)} onMouseLeave={() => setMegaOpen(false)}>
+              <button
+                onClick={() => setMegaOpen(v => !v)}
+                className="flex items-center gap-1 px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-200 hover:-translate-y-0.5"
+                style={{ color: '#374151' }}
+              >
+                Categorías <ChevronDown className="w-3.5 h-3.5 opacity-60" />
               </button>
               {megaOpen && rubros.length > 0 && (
-                <div className="absolute left-0 top-full z-40 w-[min(92vw,640px)] bg-white text-gray-800 rounded-b-xl shadow-2xl border border-gray-200 p-4">
+                <div className="absolute left-0 top-full mt-1 z-40 w-[min(92vw,640px)] bg-white text-gray-800 rounded-2xl shadow-2xl border border-gray-100 p-4">
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    <button onClick={() => pickRubro('all')} className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-50 text-sm">
-                      <span className="w-8 h-8 rounded-lg flex items-center justify-center text-white" style={{ background: GREEN }}><Store className="w-4 h-4" /></span>
+                    <button onClick={() => pickRubro('all')} className="flex items-center gap-2 p-2.5 rounded-xl hover:bg-gray-50 text-sm transition-colors">
+                      <span className="w-8 h-8 rounded-lg flex items-center justify-center text-white shrink-0" style={{ background: `var(--brand-green,#00833E)` }}><Store className="w-4 h-4" /></span>
                       Todos los comercios
                     </button>
                     {rubros.map(({ type, count }) => (
-                      <button key={type} onClick={() => pickRubro(type)} className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-50 text-sm capitalize">
-                        <span className="w-8 h-8 rounded-lg flex items-center justify-center text-white shrink-0" style={{ background: GREEN }}><span className="w-4 h-4 inline-flex">{rubroIcon(type)}</span></span>
+                      <button key={type} onClick={() => pickRubro(type)} className="flex items-center gap-2 p-2.5 rounded-xl hover:bg-gray-50 text-sm capitalize transition-colors">
+                        <span className="w-8 h-8 rounded-lg flex items-center justify-center text-white shrink-0" style={{ background: `var(--brand-green,#00833E)` }}><span className="w-4 h-4 inline-flex">{rubroIcon(type)}</span></span>
                         <span className="min-w-0 truncate">{type}</span>
-                        <span className="ml-auto text-[10px] text-gray-400">{count}</span>
+                        <span className="ml-auto text-[10px] text-gray-400 shrink-0">{count}</span>
                       </button>
                     ))}
                   </div>
                 </div>
               )}
             </div>
+
+            {/* Tabs de contenido como chips */}
             {navItems.filter(n => n.key !== 'comercios').map(item => {
               const active = tab === item.key
               return (
                 <button
                   key={item.key}
                   onClick={() => { setTab(item.key as MainTab); setMobileNav(false); setTimeout(scrollToGrid, 50) }}
-                  className="relative px-4 py-3 text-sm font-medium hover:bg-black/10 transition-colors text-left"
-                  style={active ? { boxShadow: `inset 0 -3px 0 ${GOLD}` } : undefined}
+                  className="shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-200 hover:-translate-y-0.5 text-left"
+                  style={active ? { background: `var(--brand-green,#00833E)`, color: '#fff' } : { color: '#374151' }}
                 >
                   {item.label}
                 </button>
               )
             })}
-            <a href="https://api.whatsapp.com/send" target="_blank" rel="noopener noreferrer" className="px-4 py-3 text-sm font-medium hover:bg-black/10 transition-colors">Contacto</a>
+
+            {/* Contacto */}
+            <a
+              href="https://api.whatsapp.com/send"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-200 hover:-translate-y-0.5"
+              style={{ color: '#374151' }}
+            >
+              Contacto
+            </a>
           </div>
         </div>
       </nav>
@@ -1010,6 +1269,7 @@ export function MarketplaceHomeGovCo({
                             {p.imageUrl ? (
                               // eslint-disable-next-line @next/next/no-img-element
                               <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover" />
+            
                             ) : <Package className="w-5 h-5 text-gray-300" />}
                           </div>
                           <div className="min-w-0 flex-1">

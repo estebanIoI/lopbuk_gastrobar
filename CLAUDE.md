@@ -36,6 +36,39 @@
 5. **Respuestas API** — `{ success: true, data }` / `{ success: false, error }`
 6. **Errores** — `throw new AppError('mensaje', httpCode)` en services
 7. **No tocar sin preguntar:** schema DB · auth middleware · config files
+8. **Esquema = migraciones versionadas** — el esquema vive en `backend/src/db/schema`
+   (fuente TS) + `backend/src/db/migrations` (historial). **PROHIBIDO `CREATE TABLE` /
+   `ALTER TABLE` en runtime** (nada de `ensureTable()` ni DDL en `index.ts`).
+
+---
+
+## 🧬 Migraciones de esquema (Drizzle Kit)
+
+Flujo para cualquier cambio de esquema (tabla/columna nueva, índice, etc.):
+
+```
+1. Editar la tabla en backend/src/db/schema/schema.ts
+2. npm run db:generate     → crea src/db/migrations/000N_*.sql (revísalo)
+3. npm run migrate         → aplica las migraciones pendientes
+```
+
+- **Baseline:** `0000_tearful_patch.sql` = esquema completo (203 tablas + 6 vistas +
+  196 FKs + 2732 columnas), capturado por introspección de una BD verdad. Incluye la
+  feature **hormas** (`hormas`, `horma_colors` + `horma_id`) y las 29 columnas que el
+  schema_FULL viejo no creaba (cláusulas `AFTER` fallidas). Reconstruye la BD 1:1.
+- **Deploy (Docker/Komodo):** el `CMD` corre `node dist/db/migrate.js && node dist/index.js`
+  → aplica migraciones (migrador de runtime de `drizzle-orm`, sin `drizzle-kit`) y luego
+  arranca. Si la migración falla, el server NO arranca.
+  - **BD nueva/vacía:** `migrate` corre el 0000 y crea todo (203 tablas).
+  - **BD existente (prod):** `migrate` **auto-marca** el baseline como aplicado (detecta
+    `users` sin registro de migraciones) → no recrea nada, corre solo migraciones futuras.
+    Ya NO hace falta correr `baseline-mark-applied.sql` a mano.
+  - **Prod vieja/incompleta:** correr UNA vez `src/db/prod-catchup.sql` (idempotente)
+    antes/junto al deploy, para rellenar tablas/columnas que le falten (hormas, base_price…)
+    ya que el DDL de runtime está congelado.
+  - Dev: `runMigrations()` corre al boot solo en `NODE_ENV !== 'production'`.
+- `schema_FULL.sql` ya **no** es fuente de verdad → archivado en `backend/db-legacy/`
+  (junto con `inventarioEsteban_v3_multitenant.sql` y las 13 migraciones viejas).
 
 ---
 

@@ -23,6 +23,12 @@ export interface TenantFull {
   bgColor?: string
   createdAt: string
   updatedAt: string
+  // Hidden Layer
+  isHidden?: boolean
+  hiddenAccessToken?: string
+  hiddenAccessCode?: string
+  hiddenTokenExpiresAt?: string
+  allowRegeneration?: boolean
 }
 
 export interface WizardData {
@@ -98,9 +104,14 @@ export function useTenantLifecycle() {
         totalUsers:   t.totalUsers   ?? 0,
         totalProducts:t.totalProducts ?? 0,
         totalSales:   t.totalSales   ?? 0,
-        bgColor:      t.bgColor,
-        createdAt:    t.createdAt,
-        updatedAt:    t.updatedAt,
+        bgColor:              t.bgColor,
+        createdAt:            t.createdAt,
+        updatedAt:            t.updatedAt,
+        isHidden:             Boolean(t.isHidden ?? t.is_hidden),
+        hiddenAccessToken:    t.hiddenAccessToken ?? t.hidden_access_token ?? undefined,
+        hiddenAccessCode:     t.hiddenAccessCode  ?? t.hidden_access_code  ?? undefined,
+        hiddenTokenExpiresAt: t.hiddenTokenExpiresAt ?? t.hidden_token_expires_at ?? undefined,
+        allowRegeneration:    (t.allowRegeneration ?? t.allow_regeneration) !== false && (t.allowRegeneration ?? t.allow_regeneration) !== 0,
       })))
     }
     setIsLoadingTenants(false)

@@ -6,35 +6,8 @@ const router: ReturnType<typeof Router> = Router()
 router.use(authenticate)
 router.use(authorize('superadmin'))
 
-// Auto-migrate: add assigned_to column and create history table if not present
-// Uses INFORMATION_SCHEMA check for MySQL 5.7 compatibility (no IF NOT EXISTS in ALTER TABLE)
-;(async () => {
-  try {
-    const [cols] = await pool.query(
-      `SELECT COUNT(*) AS n FROM INFORMATION_SCHEMA.COLUMNS
-       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'storefront_orders' AND COLUMN_NAME = 'assigned_to'`
-    ) as any
-    if (Number((cols as any[])[0]?.n) === 0) {
-      await pool.query('ALTER TABLE storefront_orders ADD COLUMN assigned_to VARCHAR(36) NULL')
-    }
-  } catch { /* ignore */ }
-  try {
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS order_status_history (
-        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-        order_id VARCHAR(36) NOT NULL,
-        tenant_id VARCHAR(36) NOT NULL,
-        from_status VARCHAR(30) NULL,
-        to_status VARCHAR(30) NOT NULL,
-        changed_by VARCHAR(36) NOT NULL,
-        note TEXT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        INDEX idx_osh_order (order_id),
-        INDEX idx_osh_tenant (tenant_id)
-      )
-    `)
-  } catch { /* already exists */ }
-})()
+// DDL congelado: order_status_history vive en el baseline (0000) y
+// storefront_orders.assigned_to en la migración 0002. Prohibido DDL en runtime — ver CLAUDE.md.
 
 // Valid status transitions (state machine)
 const VALID_TRANSITIONS: Record<string, string[]> = {

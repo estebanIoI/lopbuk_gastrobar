@@ -5,7 +5,10 @@
       "Bash(grep -c \", 22000, 22000, ''30ML'',\" \"c:/Users/esteb/Downloads/perfum mua/backend/recetasperfummua.sql\")",
       "Bash(grep -c \", 38000, 38000, ''50ML'',\" \"c:/Users/esteb/Downloads/perfum mua/backend/recetasperfummua.sql\")",
       "Bash(grep -c \", 75000, 75000, ''100ML'',\" \"c:/Users/esteb/Downloads/perfum mua/backend/recetasperfummua.sql\")",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Read(//c/c/daimuzdev/lopbuk_gastrobar/backend/src/**)",
+      "Read(//c/c/daimuzdev/lopbuk_gastrobar/backend/**)",
+      "Read(//c/c/daimuzdev/lopbuk_gastrobar/backend/src/db/**)"
     ]
   }
 }
