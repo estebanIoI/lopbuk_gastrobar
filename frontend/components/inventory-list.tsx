@@ -59,6 +59,7 @@ import {
   MapPin,
   ChevronDown,
   ChevronRight,
+  ChevronLeft,
   Settings2,
   FileDown,
   ImageIcon,
@@ -420,6 +421,10 @@ export function InventoryList() {
   const [stockFilter, setStockFilter] = useState<string>('all')
   const [typeFilter, setTypeFilter] = useState<string>('all')
   const [activeSede, setActiveSede] = useState<string>('all')
+  // Paginación: solo se renderizan PAGE_SIZE productos por página (evita montar
+  // miles de filas con imágenes/variantes de golpe). El resto se monta al cambiar de página.
+  const PAGE_SIZE = 100
+  const [page, setPage] = useState(1)
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [variantProduct, setVariantProduct] = useState<Product | null>(null)
@@ -888,6 +893,16 @@ export function InventoryList() {
     return matchesSearch && matchesCategory && matchesStock && matchesType && matchesSede
   })
 
+  // ── Paginación (cliente): 100 por página ──
+  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / PAGE_SIZE))
+  // Volver a la página 1 cuando cambian los filtros/búsqueda (el set resultante es otro).
+  useEffect(() => { setPage(1) }, [search, categoryFilter, stockFilter, typeFilter, activeSede])
+  // Si la página actual queda fuera de rango (p. ej. tras filtrar), la ajustamos.
+  useEffect(() => { if (page > totalPages) setPage(totalPages) }, [page, totalPages])
+  const safePage = Math.min(page, totalPages)
+  const pageStart = (safePage - 1) * PAGE_SIZE
+  const pagedProducts = filteredProducts.slice(pageStart, pageStart + PAGE_SIZE)
+
   const activeSedeObj = sedes.find(s => s.id === activeSede)
 
   const handleEdit = (product: Product) => {
@@ -1169,7 +1184,7 @@ export function InventoryList() {
               </div>
             ) : (
               <div className="divide-y divide-border">
-                {filteredProducts.map((product) => {
+                {pagedProducts.map((product) => {
                   const typeInfo = getProductTypeInfo(product.productType)
                   const mainImg = product.imageUrl || (Array.isArray(product.images) ? product.images[0] : '') || ''
                   const isVariantRowExpanded = expandedVariantIds.has(product.id)
@@ -1417,7 +1432,7 @@ export function InventoryList() {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredProducts.map((product) => {
+                pagedProducts.map((product) => {
                   const typeInfo = getProductTypeInfo(product.productType)
                   const isVariantRowExpanded = expandedVariantIds.has(product.id)
                   const productVariants = variantsByProductId[product.id]
@@ -1719,40 +1734,30 @@ export function InventoryList() {
                                               {v.hormaName || (v.hormaId ? hormaById[v.hormaId]?.name : null) || '—'}
                                             </TableCell>
                                           )}
-                                          {/* Imagen: variante → producto → placeholder */}
+                                          {/* Imagen: variante → producto → placeholder. Clic = configurar imagen. */}
                                           <TableCell className="w-12">
                                             {(() => {
                                               const variantImg = Array.isArray(v.images) ? v.images[0] : (v as any).imageUrl
                                               const productImg = product.imageUrl || (Array.isArray(product.images) ? product.images[0] : '')
                                               const imgSrc = variantImg || productImg || ''
-                                              return imgSrc ? (
-                                                // eslint-disable-next-line @next/next/no-img-element
-                                                <img
-                                                  src={imgSrc.replace('/upload/', '/upload/w_48,h_48,c_fill,q_auto,f_auto/')}
-                                                  alt={v.sku || ''}
-                                                  loading="lazy"
-                                                  className="w-9 h-9 rounded object-cover border border-border"
-                                                />
-                                              ) : (
-                                                <div className="w-9 h-9 rounded bg-muted border border-border flex items-center justify-center">
-                                                  <ImageIcon className="h-3.5 w-3.5 text-muted-foreground/40" />
-                                                </div>
-                                              )
-                                            })()}
-                                          </TableCell>
-                                          <TableCell>
-                                            {(() => {
-                                              const vImg = (Array.isArray(v.images) ? v.images[0] : '') || product.imageUrl || (Array.isArray(product.images) ? product.images[0] : '') || ''
                                               return (
                                                 <button
                                                   type="button"
                                                   onClick={() => openVariantImageDialog(v)}
                                                   title="Configurar imagen de la variante"
-                                                  className="h-10 w-10 rounded-md border border-border overflow-hidden bg-secondary/30 flex items-center justify-center hover:ring-2 hover:ring-primary/40 transition shrink-0"
+                                                  className="h-9 w-9 rounded-md border border-border overflow-hidden bg-secondary/30 flex items-center justify-center hover:ring-2 hover:ring-primary/40 transition shrink-0"
                                                 >
-                                                  {vImg
-                                                    ? <img src={vImg} alt={v.sku} className="h-full w-full object-cover" />
-                                                    : <ImageIcon className="h-4 w-4 text-muted-foreground" />}
+                                                  {imgSrc ? (
+                                                    // eslint-disable-next-line @next/next/no-img-element
+                                                    <img
+                                                      src={imgSrc.replace('/upload/', '/upload/w_48,h_48,c_fill,q_auto,f_auto/')}
+                                                      alt={v.sku || ''}
+                                                      loading="lazy"
+                                                      className="w-full h-full object-cover"
+                                                    />
+                                                  ) : (
+                                                    <ImageIcon className="h-3.5 w-3.5 text-muted-foreground/40" />
+                                                  )}
                                                 </button>
                                               )
                                             })()}
@@ -1830,6 +1835,41 @@ export function InventoryList() {
             </TableBody>
           </Table>
           </div>
+
+          {/* ── Paginación ── */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between gap-3 border-t border-border px-3 py-3 sm:px-4 flex-wrap">
+              <p className="text-xs sm:text-sm text-muted-foreground">
+                Mostrando <span className="font-medium text-foreground">{pageStart + 1}–{Math.min(pageStart + PAGE_SIZE, filteredProducts.length)}</span> de{' '}
+                <span className="font-medium text-foreground">{filteredProducts.length}</span>
+              </p>
+              <div className="flex items-center gap-1.5">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={safePage <= 1}
+                  className="h-8 px-2"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  <span className="hidden sm:inline ml-1">Anterior</span>
+                </Button>
+                <span className="text-xs sm:text-sm text-muted-foreground px-2 whitespace-nowrap">
+                  Página {safePage} de {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  disabled={safePage >= totalPages}
+                  className="h-8 px-2"
+                >
+                  <span className="hidden sm:inline mr-1">Siguiente</span>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
