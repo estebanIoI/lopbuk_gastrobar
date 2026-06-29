@@ -816,6 +816,51 @@ export class VariantsService {
     return { price: Number(row.base_price ?? 0), tenantMarginPct: 0, source: 'base' };
   }
 
+  /**
+   * Recalcula el precio unitario CORRECTO (autoritativo) de cada ítem de una orden,
+   * server-side, ignorando el precio que mandó el frontend para las variantes.
+   *
+   * - Agrupa por `productId` y suma TODAS las variantes para obtener la cantidad total
+   *   (mix & match): llevar 6 entre varios colores/tallas desbloquea el tier mayorista.
+   * - Para cada variante resuelve el precio del tier según esa cantidad total.
+   * - Preserva cualquier "extra" legítimo que el frontend haya sumado por encima del
+   *   precio base de la variante (p.ej. modificadores/adiciones), pero impone el piso del
+   *   tier: el cliente nunca paga menos que el precio mayorista que le corresponde.
+   * - Ítems SIN variante quedan intactos (su pricing es otra capa, fuera de este blindaje).
+   *
+   * Devuelve un array de precios unitarios alineado por índice con `items`.
+   */
+  async resolveOrderPrices(
+    tenantId: string,
+    items: { variantId?: string | null; productId: number | string; quantity: number; unitPrice: number }[]
+  ): Promise<number[]> {
+    // Cantidad total por producto (solo ítems con variante)
+    const qtyByProduct = new Map<string, number>();
+    for (const it of items) {
+      if (!it.variantId) continue;
+      const pid = String(it.productId);
+      qtyByProduct.set(pid, (qtyByProduct.get(pid) ?? 0) + Number(it.quantity));
+    }
+
+    const out: number[] = [];
+    for (const it of items) {
+      const frontendPrice = Number(it.unitPrice) || 0;
+      if (!it.variantId) { out.push(frontendPrice); continue; }
+      const totalQty = qtyByProduct.get(String(it.productId)) ?? Number(it.quantity);
+      try {
+        const tier = await this.resolvePrice(it.variantId, totalQty, tenantId);
+        const base = await this.resolvePrice(it.variantId, 1, tenantId);
+        // Extra legítimo del frontend por encima del precio base (modificadores/adiciones)
+        const extra = Math.max(0, frontendPrice - base.price);
+        out.push(tier.price + extra);
+      } catch {
+        // Variante no encontrada / tablas ausentes → no romper el pedido, respetar el precio recibido
+        out.push(frontendPrice);
+      }
+    }
+    return out;
+  }
+
   async createTier(variantId: string, tenantId: string, data: {
     minQty: number; price: number; tenantMarginPct?: number;
   }): Promise<VariantPriceTier> {

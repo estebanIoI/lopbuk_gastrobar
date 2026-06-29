@@ -15,6 +15,11 @@ export interface ProductoCarrito {
   // Variante seleccionada (talla/color/peso/material)
   variantId?: string;
   variantLabel?: string;
+  // Precios por volumen (mayorista) — permiten recalcular el precio cuando cambia la
+  // cantidad total del producto en el carrito (sumando todas sus variantes / mix & match).
+  priceTiers?: { minQty: number; price: number; marginPct?: number }[];
+  /** Precio base de la variante SIN tier aplicado — referencia para recalcular hacia arriba/abajo. */
+  tierBasePrice?: number;
   tenantId?: string;
   storeName?: string;
   availableForDelivery?: boolean;
@@ -25,6 +30,8 @@ export interface ProductoCarrito {
   // Precompra (presale) — se mantienen aliases legacy para compat.
   isPresale?: boolean;
   presaleBadgeText?: string;
+  presaleShipStart?: string | null;
+  presaleShipEnd?: string | null;
   isPreorder?: boolean;
   preorderShipStart?: string | null;
   preorderShipEnd?: string | null;

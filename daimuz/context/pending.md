@@ -38,6 +38,41 @@ SELECT post_id, type FROM community_reactions WHERE device_id = '...' AND type =
 ```
 **Causa raíz (probable):** migración faltante/no corrida en esta BD — la tabla `community_reactions` no tiene la columna `device_id` que el query espera (reacciones por dispositivo para usuarios anónimos). Pendiente: localizar la migración que añade `device_id` (o crearla idempotente: `ALTER TABLE community_reactions ADD COLUMN device_id VARCHAR(64) NULL` + índice) y asegurar que corra al boot. Degradar defensivamente el `userReactions` (try/catch → `[]`) para que el feed no rompa si falta la columna. Bug independiente del de onboarding (módulo `community`).
 
+### 🔒 [2026-06-29] Blindaje de precios server-side — Nivel 2 (resto del storefront) — PENDIENTE
+
+**Contexto:** El flujo de creación de órdenes (`/orders/public` y las 3 pasarelas: MercadoPago, ADDI, Sistecrédito) calculaba el subtotal **confiando 100% en el `unitPrice` que manda el frontend** (`items.reduce(... item.unitPrice ...)`). Cualquiera puede interceptar el request y mandar `unitPrice: 1` → cobro manipulable. Viola la regla de la propia visión: *"Tu pricing NO debe depender del frontend… SIEMPRE en backend"*.
+
+**✅ Nivel 1 hecho (esta sesión):** se blindó el **precio por volumen de variantes** (tiers mayoristas). Nuevo `variantsService.resolveOrderPrices(tenantId, items)` recalcula el precio de cada ítem CON variante desde `variant_price_tiers` (agrupa por producto = mix & match, preserva extras de modificadores, impone el piso del tier). Aplicado en los **4 endpoints** que crean órdenes en `orders.routes.ts`. Ítems CON variante ya no son manipulables.
+
+**⏳ Nivel 2 (pendiente) — el resto del pricing sigue confiando en el frontend:**
+- [ ] **Productos SIN variante:** su `unitPrice` no se valida contra `products.sale_price` en la BD.
+- [ ] **Ofertas (`is_on_offer`/`offer_price`):** el precio de oferta llega del frontend, no se reverifica que la oferta esté activa ni el monto.
+- [ ] **Drops:** el `finalPrice`/`globalDiscount` del drop no se recalcula server-side.
+- [ ] **Cupones:** el `discount` aplicado llega en el body; reverificar el cupón (vigencia, %, tope) en backend al crear la orden.
+- [ ] **Modificadores (adiciones):** el `priceDelta` de cada opción debería resolverse desde la BD, no confiarse del front.
+
+**Enfoque sugerido:** extender el patrón de `resolveOrderPrices` a un resolvedor de pedido completo que, dado `{productId, variantId, qty, offerClaimed, dropId, couponCode, modifiers[]}`, devuelva el precio autoritativo por ítem desde la BD, e ignore por completo el precio del frontend (que pasa a ser solo presentación). Riesgo: medio (toca el checkout de toda la tienda) → hacer con tests por cada capa de descuento.
+
+### 🚚 [2026-06-29] Delivery OS — construido a medias, falta migración + prueba + deploy — PENDIENTE
+
+**Contexto:** Se construyó el "DAIMUZ Delivery Infrastructure™" — Centro de Operaciones de Delivery (`/delivery-os`): validación de cobertura/zonas (point-in-polygon sin PostGIS), chat repartidor↔comercio en tiempo real (Socket.IO), tracking de disponibilidad/GPS de repartidores y mapa de operaciones (Leaflet). Código **en disco y cableado**, pero **NO funcional** hasta generar la migración.
+
+**✅ Hecho (código en disco):**
+- Backend: `modules/delivery/coverage.routes.ts` (POST `/coverage/check` público + CRUD `/coverage/zones`), `delivery-chat.routes.ts` (salas/mensajes/leídos/active-rooms), `delivery-chat.socket.ts` (`__deliveryIO`, eventos join/typing/courier-location/join-ops), extensiones a `delivery.routes.ts` (PUT `/availability`, PUT `/location`, GET `/ops-stats`, `/active-couriers`, `/active-orders-map`).
+- Rutas montadas en `index.ts` (`/coverage`, `/delivery-chat`, `initDeliveryChatSocket(io)`).
+- Frontend: `app/delivery-os/page.tsx` (full-screen ops center, 3 tabs: Operations/Zones/Chat, auth guard, auto-refresh 30s) + `components/delivery-chat.tsx`.
+- Las 4 tablas definidas en `db/schema/schema.ts`: `delivery_zones`, `delivery_chat_rooms`, `delivery_chat_messages`, `courier_availability`.
+
+**🔴 BLOQUEADOR — la migración NUNCA se generó:**
+Las 4 tablas están en `schema.ts` pero **no existen en ninguna migración** (`0000`–`0002` no las contienen). Como el DDL de runtime está congelado y el deploy corre `node dist/db/migrate.js`, **las tablas no se crearán en prod → todos los endpoints de Delivery OS fallarán con "table doesn't exist"**.
+- [ ] `cd backend && npm run db:generate` → genera `0003_*.sql` con las 4 tablas. **Revisar el SQL** antes de aplicar.
+- [ ] `npm run migrate` en dev para crearlas localmente.
+
+**⏳ Resto pendiente:**
+- [ ] Probar el loop end-to-end en navegador dev: abrir `/delivery-os`, crear una zona, ver el mapa, abrir el chat de un pedido y enviar/recibir mensajes en tiempo real, marcar repartidor online + actualizar GPS → verlo en el mapa de ops.
+- [ ] Verificar `tsc --noEmit` front+back de los archivos nuevos.
+- [ ] Merge `esteban` → `main` + **Deploy en Komodo** (la migración `0003` corre al boot vía `migrate.js`).
+
 ### LEGEND — conectar entitlements a features (próxima sesión)
 
 Módulo Consumer Plans / LEGEND implementado G1–G8 (2026-06-21). **Pendiente:** usar `consumerPlansService.hasEntitlement(userId, key)` para gatear features reales según el grant activo:

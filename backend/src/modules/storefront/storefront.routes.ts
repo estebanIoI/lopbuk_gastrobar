@@ -3162,4 +3162,98 @@ router.patch('/custom-sections/:id/toggle', authenticate, requirePlan('empresari
   }
 });
 
+/**
+ * POST /resolve-prices
+ * Endpoint público: recibe items del carrito y devuelve el precio resuelto
+ * por tiers para cada variante, calculando el total de unidades por producto.
+ *
+ * Body: { items: [{productId: number, variantId: string, qty: number}] }
+ * Response: { prices: {[variantId]: number}, tierInfo: {[productId]: {minQty, price}} }
+ */
+router.post('/resolve-prices', async (req: Request, res: Response) => {
+  try {
+    const items: { productId: number; variantId: string; qty: number }[] = req.body?.items ?? [];
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.json({ success: true, data: { prices: {}, tierInfo: {} } });
+    }
+
+    // Agrupa por productId → totalQty
+    const qtyByProduct = new Map<number, number>();
+    for (const item of items) {
+      const pid = Number(item.productId);
+      qtyByProduct.set(pid, (qtyByProduct.get(pid) ?? 0) + Number(item.qty));
+    }
+
+    const variantIds = items.map(i => i.variantId).filter(Boolean);
+    if (!variantIds.length) {
+      return res.json({ success: true, data: { prices: {}, tierInfo: {} } });
+    }
+
+    // Carga todos los tiers de las variantes involucradas
+    const placeholders = variantIds.map(() => '?').join(',');
+    const [tierRows] = await pool.query(
+      `SELECT vpt.variant_id, vpt.min_qty, vpt.price, pv.product_id, pv.price_override,
+              p.sale_price
+       FROM variant_price_tiers vpt
+       JOIN product_variants pv ON pv.id = vpt.variant_id
+       JOIN products p ON p.id = pv.product_id
+       WHERE vpt.variant_id IN (${placeholders}) AND vpt.is_active = 1
+       ORDER BY vpt.variant_id, vpt.min_qty DESC`,
+      variantIds
+    ) as any[];
+
+    // Carga el precio base de las variantes sin tiers (fallback)
+    const [variantRows] = await pool.query(
+      `SELECT pv.id, pv.price_override, p.sale_price
+       FROM product_variants pv
+       JOIN products p ON p.id = pv.product_id
+       WHERE pv.id IN (${placeholders})`,
+      variantIds
+    ) as any[];
+
+    const baseByVariant = new Map<string, number>();
+    for (const v of variantRows as any[]) {
+      baseByVariant.set(String(v.id), Number(v.price_override ?? v.sale_price));
+    }
+
+    // Agrupa tiers por variante
+    const tiersByVariant = new Map<string, { minQty: number; price: number; productId: number }[]>();
+    for (const row of tierRows as any[]) {
+      const vid = String(row.variant_id);
+      if (!tiersByVariant.has(vid)) tiersByVariant.set(vid, []);
+      tiersByVariant.get(vid)!.push({
+        minQty: Number(row.min_qty),
+        price: Number(row.price),
+        productId: Number(row.product_id),
+      });
+    }
+
+    // Resuelve precio por variante usando la qty total de su producto
+    const prices: Record<string, number> = {};
+    const tierInfo: Record<number, { minQty: number; price: number }> = {};
+
+    for (const item of items) {
+      const vid = String(item.variantId);
+      const totalQty = qtyByProduct.get(Number(item.productId)) ?? item.qty;
+      const tiers = tiersByVariant.get(vid) ?? [];
+
+      const activeTier = tiers
+        .filter(t => t.minQty <= totalQty)
+        .sort((a, b) => b.minQty - a.minQty)[0] ?? null;
+
+      prices[vid] = activeTier?.price ?? baseByVariant.get(vid) ?? 0;
+
+      if (activeTier && !tierInfo[item.productId]) {
+        tierInfo[item.productId] = { minQty: activeTier.minQty, price: activeTier.price };
+      }
+    }
+
+    return res.json({ success: true, data: { prices, tierInfo } });
+  } catch (error) {
+    console.error('Resolve prices error:', error);
+    return res.status(500).json({ success: false, error: 'Error al resolver precios' });
+  }
+});
+
 export default router;
+

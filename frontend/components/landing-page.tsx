@@ -6,6 +6,7 @@ const formatCOP = (value: number) =>
   new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value)
 import { Button } from '@/components/ui/button'
 import { VariantSelector, type RawVariant, type SelectedVariant } from '@/components/variant-selector'
+import { WholesalePriceBar, resolveActiveTier } from '@/components/wholesale-price-bar'
 import { ProductDetailML, type MLProduct } from '@/components/theme-ml/product-detail-ml'
 import { CheckoutWizardML } from '@/components/theme-ml/checkout-wizard-ml'
 import { parseQtyPromo } from '@/lib/qty-promo'
@@ -344,6 +345,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   const addingToCartRef = useRef(false) // ref para doble protección race-safe
   // Variante elegida en el modal (talla/color/peso). null = sin elegir o sin variantes.
   const [selectedVariant, setSelectedVariant] = useState<SelectedVariant | null>(null)
+  // Precio resuelto por tiers de volumen (puede diferir del precio base si hay descuento mayorista)
+  const [tierResolvedPrice, setTierResolvedPrice] = useState<number | null>(null)
   // Modificadores del producto en el modal (compartidos con el Tema 2)
   const [t1Mods, setT1Mods] = useState<any[]>([])
   const [t1ModsLoading, setT1ModsLoading] = useState(false)
@@ -351,8 +354,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   const [promoUnitPrice, setPromoUnitPrice] = useState<number | null>(null)
   const [t1Sel, setT1Sel] = useState<Record<string, Set<string>>>({})
   const [activeImageIdx, setActiveImageIdx] = useState(0)
-  // Al cambiar de variante (color), vuelve a la imagen principal de su galería propia.
-  useEffect(() => { setActiveImageIdx(0) }, [selectedVariant?.id])
+  // Al cambiar de variante (color), vuelve a la imagen principal de su galería propia y resetea tier price.
+  useEffect(() => { setActiveImageIdx(0); setTierResolvedPrice(null) }, [selectedVariant?.id])
   const [viewersCount, setViewersCount] = useState(0)
   const viewersIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const [ctaVisible, setCtaVisible] = useState(false)
@@ -1574,6 +1577,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     setProductQuantity(1)
     setActiveImageIdx(0)
     setSelectedVariant(null)
+    setTierResolvedPrice(null)
     setPromoUnitPrice(null)
     setShowProductModal(true)
     // Seed viewers count uniquely per product and fluctuate over time
@@ -1617,6 +1621,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     setIsAddingToCart(false)
     addingToCartRef.current = false
     setPromoUnitPrice(null)
+    setTierResolvedPrice(null)
     window.history.replaceState({}, '', window.location.pathname)
   }
 
@@ -1702,6 +1707,15 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       precioOriginal = selectedProduct.salePrice
     }
 
+    // Tier por volumen: si se desbloqueó un precio mayorista, manda sobre todo (excepto drop/promoUnitPrice)
+    if (tierResolvedPrice != null && !dropProduct && promoUnitPrice == null) {
+      const baseBeforeTier = finalPrice
+      if (tierResolvedPrice < baseBeforeTier) {
+        precioOriginal = precioOriginal ?? baseBeforeTier
+        finalPrice = tierResolvedPrice
+      }
+    }
+
     // Modificadores: suma el extra al precio y diferencia el item por combinación
     finalPrice = finalPrice + t1Extra
     // Promo de cantidad (tema ML): el precio unitario combinado manda.
@@ -1713,6 +1727,15 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     const modSig = t1SelMods.length ? `#${t1SelMods.map(m => m.optionName).sort().join('|')}` : ''
     const varSuffix = selectedVariant ? ` — ${selectedVariant.label}` : ''
     const varSig = selectedVariant ? `~${selectedVariant.id}` : ''
+
+    // Tiers de la variante (para recalcular precio por volumen cuando cambie la cantidad total)
+    // Solo cuando no hay drop/promo de cantidad (esos descuentos mandan sobre el tier).
+    const itemPriceTiers = (selectedVariant && !dropProduct && promoUnitPrice == null)
+      ? (selectedProduct.variants?.find(v => String(v.id) === selectedVariant.id)?.priceTiers ?? undefined)
+      : undefined
+    const itemTierBasePrice = (selectedVariant && !dropProduct && promoUnitPrice == null)
+      ? (selectedVariant.price + t1Extra)
+      : undefined
 
     setCarrito(prev => {
       const tempId = String(selectedProduct.id) + varSig + modSig
@@ -1732,6 +1755,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         precio: finalPrice,
         precioOriginal,
         descuentoPorcentaje,
+        priceTiers: itemPriceTiers,
+        tierBasePrice: itemTierBasePrice,
         cantidad: productQuantity,
         imagen: selectedVariant?.image || selectedProduct.imageUrl || '',
         variantId: selectedVariant?.id,
@@ -1856,6 +1881,46 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       }).filter(p => p.cantidad > 0)
     )
   }
+
+  // ── Recálculo de precio por volumen (mix & match) ──
+  // Cuando cambian las cantidades del carrito, los ítems con tiers se reprecian según la
+  // cantidad TOTAL de su producto (sumando todas sus variantes). Así, llevar 6 entre varios
+  // colores/tallas desbloquea el precio mayorista para todos. Sin esto, el precio quedaba
+  // congelado con la cantidad del momento en que se agregó cada variante.
+  useEffect(() => {
+    setCarrito(prev => {
+      // Cantidad total por producto (id), solo ítems con tiers
+      const qtyByProduct = new Map<number, number>()
+      for (const item of prev) {
+        if (item.priceTiers?.length && item.tierBasePrice != null) {
+          qtyByProduct.set(item.id, (qtyByProduct.get(item.id) ?? 0) + item.cantidad)
+        }
+      }
+      if (qtyByProduct.size === 0) return prev
+
+      let changed = false
+      const next = prev.map(item => {
+        if (!item.priceTiers?.length || item.tierBasePrice == null) return item
+        const totalQty = qtyByProduct.get(item.id) ?? item.cantidad
+        const activeTier = [...item.priceTiers]
+          .filter(t => t.minQty <= totalQty)
+          .sort((a, b) => b.minQty - a.minQty)[0] ?? null
+        const newPrice = activeTier && activeTier.price < item.tierBasePrice
+          ? activeTier.price
+          : item.tierBasePrice
+        if (Math.abs(newPrice - item.precio) > 0.001) {
+          changed = true
+          return {
+            ...item,
+            precio: newPrice,
+            precioOriginal: newPrice < item.tierBasePrice ? item.tierBasePrice : undefined,
+          }
+        }
+        return item
+      })
+      return changed ? next : prev
+    })
+  }, [carrito])
 
   const removerProducto = (producto: ProductoCarrito) => {
     setCarrito(prev => prev.filter(p => {
@@ -3427,16 +3492,36 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
                 {/* Price */}
                 <div>
-                  {selectedVariant ? (
-                    <span className={`text-2xl font-bold ${isLightBg ? 'text-black' : 'text-white'}`}>{formatCOP(selectedVariant.price)}</span>
-                  ) : selectedProduct.isOnOffer && selectedProduct.offerPrice ? (
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <span className={`text-2xl font-bold ${isLightBg ? 'text-black' : 'text-white'}`}>{formatCOP(selectedProduct.offerPrice)}</span>
-                      <span className="text-base text-white/30 line-through">{formatCOP(selectedProduct.salePrice)}</span>
-                    </div>
-                  ) : (
-                    <span className={`text-2xl font-bold ${isLightBg ? 'text-black' : 'text-white'}`}>{formatCOP(selectedProduct.salePrice)}</span>
-                  )}
+                  {(() => {
+                    const basePrice = selectedVariant?.price ?? (selectedProduct.isOnOffer && selectedProduct.offerPrice ? selectedProduct.offerPrice : selectedProduct.salePrice)
+                    const hasTierDiscount = tierResolvedPrice != null && tierResolvedPrice < basePrice
+                    if (hasTierDiscount) {
+                      return (
+                        <div className="space-y-0.5">
+                          <div className="flex items-end gap-2 flex-wrap">
+                            <span className="text-2xl font-bold text-orange-400">{formatCOP(tierResolvedPrice!)}</span>
+                            <span className={`text-base line-through pb-0.5 ${isLightBg ? 'text-black/30' : 'text-white/30'}`}>{formatCOP(basePrice)}</span>
+                            <span className="bg-orange-500/20 text-orange-400 text-[10px] font-bold px-1.5 py-0.5 border border-orange-500/30">
+                              -{Math.round(((basePrice - tierResolvedPrice!) / basePrice) * 100)}%
+                            </span>
+                          </div>
+                          <p className="text-xs text-orange-400/80 flex items-center gap-1">
+                            <Sparkles className="w-3 h-3 flex-shrink-0" />Precio mayorista desbloqueado
+                          </p>
+                        </div>
+                      )
+                    }
+                    if (selectedVariant) return <span className={`text-2xl font-bold ${isLightBg ? 'text-black' : 'text-white'}`}>{formatCOP(selectedVariant.price)}</span>
+                    if (selectedProduct.isOnOffer && selectedProduct.offerPrice) {
+                      return (
+                        <div className="flex items-center gap-3 flex-wrap">
+                          <span className={`text-2xl font-bold ${isLightBg ? 'text-black' : 'text-white'}`}>{formatCOP(selectedProduct.offerPrice)}</span>
+                          <span className="text-base text-white/30 line-through">{formatCOP(selectedProduct.salePrice)}</span>
+                        </div>
+                      )
+                    }
+                    return <span className={`text-2xl font-bold ${isLightBg ? 'text-black' : 'text-white'}`}>{formatCOP(selectedProduct.salePrice)}</span>
+                  })()}
                 </div>
 
                 {/* Viewers count */}
@@ -3482,6 +3567,34 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     )}
                   </div>
                 ) : null}
+
+                {/* Barra de desbloqueo de precio mayorista */}
+                {(() => {
+                  // Tiers de la variante seleccionada (o de cualquier variante si todas comparten los mismos tiers)
+                  const variantTiers =
+                    selectedVariant
+                      ? (selectedProduct.variants?.find(v => String(v.id) === selectedVariant.id)?.priceTiers ?? [])
+                      : (selectedProduct.variants?.length
+                          ? (selectedProduct.variants[0]?.priceTiers ?? [])
+                          : [])
+                  if (!variantTiers.length) return null
+                  // Cantidad del mismo producto ya en el carrito (todas las variantes combinadas)
+                  const cartProductQty = carrito
+                    .filter(item => item.id === selectedProduct.id)
+                    .reduce((sum, item) => sum + item.cantidad, 0)
+                  const baseForTier = selectedVariant?.price ?? selectedProduct.salePrice
+                  return (
+                    <WholesalePriceBar
+                      priceTiers={variantTiers}
+                      cartQty={cartProductQty}
+                      selectionQty={productQuantity}
+                      basePrice={baseForTier}
+                      isLightBg={isLightBg}
+                      formatPrice={formatCOP}
+                      onResolvedPrice={setTierResolvedPrice}
+                    />
+                  )
+                })()}
 
                 {/* Modificadores (adiciones, combos, "sin X") */}
                 {t1ModsLoading ? (
@@ -4086,23 +4199,47 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       <h1 className="text-3xl sm:text-4xl font-light leading-tight">{selectedProduct.name}</h1>
 
                       <div className="space-y-2">
-                        {selectedVariant ? (
-                          <span className={`text-4xl font-light ${isLightBg ? 'text-black' : 'text-white'}`}>{formatCOP(selectedVariant.price)}</span>
-                        ) : selectedProduct.isOnOffer && selectedProduct.offerPrice ? (
-                          <div className="space-y-2">
-                            <div className="flex items-end gap-3 flex-wrap">
-                              <span className={`text-4xl font-light ${isLightBg ? 'text-black' : 'text-white'}`}>{formatCOP(selectedProduct.offerPrice)}</span>
-                              <span className="text-xl text-white/30 line-through pb-0.5">{formatCOP(selectedProduct.salePrice)}</span>
-                              <span className="bg-red-600/20 text-red-400 text-xs font-bold px-2 py-1 border border-red-600/30 self-center">
-                                -{Math.round(((selectedProduct.salePrice - selectedProduct.offerPrice) / selectedProduct.salePrice) * 100)}% OFF
-                              </span>
-                            </div>
-                            <p className="text-sm text-white/60 flex items-center gap-1.5">
-                              <Tag className="w-3.5 h-3.5 flex-shrink-0 text-white/70" />Ahorras {formatCOP(selectedProduct.salePrice - selectedProduct.offerPrice)}
-                              {selectedProduct.offerLabel && <span className="text-white/40 ml-1">· {selectedProduct.offerLabel}</span>}
-                            </p>
-                          </div>
-                        ) : <span className={`text-4xl font-light ${isLightBg ? 'text-black' : 'text-white'}`}>{formatCOP(selectedProduct.salePrice)}</span>}
+                        {(() => {
+                          const basePrice = selectedVariant?.price ?? (selectedProduct.isOnOffer && selectedProduct.offerPrice ? selectedProduct.offerPrice : selectedProduct.salePrice)
+                          const hasTierDiscount = tierResolvedPrice != null && tierResolvedPrice < basePrice
+                          if (hasTierDiscount) {
+                            return (
+                              <div className="space-y-1">
+                                <div className="flex items-end gap-3 flex-wrap">
+                                  <span className="text-4xl font-light text-orange-400">{formatCOP(tierResolvedPrice!)}</span>
+                                  <span className={`text-xl pb-0.5 line-through ${isLightBg ? 'text-black/30' : 'text-white/30'}`}>{formatCOP(basePrice)}</span>
+                                  <span className="bg-orange-500/20 text-orange-400 text-xs font-bold px-2 py-1 border border-orange-500/30 self-center">
+                                    -{Math.round(((basePrice - tierResolvedPrice!) / basePrice) * 100)}% MAYORISTA
+                                  </span>
+                                </div>
+                                <p className={`text-sm flex items-center gap-1.5 ${isLightBg ? 'text-black/50' : 'text-white/50'}`}>
+                                  <Sparkles className="w-3.5 h-3.5 text-orange-400 flex-shrink-0" />Precio desbloqueado por volumen
+                                </p>
+                              </div>
+                            )
+                          }
+                          if (selectedVariant) {
+                            return <span className={`text-4xl font-light ${isLightBg ? 'text-black' : 'text-white'}`}>{formatCOP(selectedVariant.price)}</span>
+                          }
+                          if (selectedProduct.isOnOffer && selectedProduct.offerPrice) {
+                            return (
+                              <div className="space-y-2">
+                                <div className="flex items-end gap-3 flex-wrap">
+                                  <span className={`text-4xl font-light ${isLightBg ? 'text-black' : 'text-white'}`}>{formatCOP(selectedProduct.offerPrice)}</span>
+                                  <span className="text-xl text-white/30 line-through pb-0.5">{formatCOP(selectedProduct.salePrice)}</span>
+                                  <span className="bg-red-600/20 text-red-400 text-xs font-bold px-2 py-1 border border-red-600/30 self-center">
+                                    -{Math.round(((selectedProduct.salePrice - selectedProduct.offerPrice) / selectedProduct.salePrice) * 100)}% OFF
+                                  </span>
+                                </div>
+                                <p className="text-sm text-white/60 flex items-center gap-1.5">
+                                  <Tag className="w-3.5 h-3.5 flex-shrink-0 text-white/70" />Ahorras {formatCOP(selectedProduct.salePrice - selectedProduct.offerPrice)}
+                                  {selectedProduct.offerLabel && <span className="text-white/40 ml-1">· {selectedProduct.offerLabel}</span>}
+                                </p>
+                              </div>
+                            )
+                          }
+                          return <span className={`text-4xl font-light ${isLightBg ? 'text-black' : 'text-white'}`}>{formatCOP(selectedProduct.salePrice)}</span>
+                        })()}
                       </div>
 
                       <div>
@@ -4147,6 +4284,32 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           )}
                         </div>
                       ) : null}
+
+                      {/* Barra de desbloqueo de precio mayorista — panel desktop */}
+                      {(() => {
+                        const variantTiers =
+                          selectedVariant
+                            ? (selectedProduct.variants?.find(v => String(v.id) === selectedVariant.id)?.priceTiers ?? [])
+                            : (selectedProduct.variants?.length
+                                ? (selectedProduct.variants[0]?.priceTiers ?? [])
+                                : [])
+                        if (!variantTiers.length) return null
+                        const cartProductQty = carrito
+                          .filter(item => item.id === selectedProduct.id)
+                          .reduce((sum, item) => sum + item.cantidad, 0)
+                        const baseForTier = selectedVariant?.price ?? selectedProduct.salePrice
+                        return (
+                          <WholesalePriceBar
+                            priceTiers={variantTiers}
+                            cartQty={cartProductQty}
+                            selectionQty={productQuantity}
+                            basePrice={baseForTier}
+                            isLightBg={isLightBg}
+                            formatPrice={formatCOP}
+                            onResolvedPrice={setTierResolvedPrice}
+                          />
+                        )
+                      })()}
 
                       {/* Quantity + heart */}
                       {(() => {

@@ -290,6 +290,16 @@ router.post(
         variantReserved = true;
       }
 
+      // ── Blindaje de precios (server-side): el precio de las variantes se recalcula desde la
+      // BD (tiers de volumen + mix & match). Ignora el unitPrice del frontend para variantes,
+      // evitando manipulación del request. Ítems sin variante quedan igual.
+      try {
+        const resolvedPrices = await variantsService.resolveOrderPrices(tenantId, items);
+        items.forEach((item: any, idx: number) => {
+          if (item.variantId && resolvedPrices[idx] != null) item.unitPrice = resolvedPrices[idx];
+        });
+      } catch (_) { /* si falla la resolución, no bloquear el pedido */ }
+
       // Calculate totals
       const subtotal = items.reduce((sum: number, item: any) => sum + (item.unitPrice * item.quantity), 0);
       const total = Math.max(0, subtotal + shippingCost - discount);
@@ -460,6 +470,15 @@ router.post(
         });
         return;
       }
+
+      // Blindaje de precios (server-side) ANTES del descuento online: el precio de variantes
+      // se recalcula desde la BD (tiers + mix & match), ignorando el unitPrice del frontend.
+      try {
+        const resolvedPrices = await variantsService.resolveOrderPrices(tenantId, items);
+        items.forEach((item: any, idx: number) => {
+          if (item.variantId && resolvedPrices[idx] != null) item.unitPrice = resolvedPrices[idx];
+        });
+      } catch (_) { /* no bloquear el pedido */ }
 
       // Aplicar descuento online si está habilitado (10%)
       const ONLINE_DISCOUNT = 0.10;
@@ -660,6 +679,15 @@ router.post(
         }
         tenantId = tenants[0].id;
       }
+
+      // Blindaje de precios (server-side): recalcula el precio de variantes desde la BD
+      // (tiers de volumen + mix & match), ignorando el unitPrice del frontend.
+      try {
+        const resolvedPrices = await variantsService.resolveOrderPrices(tenantId, items);
+        items.forEach((item: any, idx: number) => {
+          if (item.variantId && resolvedPrices[idx] != null) item.unitPrice = resolvedPrices[idx];
+        });
+      } catch (_) { /* no bloquear el pedido */ }
 
       const subtotal = items.reduce((sum: number, item: any) => sum + (item.unitPrice * item.quantity), 0);
       const total = Math.max(0, subtotal - discount);
@@ -992,6 +1020,15 @@ router.post(
         }
         tenantId = tenants[0].id;
       }
+
+      // Blindaje de precios (server-side): recalcula el precio de variantes desde la BD
+      // (tiers de volumen + mix & match), ignorando el unitPrice del frontend.
+      try {
+        const resolvedPrices = await variantsService.resolveOrderPrices(tenantId, items);
+        items.forEach((item: any, idx: number) => {
+          if (item.variantId && resolvedPrices[idx] != null) item.unitPrice = resolvedPrices[idx];
+        });
+      } catch (_) { /* no bloquear el pedido */ }
 
       const subtotal = items.reduce((sum: number, item: any) => sum + (item.unitPrice * item.quantity), 0);
       const total = Math.max(0, subtotal - discount);
