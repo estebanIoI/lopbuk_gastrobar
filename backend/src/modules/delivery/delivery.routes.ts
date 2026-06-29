@@ -264,6 +264,202 @@ router.get(
   }
 );
 
+// =============================================
+// PUT /api/delivery/availability — Toggle online/offline
+// =============================================
+router.put(
+  '/availability',
+  authorize('repartidor'),
+  [
+    body('isOnline').isBoolean().withMessage('isOnline debe ser boolean'),
+    validateRequest,
+  ],
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.userId!;
+      const tenantId = req.user!.tenantId || '';
+      const { isOnline, lat, lng } = req.body;
+
+      await pool.query(
+        `INSERT INTO courier_availability (user_id, tenant_id, is_online, current_lat, current_lng, last_seen_at)
+         VALUES (?, ?, ?, ?, ?, NOW())
+         ON DUPLICATE KEY UPDATE is_online = ?, current_lat = ?, current_lng = ?, last_seen_at = NOW()`,
+        [
+          userId, tenantId, isOnline ? 1 : 0, lat || null, lng || null,
+          isOnline ? 1 : 0, lat || null, lng || null,
+        ]
+      );
+
+      res.json({ success: true, data: { isOnline } });
+    } catch (error) {
+      console.error('Availability toggle error:', error);
+      res.status(500).json({ success: false, error: 'Error al actualizar disponibilidad' });
+    }
+  }
+);
+
+// =============================================
+// PUT /api/delivery/location — Actualizar posición GPS del repartidor
+// =============================================
+router.put(
+  '/location',
+  authorize('repartidor'),
+  [
+    body('lat').isFloat({ min: -90, max: 90 }),
+    body('lng').isFloat({ min: -180, max: 180 }),
+    validateRequest,
+  ],
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.userId!;
+      const tenantId = req.user!.tenantId || '';
+      const { lat, lng } = req.body;
+
+      await pool.query(
+        `INSERT INTO courier_availability (user_id, tenant_id, is_online, current_lat, current_lng, last_seen_at)
+         VALUES (?, ?, 1, ?, ?, NOW())
+         ON DUPLICATE KEY UPDATE current_lat = ?, current_lng = ?, last_seen_at = NOW(), is_online = 1`,
+        [userId, tenantId, lat, lng, lat, lng]
+      );
+
+      // Emitir posición en tiempo real a los que están en el ops center
+      const io = (global as any).__deliveryIO;
+      if (io) {
+        io.to(`ops:${tenantId}`).emit('courier-location', { courierId: userId, lat, lng });
+      }
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Location update error:', error);
+      res.status(500).json({ success: false, error: 'Error al actualizar posición' });
+    }
+  }
+);
+
+// =============================================
+// GET /api/delivery/ops-stats — Stats para el centro de operaciones
+// =============================================
+router.get(
+  '/ops-stats',
+  authorize('comerciante', 'superadmin'),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const tenantId = req.user!.tenantId;
+      const params = [tenantId];
+
+      const q = async (sql: string, p: any[] = params) => {
+        try {
+          const [r] = await pool.query(sql, p) as any;
+          return r as any[];
+        } catch { return []; }
+      };
+
+      const [onlineCouriers] = await q(
+        'SELECT COUNT(*) n FROM courier_availability WHERE tenant_id = ? AND is_online = 1 AND last_seen_at > DATE_SUB(NOW(), INTERVAL 10 MINUTE)'
+      );
+      const [activeOrders] = await q(
+        "SELECT COUNT(*) n FROM storefront_orders WHERE tenant_id = ? AND delivery_status IN ('asignado','recogido','en_camino')"
+      );
+      const [pendingOrders] = await q(
+        "SELECT COUNT(*) n FROM storefront_orders WHERE tenant_id = ? AND delivery_status = 'sin_asignar' AND status IN ('pendiente','confirmado','preparando')"
+      );
+      const [deliveredToday] = await q(
+        "SELECT COUNT(*) n FROM storefront_orders WHERE tenant_id = ? AND delivery_status = 'entregado' AND DATE(delivery_delivered_at) = CURDATE()"
+      );
+      const [avgMinutes] = await q(
+        "SELECT ROUND(AVG(TIMESTAMPDIFF(MINUTE, delivery_assigned_at, delivery_delivered_at))) avg FROM storefront_orders WHERE tenant_id = ? AND delivery_status = 'entregado' AND delivery_delivered_at IS NOT NULL AND delivery_assigned_at IS NOT NULL AND DATE(delivery_delivered_at) = CURDATE()"
+      );
+
+      res.json({
+        success: true,
+        data: {
+          onlineCouriers: Number(onlineCouriers?.n || 0),
+          activeOrders: Number(activeOrders?.n || 0),
+          pendingOrders: Number(pendingOrders?.n || 0),
+          deliveredToday: Number(deliveredToday?.n || 0),
+          avgDeliveryMinutes: Number(avgMinutes?.avg || 0) || null,
+        },
+      });
+    } catch (error) {
+      console.error('Ops stats error:', error);
+      res.status(500).json({ success: false, error: 'Error al obtener estadísticas' });
+    }
+  }
+);
+
+// =============================================
+// GET /api/delivery/active-couriers — Repartidores online con posición
+// =============================================
+router.get(
+  '/active-couriers',
+  authorize('comerciante', 'superadmin'),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const tenantId = req.user!.tenantId;
+
+      const [couriers] = await pool.query(
+        `SELECT ca.user_id as id, u.name, u.phone,
+                ca.is_online as isOnline, ca.current_lat as lat, ca.current_lng as lng,
+                ca.last_seen_at as lastSeenAt,
+                (SELECT delivery_status FROM storefront_orders
+                 WHERE delivery_driver_id = ca.user_id
+                   AND delivery_status NOT IN ('entregado','sin_asignar')
+                 ORDER BY created_at DESC LIMIT 1) as currentOrderStatus,
+                (SELECT order_number FROM storefront_orders
+                 WHERE delivery_driver_id = ca.user_id
+                   AND delivery_status NOT IN ('entregado','sin_asignar')
+                 ORDER BY created_at DESC LIMIT 1) as currentOrderNumber
+         FROM courier_availability ca
+         JOIN users u ON u.id = ca.user_id
+         WHERE ca.tenant_id = ?
+           AND ca.is_online = 1
+           AND ca.last_seen_at > DATE_SUB(NOW(), INTERVAL 10 MINUTE)
+         ORDER BY u.name`,
+        [tenantId]
+      ) as any;
+
+      res.json({ success: true, data: couriers });
+    } catch (error) {
+      console.error('Active couriers error:', error);
+      res.status(500).json({ success: false, error: 'Error al obtener repartidores activos' });
+    }
+  }
+);
+
+// =============================================
+// GET /api/delivery/active-orders-map — Pedidos activos con coordenadas
+// =============================================
+router.get(
+  '/active-orders-map',
+  authorize('comerciante', 'superadmin'),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const tenantId = req.user!.tenantId;
+
+      const [orders] = await pool.query(
+        `SELECT o.id, o.order_number as orderNumber, o.customer_name as customerName,
+                o.delivery_latitude as lat, o.delivery_longitude as lng,
+                o.delivery_status as deliveryStatus, o.address, o.municipality,
+                o.total, o.created_at as createdAt,
+                u.name as driverName, u.phone as driverPhone
+         FROM storefront_orders o
+         LEFT JOIN users u ON u.id = o.delivery_driver_id
+         WHERE o.tenant_id = ?
+           AND o.delivery_status IN ('sin_asignar','asignado','recogido','en_camino')
+           AND o.delivery_latitude IS NOT NULL
+           AND o.delivery_longitude IS NOT NULL
+         ORDER BY o.created_at DESC`,
+        [tenantId]
+      ) as any;
+
+      res.json({ success: true, data: orders });
+    } catch (error) {
+      console.error('Active orders map error:', error);
+      res.status(500).json({ success: false, error: 'Error al obtener pedidos activos' });
+    }
+  }
+);
+
 // PUT /api/delivery/assign/:orderId — Asignar repartidor a pedido
 router.put(
   '/assign/:orderId',
