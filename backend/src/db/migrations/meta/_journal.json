@@ -15,6 +15,13 @@
       "when": 1782657591476,
       "tag": "0001_optimal_wolverine",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1782683878706,
+      "tag": "0002_loud_jane_foster",
+      "breakpoints": true
     }
   ]
 }

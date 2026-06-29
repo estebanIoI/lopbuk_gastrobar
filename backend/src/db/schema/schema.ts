@@ -3580,6 +3580,11 @@ export const storeInfo = mysqlTable("store_info", {
 	cartDeliveryFee: int("cart_delivery_fee").default(0).notNull(),
 	socialX: varchar("social_x", { length: 500 }),
 	socialSnapchat: varchar("social_snapchat", { length: 500 }),
+	// ── Cloudinary por comercio (fallback a platform_settings global) ──────────
+	cloudinaryCloudName: varchar("cloudinary_cloud_name", { length: 120 }),
+	cloudinaryUploadPreset: varchar("cloudinary_upload_preset", { length: 120 }),
+	cloudinaryApiKey: varchar("cloudinary_api_key", { length: 120 }),
+	cloudinaryApiSecret: varchar("cloudinary_api_secret", { length: 255 }), // cifrado (crypto.ts)
 },
 (table) => {
 	return {
@@ -4488,6 +4493,84 @@ export const workoutSets = mysqlTable("workout_sets", {
 		workoutSetsId: primaryKey({ columns: [table.id], name: "workout_sets_id"}),
 	}
 });
+
+export const deliveryZones = mysqlTable("delivery_zones", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" }),
+	name: varchar({ length: 100 }).notNull(),
+	city: varchar({ length: 100 }).notNull(),
+	polygon: text(), // JSON: [[lat,lng], ...]
+	isActive: tinyint("is_active").default(1).notNull(),
+	deliveryFeeBase: decimal("delivery_fee_base", { precision: 10, scale: 2 }).default('0.00').notNull(),
+	maxRadiusKm: decimal("max_radius_km", { precision: 5, scale: 2 }),
+	minOrderAmount: decimal("min_order_amount", { precision: 10, scale: 2 }).default('0.00').notNull(),
+	estimatedMinutes: int("estimated_minutes").default(30).notNull(),
+	color: varchar({ length: 20 }).default('#3B82F6'),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
+},
+(table) => {
+	return {
+		idxZoneTenant: index("idx_zone_tenant").on(table.tenantId),
+		idxZoneCity: index("idx_zone_city").on(table.city),
+		idxZoneActive: index("idx_zone_active").on(table.isActive),
+		deliveryZonesId: primaryKey({ columns: [table.id], name: "delivery_zones_id"}),
+	}
+});
+
+export const deliveryChatRooms = mysqlTable("delivery_chat_rooms", {
+	id: varchar({ length: 36 }).notNull(),
+	orderId: varchar("order_id", { length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+	status: varchar({ length: 20 }).default('active').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	closedAt: timestamp("closed_at", { mode: 'string' }),
+},
+(table) => {
+	return {
+		idxChatRoomOrder: index("idx_chat_room_order").on(table.orderId),
+		idxChatRoomTenant: index("idx_chat_room_tenant").on(table.tenantId),
+		idxChatRoomStatus: index("idx_chat_room_status").on(table.status),
+		deliveryChatRoomsId: primaryKey({ columns: [table.id], name: "delivery_chat_rooms_id"}),
+	}
+});
+
+export const deliveryChatMessages = mysqlTable("delivery_chat_messages", {
+	id: varchar({ length: 36 }).notNull(),
+	roomId: varchar("room_id", { length: 36 }).notNull(),
+	senderId: varchar("sender_id", { length: 36 }).notNull(),
+	senderName: varchar("sender_name", { length: 100 }).notNull(),
+	senderRole: varchar("sender_role", { length: 30 }).notNull(),
+	message: text().notNull(),
+	messageType: varchar("message_type", { length: 20 }).default('text').notNull(),
+	readAt: timestamp("read_at", { mode: 'string' }),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+},
+(table) => {
+	return {
+		idxChatMsgRoom: index("idx_chat_msg_room").on(table.roomId),
+		idxChatMsgSender: index("idx_chat_msg_sender").on(table.senderId),
+		idxChatMsgCreated: index("idx_chat_msg_created").on(table.createdAt),
+		deliveryChatMessagesId: primaryKey({ columns: [table.id], name: "delivery_chat_messages_id"}),
+	}
+});
+
+export const courierAvailability = mysqlTable("courier_availability", {
+	userId: varchar("user_id", { length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+	isOnline: tinyint("is_online").default(0).notNull(),
+	currentLat: decimal("current_lat", { precision: 10, scale: 7 }),
+	currentLng: decimal("current_lng", { precision: 10, scale: 7 }),
+	lastSeenAt: timestamp("last_seen_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
+},
+(table) => {
+	return {
+		idxAvailTenant: index("idx_avail_tenant").on(table.tenantId, table.isOnline),
+		courierAvailabilityUserId: primaryKey({ columns: [table.userId], name: "courier_availability_user_id"}),
+	}
+});
+
 export const vCustomerBalances = mysqlView("v_customer_balances", {
 	customerId: varchar("customer_id", { length: 36 }).notNull(),
 	tenantId: varchar("tenant_id", { length: 36 }).notNull(),

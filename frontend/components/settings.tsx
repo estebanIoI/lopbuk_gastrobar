@@ -43,7 +43,9 @@ import {
   ExternalLink,
   Briefcase,
   X,
+  Cloud,
 } from 'lucide-react'
+import { clearCloudinaryCache } from '@/components/ui/cloudinary-upload'
 
 export function Settings() {
   const { storeInfo, updateStoreInfo, products, sales } = useStore()
@@ -55,43 +57,100 @@ export function Settings() {
   useEffect(() => { setMounted(true) }, [])
   const [showResetDialog, setShowResetDialog] = useState(false)
 
-  // ── Cloudinary integration state ──────────────────────────────────────────
+  // ── Cloudinary por comercio (server-side, con fallback al global) ───────────
   const [cloudinaryForm, setCloudinaryForm] = useState({
-    cloudName: '',
-    uploadPreset: '',
+    cloudName: '', uploadPreset: '', apiKey: '', apiSecret: '',
   })
   const [showPreset, setShowPreset] = useState(false)
-
   const [cloudinaryMsg, setCloudinaryMsg] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
   const [cloudinaryLoaded, setCloudinaryLoaded] = useState(false)
+  const [cloudinarySaving, setCloudinarySaving] = useState(false)
+  const [cloudinaryMeta, setCloudinaryMeta] = useState<{ source: string; apiSecretSet: boolean; globalConfigured: boolean }>({ source: 'none', apiSecretSet: false, globalConfigured: false })
 
-  // Cargar credenciales guardadas (solo localStorage — son claves del lado cliente)
+  const CLOUDINARY_API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'
+
+  // Cargar config del comercio desde el backend
   useEffect(() => {
     if (cloudinaryLoaded) return
     setCloudinaryLoaded(true)
-    setCloudinaryForm({
-      cloudName: localStorage.getItem('cloudinary_cloud_name') || '',
-      uploadPreset: localStorage.getItem('cloudinary_upload_preset') || '',
-    })
-  }, [cloudinaryLoaded])
+    ;(async () => {
+      try {
+        const token = api.getToken()
+        const res = await fetch(`${CLOUDINARY_API}/cloudinary/config`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          credentials: 'include',
+        })
+        const json = await res.json()
+        if (json.success && json.data) {
+          const d = json.data
+          setCloudinaryForm({
+            cloudName: d.cloudName || '',
+            uploadPreset: d.uploadPreset || '',
+            apiKey: d.apiKey || '',
+            apiSecret: d.apiSecretSet ? '••••••••' : '',
+          })
+          setCloudinaryMeta({ source: d.source, apiSecretSet: d.apiSecretSet, globalConfigured: d.globalConfigured })
+        }
+      } catch { /* noop */ }
+    })()
+  }, [cloudinaryLoaded, CLOUDINARY_API])
 
-  const handleSaveCloudinary = () => {
-    if (!cloudinaryForm.cloudName.trim() || !cloudinaryForm.uploadPreset.trim()) {
-      setCloudinaryMsg({ type: 'error', text: 'Completa ambos campos' })
-      return
+  const handleSaveCloudinary = async () => {
+    setCloudinarySaving(true)
+    setCloudinaryMsg(null)
+    try {
+      const token = api.getToken()
+      const body: Record<string, string> = {
+        cloudName: cloudinaryForm.cloudName.trim(),
+        uploadPreset: cloudinaryForm.uploadPreset.trim(),
+        apiKey: cloudinaryForm.apiKey.trim().startsWith('••') ? '' : cloudinaryForm.apiKey.trim(),
+      }
+      // Solo mandar el secret si el usuario escribió uno nuevo (no la máscara)
+      if (cloudinaryForm.apiSecret && !cloudinaryForm.apiSecret.startsWith('••')) {
+        body.apiSecret = cloudinaryForm.apiSecret.trim()
+      }
+      const res = await fetch(`${CLOUDINARY_API}/cloudinary/config`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        credentials: 'include',
+        body: JSON.stringify(body),
+      })
+      const json = await res.json()
+      if (json.success) {
+        clearCloudinaryCache()
+        setCloudinaryMsg({ type: 'ok', text: 'Cloudinary del comercio guardado' })
+        setCloudinaryLoaded(false) // recargar para reflejar source/máscaras
+      } else {
+        setCloudinaryMsg({ type: 'error', text: json.error || 'Error al guardar' })
+      }
+    } catch {
+      setCloudinaryMsg({ type: 'error', text: 'Error de conexión' })
+    } finally {
+      setCloudinarySaving(false)
+      setTimeout(() => setCloudinaryMsg(null), 4000)
     }
-    localStorage.setItem('cloudinary_cloud_name', cloudinaryForm.cloudName.trim())
-    localStorage.setItem('cloudinary_upload_preset', cloudinaryForm.uploadPreset.trim())
-    setCloudinaryMsg({ type: 'ok', text: 'Credenciales guardadas correctamente' })
-    setTimeout(() => setCloudinaryMsg(null), 4000)
   }
 
-  const handleClearCloudinary = () => {
-    localStorage.removeItem('cloudinary_cloud_name')
-    localStorage.removeItem('cloudinary_upload_preset')
-    setCloudinaryForm({ cloudName: '', uploadPreset: '' })
-    setCloudinaryMsg({ type: 'ok', text: 'Credenciales eliminadas' })
-    setTimeout(() => setCloudinaryMsg(null), 3000)
+  const handleClearCloudinary = async () => {
+    setCloudinarySaving(true)
+    try {
+      const token = api.getToken()
+      await fetch(`${CLOUDINARY_API}/cloudinary/config`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        credentials: 'include',
+        body: JSON.stringify({ cloudName: '', uploadPreset: '', apiKey: '', apiSecret: '' }),
+      })
+      clearCloudinaryCache()
+      setCloudinaryForm({ cloudName: '', uploadPreset: '', apiKey: '', apiSecret: '' })
+      setCloudinaryMsg({ type: 'ok', text: 'Config del comercio eliminada (vuelve al global)' })
+      setCloudinaryLoaded(false)
+    } catch {
+      setCloudinaryMsg({ type: 'error', text: 'Error al eliminar' })
+    } finally {
+      setCloudinarySaving(false)
+      setTimeout(() => setCloudinaryMsg(null), 4000)
+    }
   }
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -288,6 +347,10 @@ export function Settings() {
           <TabsTrigger value="data" className="gap-2">
             <Database className="h-4 w-4" />
             Datos
+          </TabsTrigger>
+          <TabsTrigger value="integraciones" className="gap-2">
+            <Cloud className="h-4 w-4" />
+            Integraciones
           </TabsTrigger>
           {isAdmin && (
             <TabsTrigger value="users" className="gap-2">
@@ -520,6 +583,105 @@ export function Settings() {
             </Card>
           </div>
         </TabsContent>
+
+        {/* Integraciones — Cloudinary por comercio */}
+        <TabsContent value="integraciones">
+          <Card className="border-border bg-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Cloud className="h-5 w-5 text-primary" />
+                Cloudinary del comercio
+              </CardTitle>
+              <CardDescription>
+                Conecta TU cuenta de Cloudinary para subir e importar imágenes desde tu propia
+                biblioteca. Si no la configuras, se usa la cuenta global de la plataforma.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Estado actual */}
+              <div className="rounded-lg border border-border bg-secondary/40 px-3 py-2 text-xs flex items-center gap-2 flex-wrap">
+                <span className="font-medium">Fuente activa:</span>
+                {cloudinaryMeta.source === 'tenant' ? (
+                  <span className="inline-flex items-center gap-1 text-green-600 font-semibold"><Check className="h-3 w-3" /> Tu cuenta (comercio)</span>
+                ) : cloudinaryMeta.source === 'global' ? (
+                  <span className="inline-flex items-center gap-1 text-blue-600 font-semibold">Cuenta global de la plataforma</span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-amber-600 font-semibold"><AlertTriangle className="h-3 w-3" /> Sin configurar</span>
+                )}
+                {!cloudinaryMeta.globalConfigured && cloudinaryMeta.source !== 'tenant' && (
+                  <span className="text-muted-foreground">· el global tampoco está configurado para Admin API</span>
+                )}
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Cloud Name</Label>
+                  <Input
+                    value={cloudinaryForm.cloudName}
+                    onChange={e => setCloudinaryForm(f => ({ ...f, cloudName: e.target.value }))}
+                    placeholder="tu-cloud-name"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Upload Preset (unsigned)</Label>
+                  <div className="relative">
+                    <Input
+                      type={showPreset ? 'text' : 'password'}
+                      value={cloudinaryForm.uploadPreset}
+                      onChange={e => setCloudinaryForm(f => ({ ...f, uploadPreset: e.target.value }))}
+                      placeholder="preset para subir"
+                    />
+                    <button type="button" onClick={() => setShowPreset(v => !v)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground">
+                      {showPreset ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>API Key <span className="text-muted-foreground text-xs">(para importar)</span></Label>
+                  <Input
+                    value={cloudinaryForm.apiKey}
+                    onChange={e => setCloudinaryForm(f => ({ ...f, apiKey: e.target.value }))}
+                    placeholder="API Key de Admin"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>API Secret <span className="text-muted-foreground text-xs">(para importar)</span></Label>
+                  <Input
+                    type="password"
+                    value={cloudinaryForm.apiSecret}
+                    onChange={e => setCloudinaryForm(f => ({ ...f, apiSecret: e.target.value }))}
+                    placeholder={cloudinaryMeta.apiSecretSet ? 'Guardado — deja vacío para no cambiar' : 'API Secret de Admin'}
+                  />
+                </div>
+              </div>
+
+              <p className="text-xs text-muted-foreground">
+                <strong>Cloud Name + Upload Preset</strong> = subir imágenes. <strong>API Key + API Secret</strong> =
+                explorar tu biblioteca de Cloudinary (botón "Importar Cloudinary"). El secret se guarda cifrado.
+              </p>
+
+              {cloudinaryMsg && (
+                <div className={`flex items-center gap-2 text-sm ${cloudinaryMsg.type === 'ok' ? 'text-green-600' : 'text-destructive'}`}>
+                  {cloudinaryMsg.type === 'ok' ? <Check className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}
+                  {cloudinaryMsg.text}
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <Button onClick={handleSaveCloudinary} disabled={cloudinarySaving} className="gap-2">
+                  {cloudinarySaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                  Guardar
+                </Button>
+                <Button variant="outline" onClick={handleClearCloudinary} disabled={cloudinarySaving} className="gap-2">
+                  <Trash2 className="h-4 w-4" />
+                  Quitar mi config
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         {/* Users Management (Admin Only) */}
         {isAdmin && (
           <TabsContent value="users">
