@@ -21,6 +21,7 @@ import { BRAND } from '@/lib/brand'
 import { DaimuzWelcomeFrame } from '@/components/daimuz-welcome-frame'
 import { FlameButton } from '@/components/ui/flame-button'
 import { useIsDesktop } from '@/components/consumer/hooks/useIsDesktop'
+import { cldImg, cldSrcSet } from '@/utils/img'
 import {
   ChevronLeft, ChevronRight, Store, UtensilsCrossed, Zap, Tag, Package,
   Sparkles, ShoppingBag, Pill, Apple, Wrench, Scissors, Dog, Wine,
@@ -264,7 +265,7 @@ export function HomeHeroCarousel({
         {activeSlide && activeSlide.type !== 'video' ? (
           // Sizer invisible solo en móvil: define la altura exacta de la imagen activa.
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={activeSlide.url} alt="" aria-hidden="true" className="block w-full h-auto sm:hidden invisible select-none pointer-events-none" />
+          <img src={cldImg(activeSlide.url, 1200)} alt="" aria-hidden="true" className="block w-full h-auto sm:hidden invisible select-none pointer-events-none" />
         ) : (
           <div className="w-full aspect-video sm:hidden" />
         )}
@@ -276,7 +277,7 @@ export function HomeHeroCarousel({
             <video src={slide.url} autoPlay muted loop playsInline className="absolute inset-0 w-full h-full object-contain sm:object-cover" />
           ) : (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={slide.url} alt={slide.title || `Banner ${i + 1}`} className="absolute inset-0 w-full h-full object-contain sm:object-cover" loading={i === 0 ? 'eager' : 'lazy'} />
+            <img src={cldImg(slide.url, 1600)} alt={slide.title || `Banner ${i + 1}`} className="absolute inset-0 w-full h-full object-contain sm:object-cover" loading={i === 0 ? 'eager' : 'lazy'} fetchPriority={i === 0 ? 'high' : 'auto'} decoding="async" />
           )
           const overlay = (slide.title || slide.subtitle) && (
             <>
@@ -391,7 +392,7 @@ function StoreCard({
       <div className="relative w-full bg-[#0e0e0e] overflow-hidden shrink-0" style={{ aspectRatio: '16/10' }}>
         {(store.coverUrl || store.logoUrl) ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={ensureAbsoluteUrl((store.coverUrl || store.logoUrl) as string)} alt={store.name} className={`w-full h-full ${store.coverUrl ? 'object-cover' : 'object-contain p-4'} ${isEmpty ? '' : 'group-hover:scale-105'} transition-transform duration-500`} />
+          <img src={cldImg((store.coverUrl || store.logoUrl) as string, 500)} srcSet={cldSrcSet((store.coverUrl || store.logoUrl) as string, [300, 500, 800])} sizes="(max-width:640px) 100vw, 360px" loading="lazy" decoding="async" alt={store.name} className={`w-full h-full ${store.coverUrl ? 'object-cover' : 'object-contain p-4'} ${isEmpty ? '' : 'group-hover:scale-105'} transition-transform duration-500`} />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -414,7 +415,7 @@ function StoreCard({
         <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl overflow-hidden bg-[#1f1f1f] border-2 border-[#171717] shadow-lg flex items-center justify-center shrink-0">
           {store.logoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={ensureAbsoluteUrl(store.logoUrl)} alt={store.name} className="w-full h-full object-cover" />
+            <img src={cldImg(store.logoUrl, 160)} loading="lazy" decoding="async" alt={store.name} className="w-full h-full object-cover" />
           ) : (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={BRAND.isotipo} alt={BRAND.name} className="w-full h-full object-contain p-1.5" />
@@ -1039,7 +1040,7 @@ export function MarketplaceHomeGovCo({
                 <button onClick={() => onOpenStore(topStore)} className="group relative rounded-xl overflow-hidden text-left flex-1 min-h-[160px] bg-gray-900">
                   {(topStore.coverUrl || topStore.logoUrl) ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={ensureAbsoluteUrl((topStore.coverUrl || topStore.logoUrl) as string)} alt={topStore.name} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                    <img src={cldImg((topStore.coverUrl || topStore.logoUrl) as string, 500)} loading="lazy" decoding="async" alt={topStore.name} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                   ) : (
                     <div className="absolute inset-0" style={{ background: `linear-gradient(120deg, ${GREEN_DARK}, ${GREEN})` }} />
                   )}

@@ -162,6 +162,23 @@ Arquitectura completa en [[brain/variants-and-suppliers]]. Decisiones formales e
 
 ## 🟡 P2 — Importante
 
+### 🖼️ [2026-06-29] Optimización de carga de imágenes — Fase 1 hecha, faltan 2-4
+
+**Problema:** las imágenes cargaban lento. Causa: ~183 `<img>` planos servían la **imagen ORIGINAL full-size** de Cloudinary (sin resize/WebP/compresión) y casi sin `loading="lazy"`. `next/image` casi no se usa (1 import).
+
+**✅ Fase 1 (hecha):** helper `frontend/utils/img.ts` → `cldImg(url, w, h?)` inserta transform de Cloudinary (`w_…,q_auto,f_auto,dpr_auto`) en la entrega (sin re-subir; cachea en CDN de Cloudinary). No-Cloudinary/data/relativas pasan sin tocar. Cableado en las imágenes de alto volumen: tarjetas/grid de producto (Tema 1: 24 imágenes + `loading="lazy"`/`decoding="async"` en ~20 tarjetas; hero del detalle → `w_800`; thumbnails de galería → `w_200`), Tema 2 storefront + order-flow (tarjeta de producto `w_400`, thumb de modificador `w_64`). tsc 0 errores. Recorte esperado ~70-90% de bytes por imagen.
+
+**✅ Fase 2 (hecha, 2026-06-29) — LCP:** banner hero de la tienda (`landing-page.tsx`, hero1/platformHero) → `cldImg(…, 1600)` + `loading="eager"` + `fetchPriority="high"`. Hero del detalle de producto (×2) → `fetchPriority="high"`. Carrusel del marketplace (`home-theme2.tsx`) → `cldImg(…, 1600)` + `fetchPriority` en el primer slide (el sizer invisible móvil también pasa por `cldImg` para no bajar el original). De paso, tarjetas de tienda del marketplace (cover `w_500` + logo `w_160`) con `cldImg` + lazy. tsc 0 errores.
+
+**✅ Fase 3 (hecha, 2026-06-29) — responsive `srcSet`/`sizes`:** `cldSrcSet()` ([200,400,800]) + `sizes="(max-width:640px) 50vw, (max-width:1024px) 33vw, 25vw"` en las tarjetas de producto de los 3 componentes de tienda (landing-page ×22, theme2-storefront, theme2-order-flow). Tarjetas de tienda del marketplace con `[300,500,800]` + `sizes` propio. Ahora el navegador en móvil baja el ancho de ~200px en vez de 400px. tsc 0 errores.
+
+**✅ Fase 4 (hecha, 2026-06-29) — cobertura total del frontend:** `cldImg` aplicado a TODOS los `<img>` restantes de los 4 componentes de tienda (`landing-page`, `theme2-storefront`, `theme2-order-flow`, `home-theme2`): logos de nav/tienda (`w_200/160`), modificadores (`w_64`), ítems del carrito (`w_120`), imágenes de reseña (`w_200`), banners de drop (`w_1200`), covers de Tema 2 (`w_1200` + eager/`fetchPriority` en el hero). Verificado: **0 `<img>` de tienda sin `cldImg`** (62 usos). Solo quedan fuera los assets estáticos de marca (`BRAND.isotipo`, ya optimizados por el bundler). tsc 0 errores.
+
+> **Decisión:** NO se bakea el transform en `imageUrl` desde el backend (la idea original de "red de seguridad"). Hacerlo capparía la resolución del hero/detalle (que necesita `w_800/1200`) a un thumbnail fijo. Como el frontend ya cubre el 100% de las vistas de tienda con sizing por contexto, la red de seguridad backend es innecesaria y contraproducente.
+
+**🟢 OPTIMIZACIÓN DE IMÁGENES COMPLETA (Fases 1-4).** Recorte esperado ~70-90% de bytes por imagen (resize + WebP/AVIF + `q_auto`), lazy-load del contenido fuera de pantalla, LCP priorizado, y `srcSet` responsive para móvil. Solo queda el deploy.
+
+
 ### Agente IA
 - [ ] **Fase 3 — Voz IA (Vapi)**
   - Crear `backend/src/modules/voice/vapi.routes.ts`

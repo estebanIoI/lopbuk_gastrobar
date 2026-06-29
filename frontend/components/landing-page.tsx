@@ -78,6 +78,7 @@ import { ChatWidget } from '@/components/ChatWidget'
 import { ContactModal } from '@/components/contact-modal'
 import ConsumerRoutine from '@/components/consumer-routine'
 import { ensureAbsoluteUrl } from '@/utils/url'
+import { cldImg, cldSrcSet } from '@/utils/img'
 import { departamentosMunicipios } from '@/constants'
 import { useAuthStore } from '@/lib/auth-store'
 import { GoogleLogin, type CredentialResponse } from '@react-oauth/google'
@@ -2638,7 +2639,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
             {storeConfig?.storeInfo?.logoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={storeConfig.storeInfo.logoUrl}
+                src={cldImg(storeConfig.storeInfo.logoUrl, 200)}
                 alt={storeConfig.storeInfo.name || 'Tienda'}
                 className="h-12 w-auto object-contain"
               />
@@ -2962,7 +2963,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 {/* Desktop: logo on the left */}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={storeConfig.storeInfo.logoUrl}
+                  src={cldImg(storeConfig.storeInfo.logoUrl, 200)}
                   alt={storeConfig.storeInfo.name || 'Logo'}
                   style={storeConfig.storeInfo.logoSize ? { height: storeConfig.storeInfo.logoSize } : undefined}
                   className="hidden md:block h-14 w-auto object-contain"
@@ -2977,7 +2978,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
             <div className="absolute left-1/2 -translate-x-1/2 md:hidden pointer-events-none">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={storeConfig.storeInfo.logoUrl}
+                src={cldImg(storeConfig.storeInfo.logoUrl, 200)}
                 alt={storeConfig.storeInfo.name || 'Logo'}
                 style={storeConfig.storeInfo.logoSize ? { height: storeConfig.storeInfo.logoSize } : undefined}
                 className="h-12 w-auto object-contain"
@@ -3186,7 +3187,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                             <div className="shrink-0 w-10 h-10 rounded-sm overflow-hidden border border-white/8 bg-white/3 flex items-center justify-center">
                               {store.logoUrl ? (
                                 // eslint-disable-next-line @next/next/no-img-element
-                                <img src={ensureAbsoluteUrl(store.logoUrl)} alt={store.name} className="w-full h-full object-cover" />
+                                <img src={cldImg(store.logoUrl, 160)} alt={store.name} className="w-full h-full object-cover" />
                               ) : (
                                 <Store className="w-4 h-4 text-white/20" />
                               )}
@@ -3226,7 +3227,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         <div data-dark className="relative aspect-square bg-black/50 overflow-hidden">
                           {product.imageUrl ? (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img src={ensureAbsoluteUrl(product.imageUrl)} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                            <img src={cldImg(product.imageUrl, 400)} srcSet={cldSrcSet(product.imageUrl)} sizes="(max-width:640px) 50vw, (max-width:1024px) 33vw, 25vw" alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center"><Sparkles className="w-6 h-6 text-white/10" /></div>
                           )}
@@ -3264,7 +3265,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
             <div className="flex items-center justify-between mb-8">
               {storeConfig?.storeInfo?.logoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={storeConfig.storeInfo.logoUrl} alt={storeConfig.storeInfo.name || 'Logo'} className="h-14 w-auto object-contain" />
+                <img src={cldImg(storeConfig.storeInfo.logoUrl, 200)} alt={storeConfig.storeInfo.name || 'Logo'} className="h-14 w-auto object-contain" />
               ) : (
                 <span className="text-lg font-light tracking-[0.3em] text-white uppercase">{storeConfig?.storeInfo?.name || 'Tienda'}</span>
               )}
@@ -3462,7 +3463,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               <div className="relative w-full" style={{ aspectRatio: '1 / 1', backgroundColor: isLightBg ? '#f0f0f0' : '#111' }}>
                 {heroUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img key={heroUrl} src={ensureAbsoluteUrl(heroUrl)} alt={selectedProduct.name} className="w-full h-full object-contain" />
+                  <img key={heroUrl} src={cldImg(heroUrl, 800)} alt={selectedProduct.name} fetchPriority="high" decoding="async" className="w-full h-full object-contain" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center"><Sparkles className="w-16 h-16 text-white/10" /></div>
                 )}
@@ -3486,7 +3487,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       }`}
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={ensureAbsoluteUrl(url)} alt={`${selectedProduct.name} ${i + 1}`} className="w-full h-full object-cover" />
+                      <img src={cldImg(url, 200)} loading="lazy" decoding="async" alt={`${selectedProduct.name} ${i + 1}`} className="w-full h-full object-cover" />
                     </button>
                   ))}
                 </div>
@@ -3625,7 +3626,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                             <button key={o.id} type="button" onClick={() => toggleT1Mod(g, o.id)} className={`w-full flex items-center gap-3 px-3 py-2.5 text-left ${isLightBg ? 'hover:bg-black/[0.03]' : 'hover:bg-white/[0.03]'}`}>
                               {o.imageUrl
                                 // eslint-disable-next-line @next/next/no-img-element
-                                ? <img src={ensureAbsoluteUrl(o.imageUrl)} alt={o.name} className="w-8 h-8 rounded-md object-cover shrink-0" />
+                                ? <img src={cldImg(o.imageUrl, 64)} alt={o.name} className="w-8 h-8 rounded-md object-cover shrink-0" />
                                 : <span className={`w-8 h-8 rounded-md shrink-0 ${isLightBg ? 'bg-black/5' : 'bg-white/5'}`} />}
                               <span className={`flex-1 text-sm ${isLightBg ? 'text-black/80' : 'text-white/80'}`}>{o.name}</span>
                               {Number(o.priceDelta) > 0
@@ -3779,7 +3780,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     <div className={`w-14 h-14 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0 ${isLightBg ? 'bg-black/5 border border-black/10' : 'bg-white/5 border border-white/10'}`}>
                       {storeConfig?.storeInfo?.logoUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={storeConfig.storeInfo.logoUrl} alt={selectedProduct.storeName} className="w-full h-full object-contain" />
+                        <img src={cldImg(storeConfig.storeInfo.logoUrl, 200)} alt={selectedProduct.storeName} className="w-full h-full object-contain" />
                       ) : (
                         <Store className="w-5 h-5 text-white/70" />
                       )}
@@ -3912,7 +3913,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         {reviewForm.imageUrl1 ? (
                           <div className="flex items-center gap-3">
                             {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={reviewForm.imageUrl1} alt="preview" className="w-20 h-20 object-cover rounded-lg border border-white/10" />
+                            <img src={cldImg(reviewForm.imageUrl1, 200)} alt="preview" className="w-20 h-20 object-cover rounded-lg border border-white/10" />
                             <button type="button" onClick={() => setReviewForm(p => ({ ...p, imageUrl1: '' }))} className="text-xs text-white/40 hover:text-red-400 transition-colors">Eliminar</button>
                           </div>
                         ) : (
@@ -4020,8 +4021,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                             {r.body && <p className={`text-sm leading-relaxed ${isLightBg ? 'text-black/55' : 'text-white/50'}`}>{r.body}</p>}
                             {(r.imageUrl1 || r.imageUrl2) && (
                               <div className="flex gap-2 mt-2">
-                                {r.imageUrl1 && <img src={r.imageUrl1} alt="reseña" className="w-14 h-14 object-cover rounded-lg border border-white/10" />}
-                                {r.imageUrl2 && <img src={r.imageUrl2} alt="reseña" className="w-14 h-14 object-cover rounded-lg border border-white/10" />}
+                                {r.imageUrl1 && <img src={cldImg(r.imageUrl1, 200)} alt="reseña" className="w-14 h-14 object-cover rounded-lg border border-white/10" />}
+                                {r.imageUrl2 && <img src={cldImg(r.imageUrl2, 200)} alt="reseña" className="w-14 h-14 object-cover rounded-lg border border-white/10" />}
                               </div>
                             )}
                             {r.reply && (
@@ -4085,7 +4086,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                               className={`w-[64px] h-[64px] overflow-hidden flex-shrink-0 transition-all duration-200 ${i === activeImageIdx ? 'border-2 border-white/80' : 'border border-white/10 opacity-50 hover:opacity-100'}`}
                             >
                               {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img src={ensureAbsoluteUrl(url)} alt={`${selectedProduct.name} ${i + 1}`} className="w-full h-full object-cover" />
+                              <img src={cldImg(url, 200)} loading="lazy" decoding="async" alt={`${selectedProduct.name} ${i + 1}`} className="w-full h-full object-cover" />
                             </button>
                           ))}
                         </div>
@@ -4093,7 +4094,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       <div className="flex-1 relative overflow-hidden lg:max-h-[520px]" style={{ aspectRatio: '4/5', backgroundColor: effectiveBgColor }}>
                         {heroUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img key={heroUrl} src={ensureAbsoluteUrl(heroUrl)} alt={selectedProduct.name} className="w-full h-full object-contain transition-opacity duration-300" />
+                          <img key={heroUrl} src={cldImg(heroUrl, 800)} alt={selectedProduct.name} fetchPriority="high" decoding="async" className="w-full h-full object-contain transition-opacity duration-300" />
                         ) : <div className="w-full h-full flex items-center justify-center"><Sparkles className="w-20 h-20 text-white/10" /></div>}
                         {!!(selectedProduct.isOnOffer && selectedProduct.offerPrice) && (
                           <div className="absolute top-4 left-4 flex flex-col gap-2">
@@ -4117,7 +4118,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         <div className={`w-12 h-12 rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0 ${isLightBg ? 'bg-black/5 border border-black/10' : 'bg-white/5 border border-white/10'}`}>
                           {storeConfig?.storeInfo?.logoUrl ? (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img src={storeConfig.storeInfo.logoUrl} alt={selectedProduct.storeName} className="w-full h-full object-contain p-1" />
+                            <img src={cldImg(storeConfig.storeInfo.logoUrl, 200)} alt={selectedProduct.storeName} className="w-full h-full object-contain p-1" />
                           ) : (
                             <Store className={`w-5 h-5 ${isLightBg ? 'text-black/40' : 'text-white/40'}`} />
                           )}
@@ -4568,7 +4569,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         {reviewForm.imageUrl1 ? (
                           <div className="flex items-center gap-3">
                             {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={reviewForm.imageUrl1} alt="preview" className="w-20 h-20 object-cover rounded-lg border border-white/10" />
+                            <img src={cldImg(reviewForm.imageUrl1, 200)} alt="preview" className="w-20 h-20 object-cover rounded-lg border border-white/10" />
                             <button type="button" onClick={() => setReviewForm(p => ({ ...p, imageUrl1: '' }))} className="text-xs text-white/40 hover:text-red-400 transition-colors">Eliminar</button>
                           </div>
                         ) : (
@@ -4675,8 +4676,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                             {r.body && <p className={`text-sm leading-relaxed ${isLightBg ? 'text-black/55' : 'text-white/50'}`}>{r.body}</p>}
                             {(r.imageUrl1 || r.imageUrl2) && (
                               <div className="flex gap-2 mt-3">
-                                {r.imageUrl1 && <img src={r.imageUrl1} alt="reseña" className="w-16 h-16 object-cover rounded-lg border border-white/10" />}
-                                {r.imageUrl2 && <img src={r.imageUrl2} alt="reseña" className="w-16 h-16 object-cover rounded-lg border border-white/10" />}
+                                {r.imageUrl1 && <img src={cldImg(r.imageUrl1, 200)} alt="reseña" className="w-16 h-16 object-cover rounded-lg border border-white/10" />}
+                                {r.imageUrl2 && <img src={cldImg(r.imageUrl2, 200)} alt="reseña" className="w-16 h-16 object-cover rounded-lg border border-white/10" />}
                               </div>
                             )}
                             {r.reply && (
@@ -4721,9 +4722,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                               {rp.imageUrl ? (
                                 // eslint-disable-next-line @next/next/no-img-element
                                 <img
-                                  src={ensureAbsoluteUrl(rp.imageUrl)}
+                                  src={cldImg(rp.imageUrl, 400)}
                                   alt={rp.name}
-                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                  loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                                 />
                               ) : (
                                 <div className="w-full h-full flex items-center justify-center">
@@ -5014,7 +5015,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                                       <div className="w-9 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center overflow-hidden shrink-0">
                                         {store.logoUrl ? (
                                           // eslint-disable-next-line @next/next/no-img-element
-                                          <img src={store.logoUrl} alt={store.name} className="w-full h-full object-cover" />
+                                          <img src={cldImg(store.logoUrl, 160)} alt={store.name} className="w-full h-full object-cover" />
                                         ) : (
                                           <Store className="w-4 h-4 text-white/30" />
                                         )}
@@ -5033,7 +5034,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                                           <div key={p.id} className="relative aspect-square bg-black/40 overflow-hidden">
                                             {p.imageUrl ? (
                                               // eslint-disable-next-line @next/next/no-img-element
-                                              <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                                              <img src={cldImg(p.imageUrl, 400)} alt={p.name} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                                             ) : (
                                               <div className="w-full h-full flex items-center justify-center">
                                                 <Package className="w-4 h-4 text-white/10" />
@@ -5205,7 +5206,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                             <div className="relative aspect-[4/3] sm:aspect-square overflow-hidden bg-gray-50">
                               {product.imageUrl ? (
                                 // eslint-disable-next-line @next/next/no-img-element
-                                <img src={ensureAbsoluteUrl(product.imageUrl)} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                                <img src={cldImg(product.imageUrl, 400)} srcSet={cldSrcSet(product.imageUrl)} sizes="(max-width:640px) 50vw, (max-width:1024px) 33vw, 25vw" alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                               ) : (
                                 <div className="w-full h-full flex items-center justify-center">
                                   <Package className="w-10 h-10 text-gray-300" />
@@ -5296,7 +5297,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           <div data-dark className="relative aspect-[3/4] overflow-hidden bg-black/60">
                             {product.imageUrl ? (
                               // eslint-disable-next-line @next/next/no-img-element
-                              <img src={ensureAbsoluteUrl(product.imageUrl)} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
+                              <img src={cldImg(product.imageUrl, 400)} srcSet={cldSrcSet(product.imageUrl)} sizes="(max-width:640px) 50vw, (max-width:1024px) 33vw, 25vw" alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center bg-white/3">
                                 <Sparkles className="w-10 h-10 text-white/10" />
@@ -5522,7 +5523,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         <div data-dark className="relative aspect-[3/4] overflow-hidden bg-black/60">
                           {product.imageUrl ? (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img src={ensureAbsoluteUrl(product.imageUrl)} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
+                            <img src={cldImg(product.imageUrl, 400)} srcSet={cldSrcSet(product.imageUrl)} sizes="(max-width:640px) 50vw, (max-width:1024px) 33vw, 25vw" alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center bg-red-900/20">
                               <Sparkles className="w-10 h-10 text-white/10" />
@@ -5702,7 +5703,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         <div data-dark className="relative aspect-[3/4] overflow-hidden bg-black/60">
                           {product.imageUrl ? (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img src={ensureAbsoluteUrl(product.imageUrl)} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
+                            <img src={cldImg(product.imageUrl, 400)} srcSet={cldSrcSet(product.imageUrl)} sizes="(max-width:640px) 50vw, (max-width:1024px) 33vw, 25vw" alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center bg-orange-900/20">
                               <Flame className="w-10 h-10 text-white/10" />
@@ -5777,7 +5778,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
             {storeConfig.activeDrop.bannerUrl && (
               <div className="relative h-48 sm:h-64 md:h-80">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={storeConfig.activeDrop.bannerUrl} alt={storeConfig.activeDrop.name} className="w-full h-full object-cover" />
+                <img src={cldImg(storeConfig.activeDrop.bannerUrl, 1200)} alt={storeConfig.activeDrop.name} className="w-full h-full object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black" />
               </div>
             )}
@@ -5826,7 +5827,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       <div className="relative aspect-[4/3] sm:aspect-square overflow-hidden bg-gray-50">
                         {product.imageUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={ensureAbsoluteUrl(product.imageUrl)} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                          <img src={cldImg(product.imageUrl, 400)} srcSet={cldSrcSet(product.imageUrl)} sizes="(max-width:640px) 50vw, (max-width:1024px) 33vw, 25vw" alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center"><Package className="w-10 h-10 text-gray-300" /></div>
                         )}
@@ -5880,7 +5881,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     <div data-dark className="relative aspect-[3/4] overflow-hidden bg-black/60">
                       {product.imageUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={ensureAbsoluteUrl(product.imageUrl)} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
+                        <img src={cldImg(product.imageUrl, 400)} srcSet={cldSrcSet(product.imageUrl)} sizes="(max-width:640px) 50vw, (max-width:1024px) 33vw, 25vw" alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center bg-white/3">
                           <Sparkles className="w-10 h-10 text-white/10" />
@@ -5998,7 +5999,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         <img
                           src={service.imageUrl}
                           alt={service.name}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                          loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center bg-white/3">
@@ -6088,8 +6089,10 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
           {(storeConfig?.banners?.find(b => b.position === 'hero1')?.imageUrl || platformHeroUrl) && (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={storeConfig?.banners?.find(b => b.position === 'hero1')?.imageUrl || platformHeroUrl}
+              src={cldImg(storeConfig?.banners?.find(b => b.position === 'hero1')?.imageUrl || platformHeroUrl, 1600)}
               alt={storeConfig?.banners?.find(b => b.position === 'hero1')?.title || platformHeroTitle || 'Banner principal'}
+              loading="eager"
+              fetchPriority="high"
               className={isMobile ? 'w-full h-auto block object-contain' : 'absolute inset-0 w-full h-full object-contain object-center'}
             />
           )}
@@ -6144,7 +6147,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     {product.imageUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
-                        src={ensureAbsoluteUrl(product.imageUrl)}
+                        src={cldImg(product.imageUrl, 400)} srcSet={cldSrcSet(product.imageUrl)} sizes="(max-width:640px) 50vw, (max-width:1024px) 33vw, 25vw"
                         alt={product.name}
                         className="w-full h-full object-cover group-hover/thumb:scale-110 transition-transform duration-500"
                       />
@@ -6428,7 +6431,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       <div className="relative aspect-square overflow-hidden bg-gray-50">
                         {product.imageUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={ensureAbsoluteUrl(product.imageUrl)} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                          <img src={cldImg(product.imageUrl, 400)} srcSet={cldSrcSet(product.imageUrl)} sizes="(max-width:640px) 50vw, (max-width:1024px) 33vw, 25vw" alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center"><Package className="w-10 h-10 text-gray-300" /></div>
                         )}
@@ -6482,7 +6485,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     <div data-dark className="relative aspect-[3/4] overflow-hidden bg-black/60">
                       {product.imageUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={ensureAbsoluteUrl(product.imageUrl)} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
+                        <img src={cldImg(product.imageUrl, 400)} srcSet={cldSrcSet(product.imageUrl)} sizes="(max-width:640px) 50vw, (max-width:1024px) 33vw, 25vw" alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center bg-white/3"><Sparkles className="w-10 h-10 text-white/10" /></div>
                       )}
@@ -6643,7 +6646,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       <div className="relative aspect-square overflow-hidden bg-gray-50">
                         {product.imageUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={ensureAbsoluteUrl(product.imageUrl)} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                          <img src={cldImg(product.imageUrl, 400)} srcSet={cldSrcSet(product.imageUrl)} sizes="(max-width:640px) 50vw, (max-width:1024px) 33vw, 25vw" alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center"><Package className="w-10 h-10 text-gray-300" /></div>
                         )}
@@ -6700,7 +6703,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     <div data-dark className="relative aspect-[3/4] overflow-hidden bg-black/60">
                       {product.imageUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={ensureAbsoluteUrl(product.imageUrl)} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
+                        <img src={cldImg(product.imageUrl, 400)} srcSet={cldSrcSet(product.imageUrl)} sizes="(max-width:640px) 50vw, (max-width:1024px) 33vw, 25vw" alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center bg-white/3"><Sparkles className="w-10 h-10 text-white/10" /></div>
                       )}
@@ -7003,7 +7006,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           <div className="relative aspect-[3/4] overflow-hidden bg-black/60">
                             {product.imageUrl ? (
                               // eslint-disable-next-line @next/next/no-img-element
-                              <img src={ensureAbsoluteUrl(product.imageUrl)} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
+                              <img src={cldImg(product.imageUrl, 400)} srcSet={cldSrcSet(product.imageUrl)} sizes="(max-width:640px) 50vw, (max-width:1024px) 33vw, 25vw" alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center bg-white/3"><Sparkles className="w-10 h-10 text-white/10" /></div>
                             )}
@@ -7077,7 +7080,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           <div className="relative aspect-[3/4] overflow-hidden bg-black/60">
                             {product.imageUrl ? (
                               // eslint-disable-next-line @next/next/no-img-element
-                              <img src={ensureAbsoluteUrl(product.imageUrl)} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
+                              <img src={cldImg(product.imageUrl, 400)} srcSet={cldSrcSet(product.imageUrl)} sizes="(max-width:640px) 50vw, (max-width:1024px) 33vw, 25vw" alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center"><Sparkles className="w-10 h-10 text-white/10" /></div>
                             )}
@@ -7254,7 +7257,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                               <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl overflow-hidden bg-[#1f1f1f] border-2 border-[#171717] shadow-lg flex items-center justify-center shrink-0">
                                 {store.logoUrl ? (
                                   // eslint-disable-next-line @next/next/no-img-element
-                                  <img src={ensureAbsoluteUrl(store.logoUrl)} alt={store.name} className="w-full h-full object-cover" />
+                                  <img src={cldImg(store.logoUrl, 160)} alt={store.name} className="w-full h-full object-cover" />
                                 ) : (
                                   <Store className="w-6 h-6 text-white/30" />
                                 )}
@@ -7365,7 +7368,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                               <div className="relative aspect-[3/4] bg-black/50 overflow-hidden">
                                 {product.imageUrl ? (
                                   // eslint-disable-next-line @next/next/no-img-element
-                                  <img src={ensureAbsoluteUrl(product.imageUrl)} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                                  <img src={cldImg(product.imageUrl, 400)} srcSet={cldSrcSet(product.imageUrl)} sizes="(max-width:640px) 50vw, (max-width:1024px) 33vw, 25vw" alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                                 ) : (
                                   <div className="w-full h-full flex items-center justify-center"><Sparkles className="w-8 h-8 text-white/8" /></div>
                                 )}
@@ -7454,7 +7457,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       <div className="relative aspect-square overflow-hidden bg-gray-50">
                         {product.imageUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={ensureAbsoluteUrl(product.imageUrl)} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                          <img src={cldImg(product.imageUrl, 400)} srcSet={cldSrcSet(product.imageUrl)} sizes="(max-width:640px) 50vw, (max-width:1024px) 33vw, 25vw" alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center"><Package className="w-10 h-10 text-gray-300" /></div>
                         )}
@@ -7505,7 +7508,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     <div data-dark className="relative aspect-[3/4] overflow-hidden bg-black/60">
                       {product.imageUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={ensureAbsoluteUrl(product.imageUrl)} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
+                        <img src={cldImg(product.imageUrl, 400)} srcSet={cldSrcSet(product.imageUrl)} sizes="(max-width:640px) 50vw, (max-width:1024px) 33vw, 25vw" alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center bg-white/3"><Sparkles className="w-10 h-10 text-white/10" /></div>
                       )}
@@ -7695,7 +7698,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               <div className="col-span-2 md:col-span-1 space-y-4">
                 {storeConfig.storeInfo.logoUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={storeConfig.storeInfo.logoUrl} alt={storeConfig.storeInfo.name} className="h-20 w-auto object-contain" />
+                  <img src={cldImg(storeConfig.storeInfo.logoUrl, 200)} alt={storeConfig.storeInfo.name} className="h-20 w-auto object-contain" />
                 ) : (
                   <span className="text-lg font-light tracking-[0.4em] text-white/60 uppercase">
                     {storeConfig.storeInfo.name}
@@ -7866,7 +7869,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               </button>
               {storeConfig.activeDrop.bannerUrl && (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={storeConfig.activeDrop.bannerUrl} alt={storeConfig.activeDrop.name} className="w-full h-48 object-cover" />
+                <img src={cldImg(storeConfig.activeDrop.bannerUrl, 1200)} alt={storeConfig.activeDrop.name} className="w-full h-48 object-cover" />
               )}
               <div className="p-6 text-center space-y-4">
                 <div className="inline-flex items-center gap-2 text-white text-xs uppercase tracking-[0.3em]">
@@ -8166,7 +8169,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         <div style={{ width: 64, height: 64, flexShrink: 0, overflow: 'hidden', border: '1px solid rgba(0,0,0,0.15)', backgroundColor: 'rgba(0,0,0,0.04)' }}>
                           {item.imagen ? (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img src={ensureAbsoluteUrl(item.imagen)} alt={item.nombre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            <img src={cldImg(item.imagen, 120)} alt={item.nombre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                           ) : (
                             <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                               <Sparkles style={{ width: 16, height: 16, color: 'rgba(0,0,0,0.2)' }} />
@@ -8865,7 +8868,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           <div key={product.id} className="flex items-center gap-3 bg-white/5 border border-white/10 hover:border-white/15 p-3 transition-all">
                             <div className="w-14 h-14 shrink-0 bg-black/40 overflow-hidden">
                               {product.imageUrl
-                                ? <img src={ensureAbsoluteUrl(product.imageUrl)} alt={product.name} className="w-full h-full object-cover" />
+                                ? <img src={cldImg(product.imageUrl, 400)} srcSet={cldSrcSet(product.imageUrl)} sizes="(max-width:640px) 50vw, (max-width:1024px) 33vw, 25vw" alt={product.name} className="w-full h-full object-cover" />
                                 : <div className="w-full h-full flex items-center justify-center"><Sparkles className="w-5 h-5 text-white/10" /></div>
                               }
                             </div>
@@ -9114,7 +9117,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         </div>
                         {product.imageUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={ensureAbsoluteUrl(product.imageUrl)} alt={product.name} className="w-full h-full object-cover" />
+                          <img src={cldImg(product.imageUrl, 400)} srcSet={cldSrcSet(product.imageUrl)} sizes="(max-width:640px) 50vw, (max-width:1024px) 33vw, 25vw" alt={product.name} className="w-full h-full object-cover" />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center"><Sparkles className="w-8 h-8 text-white/10" /></div>
                         )}
@@ -9182,7 +9185,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           <div data-dark className="relative aspect-square bg-black/50 overflow-hidden">
                             {product.imageUrl ? (
                               // eslint-disable-next-line @next/next/no-img-element
-                              <img src={ensureAbsoluteUrl(product.imageUrl)} alt={product.name} className="w-full h-full object-cover" />
+                              <img src={cldImg(product.imageUrl, 400)} srcSet={cldSrcSet(product.imageUrl)} sizes="(max-width:640px) 50vw, (max-width:1024px) 33vw, 25vw" alt={product.name} className="w-full h-full object-cover" />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center"><Sparkles className="w-8 h-8 text-white/10" /></div>
                             )}
@@ -9246,7 +9249,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           <div className="shrink-0 w-11 h-11 rounded-sm overflow-hidden border border-white/8 bg-white/3 flex items-center justify-center">
                             {store.logoUrl ? (
                               // eslint-disable-next-line @next/next/no-img-element
-                              <img src={ensureAbsoluteUrl(store.logoUrl)} alt={store.name} className="w-full h-full object-cover" />
+                              <img src={cldImg(store.logoUrl, 160)} alt={store.name} className="w-full h-full object-cover" />
                             ) : (
                               <Store className="w-4 h-4 text-white/20" />
                             )}
@@ -9287,7 +9290,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       <div data-dark className="relative aspect-square bg-black/50 overflow-hidden">
                         {product.imageUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={ensureAbsoluteUrl(product.imageUrl)} alt={product.name} className="w-full h-full object-cover" />
+                          <img src={cldImg(product.imageUrl, 400)} srcSet={cldSrcSet(product.imageUrl)} sizes="(max-width:640px) 50vw, (max-width:1024px) 33vw, 25vw" alt={product.name} className="w-full h-full object-cover" />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center"><Sparkles className="w-8 h-8 text-white/10" /></div>
                         )}
@@ -9428,7 +9431,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                             {/* Image */}
                             <div className="aspect-square w-full bg-black/30 overflow-hidden">
                               {product.imageUrl
-                                ? <img src={ensureAbsoluteUrl(product.imageUrl)} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                                ? <img src={cldImg(product.imageUrl, 400)} srcSet={cldSrcSet(product.imageUrl)} sizes="(max-width:640px) 50vw, (max-width:1024px) 33vw, 25vw" alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                                 : <div className="w-full h-full flex items-center justify-center"><Sparkles className="w-6 h-6 text-white/10" /></div>
                               }
                               {isOffer && (
