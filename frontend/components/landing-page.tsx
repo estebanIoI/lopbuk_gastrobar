@@ -351,6 +351,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   const [promoUnitPrice, setPromoUnitPrice] = useState<number | null>(null)
   const [t1Sel, setT1Sel] = useState<Record<string, Set<string>>>({})
   const [activeImageIdx, setActiveImageIdx] = useState(0)
+  // Al cambiar de variante (color), vuelve a la imagen principal de su galería propia.
+  useEffect(() => { setActiveImageIdx(0) }, [selectedVariant?.id])
   const [viewersCount, setViewersCount] = useState(0)
   const viewersIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const [ctaVisible, setCtaVisible] = useState(false)
@@ -3256,9 +3258,22 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         const gallery: string[] = parsedImgs.length > 0
           ? parsedImgs
           : selectedProduct.imageUrl ? [selectedProduct.imageUrl] : []
-        const activeUrl = gallery[activeImageIdx] || gallery[0] || ''
-        // Si la variante (color) seleccionada tiene imagen propia, la foto principal cambia a ella.
-        const heroUrl = selectedVariant?.image || activeUrl
+        // Galería propia de la variante (color) seleccionada: su imagen principal + las demás.
+        const variantImages: string[] = (() => {
+          if (!selectedVariant) return []
+          const v: any = (selectedProduct.variants || []).find((x: any) => String(x.id) === String(selectedVariant.id))
+          if (!v) return []
+          const raw = Array.isArray(v.images)
+            ? v.images
+            : (typeof v.images === 'string' ? (() => { try { return JSON.parse(v.images) } catch { return [] } })() : [])
+          return (raw as string[]).filter(Boolean)
+        })()
+        // Si la variante tiene imágenes propias, la galería mostrada (principal + miniaturas)
+        // pasa a ser la suya; si no, se queda con la del producto.
+        const displayGallery: string[] = variantImages.length > 0 ? variantImages : gallery
+        const activeUrl = displayGallery[activeImageIdx] || displayGallery[0] || ''
+        // Foto principal: la miniatura activa de la galería mostrada; cae a la 1ra imagen de la variante.
+        const heroUrl = activeUrl || selectedVariant?.image || ''
 
         // Related products: same category, different product
         const relatedProducts = products
@@ -3387,9 +3402,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               </div>
 
               {/* ── Thumbnail strip ── */}
-              {gallery.length > 1 && (
+              {displayGallery.length > 1 && (
                 <div className="flex gap-2.5 px-4 mt-3 overflow-x-auto scrollbar-hide">
-                  {gallery.map((url, i) => (
+                  {displayGallery.map((url, i) => (
                     <button
                       key={i}
                       onClick={() => setActiveImageIdx(i)}
@@ -3942,9 +3957,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
                     {/* Gallery */}
                     <div className="flex gap-3 lg:max-h-[520px]">
-                      {gallery.length > 1 && (
+                      {displayGallery.length > 1 && (
                         <div className="hidden sm:flex flex-col gap-2 w-[64px] flex-shrink-0 overflow-y-auto scrollbar-hide">
-                          {gallery.map((url, i) => (
+                          {displayGallery.map((url, i) => (
                             <button key={i} onClick={() => setActiveImageIdx(i)}
                               className={`w-[64px] h-[64px] overflow-hidden flex-shrink-0 transition-all duration-200 ${i === activeImageIdx ? 'border-2 border-white/80' : 'border border-white/10 opacity-50 hover:opacity-100'}`}
                             >
