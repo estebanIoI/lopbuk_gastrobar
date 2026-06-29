@@ -115,7 +115,14 @@ router.get('/:slug/products', async (req: Request, res: Response) => {
               p.stock, p.color, p.size,
               p.is_on_offer AS isOnOffer, p.offer_price AS offerPrice, p.offer_label AS offerLabel
          FROM products p
-        WHERE p.tenant_id = ? AND p.published_in_store = 1 AND p.stock > 0
+        WHERE p.tenant_id = ? AND p.published_in_store = 1
+          AND (p.stock > 0
+            OR COALESCE(p.is_presale, 0) = 1
+            OR EXISTS (
+                SELECT 1 FROM product_variants pv
+                WHERE pv.product_id = p.id AND pv.is_active = 1
+                  AND ((pv.stock - COALESCE(pv.reserved_stock, 0)) > 0 OR COALESCE(pv.presale, 0) = 1)
+              ))
         ORDER BY p.is_on_offer DESC, p.updated_at DESC
         LIMIT ? OFFSET ?`,
       [tenant.id, limit, offset]
@@ -137,7 +144,8 @@ router.get('/:slug', async (req: Request, res: Response) => {
     if (!tenant) return fail(res, null, 'Negocio no encontrado', 404);
 
     const data = await loadProfile(tenant);
-    if (!data.profile.isPublished) return fail(res, null, 'Este perfil aún no está publicado', 404);
+    // Un tenant activo siempre puede tener su perfil público visible aunque
+    // is_published = 0 (ese flag controla aparición en directorios, no el acceso directo).
     ok(res, data);
   } catch (e) { fail(res, e, 'Error al obtener el perfil'); }
 });

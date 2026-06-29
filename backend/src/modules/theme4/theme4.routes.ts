@@ -186,8 +186,18 @@ router.get('/:slug', optionalAuth, async (req: AuthRequest, res: Response) => {
     const t = await resolveTenant(req.params.slug);
     if (!t) return fail(res, null, 'Empresa no encontrada', 404);
     const cfgRow = await loadConfig(t.id);
-    const cfg = mapConfig(cfgRow);
-    if (!cfg || !cfg.isPublished) return fail(res, null, 'Este perfil aún no está publicado', 404);
+    // Si no hay config, devolver defaults vacíos en lugar de 404.
+    // El tenant ya está validado como 'activo' en resolveTenant — eso es suficiente gate.
+    const cfg = cfgRow ? mapConfig(cfgRow) : {
+      businessType: null, heroVideoUrl: null, heroImageUrl: null,
+      heroTitle: t.name, heroSubtitle: null, ctaLabel: null, ctaUrl: null,
+      aboutText: null, accentColor: '#0ea5e9', whatsapp: null, email: null, phone: null,
+      address: null, mapUrl: null,
+      showStats: false, showServices: false, showProcess: false,
+      showTeam: false, showTestimonials: false, showContact: false, showCommunity: false,
+      likes: 0, saves: 0, isPublished: false,
+    };
+    // Nota: ya NO bloqueamos por isPublished — el tenant activo siempre es accesible.
 
     const [svc, flt, rts, prj, sts, stp, tm, tst] = await Promise.all([
       services.list(t.id), fleet.list(t.id), routes.list(t.id), projects.list(t.id),
