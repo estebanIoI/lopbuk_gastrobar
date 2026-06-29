@@ -1725,6 +1725,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     }
     const modSuffix = t1SelMods.length ? ` (${t1SelMods.map(m => m.optionName).join(', ')})` : ''
     const modSig = t1SelMods.length ? `#${t1SelMods.map(m => m.optionName).sort().join('|')}` : ''
+    // IDs de las opciones de modificador elegidas → el backend resuelve sus priceDelta reales (blindaje)
+    const modOptionIds = Object.values(t1Sel).flatMap(set => Array.from(set))
     const varSuffix = selectedVariant ? ` — ${selectedVariant.label}` : ''
     const varSig = selectedVariant ? `~${selectedVariant.id}` : ''
 
@@ -1761,6 +1763,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         imagen: selectedVariant?.image || selectedProduct.imageUrl || '',
         variantId: selectedVariant?.id,
         variantLabel: selectedVariant?.label,
+        modifierOptionIds: modOptionIds.length ? modOptionIds : undefined,
         tallaSeleccionada: selectedVariant?.label,
         isPresale: Boolean(selectedProduct.isPresale || selectedProduct.isPreorder) || undefined,
         presaleShipStart: (selectedProduct.isPresale || selectedProduct.isPreorder) ? (selectedProduct.presaleShipStart || null) : undefined,
@@ -1987,6 +1990,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
             discountPercent: p.descuentoPorcentaje || 0,
             productImage: p.imagen || undefined,
             variantId: p.variantId,
+            modifierOptionIds: p.modifierOptionIds,
             isPresale: (p.isPresale || p.isPreorder) ? 1 : 0,
             presaleShipStart: p.presaleShipStart || p.preorderShipStart || null,
             presaleShipEnd: p.presaleShipEnd || p.preorderShipEnd || null,
@@ -2113,6 +2117,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         originalUnitPrice: p.precioOriginal || p.precio,
         productImage: p.imagen || undefined,
         variantId: p.variantId,
+        modifierOptionIds: p.modifierOptionIds,
       })),
     }
     if (firstTenantId) payload.tenantId = firstTenantId
@@ -2149,6 +2154,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         productId: String(p.id), productName: p.nombre, quantity: p.cantidad,
         unitPrice: p.precio, originalPrice: p.precioOriginal || p.precio,
         productImage: p.imagen || undefined, variantId: p.variantId,
+        modifierOptionIds: p.modifierOptionIds,
       })),
     }
     if (firstTenantId) orderPayload.tenantId = firstTenantId
@@ -2190,6 +2196,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         originalUnitPrice: p.precioOriginal || p.precio,
         productImage: p.imagen || undefined,
         variantId: p.variantId,
+        modifierOptionIds: p.modifierOptionIds,
       })),
     }
     if (firstTenantId) payload.tenantId = firstTenantId
@@ -2231,6 +2238,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         originalUnitPrice: p.precioOriginal || p.precio,
         productImage: p.imagen || undefined,
         variantId: p.variantId,
+        modifierOptionIds: p.modifierOptionIds,
       })),
     }
     if (firstTenantId) payload.tenantId = firstTenantId

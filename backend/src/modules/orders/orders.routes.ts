@@ -11,6 +11,7 @@ import { audit } from '../../utils/audit-logger';
 import { autoAssignVehicle, calcOrderWeight } from '../fleet';
 import { affiliatesService } from '../affiliates/affiliates.service';
 import { variantsService } from '../variants/variants.service';
+import { orderPricingService } from './order-pricing.service';
 
 const router: ReturnType<typeof Router> = Router();
 
@@ -198,6 +199,7 @@ router.post(
     body('items.*.productName').notEmpty().withMessage('Nombre de producto requerido'),
     body('items.*.quantity').isInt({ min: 1 }).withMessage('Cantidad debe ser al menos 1'),
     body('items.*.unitPrice').isFloat({ min: 0 }).withMessage('Precio unitario inválido'),
+    body('items.*.modifierOptionIds').optional().isArray(),
     body('deliveryLatitude').optional().isFloat().withMessage('Latitud inválida'),
     body('deliveryLongitude').optional().isFloat().withMessage('Longitud inválida'),
     body('clientUserId').optional().notEmpty(),
@@ -213,7 +215,7 @@ router.post(
       const {
         customerName, customerPhone, customerEmail, customerCedula,
         department, municipality, address, neighborhood, notes,
-        items, tenantId: requestedTenantId, paymentMethod, shippingCost = 0, discount = 0,
+        items, tenantId: requestedTenantId, paymentMethod, shippingCost = 0,
         deliveryLatitude, deliveryLongitude, clientUserId,
         idempotencyKey,   // clave única del cliente para detectar dobles envíos
       } = req.body;
@@ -294,14 +296,16 @@ router.post(
       // BD (tiers de volumen + mix & match). Ignora el unitPrice del frontend para variantes,
       // evitando manipulación del request. Ítems sin variante quedan igual.
       try {
-        const resolvedPrices = await variantsService.resolveOrderPrices(tenantId, items);
+        const resolvedPrices = await orderPricingService.resolveItemPrices(tenantId, items);
         items.forEach((item: any, idx: number) => {
-          if (item.variantId && resolvedPrices[idx] != null) item.unitPrice = resolvedPrices[idx];
+          if (resolvedPrices[idx] != null) item.unitPrice = resolvedPrices[idx];
         });
       } catch (_) { /* si falla la resolución, no bloquear el pedido */ }
 
       // Calculate totals
       const subtotal = items.reduce((sum: number, item: any) => sum + (item.unitPrice * item.quantity), 0);
+      // Cupón re-validado server-side contra el subtotal autoritativo (ignora el discount del request)
+      const discount = await orderPricingService.resolveCouponDiscount(req.body.couponCode, subtotal);
       const total = Math.max(0, subtotal + shippingCost - discount);
 
       // Append coupon to notes if code provided
@@ -411,6 +415,7 @@ router.post(
     body('items.*.productName').notEmpty(),
     body('items.*.quantity').isInt({ min: 1 }),
     body('items.*.unitPrice').isFloat({ min: 0 }),
+    body('items.*.modifierOptionIds').optional().isArray(),
     validateRequest,
   ],
   async (req: Request, res: Response, _next: NextFunction) => {
@@ -435,7 +440,7 @@ router.post(
       const {
         customerName, customerPhone, customerEmail, customerCedula,
         department, municipality, address, neighborhood, notes,
-        items, tenantId: requestedTenantId, couponCode, discount = 0,
+        items, tenantId: requestedTenantId, couponCode,
       } = req.body;
 
       // Find tenant
@@ -474,9 +479,9 @@ router.post(
       // Blindaje de precios (server-side) ANTES del descuento online: el precio de variantes
       // se recalcula desde la BD (tiers + mix & match), ignorando el unitPrice del frontend.
       try {
-        const resolvedPrices = await variantsService.resolveOrderPrices(tenantId, items);
+        const resolvedPrices = await orderPricingService.resolveItemPrices(tenantId, items);
         items.forEach((item: any, idx: number) => {
-          if (item.variantId && resolvedPrices[idx] != null) item.unitPrice = resolvedPrices[idx];
+          if (resolvedPrices[idx] != null) item.unitPrice = resolvedPrices[idx];
         });
       } catch (_) { /* no bloquear el pedido */ }
 
@@ -490,6 +495,7 @@ router.post(
       }));
 
       const subtotal = discountedItems.reduce((sum: number, item: any) => sum + (item.unitPrice * item.quantity), 0);
+      const discount = await orderPricingService.resolveCouponDiscount(couponCode, subtotal);
       const total = Math.max(0, subtotal - discount);
 
       const orderNumber = `PED-${Date.now().toString(36).toUpperCase()}`;
@@ -603,6 +609,7 @@ router.post(
     body('items.*.productName').notEmpty(),
     body('items.*.quantity').isInt({ min: 1 }),
     body('items.*.unitPrice').isFloat({ min: 0 }),
+    body('items.*.modifierOptionIds').optional().isArray(),
     validateRequest,
   ],
   async (req: Request, res: Response, _next: NextFunction) => {
@@ -663,7 +670,7 @@ router.post(
       const {
         customerName, customerPhone, customerEmail, customerCedula,
         department, municipality, address, neighborhood, notes,
-        items, tenantId: requestedTenantId, couponCode, discount = 0,
+        items, tenantId: requestedTenantId, couponCode,
       } = req.body;
 
       // Find tenant
@@ -683,13 +690,14 @@ router.post(
       // Blindaje de precios (server-side): recalcula el precio de variantes desde la BD
       // (tiers de volumen + mix & match), ignorando el unitPrice del frontend.
       try {
-        const resolvedPrices = await variantsService.resolveOrderPrices(tenantId, items);
+        const resolvedPrices = await orderPricingService.resolveItemPrices(tenantId, items);
         items.forEach((item: any, idx: number) => {
-          if (item.variantId && resolvedPrices[idx] != null) item.unitPrice = resolvedPrices[idx];
+          if (resolvedPrices[idx] != null) item.unitPrice = resolvedPrices[idx];
         });
       } catch (_) { /* no bloquear el pedido */ }
 
       const subtotal = items.reduce((sum: number, item: any) => sum + (item.unitPrice * item.quantity), 0);
+      const discount = await orderPricingService.resolveCouponDiscount(couponCode, subtotal);
       const total = Math.max(0, subtotal - discount);
 
       // Create order in DB
@@ -987,6 +995,7 @@ router.post(
     body('items.*.productName').notEmpty(),
     body('items.*.quantity').isInt({ min: 1 }),
     body('items.*.unitPrice').isFloat({ min: 0 }),
+    body('items.*.modifierOptionIds').optional().isArray(),
     validateRequest,
   ],
   async (req: Request, res: Response, _next: NextFunction) => {
@@ -1004,7 +1013,7 @@ router.post(
       const {
         customerName, customerPhone, customerEmail, customerCedula,
         department, municipality, address, notes,
-        items, tenantId: requestedTenantId, couponCode, discount = 0,
+        items, tenantId: requestedTenantId, couponCode,
       } = req.body;
 
       // Find tenant
@@ -1024,13 +1033,14 @@ router.post(
       // Blindaje de precios (server-side): recalcula el precio de variantes desde la BD
       // (tiers de volumen + mix & match), ignorando el unitPrice del frontend.
       try {
-        const resolvedPrices = await variantsService.resolveOrderPrices(tenantId, items);
+        const resolvedPrices = await orderPricingService.resolveItemPrices(tenantId, items);
         items.forEach((item: any, idx: number) => {
-          if (item.variantId && resolvedPrices[idx] != null) item.unitPrice = resolvedPrices[idx];
+          if (resolvedPrices[idx] != null) item.unitPrice = resolvedPrices[idx];
         });
       } catch (_) { /* no bloquear el pedido */ }
 
       const subtotal = items.reduce((sum: number, item: any) => sum + (item.unitPrice * item.quantity), 0);
+      const discount = await orderPricingService.resolveCouponDiscount(couponCode, subtotal);
       const total = Math.max(0, subtotal - discount);
 
       // Create order in DB

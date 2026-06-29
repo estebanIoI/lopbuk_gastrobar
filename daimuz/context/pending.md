@@ -38,20 +38,28 @@ SELECT post_id, type FROM community_reactions WHERE device_id = '...' AND type =
 ```
 **Causa raíz (probable):** migración faltante/no corrida en esta BD — la tabla `community_reactions` no tiene la columna `device_id` que el query espera (reacciones por dispositivo para usuarios anónimos). Pendiente: localizar la migración que añade `device_id` (o crearla idempotente: `ALTER TABLE community_reactions ADD COLUMN device_id VARCHAR(64) NULL` + índice) y asegurar que corra al boot. Degradar defensivamente el `userReactions` (try/catch → `[]`) para que el feed no rompa si falta la columna. Bug independiente del de onboarding (módulo `community`).
 
-### 🔒 [2026-06-29] Blindaje de precios server-side — Nivel 2 (resto del storefront) — PENDIENTE
+### 🔒 [2026-06-29] Blindaje de precios server-side — Nivel 1 + 2 COMPLETOS (deploy pendiente)
 
 **Contexto:** El flujo de creación de órdenes (`/orders/public` y las 3 pasarelas: MercadoPago, ADDI, Sistecrédito) calculaba el subtotal **confiando 100% en el `unitPrice` que manda el frontend** (`items.reduce(... item.unitPrice ...)`). Cualquiera puede interceptar el request y mandar `unitPrice: 1` → cobro manipulable. Viola la regla de la propia visión: *"Tu pricing NO debe depender del frontend… SIEMPRE en backend"*.
 
-**✅ Nivel 1 hecho (esta sesión):** se blindó el **precio por volumen de variantes** (tiers mayoristas). Nuevo `variantsService.resolveOrderPrices(tenantId, items)` recalcula el precio de cada ítem CON variante desde `variant_price_tiers` (agrupa por producto = mix & match, preserva extras de modificadores, impone el piso del tier). Aplicado en los **4 endpoints** que crean órdenes en `orders.routes.ts`. Ítems CON variante ya no son manipulables.
+**✅ Nivel 1 hecho:** se blindó el **precio por volumen de variantes** (tiers mayoristas). `variantsService.resolveOrderPrices` recalcula el precio de cada ítem CON variante desde `variant_price_tiers` (mix & match, preserva extras, impone piso del tier).
 
-**⏳ Nivel 2 (pendiente) — el resto del pricing sigue confiando en el frontend:**
-- [ ] **Productos SIN variante:** su `unitPrice` no se valida contra `products.sale_price` en la BD.
-- [ ] **Ofertas (`is_on_offer`/`offer_price`):** el precio de oferta llega del frontend, no se reverifica que la oferta esté activa ni el monto.
-- [ ] **Drops:** el `finalPrice`/`globalDiscount` del drop no se recalcula server-side.
-- [ ] **Cupones:** el `discount` aplicado llega en el body; reverificar el cupón (vigencia, %, tope) en backend al crear la orden.
-- [ ] **Modificadores (adiciones):** el `priceDelta` de cada opción debería resolverse desde la BD, no confiarse del front.
+**✅ Nivel 2 hecho (2026-06-29) — 4 de 5 capas:** nuevo módulo puro testeable `orders/order-pricing.ts` (19 tests con `node:test`, todos verdes) + capa de DB `orders/order-pricing.service.ts`:
+- [x] **Productos SIN variante:** `unitPrice` se reimpone desde `products.sale_price` (piso autoritativo, preserva extras del front).
+- [x] **Ofertas:** usa `offer_price` solo si `is_on_offer=1` y la ventana `offer_start/end` está vigente; si no, ignora el precio de oferta del front.
+- [x] **Drops:** `sale_price × (1 − COALESCE(custom_discount, global_discount)/100)` solo si el producto está en un `store_drops` activo (ventana vigente). Drop > oferta > base.
+- [x] **Cupones:** el `discount` del body **se ignora**; se recalcula server-side desde `discount_coupons` (vigencia, max_uses, min_purchase, %/fijo, tope al subtotal) contra el subtotal autoritativo.
+- Integrado en los **4 endpoints** de creación de orden (`/public` + MP + ADDI + Sistecrédito) vía `orderPricingService.resolveItemPrices` + `resolveCouponDiscount`. tsc 0 errores en archivos nuevos/tocados.
 
-**Enfoque sugerido:** extender el patrón de `resolveOrderPrices` a un resolvedor de pedido completo que, dado `{productId, variantId, qty, offerClaimed, dropId, couponCode, modifiers[]}`, devuelva el precio autoritativo por ítem desde la BD, e ignore por completo el precio del frontend (que pasa a ser solo presentación). Riesgo: medio (toca el checkout de toda la tienda) → hacer con tests por cada capa de descuento.
+**✅ Nivel 2 — 5ª capa hecha (2026-06-29): modificadores.**
+- [x] **Frontend:** `ProductoCarrito.modifierOptionIds` (IDs de las opciones elegidas, derivados de `t1Sel`). `landing-page.tsx` los guarda en el ítem del carrito y los envía en los **5 payloads** de pedido (`/public` tenantItems + MP + ADDI + Sistecrédito + Wompi).
+- [x] **Backend:** `order-pricing.ts` → `sumModifierDeltas(selectedIds, productId, resolved)` (puro, valida que cada opción pertenezca al producto del ítem — ignora opciones ajenas/inventadas). `order-pricing.service.fetchModifierOptions` lee `product_modifier_options ⋈ product_modifier_groups` (priceDelta + product_id, activas, del tenant).
+- [x] **Ruta dual (sin regresión):** ítems CON `modifierOptionIds` → `baseAutoritativo + Σ deltas reales` (ignora el precio del front por completo; `variantsService.resolveOrderPrices(..., includeFrontendExtra=false)` da el tier puro). Ítems SIN IDs (clientes viejos / Theme2 aún sin actualizar) → fallback al comportamiento previo (`max(base, front)`), preservando el extra del front sin regresión.
+- [x] Validadores `body('items.*.modifierOptionIds').optional().isArray()` en los 4 endpoints. tsc 0 errores en archivos nuevos/tocados; **23 tests verdes** (`node:test`).
+
+- [x] **Tema 2 (2026-06-29):** `theme2-order-flow.tsx` también envía `modifierOptionIds` (se agregó `optionId` a `SelMod` y se deriva en el payload de `/orders/public`). Ambos temas (1 y 2) quedan blindados al 100%.
+
+**🟢 Nivel 2 COMPLETO (5/5 capas en Tema 1 y Tema 2): productos sin variante · ofertas · drops · cupones · modificadores.** Todo el pricing del checkout se recalcula server-side. Solo queda el deploy.
 
 ### 🚚 [2026-06-29] Delivery OS — construido a medias, falta migración + prueba + deploy — PENDIENTE
 
@@ -63,15 +71,14 @@ SELECT post_id, type FROM community_reactions WHERE device_id = '...' AND type =
 - Frontend: `app/delivery-os/page.tsx` (full-screen ops center, 3 tabs: Operations/Zones/Chat, auth guard, auto-refresh 30s) + `components/delivery-chat.tsx`.
 - Las 4 tablas definidas en `db/schema/schema.ts`: `delivery_zones`, `delivery_chat_rooms`, `delivery_chat_messages`, `courier_availability`.
 
-**🔴 BLOQUEADOR — la migración NUNCA se generó:**
-Las 4 tablas están en `schema.ts` pero **no existen en ninguna migración** (`0000`–`0002` no las contienen). Como el DDL de runtime está congelado y el deploy corre `node dist/db/migrate.js`, **las tablas no se crearán en prod → todos los endpoints de Delivery OS fallarán con "table doesn't exist"**.
-- [ ] `cd backend && npm run db:generate` → genera `0003_*.sql` con las 4 tablas. **Revisar el SQL** antes de aplicar.
-- [ ] `npm run migrate` en dev para crearlas localmente.
+**✅ Migración generada (2026-06-29):** `0003_cheerful_ozymandias.sql` crea las 4 tablas (delivery_zones + FK a tenants, delivery_chat_rooms, delivery_chat_messages, courier_availability) + sus índices. Revisada: solo CREATE TABLE, sin ALTERs a tablas existentes. El `Dockerfile:22` copia `src/db/migrations` → `dist/db/migrations`, así que el deploy (`migrate.js`) la aplica sola en la BD de prod existente (no recrea nada previo). Hash sha256 del 0003: `a4b95cce470b5fff4eeb7a6a332ea4bc3130ac896a5263ce20b601964d5e7fe8`.
 
 **⏳ Resto pendiente:**
+- [x] ~~Generar migración `0003`~~ (hecho).
+- [x] ~~`tsc --noEmit` front+back de los archivos nuevos~~ (0 errores en back y front).
+- [ ] Aplicar `0003`: lo ideal es **dejar que el deploy lo aplique** (push + Komodo → `migrate.js` corre 0003). Si se corre a mano en prod, marcar también el hash en `__drizzle_migrations` o el migrador del deploy fallará al re-crear las tablas.
 - [ ] Probar el loop end-to-end en navegador dev: abrir `/delivery-os`, crear una zona, ver el mapa, abrir el chat de un pedido y enviar/recibir mensajes en tiempo real, marcar repartidor online + actualizar GPS → verlo en el mapa de ops.
-- [ ] Verificar `tsc --noEmit` front+back de los archivos nuevos.
-- [ ] Merge `esteban` → `main` + **Deploy en Komodo** (la migración `0003` corre al boot vía `migrate.js`).
+- [ ] Merge `esteban` → `main` + **Deploy en Komodo**.
 
 ### LEGEND — conectar entitlements a features (próxima sesión)
 
