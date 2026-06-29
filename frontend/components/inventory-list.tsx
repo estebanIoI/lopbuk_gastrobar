@@ -3610,6 +3610,11 @@ function getInitialFormData(initialData: Product | undefined, categories: Array<
         data[key] = value
       }
     }
+    // Fecha automática: al abrir el modal de edición, si el producto no tiene fecha de
+    // ingreso (campo obligatorio), se rellena con la de hoy para que nunca quede vacío.
+    if (!data.entryDate) {
+      data.entryDate = new Date().toISOString().split('T')[0]
+    }
     return data
   }
 
