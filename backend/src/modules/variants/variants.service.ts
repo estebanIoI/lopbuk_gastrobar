@@ -832,7 +832,8 @@ export class VariantsService {
    */
   async resolveOrderPrices(
     tenantId: string,
-    items: { variantId?: string | null; productId: number | string; quantity: number; unitPrice: number }[]
+    items: { variantId?: string | null; productId: number | string; quantity: number; unitPrice: number }[],
+    includeFrontendExtra: boolean = true
   ): Promise<number[]> {
     // Cantidad total por producto (solo ítems con variante)
     const qtyByProduct = new Map<string, number>();
@@ -849,6 +850,12 @@ export class VariantsService {
       const totalQty = qtyByProduct.get(String(it.productId)) ?? Number(it.quantity);
       try {
         const tier = await this.resolvePrice(it.variantId, totalQty, tenantId);
+        if (!includeFrontendExtra) {
+          // Precio de tier PURO (sin extras del frontend) — para cuando los modificadores
+          // se resuelven aparte desde sus IDs.
+          out.push(tier.price);
+          continue;
+        }
         const base = await this.resolvePrice(it.variantId, 1, tenantId);
         // Extra legítimo del frontend por encima del precio base (modificadores/adiciones)
         const extra = Math.max(0, frontendPrice - base.price);

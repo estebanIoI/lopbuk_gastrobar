@@ -15,6 +15,9 @@ export interface ProductoCarrito {
   // Variante seleccionada (talla/color/peso/material)
   variantId?: string;
   variantLabel?: string;
+  // IDs de las opciones de modificador (adiciones) elegidas — el backend resuelve sus
+  // priceDelta reales para blindar el precio (que no se confíe del frontend).
+  modifierOptionIds?: string[];
   // Precios por volumen (mayorista) — permiten recalcular el precio cuando cambia la
   // cantidad total del producto en el carrito (sumando todas sus variantes / mix & match).
   priceTiers?: { minQty: number; price: number; marginPct?: number }[];

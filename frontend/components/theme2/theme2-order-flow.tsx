@@ -40,7 +40,7 @@ interface T2Group {
   isRequired: boolean; minSelect: number; maxSelect: number | null
   options: T2Option[]
 }
-interface SelMod { groupName: string; optionName: string; priceDelta: number }
+interface SelMod { groupName: string; optionName: string; priceDelta: number; optionId: string }
 export interface T2Info {
   name?: string
   logoUrl?: string | null
@@ -216,7 +216,7 @@ export function Theme2OrderFlow({
     for (const g of detailGroups) {
       const ids = selected[g.id]
       if (!ids) continue
-      for (const o of g.options) if (ids.has(o.id)) out.push({ groupName: g.name, optionName: o.name, priceDelta: o.priceDelta })
+      for (const o of g.options) if (ids.has(o.id)) out.push({ groupName: g.name, optionName: o.name, priceDelta: o.priceDelta, optionId: o.id })
     }
     return out
   }, [detailGroups, selected])
@@ -371,6 +371,8 @@ export function Theme2OrderFlow({
       unitPrice: lineUnit(i),
       productImage: i.variantImage || i.product.imageUrl || undefined,
       variantId: i.variantId,
+      // IDs de modificadores → el backend resuelve sus priceDelta reales (blindaje de precio)
+      modifierOptionIds: i.mods.length ? i.mods.map(m => m.optionId) : undefined,
       isPreorder: i.product.isPreorder ? 1 : 0,
       preorderShipStart: i.product.preorderShipStart || null,
       preorderShipEnd: i.product.preorderShipEnd || null,
