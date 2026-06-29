@@ -186,6 +186,39 @@ router.post(
   productsController.create.bind(productsController)
 );
 
+// PUT /api/products/bulk/preorder — Aplica pre-orden a todos o lista de productos
+// IMPORTANTE: antes de /:id para que Express no lo capture como ID
+router.put(
+  '/bulk/preorder',
+  [
+    body('isPreorder').isBoolean().withMessage('isPreorder debe ser boolean'),
+    body('productIds')
+      .optional()
+      .isArray()
+      .withMessage('productIds debe ser un array'),
+    body('preorderWindowEnd')
+      .optional({ values: 'null' })
+      .isISO8601()
+      .withMessage('Fecha de cierre inválida'),
+    body('preorderShipStart')
+      .optional({ values: 'null' })
+      .isISO8601()
+      .withMessage('Fecha inicio envío inválida'),
+    body('preorderShipEnd')
+      .optional({ values: 'null' })
+      .isISO8601()
+      .withMessage('Fecha fin envío inválida'),
+    body('preorderBadgeText')
+      .optional()
+      .isString()
+      .isLength({ max: 60 })
+      .withMessage('Badge máximo 60 caracteres'),
+    body('preorderPolicyText').optional({ values: 'null' }).isString(),
+    validateRequest,
+  ],
+  productsController.bulkUpdatePreorder.bind(productsController)
+);
+
 // PUT /api/products/:id
 router.put(
   '/:id',
