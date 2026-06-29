@@ -27,6 +27,9 @@ import { ordersRoutes } from './modules/orders';
 import { couponsRoutes } from './modules/coupons';
 import { recipesRoutes } from './modules/recipes';
 import deliveryRoutes from './modules/delivery/delivery.routes';
+import coverageRoutes from './modules/delivery/coverage.routes';
+import deliveryChatRoutes from './modules/delivery/delivery-chat.routes';
+import { initDeliveryChatSocket } from './modules/delivery/delivery-chat.socket';
 import clientRoutes from './modules/client/client.routes';
 import { purchasesRoutes } from './modules/purchases';
 import { servicesRoutes } from './modules/services';
@@ -173,6 +176,8 @@ app.use(`${apiPrefix}/orders`, ordersRoutes);
 app.use(`${apiPrefix}/coupons`, couponsRoutes);
 app.use(`${apiPrefix}/recipes`, recipesRoutes);
 app.use(`${apiPrefix}/delivery`, deliveryRoutes);
+app.use(`${apiPrefix}/coverage`, coverageRoutes);
+app.use(`${apiPrefix}/delivery-chat`, deliveryChatRoutes);
 app.use(`${apiPrefix}/client`, clientRoutes);
 app.use(`${apiPrefix}/purchases`, purchasesRoutes);
 app.use(`${apiPrefix}/services`, servicesRoutes);
@@ -289,6 +294,7 @@ const startServer = async () => {
     // Inicializar WebSocket handlers para escáner
     initScannerSocket(io);
     initVaultSocket(io);
+    initDeliveryChatSocket(io);
 
     // Iniciar scheduler de sync offline→nube (solo si IS_LOCAL_INSTANCE=true)
     startSyncScheduler();

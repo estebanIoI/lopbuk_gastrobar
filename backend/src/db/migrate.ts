@@ -63,6 +63,36 @@ async function addColumnIfMissing(table: string, col: string, definition: string
   console.log(`Catch-up: ${table}.${col} agregada.`)
 }
 
+// Reconcilia un rename de columna a través de BD en estados distintos:
+//   - newCol ya existe          → no-op (dev ya renombrado por el DDL viejo de runtime)
+//   - solo existe oldCol        → RENAME oldCol → newCol (prod con el nombre legacy)
+//   - no existe ninguna         → ADD newCol con `addDefinition` (BD incompleta)
+// Por esta divergencia de estados un .sql de migración estático NO sirve (RENAME
+// fallaría donde la columna ya está renombrada); por eso vive en el catch-up
+// idempotente, igual que hormas/assigned_to. RENAME COLUMN requiere MySQL 8.0+.
+async function renameColumnIfNeeded(table: string, oldCol: string, newCol: string, addDefinition: string): Promise<void> {
+  const [t]: any = await pool.query(
+    'SELECT COUNT(*) AS n FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?',
+    [table]
+  )
+  if (Number(t[0].n) === 0) return // la tabla no existe → no aplica
+  const colExists = async (col: string): Promise<boolean> => {
+    const [c]: any = await pool.query(
+      'SELECT COUNT(*) AS n FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?',
+      [table, col]
+    )
+    return Number(c[0].n) > 0
+  }
+  if (await colExists(newCol)) return // ya renombrado / ya existe
+  if (await colExists(oldCol)) {
+    await pool.query(`ALTER TABLE \`${table}\` RENAME COLUMN \`${oldCol}\` TO \`${newCol}\``)
+    console.log(`Catch-up: ${table}.${oldCol} → ${newCol} renombrada.`)
+    return
+  }
+  await pool.query(`ALTER TABLE \`${table}\` ADD COLUMN \`${newCol}\` ${addDefinition}`)
+  console.log(`Catch-up: ${table}.${newCol} agregada (no existía la legacy).`)
+}
+
 // Asegura que `table` use la collation `collation` (CONVERT si difiere). Evita el
 // "Illegal mix of collations" cuando hormas se creó con otro charset que el resto.
 async function ensureTableCollation(table: string, charset: string, collation: string): Promise<void> {
@@ -124,6 +154,31 @@ async function runCatchup(): Promise<void> {
   await addColumnIfMissing('sales', 'dispatch_notes', 'TEXT NULL')
   await addColumnIfMissing('sales', 'dispatched_at', 'TIMESTAMP NULL')
   await addColumnIfMissing('storefront_orders', 'assigned_to', 'VARCHAR(36) NULL')
+
+  // ── Reconciliación preorden → precompra ───────────────────────────────────
+  // El baseline 0000 conserva los nombres legacy (is_preorder, preorder_*) porque
+  // se introspectó de una BD previa al rename. El rename vivía como DDL de runtime
+  // en variants.service.ts (ahora CONGELADO en FASE 2), así que prod nunca lo aplicó
+  // y el código (storefront/orders) consulta los nombres nuevos (is_presale, presale_*)
+  // → "Unknown column 'p.is_presale'". Aquí lo reconciliamos de forma idempotente.
+  // products
+  await renameColumnIfNeeded('products', 'is_preorder', 'is_presale', "TINYINT(1) NOT NULL DEFAULT 0")
+  await renameColumnIfNeeded('products', 'preorder_window_end', 'presale_window_end', 'DATETIME NULL')
+  await renameColumnIfNeeded('products', 'preorder_ship_start', 'presale_ship_start', 'DATE NULL')
+  await renameColumnIfNeeded('products', 'preorder_ship_end', 'presale_ship_end', 'DATE NULL')
+  await renameColumnIfNeeded('products', 'preorder_badge_text', 'presale_badge_text', "VARCHAR(60) NOT NULL DEFAULT 'Pre-orden'")
+  await renameColumnIfNeeded('products', 'preorder_policy_text', 'presale_policy_text', 'TEXT NULL')
+  await addColumnIfMissing('products', 'presale_deposit_pct', 'DECIMAL(5,2) NOT NULL DEFAULT 50.00')
+  // product_variants
+  await renameColumnIfNeeded('product_variants', 'preorder_limit', 'presale_limit', 'INT NULL')
+  await renameColumnIfNeeded('product_variants', 'preorder_count', 'presale_sold', 'INT NOT NULL DEFAULT 0')
+  await addColumnIfMissing('product_variants', 'presale', 'TINYINT(1) NOT NULL DEFAULT 0')
+  await addColumnIfMissing('product_variants', 'presale_date', 'DATE NULL')
+  await addColumnIfMissing('product_variants', 'presale_deposit_pct', 'DECIMAL(5,2) NOT NULL DEFAULT 50.00')
+  // storefront_order_items
+  await renameColumnIfNeeded('storefront_order_items', 'is_preorder', 'is_presale', "TINYINT(1) NOT NULL DEFAULT 0")
+  await renameColumnIfNeeded('storefront_order_items', 'preorder_ship_start', 'presale_ship_start', 'DATE NULL')
+  await renameColumnIfNeeded('storefront_order_items', 'preorder_ship_end', 'presale_ship_end', 'DATE NULL')
 }
 
 // Aplica las migraciones pendientes (registradas en __drizzle_migrations).
