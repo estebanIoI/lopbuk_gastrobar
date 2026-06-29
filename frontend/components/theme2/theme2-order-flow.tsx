@@ -8,6 +8,7 @@ import {
 import { Theme2OrderSuccess, type OrderSuccessData } from '@/components/theme2/theme2-order-success'
 import { VariantSelector, type RawVariant, type SelectedVariant } from '@/components/variant-selector'
 import { parseQtyPromo, qtyPromoUnit, type QtyPromo } from '@/lib/qty-promo'
+import { cldImg, cldSrcSet } from '@/utils/img'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'
 const ASSET_BASE = API_URL.replace(/\/api$/, '')
@@ -583,7 +584,7 @@ export function Theme2OrderFlow({
               <button onClick={() => openDetail(p)} className="w-20 h-20 rounded-xl overflow-hidden bg-[#0e0e0e] shrink-0">
                 {p.imageUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={abs(p.imageUrl)} alt={p.name} className="w-full h-full object-cover" />
+                  <img src={cldImg(p.imageUrl, 400)} srcSet={cldSrcSet(p.imageUrl)} sizes="(max-width:640px) 50vw, (max-width:1024px) 33vw, 25vw" loading="lazy" decoding="async" alt={p.name} className="w-full h-full object-cover" />
                 ) : <div className="w-full h-full flex items-center justify-center"><Store className="w-6 h-6 text-white/10" /></div>}
               </button>
               <div className="min-w-0 flex-1 flex flex-col">
@@ -688,7 +689,7 @@ export function Theme2OrderFlow({
                           <button key={o.id} type="button" onClick={() => toggleOption(g, o.id)} className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-white/[0.03] text-left">
                             {o.imageUrl ? (
                               // eslint-disable-next-line @next/next/no-img-element
-                              <img src={abs(o.imageUrl)} alt={o.name} className="w-9 h-9 rounded-md object-cover shrink-0" />
+                              <img src={cldImg(o.imageUrl, 64)} loading="lazy" decoding="async" alt={o.name} className="w-9 h-9 rounded-md object-cover shrink-0" />
                             ) : <div className="w-9 h-9 rounded-md bg-white/5 shrink-0" />}
                             <span className="flex-1 text-sm">{o.name}</span>
                             {o.priceDelta > 0 && <span className="text-xs text-white/50 shrink-0">+{COP(o.priceDelta)}</span>}

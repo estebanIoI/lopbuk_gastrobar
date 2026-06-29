@@ -8,6 +8,7 @@ import {
 import { Theme2OrderFlow } from '@/components/theme2/theme2-order-flow'
 import { BoxLoader } from '@/components/box-loader'
 import { Theme2ReserveFlow } from '@/components/theme2/theme2-reserve-flow'
+import { cldImg, cldSrcSet } from '@/utils/img'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'
 const ASSET_BASE = API_URL.replace(/\/api$/, '')
@@ -152,7 +153,7 @@ export function Theme2Storefront({ slug }: { slug: string }) {
     )
   }
 
-  const cover = abs(info.cardCoverUrl || info.logoUrl)
+  const cover = cldImg(info.cardCoverUrl || info.logoUrl, 1200)
   const title = (info.cardDescription || info.name || '').toUpperCase()
 
   return (
@@ -162,7 +163,7 @@ export function Theme2Storefront({ slug }: { slug: string }) {
         <div className="flex items-center gap-3">
           {info.logoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={abs(info.logoUrl)} alt={info.name || ''} style={{ height: info.logoSize || 36, width: info.logoSize || 36 }} className="rounded-full object-cover border border-white/20 shrink-0" />
+            <img src={cldImg(info.logoUrl, 200)} alt={info.name || ''} style={{ height: info.logoSize || 36, width: info.logoSize || 36 }} className="rounded-full object-cover border border-white/20 shrink-0" />
           ) : (
             <div className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center"><Store className="w-4 h-4" /></div>
           )}
@@ -181,7 +182,7 @@ export function Theme2Storefront({ slug }: { slug: string }) {
       <section className="relative min-h-[88vh] flex flex-col items-center justify-center text-center px-6 overflow-hidden">
         {cover ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={cover} alt="" className="absolute inset-0 w-full h-full object-cover" />
+          <img src={cover} alt="" loading="eager" fetchPriority="high" className="absolute inset-0 w-full h-full object-cover" />
         ) : (
           <div className="absolute inset-0 bg-gradient-to-br from-cyan-900/40 to-black" />
         )}
@@ -190,7 +191,7 @@ export function Theme2Storefront({ slug }: { slug: string }) {
         <div className="relative z-10 flex flex-col items-center gap-6 max-w-3xl">
           {info.logoUrl && (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={abs(info.logoUrl)} alt={info.name || ''} className="w-24 h-24 rounded-full object-cover border-2 border-white/20 shadow-2xl" />
+            <img src={cldImg(info.logoUrl, 200)} alt={info.name || ''} className="w-24 h-24 rounded-full object-cover border-2 border-white/20 shadow-2xl" />
           )}
           <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight drop-shadow-lg">{title}</h1>
           {openState === 'closed' && nextOpenLabel && (
@@ -231,7 +232,7 @@ export function Theme2Storefront({ slug }: { slug: string }) {
                   <div className="relative aspect-[4/3] bg-[#0e0e0e] overflow-hidden">
                     {p.imageUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={abs(p.imageUrl)} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                      <img src={cldImg(p.imageUrl, 400)} srcSet={cldSrcSet(p.imageUrl)} sizes="(max-width:640px) 50vw, (max-width:1024px) 33vw, 25vw" loading="lazy" decoding="async" alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center"><Store className="w-8 h-8 text-white/10" /></div>
                     )}
@@ -263,7 +264,7 @@ export function Theme2Storefront({ slug }: { slug: string }) {
           <div className="rounded-2xl overflow-hidden aspect-video bg-[#0e0e0e]">
             {cover ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={cover} alt="" className="w-full h-full object-cover" />
+              <img src={cover} alt="" loading="eager" fetchPriority="high" className="w-full h-full object-cover" />
             ) : <div className="w-full h-full flex items-center justify-center"><Store className="w-10 h-10 text-white/10" /></div>}
           </div>
           <div className="space-y-4">
@@ -377,7 +378,7 @@ export function Theme2Storefront({ slug }: { slug: string }) {
         <div className="flex items-center justify-center gap-2 mb-2">
           {info.logoUrl && (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={abs(info.logoUrl)} alt="" className="w-6 h-6 rounded-full object-cover" />
+            <img src={cldImg(info.logoUrl, 200)} alt="" className="w-6 h-6 rounded-full object-cover" />
           )}
           <span className="text-sm font-semibold uppercase tracking-wide">{info.name}</span>
         </div>
