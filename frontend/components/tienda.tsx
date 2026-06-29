@@ -205,7 +205,7 @@ export function Tienda() {
   const [offerEnd, setOfferEnd] = useState('')
   const [savingOffer, setSavingOffer] = useState(false)
 
-  // Pre-order modal state
+  // Pre-order modal state (per-product)
   const [preorderModal, setPreorderModal] = useState<{ open: boolean; product: StoreProduct | null }>({ open: false, product: null })
   const [preorderActive, setPreorderActive] = useState(false)
   const [preorderWindowEnd, setPreorderWindowEnd] = useState('')
@@ -213,6 +213,17 @@ export function Tienda() {
   const [preorderShipEnd, setPreorderShipEnd] = useState('')
   const [preorderBadgeText, setPreorderBadgeText] = useState('Pre-orden')
   const [savingPreorder, setSavingPreorder] = useState(false)
+
+  // Pre-order global modal state
+  const [globalPreorderOpen, setGlobalPreorderOpen] = useState(false)
+  const [globalPreorderActive, setGlobalPreorderActive] = useState(true)
+  const [globalPreorderWindowEnd, setGlobalPreorderWindowEnd] = useState('')
+  const [globalPreorderShipStart, setGlobalPreorderShipStart] = useState('')
+  const [globalPreorderShipEnd, setGlobalPreorderShipEnd] = useState('')
+  const [globalPreorderBadgeText, setGlobalPreorderBadgeText] = useState('Pre-orden')
+  const [globalPreorderScope, setGlobalPreorderScope] = useState<'all' | 'selected'>('all')
+  const [globalPreorderSelected, setGlobalPreorderSelected] = useState<Set<string>>(new Set())
+  const [savingGlobalPreorder, setSavingGlobalPreorder] = useState(false)
 
   const fetchProducts = useCallback(async () => {
     setLoading(true)
@@ -604,6 +615,50 @@ export function Tienda() {
     }
   }
 
+  const handleBulkPreorder = async () => {
+    setSavingGlobalPreorder(true)
+    const toISO = (v: string): string | null => {
+      if (!v) return null
+      return v.length === 16 ? `${v}:00` : v
+    }
+    try {
+      const productIds = globalPreorderScope === 'selected'
+        ? Array.from(globalPreorderSelected)
+        : undefined
+      const result = await api.bulkUpdatePreorder({
+        productIds,
+        isPreorder: globalPreorderActive,
+        preorderWindowEnd: toISO(globalPreorderWindowEnd),
+        preorderShipStart: globalPreorderShipStart || null,
+        preorderShipEnd: globalPreorderShipEnd || null,
+        preorderBadgeText: globalPreorderBadgeText || 'Pre-orden',
+      })
+      if (result.success) {
+        // Actualizar estado local de los productos afectados
+        setProducts(prev => prev.map(p => {
+          const affected = globalPreorderScope === 'all' || globalPreorderSelected.has(p.id)
+          if (!affected) return p
+          return {
+            ...p,
+            isPreorder: globalPreorderActive,
+            preorderWindowEnd: globalPreorderWindowEnd || null,
+            preorderShipStart: globalPreorderShipStart || null,
+            preorderShipEnd: globalPreorderShipEnd || null,
+            preorderBadgeText: globalPreorderBadgeText || 'Pre-orden',
+          }
+        }))
+        setGlobalPreorderOpen(false)
+        setGlobalPreorderSelected(new Set())
+      } else {
+        setErrorMsg(result.error || 'Error al guardar pre-orden global')
+      }
+    } catch {
+      setErrorMsg('Error de conexión al guardar pre-orden global')
+    } finally {
+      setSavingGlobalPreorder(false)
+    }
+  }
+
   const handleSaveOffer = async () => {
     if (!offerModal.product) return
     const price = parseFloat(offerPrice)
@@ -939,19 +994,58 @@ export function Tienda() {
             </Button>
 
             {/* Pre-orden button */}
-            <Button
-              variant={product.isPreorder ? 'default' : 'outline'}
-              size="sm"
-              className={product.isPreorder
-                ? 'bg-amber-500 hover:bg-amber-600 text-white'
-                : 'border-amber-300 text-amber-600 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-400 dark:hover:bg-amber-900/20'
-              }
-              disabled={isToggling}
-              onClick={() => openPreorderModal(product)}
-              title="Configurar pre-orden"
-            >
-              <PackageCheck className="h-4 w-4" />
-            </Button>
+            {product.isPreorder ? (
+              <div className="flex items-center gap-1">
+                {/* Desactivar rápido */}
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="bg-amber-500 hover:bg-amber-600 text-white px-2"
+                  disabled={isToggling}
+                  onClick={async () => {
+                    try {
+                      const result = await api.updateProductPreorder(product.id, {
+                        isPreorder: false,
+                        preorderWindowEnd: null,
+                        preorderShipStart: null,
+                        preorderShipEnd: null,
+                        preorderBadgeText: 'Pre-orden',
+                      })
+                      if (result.success) {
+                        setProducts(prev => prev.map(p =>
+                          p.id === product.id ? { ...p, isPreorder: false, preorderWindowEnd: null, preorderShipStart: null, preorderShipEnd: null } : p
+                        ))
+                      }
+                    } catch { /* noop */ }
+                  }}
+                  title="Desactivar pre-orden"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+                {/* Editar config */}
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="bg-amber-500 hover:bg-amber-600 text-white px-2"
+                  disabled={isToggling}
+                  onClick={() => openPreorderModal(product)}
+                  title="Editar configuración de pre-orden"
+                >
+                  <PackageCheck className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-amber-300 text-amber-600 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-400 dark:hover:bg-amber-900/20"
+                disabled={isToggling}
+                onClick={() => openPreorderModal(product)}
+                title="Activar pre-orden"
+              >
+                <PackageCheck className="h-4 w-4" />
+              </Button>
+            )}
           </div>
           {isOffer && product.offerLabel && (
             <p className="text-xs text-orange-600 dark:text-orange-400 flex items-center gap-1">
@@ -1012,17 +1106,44 @@ export function Tienda() {
             Actualizar
           </Button>
           {activeTab === 'catalog' && (
-            <Button
-              variant={selectMode ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => {
-                setSelectMode(!selectMode)
-                setSelectedIds(new Set())
-              }}
-            >
-              <CheckCircle className="h-4 w-4 mr-2" />
-              {selectMode ? 'Cancelar selección' : 'Selección múltiple'}
-            </Button>
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-amber-300 text-amber-600 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-400 dark:hover:bg-amber-900/20"
+                onClick={() => {
+                  // Pre-poblar con los valores del primer producto que tenga pre-orden activa
+                  const sample = products.find(p => p.isPreorder)
+                  if (sample) {
+                    setGlobalPreorderActive(true)
+                    setGlobalPreorderBadgeText(sample.presaleBadgeText || sample.preorderBadgeText || 'Pre-orden')
+                    setGlobalPreorderWindowEnd(sample.preorderWindowEnd ? sample.preorderWindowEnd.slice(0, 16) : '')
+                    setGlobalPreorderShipStart(sample.preorderShipStart || '')
+                    setGlobalPreorderShipEnd(sample.preorderShipEnd || '')
+                  }
+                  setGlobalPreorderOpen(true)
+                }}
+              >
+                <PackageCheck className="h-4 w-4 mr-2" />
+                Pre-orden global
+                {products.some(p => p.isPreorder) && (
+                  <Badge className="ml-1.5 text-[10px] bg-amber-500 hover:bg-amber-600 text-white">
+                    {products.filter(p => p.isPreorder).length}
+                  </Badge>
+                )}
+              </Button>
+              <Button
+                variant={selectMode ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => {
+                  setSelectMode(!selectMode)
+                  setSelectedIds(new Set())
+                }}
+              >
+                <CheckCircle className="h-4 w-4 mr-2" />
+                {selectMode ? 'Cancelar selección' : 'Selección múltiple'}
+              </Button>
+            </>
           )}
         </div>
       </div>
@@ -2801,6 +2922,183 @@ export function Tienda() {
                     <Flame className="h-4 w-4 mr-2" />
                   )}
                   {savingOffer ? 'Guardando...' : 'Activar Oferta'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ── Pre-orden Global Modal ── */}
+      {globalPreorderOpen && (
+        <>
+          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" onClick={() => setGlobalPreorderOpen(false)} />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="bg-background rounded-xl shadow-2xl w-full max-w-lg border border-border overflow-hidden">
+              {/* Header */}
+              <div className="flex items-center justify-between p-5 border-b border-border">
+                <div>
+                  <h2 className="text-base font-semibold flex items-center gap-2">
+                    <PackageCheck className="h-5 w-5 text-amber-500" />
+                    Pre-orden global
+                  </h2>
+                  <p className="text-xs text-muted-foreground mt-0.5">Configura una vez y aplica a todos o a los productos que elijas</p>
+                </div>
+                <button onClick={() => setGlobalPreorderOpen(false)} className="text-muted-foreground hover:text-foreground transition-colors">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="p-5 space-y-4 overflow-y-auto max-h-[75vh]">
+                {/* Toggle on/off */}
+                <div
+                  className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${globalPreorderActive ? 'border-amber-400 bg-amber-500/10' : 'border-border bg-muted/30'}`}
+                  onClick={() => setGlobalPreorderActive(v => !v)}
+                >
+                  <div className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${globalPreorderActive ? 'bg-amber-500' : 'bg-gray-300'}`}>
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${globalPreorderActive ? 'translate-x-6' : 'translate-x-1'}`} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">{globalPreorderActive ? 'Pre-orden activada' : 'Pre-orden desactivada'}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {globalPreorderActive ? 'Los productos seleccionados aceptarán pedidos sin stock' : 'Desactiva la pre-orden en los productos seleccionados'}
+                    </p>
+                  </div>
+                </div>
+
+                {globalPreorderActive && (
+                  <>
+                    {/* Badge text */}
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-foreground">Texto del badge <span className="text-muted-foreground font-normal">(máx. 60 caracteres)</span></label>
+                      <input
+                        type="text"
+                        value={globalPreorderBadgeText}
+                        onChange={e => setGlobalPreorderBadgeText(e.target.value.slice(0, 60))}
+                        placeholder="Pre-orden"
+                        className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                      />
+                      <div className="flex items-center gap-1.5">
+                        <span className="inline-block text-[11px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wide bg-amber-500 text-white">
+                          {globalPreorderBadgeText || 'Pre-orden'}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground">vista previa del badge</span>
+                      </div>
+                    </div>
+
+                    {/* Cierre pre-orden */}
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-foreground">
+                        Cierre de pre-orden <span className="text-muted-foreground font-normal">(opcional)</span>
+                      </label>
+                      <input
+                        type="datetime-local"
+                        value={globalPreorderWindowEnd}
+                        onChange={e => setGlobalPreorderWindowEnd(e.target.value)}
+                        className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                      />
+                      <p className="text-[11px] text-muted-foreground">Deja vacío para mantenerla abierta indefinidamente.</p>
+                    </div>
+
+                    {/* Fechas envío */}
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-foreground">
+                        Ventana de envío <span className="text-muted-foreground font-normal">(opcional)</span>
+                      </label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <p className="text-[10px] text-muted-foreground">Desde</p>
+                          <input type="date" value={globalPreorderShipStart} onChange={e => setGlobalPreorderShipStart(e.target.value)}
+                            className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-[10px] text-muted-foreground">Hasta</p>
+                          <input type="date" value={globalPreorderShipEnd} onChange={e => setGlobalPreorderShipEnd(e.target.value)}
+                            className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* Scope selector */}
+                <div className="space-y-2 pt-1 border-t border-border">
+                  <p className="text-xs font-medium text-foreground pt-2">¿A qué productos aplicar?</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => setGlobalPreorderScope('all')}
+                      className={`flex items-center gap-2 p-3 rounded-lg border text-sm font-medium transition-colors ${globalPreorderScope === 'all' ? 'border-amber-400 bg-amber-500/10 text-amber-700 dark:text-amber-300' : 'border-border text-muted-foreground hover:border-amber-300'}`}
+                    >
+                      <PackageCheck className="h-4 w-4 flex-shrink-0" />
+                      <span>Todos los productos <span className="font-normal text-xs">({products.length})</span></span>
+                    </button>
+                    <button
+                      onClick={() => setGlobalPreorderScope('selected')}
+                      className={`flex items-center gap-2 p-3 rounded-lg border text-sm font-medium transition-colors ${globalPreorderScope === 'selected' ? 'border-amber-400 bg-amber-500/10 text-amber-700 dark:text-amber-300' : 'border-border text-muted-foreground hover:border-amber-300'}`}
+                    >
+                      <CheckCircle className="h-4 w-4 flex-shrink-0" />
+                      Elegir productos
+                    </button>
+                  </div>
+
+                  {/* Product picker */}
+                  {globalPreorderScope === 'selected' && (
+                    <div className="border border-border rounded-lg overflow-hidden">
+                      <div className="px-3 py-2 bg-muted/40 text-[11px] text-muted-foreground flex items-center justify-between">
+                        <span>{globalPreorderSelected.size} seleccionado(s)</span>
+                        <button
+                          className="text-primary hover:underline text-[11px]"
+                          onClick={() => setGlobalPreorderSelected(
+                            globalPreorderSelected.size === products.length
+                              ? new Set()
+                              : new Set(products.map(p => p.id))
+                          )}
+                        >
+                          {globalPreorderSelected.size === products.length ? 'Deseleccionar todo' : 'Seleccionar todo'}
+                        </button>
+                      </div>
+                      <div className="max-h-48 overflow-y-auto divide-y divide-border">
+                        {products.map(p => (
+                          <label key={p.id} className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-muted/30 transition-colors">
+                            <input
+                              type="checkbox"
+                              checked={globalPreorderSelected.has(p.id)}
+                              onChange={() => {
+                                const next = new Set(globalPreorderSelected)
+                                next.has(p.id) ? next.delete(p.id) : next.add(p.id)
+                                setGlobalPreorderSelected(next)
+                              }}
+                              className="rounded border-input"
+                            />
+                            <span className="text-sm flex-1 truncate">{p.name}</span>
+                            {p.isPreorder && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 flex-shrink-0">Pre-orden</span>
+                            )}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="flex gap-2 p-4 border-t border-border bg-muted/20">
+                <Button variant="outline" className="flex-1" onClick={() => setGlobalPreorderOpen(false)} disabled={savingGlobalPreorder}>
+                  Cancelar
+                </Button>
+                <Button
+                  className={`flex-1 gap-2 ${globalPreorderActive ? 'bg-amber-500 hover:bg-amber-600 text-white border-0' : ''}`}
+                  onClick={handleBulkPreorder}
+                  disabled={savingGlobalPreorder || (globalPreorderScope === 'selected' && globalPreorderSelected.size === 0)}
+                >
+                  {savingGlobalPreorder ? <RefreshCw className="h-4 w-4 animate-spin" /> : <PackageCheck className="h-4 w-4" />}
+                  {savingGlobalPreorder
+                    ? 'Aplicando...'
+                    : globalPreorderScope === 'all'
+                      ? `Aplicar a todos (${products.length})`
+                      : `Aplicar a ${globalPreorderSelected.size} producto(s)`
+                  }
                 </Button>
               </div>
             </div>

@@ -1112,6 +1112,65 @@ export class ProductsService {
 
     return this.findById(productId, tenantId);
   }
+
+  async bulkUpdatePreorder(
+    tenantId: string,
+    data: {
+      productIds: string[] | null;  // null = todos los productos activos del tenant
+      isPreorder: boolean;
+      preorderWindowEnd: string | null;
+      preorderShipStart: string | null;
+      preorderShipEnd: string | null;
+      preorderBadgeText: string;
+      preorderPolicyText: string | null;
+    }
+  ) {
+    let query: string;
+    let params: any[];
+
+    if (data.productIds && data.productIds.length > 0) {
+      const placeholders = data.productIds.map(() => '?').join(',');
+      query = `UPDATE products SET
+        is_presale = ?,
+        presale_window_end = ?,
+        presale_ship_start = ?,
+        presale_ship_end = ?,
+        presale_badge_text = ?,
+        presale_policy_text = ?
+      WHERE tenant_id = ? AND id IN (${placeholders})`;
+      params = [
+        data.isPreorder ? 1 : 0,
+        data.preorderWindowEnd || null,
+        data.preorderShipStart || null,
+        data.preorderShipEnd || null,
+        data.preorderBadgeText || 'Pre-orden',
+        data.preorderPolicyText || null,
+        tenantId,
+        ...data.productIds,
+      ];
+    } else {
+      query = `UPDATE products SET
+        is_presale = ?,
+        presale_window_end = ?,
+        presale_ship_start = ?,
+        presale_ship_end = ?,
+        presale_badge_text = ?,
+        presale_policy_text = ?
+      WHERE tenant_id = ?`;
+      params = [
+        data.isPreorder ? 1 : 0,
+        data.preorderWindowEnd || null,
+        data.preorderShipStart || null,
+        data.preorderShipEnd || null,
+        data.preorderBadgeText || 'Pre-orden',
+        data.preorderPolicyText || null,
+        tenantId,
+      ];
+    }
+
+    const [result] = await db.execute(query, params) as any;
+    return (result as ResultSetHeader).affectedRows;
+  }
 }
 
 export const productsService = new ProductsService();

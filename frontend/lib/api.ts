@@ -1398,6 +1398,20 @@ class ApiService {
     })
   }
 
+  async bulkUpdatePreorder(data: {
+    productIds?: string[]
+    isPreorder: boolean
+    preorderWindowEnd: string | null
+    preorderShipStart: string | null
+    preorderShipEnd: string | null
+    preorderBadgeText: string
+  }) {
+    return this.request<{ updatedCount: number }>('/products/bulk/preorder', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  }
+
   async getPublicNewLaunches(store?: string) {
     const q = store ? `?store=${encodeURIComponent(store)}` : ''
     return this.request<any[]>(`/storefront/new-launches${q}`)

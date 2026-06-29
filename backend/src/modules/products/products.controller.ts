@@ -298,6 +298,39 @@ export class ProductsController {
       next(error);
     }
   }
+
+  async bulkUpdatePreorder(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const tenantId = req.user!.tenantId!;
+      const {
+        productIds,          // string[] | undefined — si vacío/ausente → todos
+        isPreorder,
+        preorderWindowEnd = null,
+        preorderShipStart = null,
+        preorderShipEnd = null,
+        preorderBadgeText = 'Pre-orden',
+        preorderPolicyText = null,
+      } = req.body;
+
+      const updated = await productsService.bulkUpdatePreorder(tenantId, {
+        productIds: productIds?.length ? productIds : null,
+        isPreorder,
+        preorderWindowEnd,
+        preorderShipStart,
+        preorderShipEnd,
+        preorderBadgeText,
+        preorderPolicyText,
+      });
+
+      res.json({
+        success: true,
+        data: { updatedCount: updated },
+        message: `Pre-orden ${isPreorder ? 'activada' : 'desactivada'} en ${updated} producto(s)`,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const productsController = new ProductsController();
