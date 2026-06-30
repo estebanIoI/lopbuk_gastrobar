@@ -1,0 +1,1 @@
+ALTER TABLE `sale_items` ADD `platform_margin_pct` decimal(5,2);

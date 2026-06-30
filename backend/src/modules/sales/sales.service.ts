@@ -345,6 +345,15 @@ export class SalesService {
       // Generar numero de factura
       const invoiceNumber = await this.generateInvoiceNumber(connection, tenantId);
 
+      // Comisión de plataforma del comercio (si está activa): se congela como margin_pct
+      // cuando el tier de la variante no define uno propio. Modelo comisión → NO cambia el
+      // precio que paga el cliente; solo registra la tajada de la plataforma.
+      const [pmRows] = await connection.execute<RowDataPacket[]>(
+        'SELECT platform_margin_pct FROM tenants WHERE id = ? LIMIT 1',
+        [tenantId]
+      );
+      const platformMargin = Number((pmRows[0] as any)?.platform_margin_pct) || 0;
+
       // Validar productos y calcular totales
       let subtotal = 0;
       let totalDiscount = 0;
@@ -736,8 +745,8 @@ export class SalesService {
           `INSERT INTO sale_items
              (id, tenant_id, sale_id, product_id, variant_id, product_name, product_sku,
               quantity, unit_price, discount, subtotal,
-              cost_price, margin_pct, margin_amount)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              cost_price, margin_pct, margin_amount, platform_margin_pct)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             item.id, tenantId, saleId,
             item.productId, item.variantId ?? null,
@@ -746,6 +755,7 @@ export class SalesService {
             item.frozenCost ?? null,
             item.frozenMarginPct ?? null,
             item.frozenMarginAmount ?? null,
+            platformMargin || null, // comisión de plataforma congelada (modelo comisión)
           ]
         );
       }

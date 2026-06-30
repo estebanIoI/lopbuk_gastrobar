@@ -677,6 +677,26 @@ export const cartillas = mysqlTable("cartillas", {
 	}
 });
 
+// Archivos descargables adjuntos a una cartilla / producto digital (PDF, Excel, ZIP, TXT, MD…).
+// El acceso se gatea según es_gratis / compra del usuario (Fase C).
+export const cartillaArchivos = mysqlTable("cartilla_archivos", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+	cartillaId: varchar("cartilla_id", { length: 36 }).notNull(),
+	nombre: varchar({ length: 200 }).notNull(),
+	url: varchar({ length: 500 }).notNull(),
+	tipo: varchar({ length: 30 }),
+	sizeBytes: int("size_bytes"),
+	sortOrder: int("sort_order").default(0).notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+},
+(table) => {
+	return {
+		idxCaCartilla: index("idx_ca_cartilla").on(table.cartillaId),
+		cartillaArchivosId: primaryKey({ columns: [table.id], name: "cartilla_archivos_id"}),
+	}
+});
+
 export const cashMovements = mysqlTable("cash_movements", {
 	id: varchar({ length: 36 }).notNull(),
 	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" } ),
@@ -3139,6 +3159,8 @@ export const saleItems = mysqlTable("sale_items", {
 	costPrice: decimal("cost_price", { precision: 12, scale: 2 }),
 	marginPct: decimal("margin_pct", { precision: 5, scale: 2 }),
 	marginAmount: decimal("margin_amount", { precision: 12, scale: 2 }),
+	// Comisión de plataforma congelada para esta línea (modelo comisión). NULL = inactiva.
+	platformMarginPct: decimal("platform_margin_pct", { precision: 5, scale: 2 }),
 },
 (table) => {
 	return {

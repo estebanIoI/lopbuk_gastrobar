@@ -76,6 +76,8 @@ export interface TenantWithSummary extends Tenant {
   hiddenAccessCode?: string | null;
   hiddenTokenExpiresAt?: string | null;
   allowRegeneration?: boolean;
+  /** Comisión de plataforma sobre ventas. null = inactiva; 8 / 12 = activa. */
+  platformMarginPct?: number | null;
 }
 
 export class TenantsService {
@@ -119,6 +121,7 @@ export class TenantsService {
       hiddenAccessCode: row.hidden_access_code ?? null,
       hiddenTokenExpiresAt: row.hidden_token_expires_at ? new Date(row.hidden_token_expires_at).toISOString() : null,
       allowRegeneration: row.allow_regeneration === undefined ? true : Boolean(row.allow_regeneration),
+      platformMarginPct: (row as any).platform_margin_pct != null ? Number((row as any).platform_margin_pct) : null,
     };
   }
 
@@ -148,7 +151,7 @@ export class TenantsService {
     const [rows] = await db.execute<TenantSummaryRow[]>(
       `SELECT
         t.id, t.name, t.slug, t.business_type, t.owner_id, t.plan, t.status,
-        t.max_users, t.max_products, t.bg_color, t.trial_ends_at, t.created_at, t.updated_at,
+        t.max_users, t.max_products, t.bg_color, t.platform_margin_pct, t.trial_ends_at, t.created_at, t.updated_at,
         t.is_hidden, t.hidden_access_token, t.hidden_access_code, t.hidden_token_expires_at, t.allow_regeneration,
         u.name as owner_name, u.email as owner_email,
         (SELECT COUNT(*) FROM users WHERE tenant_id = t.id) as total_users,
@@ -177,7 +180,7 @@ export class TenantsService {
     const [rows] = await db.execute<TenantSummaryRow[]>(
       `SELECT
         t.id, t.name, t.slug, t.business_type, t.owner_id, t.plan, t.status,
-        t.max_users, t.max_products, t.bg_color, t.trial_ends_at, t.created_at, t.updated_at,
+        t.max_users, t.max_products, t.bg_color, t.platform_margin_pct, t.trial_ends_at, t.created_at, t.updated_at,
         t.is_hidden, t.hidden_access_token, t.hidden_access_code, t.hidden_token_expires_at, t.allow_regeneration,
         u.name as owner_name, u.email as owner_email,
         (SELECT COUNT(*) FROM users WHERE tenant_id = t.id) as total_users,
@@ -347,12 +350,13 @@ export class TenantsService {
       maxUsers?: number;
       maxProducts?: number;
       bgColor?: string;
+      platformMarginPct?: number | null;
     }
   ): Promise<TenantWithSummary> {
     await this.findById(id);
 
     const updates: string[] = [];
-    const values: (string | number)[] = [];
+    const values: (string | number | null)[] = [];
 
     if (data.name !== undefined) {
       updates.push('name = ?');
@@ -390,6 +394,11 @@ export class TenantsService {
     if (data.bgColor !== undefined) {
       updates.push('bg_color = ?');
       values.push(data.bgColor);
+    }
+    if (data.platformMarginPct !== undefined) {
+      // null/0 = comisión de plataforma inactiva; 8.00 / 12.00 = activa
+      updates.push('platform_margin_pct = ?');
+      values.push(data.platformMarginPct);
     }
 
     if (updates.length === 0) {

@@ -60,6 +60,20 @@ router.delete('/admin/cartillas/:id', STAFF, async (req: AuthRequest, res: Respo
   catch (e) { fail(res, e, 'Error al eliminar cartilla'); }
 });
 
+// Archivos descargables de una cartilla (PDF/Excel/ZIP/TXT/MD…)
+router.get('/admin/cartillas/:id/archivos', STAFF, async (req: AuthRequest, res: Response) => {
+  try { ok(res, await svc.listarArchivos(req.params.id, tid(req))); }
+  catch (e) { fail(res, e, 'Error al listar archivos'); }
+});
+router.post('/admin/cartillas/:id/archivos', STAFF, async (req: AuthRequest, res: Response) => {
+  try { ok(res, await svc.crearArchivo(tid(req), req.params.id, req.body), 201); }
+  catch (e) { fail(res, e, 'Error al agregar archivo'); }
+});
+router.delete('/admin/archivos/:archivoId', STAFF, async (req: AuthRequest, res: Response) => {
+  try { ok(res, await svc.eliminarArchivo(tid(req), req.params.archivoId)); }
+  catch (e) { fail(res, e, 'Error al eliminar archivo'); }
+});
+
 // Módulos
 router.post('/admin/cartillas/:id/modulos', STAFF, async (req: AuthRequest, res: Response) => {
   try { ok(res, await svc.crearModulo(tid(req), req.params.id, req.body), 201); }

@@ -1573,7 +1573,13 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   }
 
   // ====== PRODUCT MODAL FUNCTIONS ======
-  const openProductModal = (product: StorefrontProduct) => {
+  const openProductModal = (productArg: StorefrontProduct) => {
+    // Usa SIEMPRE la versión canónica de la lista principal (trae isPresale/variantes/stock
+    // completos vía attachVariants). Las secciones (destacados/novedades/ofertas) pueden
+    // pasar el producto con flags incompletos (ej. isPresale=0), lo que hacía que el detalle
+    // mostrara "Agotado" en la primera entrada y solo apareciera la preventa al recargar
+    // (la recarga abre por deep-link `?product=` desde la lista principal, ya correcta).
+    const product = products.find(p => String(p.id) === String(productArg.id)) || productArg
     setSelectedProduct(product)
     setProductQuantity(1)
     setActiveImageIdx(0)
@@ -7282,8 +7288,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                                 <MapPin className="w-3 h-3 text-rose-400 shrink-0" />
                                 <span className="truncate">
                                   {[
-                                    typeof store.sedeCount === 'number' ? `${store.sedeCount} Sede(s)` : null,
-                                    store.city || (!store.city && typeof store.sedeCount !== 'number' ? store.address : null),
+                                    // Solo "N Sedes" si hay 2+; con 0/1 mostramos solo la ubicación.
+                                    (typeof store.sedeCount === 'number' && store.sedeCount >= 2) ? `${store.sedeCount} Sedes` : null,
+                                    store.city || store.address || null,
                                   ].filter(Boolean).join(' · ')}
                                 </span>
                               </div>

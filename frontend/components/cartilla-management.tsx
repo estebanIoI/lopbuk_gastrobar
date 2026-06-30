@@ -10,9 +10,11 @@
  */
 import React, { useEffect, useState, useCallback } from 'react'
 import { api } from '@/lib/api'
+import { getCloudinaryConfig } from '@/components/ui/cloudinary-upload'
 import {
   BookOpen, Plus, Trash2, Pencil, Eye, EyeOff, DollarSign, Gift,
   Layers, X, Loader2, ShoppingBag, ChevronRight, Save, ExternalLink,
+  Upload, FileText, Download, Paperclip,
 } from 'lucide-react'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '/api'
@@ -31,6 +33,19 @@ async function req<T = any>(path: string, options: RequestInit = {}): Promise<T>
   const body = await res.json().catch(() => ({}))
   if (!res.ok || body?.success === false) throw new Error(body?.error || body?.message || 'Error')
   return (body?.data ?? body) as T
+}
+
+// Sube un archivo (PDF/Excel/ZIP/TXT/MD…) a Cloudinary. `auto/upload` detecta el tipo
+// (no-imágenes → raw), reutilizando el mismo preset que las imágenes.
+async function uploadRawFile(file: File): Promise<{ url: string; bytes: number }> {
+  const { cloudName, uploadPreset } = await getCloudinaryConfig()
+  const fd = new FormData()
+  fd.append('file', file)
+  fd.append('upload_preset', uploadPreset)
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, { method: 'POST', body: fd })
+  const j = await res.json().catch(() => ({}))
+  if (!res.ok || !j.secure_url) throw new Error(j?.error?.message || 'No se pudo subir el archivo')
+  return { url: j.secure_url, bytes: Number(j.bytes) || 0 }
 }
 
 const COLORS = ['emerald', 'green', 'amber', 'purple', 'pink']
@@ -63,6 +78,7 @@ export function CartillaManagement() {
   const [error, setError] = useState<string | null>(null)
   const [editing, setEditing] = useState<Partial<Cartilla> | null>(null)
   const [managing, setManaging] = useState<Cartilla | null>(null)
+  const [archivosFor, setArchivosFor] = useState<Cartilla | null>(null)
 
   const cargar = useCallback(async () => {
     setLoading(true); setError(null)
@@ -93,6 +109,7 @@ export function CartillaManagement() {
   }
 
   if (managing) return <ModulosManager cartilla={managing} onBack={() => { setManaging(null); cargar() }} />
+  if (archivosFor) return <ArchivosManager cartilla={archivosFor} onBack={() => { setArchivosFor(null); cargar() }} />
 
   return (
     <div className="p-6 space-y-5">
@@ -145,6 +162,7 @@ export function CartillaManagement() {
               </div>
               <div className="flex items-center gap-1 shrink-0">
                 <button title="Módulos" onClick={() => setManaging(c)} className="p-2 rounded-lg hover:bg-gray-100 text-gray-600"><Layers className="w-4 h-4" /></button>
+                <button title="Archivos descargables" onClick={() => setArchivosFor(c)} className="p-2 rounded-lg hover:bg-gray-100 text-gray-600"><Paperclip className="w-4 h-4" /></button>
                 <button title={c.publicado ? 'Despublicar' : 'Publicar'} onClick={() => togglePublicar(c)} className="p-2 rounded-lg hover:bg-gray-100 text-gray-600">{c.publicado ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</button>
                 <button title="Editar" onClick={() => setEditing(c)} className="p-2 rounded-lg hover:bg-gray-100 text-gray-600"><Pencil className="w-4 h-4" /></button>
                 <button title="Eliminar" onClick={() => eliminar(c.id)} className="p-2 rounded-lg hover:bg-red-50 text-red-500"><Trash2 className="w-4 h-4" /></button>
@@ -387,6 +405,80 @@ function ActividadEditor({ cartilla, modulo, onBack }: { cartilla: Cartilla; mod
         </button>
         {msg && <span className="text-sm text-gray-600">{msg}</span>}
       </div>
+    </div>
+  )
+}
+
+// ── Gestor de archivos descargables de una cartilla ──────────────────────────
+function ArchivosManager({ cartilla, onBack }: { cartilla: Cartilla; onBack: () => void }) {
+  const [files, setFiles] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [uploading, setUploading] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const cargar = useCallback(async () => {
+    setLoading(true)
+    try { setFiles(await req<any[]>(`/admin/cartillas/${cartilla.id}/archivos`)) }
+    catch { /* */ } finally { setLoading(false) }
+  }, [cartilla.id])
+  useEffect(() => { cargar() }, [cargar])
+
+  const onPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setErr(null); setUploading(true)
+    try {
+      const { url, bytes } = await uploadRawFile(file)
+      const ext = (file.name.split('.').pop() || '').toLowerCase()
+      await req(`/admin/cartillas/${cartilla.id}/archivos`, {
+        method: 'POST',
+        body: JSON.stringify({ nombre: file.name, url, tipo: ext, sizeBytes: bytes }),
+      })
+      cargar()
+    } catch (e: any) { setErr(e.message || 'No se pudo subir el archivo') }
+    finally { setUploading(false) }
+  }
+
+  const eliminar = async (id: string) => {
+    if (!confirm('¿Eliminar este archivo?')) return
+    await req(`/admin/archivos/${id}`, { method: 'DELETE' }); cargar()
+  }
+
+  return (
+    <div className="p-6 space-y-5">
+      <div className="flex items-center gap-3">
+        <button onClick={onBack} className="text-gray-500 hover:text-gray-800"><X className="w-5 h-5" /></button>
+        <h1 className="text-xl font-bold">{cartilla.titulo} · Archivos</h1>
+      </div>
+      <p className="text-sm text-gray-500 max-w-xl">
+        Adjunta archivos descargables (PDF, Excel, ZIP, TXT, MD, Word, PowerPoint…). Si la cartilla
+        es de pago, solo quien la compre podrá descargarlos.
+      </p>
+
+      <label className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium w-fit ${uploading ? 'bg-emerald-400 cursor-wait' : 'bg-emerald-600 hover:bg-emerald-700 cursor-pointer'} text-white`}>
+        {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+        {uploading ? 'Subiendo…' : 'Subir archivo'}
+        <input type="file" className="hidden" onChange={onPick} disabled={uploading}
+          accept=".pdf,.xls,.xlsx,.csv,.zip,.txt,.md,.doc,.docx,.ppt,.pptx,.json" />
+      </label>
+      {err && <p className="text-red-600 text-sm">{err}</p>}
+
+      {loading ? <Loader2 className="w-6 h-6 animate-spin text-emerald-600" /> :
+        files.length === 0 ? <p className="text-gray-400 text-sm">Sin archivos aún.</p> :
+        <div className="grid gap-2 max-w-xl">
+          {files.map(f => (
+            <div key={f.id} className="bg-white border rounded-lg p-3 flex items-center gap-3">
+              <FileText className="w-5 h-5 text-emerald-600 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">{f.nombre}</p>
+                <p className="text-[11px] text-gray-400 uppercase">{f.tipo || 'archivo'}{f.sizeBytes ? ` · ${(f.sizeBytes / 1024 / 1024).toFixed(2)} MB` : ''}</p>
+              </div>
+              <a href={f.url} target="_blank" rel="noopener noreferrer" title="Descargar" className="p-2 rounded-lg hover:bg-gray-100 text-gray-600"><Download className="w-4 h-4" /></a>
+              <button onClick={() => eliminar(f.id)} title="Eliminar" className="p-2 rounded-lg hover:bg-red-50 text-red-500"><Trash2 className="w-4 h-4" /></button>
+            </div>
+          ))}
+        </div>}
     </div>
   )
 }

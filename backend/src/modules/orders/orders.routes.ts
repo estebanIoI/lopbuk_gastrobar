@@ -1753,6 +1753,14 @@ router.put(
           ]
         );
 
+        // Comisión de plataforma del comercio (si está activa): se congela por ítem en
+        // platform_margin_pct. Modelo comisión → no cambia el precio; solo registra la tajada.
+        const [pmRows] = await connection.query(
+          'SELECT platform_margin_pct FROM tenants WHERE id = ? LIMIT 1',
+          [tenantId]
+        ) as any;
+        const platformMargin = Number(pmRows[0]?.platform_margin_pct) || 0;
+
         // Insert sale items + deduct stock + register movements
         for (const item of orderItems) {
           const itemId = uuidv4();
@@ -1804,10 +1812,10 @@ router.put(
 
           // Insert sale item (congela variant_id, costo y margen para reportes inmutables)
           await connection.query(
-            `INSERT INTO sale_items (id, tenant_id, sale_id, product_id, variant_id, product_name, product_sku, quantity, unit_price, cost_price, discount, margin_pct, margin_amount, subtotal)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO sale_items (id, tenant_id, sale_id, product_id, variant_id, product_name, product_sku, quantity, unit_price, cost_price, discount, margin_pct, margin_amount, subtotal, platform_margin_pct)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [itemId, tenantId, saleId, item.productId, item.variantId || null, item.productName, productSku,
-             item.quantity, saleUnitPrice, frozenCost, saleDiscount, frozenMarginPct, frozenMarginAmount, Number(item.totalPrice)]
+             item.quantity, saleUnitPrice, frozenCost, saleDiscount, frozenMarginPct, frozenMarginAmount, Number(item.totalPrice), platformMargin || null]
           );
         }
 

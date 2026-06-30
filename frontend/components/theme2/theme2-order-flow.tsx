@@ -51,7 +51,7 @@ export interface T2Info {
 }
 interface CartItem { key: string; product: T2Product; qty: number; notes: string; mods: SelMod[]; unit: number; variantId?: string; variantLabel?: string; variantImage?: string | null }
 
-const priceOf = (p: T2Product) => (p.isOnOffer && p.offerPrice ? p.offerPrice : p.salePrice)
+const priceOf = (p: T2Product) => Number(p.isOnOffer && p.offerPrice ? p.offerPrice : p.salePrice) || 0
 
 const INP = 'w-full rounded-xl bg-[#161616] border border-white/[0.08] px-3 py-2.5 text-sm text-white placeholder-white/30 focus:border-cyan-400/50 focus:outline-none'
 
@@ -83,7 +83,7 @@ function PhoneInput({ value, onChange, placeholder }: { value: string; onChange:
 
 export function Theme2OrderFlow({
   slug, info, sedes, openState, nextOpenLabel,
-  categories, newIds, featuredIds, trendingIds, initialProductId, onClose,
+  categories, newIds, featuredIds, trendingIds, initialProductId, dropPrices, onClose,
 }: {
   slug: string
   info: T2Info
@@ -95,8 +95,12 @@ export function Theme2OrderFlow({
   featuredIds: Set<string>
   trendingIds: Set<string>
   initialProductId?: string | null
+  /** productId → precio de drop (con descuento). Manda sobre el precio normal. */
+  dropPrices?: Record<string, number>
   onClose: () => void
 }) {
+  // Precio efectivo: si el producto está en un drop activo, usa el precio del drop.
+  const effPrice = (p: T2Product) => dropPrices?.[String(p.id)] ?? priceOf(p)
   // Si solo hay una sede (o ninguna), saltamos el selector
   const [step, setStep] = useState<'sede' | 'menu'>(sedes.length > 1 ? 'sede' : 'menu')
   const [sede, setSede] = useState<T2Sede | null>(sedes.length === 1 ? sedes[0] : null)
@@ -192,7 +196,7 @@ export function Theme2OrderFlow({
   // si no, agrega directo.
   const quickAdd = (p: T2Product) => {
     if (p.variants && p.variants.length > 0) { openDetail(p); return }
-    addToCart(p, 1, '', [], priceOf(p))
+    addToCart(p, 1, '', [], effPrice(p))
   }
 
   const toggleOption = (g: T2Group, optId: string) => {
@@ -221,9 +225,11 @@ export function Theme2OrderFlow({
     }
     return out
   }, [detailGroups, selected])
-  const detailExtra = selMods.reduce((s, m) => s + m.priceDelta, 0)
-  // El precio base lo manda la variante elegida (incluye su tier base / override); si no hay, el del producto
-  const detailBase = selVariant ? selVariant.price : (detail ? priceOf(detail) : 0)
+  const detailExtra = selMods.reduce((s, m) => s + (Number(m.priceDelta) || 0), 0)
+  // El precio base lo manda la variante elegida (incluye su tier base / override); si no hay, el del producto.
+  // Number() es CRÍTICO: salePrice/variant.price pueden venir como string (DECIMAL de MySQL) y
+  // `string + number` concatena en vez de sumar → los modificadores no se sumaban.
+  const detailBase = selVariant ? (Number(selVariant.price) || 0) : (detail ? effPrice(detail) : 0)
   const detailUnit = detailBase + detailExtra
   // Promo de cantidad ("lleva 2, −X%") del producto en detalle
   const detailPromo = useMemo(() => parseQtyPromo(detail?.qtyPromo), [detail])
@@ -271,7 +277,7 @@ export function Theme2OrderFlow({
     const p = products.find(x => String(x.id) === String(initialProductId))
     if (!p) return
     if (p.variants && p.variants.length > 0) { openDetail(p); addedInitialRef.current = true; return }
-    addToCart(p, 1, '', [], priceOf(p))
+    addToCart(p, 1, '', [], effPrice(p))
     addedInitialRef.current = true
   }, [initialProductId, products])
 
@@ -599,7 +605,7 @@ export function Theme2OrderFlow({
                 ) : null })()}
                 <div className="mt-auto flex items-center justify-between pt-2">
                   <div className="flex items-center gap-2">
-                    <span className="font-bold text-cyan-400">{COP(priceOf(p))}</span>
+                    <span className="font-bold text-cyan-400">{COP(effPrice(p))}</span>
                     {!!(p.isOnOffer && p.offerPrice) && <span className="text-[11px] text-white/30 line-through">{COP(p.salePrice)}</span>}
                   </div>
                   <div className="flex items-center gap-2">
@@ -617,11 +623,18 @@ export function Theme2OrderFlow({
       {cartCount > 0 && !detail && !showCart && (
         <button
           onClick={() => setShowCart(true)}
-          className="fixed bottom-5 left-1/2 -translate-x-1/2 z-30 inline-flex items-center gap-3 rounded-full bg-gradient-to-r from-cyan-500 to-teal-500 text-black font-bold px-6 py-3.5 shadow-2xl"
+          aria-label={`Ver pedido, ${cartCount} ${cartCount === 1 ? 'producto' : 'productos'}, total ${COP(cartTotal)}`}
+          className="fixed bottom-5 left-1/2 -translate-x-1/2 z-30 flex items-center gap-3 whitespace-nowrap rounded-full bg-gradient-to-r from-cyan-500 to-teal-500 text-black pl-3.5 pr-5 py-2.5 shadow-2xl shadow-cyan-500/30 ring-1 ring-white/25 transition-transform active:scale-95"
         >
-          <ShoppingBag className="w-5 h-5" />
-          Ver pedido ({cartCount})
-          <span>{COP(cartTotal)}</span>
+          <span className="relative flex items-center justify-center">
+            <ShoppingBag className="w-5 h-5" />
+            <span className="absolute -top-2 -right-2 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-black px-1 text-[10px] font-bold text-white">
+              {cartCount}
+            </span>
+          </span>
+          <span className="text-sm font-semibold">Ver pedido</span>
+          <span className="h-4 w-px bg-black/25" />
+          <span className="text-sm font-extrabold tabular-nums">{COP(cartTotal)}</span>
         </button>
       )}
 
@@ -644,7 +657,7 @@ export function Theme2OrderFlow({
                 <h2 className="text-xl font-extrabold">{detail.name}</h2>
                 {detail.description && <p className="text-sm text-white/45 mt-1 leading-relaxed">{detail.description}</p>}
                 <p className="text-2xl font-extrabold text-cyan-400 mt-3">
-                  {selVariant ? COP(selVariant.price) : COP(priceOf(detail))}
+                  {selVariant ? COP(selVariant.price) : COP(effPrice(detail))}
                 </p>
                 {detail.category && <span className="inline-block mt-2 text-[10px] uppercase tracking-wider text-white/40 border border-white/15 rounded-full px-2.5 py-0.5">{detail.category}</span>}
               </div>
@@ -653,7 +666,7 @@ export function Theme2OrderFlow({
               {detail.variants && detail.variants.length > 0 && (
                 <VariantSelector
                   variants={detail.variants}
-                  basePrice={priceOf(detail)}
+                  basePrice={effPrice(detail)}
                   isLightBg={false}
                   allowOutOfStock={detailIsPreorder}
                   formatPrice={COP}
@@ -685,17 +698,24 @@ export function Theme2OrderFlow({
                     <div className="divide-y divide-white/[0.05]">
                       {g.options.map(o => {
                         const on = selected[g.id]?.has(o.id) ?? false
+                        const delta = Number(o.priceDelta) || 0
                         return (
-                          <button key={o.id} type="button" onClick={() => toggleOption(g, o.id)} className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-white/[0.03] text-left">
-                            {o.imageUrl ? (
+                          <button
+                            key={o.id}
+                            type="button"
+                            onClick={() => toggleOption(g, o.id)}
+                            className={`w-full flex items-center gap-3 px-3 py-3 text-left transition-colors ${on ? 'bg-cyan-400/[0.08]' : 'hover:bg-white/[0.03]'}`}
+                          >
+                            {o.imageUrl && (
                               // eslint-disable-next-line @next/next/no-img-element
-                              <img src={cldImg(o.imageUrl, 64)} loading="lazy" decoding="async" alt={o.name} className="w-9 h-9 rounded-md object-cover shrink-0" />
-                            ) : <div className="w-9 h-9 rounded-md bg-white/5 shrink-0" />}
-                            <span className="flex-1 text-sm">{o.name}</span>
-                            {o.priceDelta > 0 && <span className="text-xs text-white/50 shrink-0">+{COP(o.priceDelta)}</span>}
-                            {o.priceDelta === 0 && <span className="text-[11px] text-white/30 shrink-0">Sin costo</span>}
-                            <span className={`shrink-0 flex items-center justify-center w-5 h-5 ${g.selectionType === 'single' ? 'rounded-full' : 'rounded-md'} border-2 ${on ? 'border-cyan-400 bg-cyan-400' : 'border-white/25'}`}>
-                              {on && <span className={`bg-black ${g.selectionType === 'single' ? 'w-2 h-2 rounded-full' : 'w-2.5 h-2.5 rounded-[2px]'}`} />}
+                              <img src={cldImg(o.imageUrl, 64)} loading="lazy" decoding="async" alt={o.name} className="w-10 h-10 rounded-lg object-cover shrink-0" />
+                            )}
+                            <span className={`flex-1 text-sm leading-tight ${on ? 'text-white font-medium' : 'text-white/85'}`}>{o.name}</span>
+                            {delta > 0
+                              ? <span className={`text-xs font-semibold shrink-0 ${on ? 'text-cyan-300' : 'text-white/45'}`}>+{COP(delta)}</span>
+                              : <span className="text-[11px] text-white/30 shrink-0">Incluido</span>}
+                            <span className={`shrink-0 flex items-center justify-center w-5 h-5 ${g.selectionType === 'single' ? 'rounded-full' : 'rounded-md'} border-2 transition-colors ${on ? 'border-cyan-400 bg-cyan-400' : 'border-white/20'}`}>
+                              {on && <Check className="w-3 h-3 text-black" strokeWidth={3.5} />}
                             </span>
                           </button>
                         )

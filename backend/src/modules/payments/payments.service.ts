@@ -14,7 +14,7 @@ import { AppError } from '../../common/middleware';
 import { encrypt, decrypt } from '../../utils/crypto';
 
 export type WompiEnv = 'sandbox' | 'production';
-export type PayContext = 'subscription' | 'package' | 'order' | 'coach_booking' | 'drop' | 'legend_subscription';
+export type PayContext = 'subscription' | 'package' | 'order' | 'coach_booking' | 'drop' | 'legend_subscription' | 'cartilla';
 
 const CHECKOUT_URL = 'https://checkout.wompi.co/p/';
 export const apiBase = (env: WompiEnv) =>
@@ -183,6 +183,20 @@ export async function createCheckout(params: {
     const { getLegendPurchaseAmountCents } = await import('../consumer-plans/consumer-plans.service');
     amount = await getLegendPurchaseAmountCents(ref);
   }
+  if (params.context === 'cartilla') {
+    // Compra de producto digital (cartilla/libro/curso). contextId = cartilla_compras.id
+    // (pendiente). Monto y tenant se resuelven en el SERVIDOR desde la compra.
+    const ref = String(params.contextId || '');
+    if (!ref) throw new AppError('Falta la compra', 400);
+    const [rows] = await db.query(
+      `SELECT precio, estado, tenant_id FROM cartilla_compras WHERE id = ? LIMIT 1`, [ref]
+    ) as any;
+    const cc = rows?.[0];
+    if (!cc) throw new AppError('Compra no encontrada', 404);
+    if (cc.estado === 'pagado' || cc.estado === 'gratis') throw new AppError('Esta compra ya está habilitada', 409);
+    amount = Math.round(Number(cc.precio) * 100); // pesos → centavos
+    params.tenantId = cc.tenant_id;
+  }
   if (!Number.isFinite(amount) || amount <= 0) throw new AppError('Monto inválido', 400);
   const currency = (params.currency || 'COP').toUpperCase();
 
@@ -319,6 +333,14 @@ async function onApproved(reference: string): Promise<void> {
     const { dropsService } = await import('../vault/vault.drops.service');
     await dropsService.convertClaim(txn.context_id, txn.wompi_id ?? null);
     console.log(`[payments] Cupo de drop convertido por pago Wompi claim=${txn.context_id} ref=${reference}`);
+    return;
+  }
+
+  // Producto digital (cartilla/libro/curso): habilita el acceso del comprador.
+  if (txn.context === 'cartilla' && txn.context_id) {
+    const { confirmarCompra } = await import('../cartillas/cartillas.service');
+    await confirmarCompra(txn.context_id, txn.wompi_id ?? undefined).catch((e) => console.error('confirmarCompra error:', e));
+    console.log(`[payments] Cartilla habilitada por pago Wompi compra=${txn.context_id} ref=${reference}`);
     return;
   }
 

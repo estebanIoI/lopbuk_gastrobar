@@ -122,7 +122,14 @@ export async function obtenerCartillaPublica(idOrSlug: string, usuarioId?: strin
   const cartilla = mapCartilla(rows[0]);
 
   const acceso = await tieneAcceso(cartilla.id, cartilla.esGratis, usuarioId);
-  return { ...cartilla, acceso };
+  // Archivos adjuntos: siempre exponemos la metadata; la URL de descarga solo si hay
+  // acceso (gratis o comprado). Sin acceso → locked, para mostrar "comprar para descargar".
+  const archivosRaw = await listarArchivos(cartilla.id);
+  const archivos = archivosRaw.map((a: any) => ({
+    id: a.id, nombre: a.nombre, tipo: a.tipo, sizeBytes: a.sizeBytes,
+    url: acceso ? a.url : null, locked: !acceso,
+  }));
+  return { ...cartilla, acceso, archivos };
 }
 
 /** ¿El usuario puede interactuar con el contenido completo de la cartilla? */
@@ -639,9 +646,10 @@ export async function comprarCartilla(usuarioId: string, cartillaIdOrSlug: strin
     [compraId, c.tenant_id, c.id, usuarioId, c.precio, c.moneda, metodo]
   );
 
+  // Gateway → Wompi (flujo validado de la plataforma). 'manual' = solicitar acceso al comercio.
   let checkoutUrl: string | null = null;
-  if (metodo === 'stripe') {
-    checkoutUrl = await crearStripeCheckout(c, usuarioId, compraId).catch(() => null);
+  if (metodo !== 'manual') {
+    checkoutUrl = await crearWompiCheckout(c, usuarioId, compraId);
   }
 
   return {
@@ -649,6 +657,33 @@ export async function comprarCartilla(usuarioId: string, cartillaIdOrSlug: strin
     acceso: false,
     checkoutUrl,
   };
+}
+
+/** Crea un Web Checkout de Wompi para la compra (context 'cartilla'). Devuelve la URL o null. */
+async function crearWompiCheckout(cartilla: RowDataPacket, usuarioId: string, compraId: string): Promise<string | null> {
+  try {
+    const { createCheckout } = await import('../payments/payments.service');
+    let email: string | undefined;
+    try {
+      const [u] = await db.query<RowDataPacket[]>(`SELECT email FROM users WHERE id = ? LIMIT 1`, [usuarioId]);
+      email = u[0]?.email || undefined;
+    } catch { /* sin email */ }
+    const frontend = process.env.FRONTEND_URL || '';
+    const r = await createCheckout({
+      context: 'cartilla',
+      contextId: compraId, // el monto y el tenant se resuelven en el server desde cartilla_compras
+      tenantId: cartilla.tenant_id,
+      amountInCents: Math.round(Number(cartilla.precio) * 100),
+      currency: cartilla.moneda || 'COP',
+      customerEmail: email,
+      redirectUrl: `${frontend}/cartilla-inga/${cartilla.slug}`,
+    });
+    await db.query(`UPDATE cartilla_compras SET referencia = ? WHERE id = ?`, [r.reference, compraId]);
+    return r.checkoutUrl;
+  } catch (e) {
+    console.error('crearWompiCheckout error:', e);
+    return null;
+  }
 }
 
 /** Best-effort: crea una sesión de Stripe Checkout si el módulo/llaves existen. */
@@ -769,6 +804,47 @@ export async function eliminarCartilla(tenantId: string, id: string) {
   await obtenerMiCartilla(tenantId, id);
   await db.query(`UPDATE cartillas SET is_active = FALSE WHERE id = ? AND tenant_id = ?`, [id, tenantId]);
   return { mensaje: 'Cartilla eliminada' };
+}
+
+// ---- Archivos descargables de una cartilla (PDF/Excel/ZIP/TXT/MD…) ----
+export async function listarArchivos(cartillaId: string, tenantId?: string) {
+  const where: string[] = ['cartilla_id = ?'];
+  const params: any[] = [cartillaId];
+  if (tenantId) { where.push('tenant_id = ?'); params.push(tenantId); }
+  const [rows] = await db.query<RowDataPacket[]>(
+    `SELECT id, cartilla_id AS cartillaId, nombre, url, tipo, size_bytes AS sizeBytes, sort_order AS sortOrder
+       FROM cartilla_archivos WHERE ${where.join(' AND ')} ORDER BY sort_order ASC, created_at ASC`,
+    params
+  );
+  return rows;
+}
+
+export async function crearArchivo(tenantId: string, cartillaId: string, data: any) {
+  await obtenerMiCartilla(tenantId, cartillaId); // valida propiedad del comercio
+  if (!data?.nombre || !data?.url) throw new AppError('Nombre y URL del archivo son requeridos', 400);
+  const id = uuidv4();
+  await db.query(
+    `INSERT INTO cartilla_archivos (id, tenant_id, cartilla_id, nombre, url, tipo, size_bytes, sort_order)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      id, tenantId, cartillaId,
+      String(data.nombre).slice(0, 200), String(data.url).slice(0, 500),
+      data.tipo ? String(data.tipo).slice(0, 30) : null,
+      Number.isFinite(+data.sizeBytes) ? +data.sizeBytes : null,
+      Number.isFinite(+data.sortOrder) ? +data.sortOrder : 0,
+    ]
+  );
+  const [rows] = await db.query<RowDataPacket[]>(
+    `SELECT id, cartilla_id AS cartillaId, nombre, url, tipo, size_bytes AS sizeBytes, sort_order AS sortOrder
+       FROM cartilla_archivos WHERE id = ?`,
+    [id]
+  );
+  return rows[0];
+}
+
+export async function eliminarArchivo(tenantId: string, id: string) {
+  await db.query(`DELETE FROM cartilla_archivos WHERE id = ? AND tenant_id = ?`, [id, tenantId]);
+  return { mensaje: 'Archivo eliminado' };
 }
 
 // ---- Módulos (staff) ----

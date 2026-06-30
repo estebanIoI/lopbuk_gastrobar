@@ -262,11 +262,14 @@ export function VariantSelector({
   const chipIdle = isLightBg
     ? 'border-black/15 text-black/70 hover:border-black/40'
     : 'border-white/20 text-white/80 hover:border-white/50'
+  // OJO: NO usar las clases text-white/text-black aquí. En tema claro, globals.css tiene
+  // `[data-pf-theme="light"] .text-white { color:#0f172a !important }`, que pisaría incluso
+  // el style inline → texto invisible sobre el pill. El color del chip activo se aplica
+  // SOLO por activeChipStyle (sin clase de color, así nada lo sobrescribe).
   const chipActive = isLightBg
-    ? 'border-black bg-black text-white'
-    : 'border-white bg-white text-black'
-  // Estilo inline para el chip seleccionado: fuerza contraste negro/blanco con hex
-  // explícito, ganándole al remap de colorimetría del tema (que pisa text-white/bg-black).
+    ? 'border-black bg-black'
+    : 'border-white bg-white'
+  // Estilo inline para el chip seleccionado: contraste negro/blanco garantizado.
   const activeChipStyle: CSSProperties = isLightBg
     ? { backgroundColor: '#111', color: '#fff', borderColor: '#111' }
     : { backgroundColor: '#fff', color: '#111', borderColor: '#fff' }

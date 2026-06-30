@@ -100,10 +100,11 @@ const CatalogoCartillas: React.FC = () => {
       {/* Hero */}
       <div className="bg-gradient-to-br from-emerald-600 to-green-700 text-white">
         <div className="container mx-auto px-4 py-10">
-          <h1 className="text-3xl md:text-4xl font-extrabold">Cartilla Inga</h1>
+          <h1 className="text-3xl md:text-4xl font-extrabold">Productos Digitales</h1>
           <p className="mt-2 text-white/90 max-w-2xl">
-            Explora cartillas, libros y cursos publicados por los comercios. Abre los gratuitos
-            e interactúa con todo su contenido: módulos, actividades, comunidad y retos.
+            Explora cartillas, libros, cursos y archivos digitales publicados por los comercios.
+            Abre los gratuitos o compra los de pago e interactúa con todo su contenido: módulos,
+            actividades, archivos descargables, comunidad y retos.
           </p>
           <div className="mt-5 max-w-md relative">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />

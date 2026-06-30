@@ -1154,7 +1154,7 @@ class ApiService {
     })
   }
 
-  async updateTenant(id: string, data: { name?: string; slug?: string; businessType?: string; plan?: string; status?: string; maxUsers?: number; maxProducts?: number; bgColor?: string }) {
+  async updateTenant(id: string, data: { name?: string; slug?: string; businessType?: string; plan?: string; status?: string; maxUsers?: number; maxProducts?: number; bgColor?: string; platformMarginPct?: number | null }) {
     return this.request<any>(`/tenants/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
