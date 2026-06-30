@@ -167,6 +167,7 @@ export interface CartillaCatalogoAPI {
   esGratis: boolean; precio: number; moneda: string;
   publicado: boolean; destacado: boolean; totalModulos?: number; ventas?: number;
   acceso?: boolean;
+  archivos?: { id: string; nombre: string; tipo: string | null; sizeBytes: number | null; url: string | null; locked: boolean }[];
 }
 
 // Tipos heredados que algunos componentes aún referencian (sin backend dedicado).

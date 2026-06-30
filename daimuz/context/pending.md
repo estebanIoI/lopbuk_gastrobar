@@ -2,6 +2,27 @@
 
 > Actualiza según prioridades. P1 = crítico, P2 = importante, P3 = mejora.
 
+### 🧩 [2026-06-30] Productos Digitales (ex "Cartilla Inga") — Fase A hecha; faltan B + C
+Renombrado el catálogo público **"Cartilla Inga" → "Productos Digitales"** (`CatalogoCartillas.tsx`, solo display; la ruta sigue `/cartilla-inga`).
+
+**✅ Fase A — Encapsular archivos (PDF/Excel/ZIP/TXT/MD…):**
+- Tabla `cartilla_archivos` (migración `0006_graceful_scrambler`). 
+- Backend: `cartillas.service` (`listarArchivos`/`crearArchivo`/`eliminarArchivo`) + rutas staff (`GET/POST /admin/cartillas/:id/archivos`, `DELETE /admin/archivos/:id`). En `obtenerCartillaPublica` los archivos vienen con metadata siempre y `url` **solo si hay acceso** (gratis o comprado); si no, `locked:true`.
+- Admin (`cartilla-management.tsx`): botón 📎 por cartilla → `ArchivosManager` (sube a Cloudinary `auto/upload` → soporta raw, lista, elimina).
+- Comprador (`CartillaPage.tsx`): `ArchivosPanel` en el muro de pago (teaser bloqueado "Incluye N archivos") + `FloatingDescargables` (widget flotante de descargas sobre la experiencia cuando hay acceso).
+- tsc 0 errores (front+back).
+- **Caveat:** el upload preset de Cloudinary debe permitir `raw`/`auto` (algunos son image-only). Si falla subir un PDF, hay que habilitar raw en el preset.
+
+**✅ Fase B — Compra por Wompi (reemplaza Stripe):**
+- `payments.service`: nuevo `context:'cartilla'` + caso en `createCheckout` (monto y tenant resueltos **server-side** desde `cartilla_compras`, contextId = compra.id) + caso en `onApproved` → `confirmarCompra(compraId)`.
+- `cartillas.service`: `comprarCartilla` con método ≠ 'manual' crea un **Web Checkout de Wompi** (`crearWompiCheckout`) en vez de Stripe; guarda la `referencia`. (`crearStripeCheckout` quedó sin uso.)
+- Frontend muro de pago: botón "**Comprar y pagar con Wompi**" → `comprar(slug,'wompi')` → redirige al `checkoutUrl`.
+
+**✅ Fase C — Acceso tras compra (cerrada):** el loop completo: comprar → `cartilla_compras` 'pendiente' + checkout Wompi → pago → webhook `onApproved('cartilla')` → `confirmarCompra` marca 'pagado' → `tieneAcceso=true` → desbloquea contenido de módulos (ya gateado, `service:171`) **y** archivos descargables (Fase A). No requiere migración nueva (`cartilla_compras` ya existía).
+
+**🟢 PRODUCTOS DIGITALES COMPLETO (rename + A + B + C). Solo queda deploy + probar el pago real en Wompi.**
+> Refinamiento opcional: timing redirect-vs-webhook — si el comprador vuelve antes de que llegue el webhook, ve el muro hasta refrescar. Mejora: poll del estado de la transacción al volver de Wompi.
+
 ### ✅ [2026-06-29] Comisión de plataforma (8%/12%) — COMPLETA (falta aplicar migraciones + deploy)
 Modelo **comisión** (no cambia el precio al cliente; registra la tajada de la plataforma).
 - **Config:** `tenants.platform_margin_pct` (NULL=inactiva, 8/12=activa). Setter en `tenant.update()`; UI superadmin → editar comercio → "Comisión de plataforma" (Inactiva/8%/12%).

@@ -43,6 +43,13 @@
       "when": 1782789576390,
       "tag": "0005_familiar_silver_fox",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1782797051069,
+      "tag": "0006_graceful_scrambler",
+      "breakpoints": true
     }
   ]
 }

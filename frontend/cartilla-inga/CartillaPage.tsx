@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Lock, Loader2, ArrowLeft } from 'lucide-react';
+import { Lock, Loader2, ArrowLeft, FileText, Download, Paperclip } from 'lucide-react';
 import CartillaIngaDigital from './CartillaIngaDigital';
 import { cartillasAPI, ApiError, type CartillaCatalogoAPI } from './services/api';
 import { BoxLoader } from '@/components/box-loader';
@@ -11,6 +11,50 @@ const formatPrecio = (precio: number, moneda: string) => {
   try {
     return new Intl.NumberFormat('es-CO', { style: 'currency', currency: moneda || 'COP', maximumFractionDigits: 0 }).format(precio);
   } catch { return `${moneda} ${precio.toLocaleString('es-CO')}`; }
+};
+
+/** Lista de archivos descargables. Si `url` → descarga; si no → bloqueado (al comprar). */
+const ArchivosPanel: React.FC<{ archivos?: CartillaCatalogoAPI['archivos']; titulo?: string }> = ({ archivos, titulo }) => {
+  if (!archivos || archivos.length === 0) return null;
+  return (
+    <div className="text-left">
+      {titulo && <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{titulo}</p>}
+      <div className="space-y-2">
+        {archivos.map(f => (
+          <div key={f.id} className="flex items-center gap-3 bg-gray-50 border rounded-lg px-3 py-2.5">
+            <FileText className="w-4 h-4 text-emerald-600 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-800 truncate">{f.nombre}</p>
+              <p className="text-[11px] text-gray-400 uppercase">{f.tipo || 'archivo'}{f.sizeBytes ? ` · ${(f.sizeBytes / 1024 / 1024).toFixed(2)} MB` : ''}</p>
+            </div>
+            {f.url
+              ? <a href={f.url} target="_blank" rel="noopener noreferrer" className="text-emerald-700 inline-flex items-center gap-1 text-xs font-semibold shrink-0"><Download className="w-4 h-4" /> Descargar</a>
+              : <span className="text-gray-400 inline-flex items-center gap-1 text-xs shrink-0"><Lock className="w-3.5 h-3.5" /> Al comprar</span>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+/** Widget flotante de descargas, visible sobre la experiencia cuando el usuario tiene acceso. */
+const FloatingDescargables: React.FC<{ archivos?: CartillaCatalogoAPI['archivos'] }> = ({ archivos }) => {
+  const [open, setOpen] = useState(false);
+  const conUrl = (archivos || []).filter(f => f.url);
+  if (conUrl.length === 0) return null;
+  return (
+    <div className="fixed bottom-5 right-5 z-50">
+      {open && (
+        <div className="mb-3 w-72 max-h-[60vh] overflow-auto bg-white rounded-2xl shadow-2xl border p-3">
+          <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Archivos descargables</p>
+          <ArchivosPanel archivos={conUrl} />
+        </div>
+      )}
+      <button onClick={() => setOpen(o => !o)} className="inline-flex items-center gap-2 bg-emerald-600 text-white rounded-full px-4 py-3 shadow-lg font-semibold hover:bg-emerald-700">
+        <Paperclip className="w-4 h-4" /> Descargables ({conUrl.length})
+      </button>
+    </div>
+  );
 };
 
 /** Muro de pago para cartillas de pago sin acceso. */
@@ -54,11 +98,11 @@ const Paywall: React.FC<{ cartilla: CartillaCatalogoAPI; onAcceso: () => void; o
         <div className="space-y-2">
           <button
             disabled={procesando}
-            onClick={() => adquirir('stripe')}
+            onClick={() => adquirir('wompi')}
             className="w-full py-3 rounded-xl bg-emerald-600 text-white font-semibold hover:bg-emerald-700 disabled:opacity-60 inline-flex items-center justify-center gap-2"
           >
             {procesando ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-            Adquirir cartilla
+            Comprar y pagar con Wompi
           </button>
           <button
             disabled={procesando}
@@ -70,6 +114,15 @@ const Paywall: React.FC<{ cartilla: CartillaCatalogoAPI; onAcceso: () => void; o
         </div>
 
         {mensaje && <p className="mt-4 text-sm text-gray-600">{mensaje}</p>}
+
+        {cartilla.archivos && cartilla.archivos.length > 0 && (
+          <div className="mt-6 pt-5 border-t">
+            <ArchivosPanel
+              archivos={cartilla.archivos}
+              titulo={`Incluye ${cartilla.archivos.length} archivo${cartilla.archivos.length > 1 ? 's' : ''} descargable${cartilla.archivos.length > 1 ? 's' : ''}`}
+            />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -117,7 +170,12 @@ const CartillaPage: React.FC<{ slug: string }> = ({ slug }) => {
     return <Paywall cartilla={cartilla} onAcceso={cargar} onVolver={volver} />;
   }
 
-  return <CartillaIngaDigital cartillaSlug={cartilla.slug} onVolverCatalogo={volver} />;
+  return (
+    <>
+      <FloatingDescargables archivos={cartilla.archivos} />
+      <CartillaIngaDigital cartillaSlug={cartilla.slug} onVolverCatalogo={volver} />
+    </>
+  );
 };
 
 export default CartillaPage;
