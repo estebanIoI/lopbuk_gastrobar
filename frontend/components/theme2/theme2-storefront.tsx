@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   ChevronDown, ArrowRight, ShoppingBag, CalendarDays, MapPin, Clock,
   Instagram, Facebook, MessageCircle, Store,
@@ -52,6 +52,19 @@ interface Product {
   imageUrl?: string | null
   category?: string | null
 }
+interface DropProduct extends Product {
+  finalPrice?: number | null
+  customDiscount?: number | null
+}
+interface ActiveDrop {
+  id: string
+  name: string
+  description?: string | null
+  bannerUrl?: string | null
+  globalDiscount?: number | null
+  endsAt?: string | null
+  products: DropProduct[]
+}
 interface Sede { id: string; name: string; address?: string | null }
 interface StoreInfo {
   name?: string
@@ -87,6 +100,35 @@ export function Theme2Storefront({ slug }: { slug: string }) {
   const [orderProductId, setOrderProductId] = useState<string | null>(null)
   const [reserveOpen, setReserveOpen] = useState(false)
   const [customSections, setCustomSections] = useState<{ id: number; name: string; htmlContent?: string }[]>([])
+  const [activeDrop, setActiveDrop] = useState<ActiveDrop | null>(null)
+  const [nowTs, setNowTs] = useState(() => Date.now())
+
+  // Mapa productId → precio de drop (para que el carrito use el precio con descuento).
+  const dropPrices = useMemo(() => {
+    const m: Record<string, number> = {}
+    for (const p of activeDrop?.products ?? []) {
+      if (p.finalPrice != null) m[String(p.id)] = Number(p.finalPrice)
+    }
+    return m
+  }, [activeDrop])
+
+  // Countdown del drop (solo corre si hay fecha de fin vigente).
+  useEffect(() => {
+    if (!activeDrop?.endsAt) return
+    const t = setInterval(() => setNowTs(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [activeDrop?.endsAt])
+  const dropCountdown = useMemo(() => {
+    if (!activeDrop?.endsAt) return null
+    const diff = new Date(activeDrop.endsAt).getTime() - nowTs
+    if (diff <= 0) return null
+    return {
+      d: Math.floor(diff / 86400000),
+      h: Math.floor(diff / 3600000) % 24,
+      m: Math.floor(diff / 60000) % 60,
+      s: Math.floor(diff / 1000) % 60,
+    }
+  }, [activeDrop?.endsAt, nowTs])
 
   // Atribución de afiliado: guarda el ?ref=TOKEN del enlace para usarlo en el checkout.
   useEffect(() => {
@@ -116,6 +158,7 @@ export function Theme2Storefront({ slug }: { slug: string }) {
           setFeaturedIds(ids(data.featuredProducts))
           setTrendingIds(ids(data.trendingProducts))
           setCustomSections(data.customSections || [])
+          setActiveDrop(data.activeDrop && Array.isArray(data.activeDrop.products) && data.activeDrop.products.length > 0 ? data.activeDrop : null)
           let favs: Product[] = (data.featuredProducts || []).slice(0, 6)
           if (favs.length === 0) {
             const prodRes = await fetch(`${API_URL}/storefront/products?limit=6&store=${slug}`).then(r => r.json()).catch(() => null)
@@ -212,6 +255,74 @@ export function Theme2Storefront({ slug }: { slug: string }) {
           <ChevronDown className="w-7 h-7" />
         </button>
       </section>
+
+      {/* ═══ DROP ACTIVO ═══ */}
+      {activeDrop && activeDrop.products.length > 0 && (
+        <section className="px-5 sm:px-10 pt-10 max-w-6xl mx-auto">
+          {/* Banner */}
+          <div className="relative overflow-hidden rounded-3xl border border-fuchsia-500/30">
+            {activeDrop.bannerUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={cldImg(activeDrop.bannerUrl, 1200)} alt={activeDrop.name} className="absolute inset-0 w-full h-full object-cover" />
+            )}
+            <div className="absolute inset-0 bg-gradient-to-br from-fuchsia-700/70 via-black/75 to-cyan-600/40" />
+            <div className="relative px-6 sm:px-10 py-10 sm:py-14 flex flex-col items-start gap-3">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-fuchsia-500 text-white text-[11px] font-bold px-3 py-1 uppercase tracking-wider">🔥 Drop activo</span>
+              <h2 className="text-3xl sm:text-5xl font-extrabold drop-shadow-lg">{activeDrop.name}</h2>
+              {activeDrop.description && <p className="text-sm sm:text-base text-white/75 max-w-xl">{activeDrop.description}</p>}
+              {activeDrop.globalDiscount ? (
+                <span className="text-cyan-300 font-bold text-sm">Hasta {Math.round(Number(activeDrop.globalDiscount))}% OFF</span>
+              ) : null}
+              {dropCountdown && (
+                <div className="flex items-center gap-2 mt-1">
+                  <Clock className="w-4 h-4 text-white/70" />
+                  {([['d', dropCountdown.d, 'días'], ['h', dropCountdown.h, 'hrs'], ['m', dropCountdown.m, 'min'], ['s', dropCountdown.s, 'seg']] as const).map(([k, val, lbl]) => (
+                    <span key={k} className="inline-flex flex-col items-center rounded-lg bg-black/50 backdrop-blur px-2.5 py-1 min-w-[42px]">
+                      <span className="text-lg font-extrabold tabular-nums leading-none">{String(val).padStart(2, '0')}</span>
+                      <span className="text-[9px] uppercase text-white/50">{lbl}</span>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Productos del drop */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 mt-6">
+            {activeDrop.products.map(p => {
+              const final = p.finalPrice != null ? Number(p.finalPrice) : Number(p.salePrice)
+              const orig = Number(p.salePrice)
+              const pct = orig > 0 && final < orig ? Math.round((1 - final / orig) * 100) : 0
+              return (
+                <div key={p.id} className="group relative rounded-2xl p-[1.5px] bg-gradient-to-br from-fuchsia-500/50 via-white/10 to-cyan-400/40 hover:from-fuchsia-400/70 hover:to-cyan-300/60 transition-colors">
+                  <div className="relative rounded-[15px] overflow-hidden bg-[#141414] flex flex-col h-full">
+                    <div className="relative aspect-[4/3] bg-[#0e0e0e] overflow-hidden">
+                      {p.imageUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={cldImg(p.imageUrl, 400)} srcSet={cldSrcSet(p.imageUrl)} sizes="(max-width:640px) 50vw, (max-width:1024px) 33vw, 25vw" loading="lazy" decoding="async" alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center"><Store className="w-8 h-8 text-white/10" /></div>
+                      )}
+                      {pct > 0 && <span className="absolute top-2.5 left-2.5 bg-fuchsia-500 text-white text-[11px] font-extrabold px-2 py-1 rounded-full">-{pct}%</span>}
+                    </div>
+                    <div className="p-4 flex flex-col gap-2 flex-1">
+                      <h3 className="font-bold text-white">{p.name}</h3>
+                      {p.description && <p className="text-xs text-white/45 line-clamp-2 flex-1">{p.description}</p>}
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-lg font-extrabold text-cyan-400">{COP(final)}</span>
+                        {pct > 0 && <span className="text-xs text-white/35 line-through">{COP(orig)}</span>}
+                      </div>
+                      <button onClick={() => goOrderProduct(String(p.id))} className="mt-1 inline-flex items-center justify-center gap-2 w-full rounded-lg bg-gradient-to-r from-fuchsia-500 to-cyan-500 py-2.5 text-xs font-bold text-black hover:opacity-90 transition-opacity">
+                        Aprovechar drop <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </section>
+      )}
 
       {/* ═══ NUESTROS FAVORITOS ═══ */}
       {favorites.length > 0 && (
@@ -398,6 +509,7 @@ export function Theme2Storefront({ slug }: { slug: string }) {
           featuredIds={featuredIds}
           trendingIds={trendingIds}
           initialProductId={orderProductId}
+          dropPrices={dropPrices}
           onClose={() => { setOrderOpen(false); setOrderProductId(null) }}
         />
       )}

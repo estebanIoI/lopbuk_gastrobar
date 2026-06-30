@@ -36,6 +36,13 @@
       "when": 1782787663569,
       "tag": "0004_green_elektra",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1782789576390,
+      "tag": "0005_familiar_silver_fox",
+      "breakpoints": true
     }
   ]
 }

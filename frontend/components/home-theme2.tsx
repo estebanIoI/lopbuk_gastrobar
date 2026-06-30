@@ -439,8 +439,9 @@ function StoreCard({
           <MapPin className="w-3 h-3 text-rose-400 shrink-0" />
           <span className="truncate">
             {[
-              typeof store.sedeCount === 'number' ? `${store.sedeCount} Sede(s)` : null,
-              store.city || (!store.city && typeof store.sedeCount !== 'number' ? store.address : null),
+              // Solo mostramos "N Sedes" si hay 2 o más; con 0/1 mostramos solo la ubicación.
+              (typeof store.sedeCount === 'number' && store.sedeCount >= 2) ? `${store.sedeCount} Sedes` : null,
+              store.city || store.address || null,
             ].filter(Boolean).join(' · ')}
           </span>
         </div>

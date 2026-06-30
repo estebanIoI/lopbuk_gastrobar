@@ -3139,6 +3139,8 @@ export const saleItems = mysqlTable("sale_items", {
 	costPrice: decimal("cost_price", { precision: 12, scale: 2 }),
 	marginPct: decimal("margin_pct", { precision: 5, scale: 2 }),
 	marginAmount: decimal("margin_amount", { precision: 12, scale: 2 }),
+	// Comisión de plataforma congelada para esta línea (modelo comisión). NULL = inactiva.
+	platformMarginPct: decimal("platform_margin_pct", { precision: 5, scale: 2 }),
 },
 (table) => {
 	return {

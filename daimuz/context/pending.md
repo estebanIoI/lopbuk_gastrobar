@@ -2,6 +2,20 @@
 
 > Actualiza según prioridades. P1 = crítico, P2 = importante, P3 = mejora.
 
+### ✅ [2026-06-29] Comisión de plataforma (8%/12%) — COMPLETA (falta aplicar migraciones + deploy)
+Modelo **comisión** (no cambia el precio al cliente; registra la tajada de la plataforma).
+- **Config:** `tenants.platform_margin_pct` (NULL=inactiva, 8/12=activa). Setter en `tenant.update()`; UI superadmin → editar comercio → "Comisión de plataforma" (Inactiva/8%/12%).
+- **Aplicación (ambos canales):** columna dedicada `sale_items.platform_margin_pct`, congelada por ítem en POS (`sales.service`) **y** en pedidos del storefront (`orders.routes` settlement). No pisa `margin_pct` (que mantiene su significado por-canal). Para reportes de comisión de plataforma → usar `sale_items.platform_margin_pct`.
+- **Migraciones a aplicar:** `0004_green_elektra` (`tenants.platform_margin_pct`) + `0005_familiar_silver_fox` (`sale_items.platform_margin_pct`). Las aplica el deploy (`migrate.js`) o a mano:
+  ```sql
+  ALTER TABLE `tenants` ADD `platform_margin_pct` decimal(5,2);
+  ALTER TABLE `sale_items` ADD `platform_margin_pct` decimal(5,2);
+  ```
+- tsc 0 errores (front+back).
+
+### ✅ [2026-06-29] Fix: preventa no aparecía hasta recargar
+El detalle abierto desde una sección (destacados/novedades/ofertas) usaba el producto con flags incompletos (`isPresale=0`), mostrando "Agotado" hasta recargar (la recarga abre por deep-link `?product=` desde la lista principal, ya correcta). `openProductModal` ahora resuelve SIEMPRE la versión canónica de `products` por id. Causa de fondo (secundaria): varias queries de sección hardcodean `0 as isPresale` — el fix de frontend lo cubre; limpiar esas queries queda como mejora opcional.
+
 ## 🔴 P1 — Crítico
 
 ### 🐛 [2026-06-25] Onboarding rompe: `Data truncated for column 'goal'` (prod) — PENDIENTE

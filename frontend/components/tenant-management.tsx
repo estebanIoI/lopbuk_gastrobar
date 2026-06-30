@@ -72,6 +72,7 @@ import {
   MoreVertical,
   CalendarDays,
   Ban,
+  Percent,
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -138,6 +139,7 @@ export function TenantManagement() {
     maxUsers: 5,
     maxProducts: 500,
     bgColor: '#000000',
+    platformMarginPct: null as number | null, // null = comisión de plataforma inactiva
     ownerName: '',
     ownerEmail: '',
   })
@@ -492,6 +494,7 @@ export function TenantManagement() {
       maxUsers: editForm.maxUsers,
       maxProducts: editForm.maxProducts,
       bgColor: editForm.bgColor,
+      platformMarginPct: editForm.platformMarginPct,
     })
     if (result.success) { toast.success('Comercio actualizado'); setIsEditOpen(false); fetchTenants() }
     else toast.error(result.error || 'Error al actualizar')
@@ -592,6 +595,7 @@ export function TenantManagement() {
       maxUsers: tenant.maxUsers,
       maxProducts: tenant.maxProducts,
       bgColor: (tenant as any).bgColor || '#000000',
+      platformMarginPct: (tenant as any).platformMarginPct ?? null,
       ownerName: (tenant as any).ownerName || '',
       ownerEmail: (tenant as any).ownerEmail || '',
     })
@@ -1535,6 +1539,36 @@ export function TenantManagement() {
                 <input type="color" value={editForm.bgColor} onChange={(e) => setEditForm(f => ({ ...f, bgColor: e.target.value }))} className="w-10 h-10 rounded cursor-pointer border border-border" />
                 <Input value={editForm.bgColor} onChange={(e) => setEditForm(f => ({ ...f, bgColor: e.target.value }))} className="w-28 font-mono text-sm" maxLength={7} />
                 <div className="flex-1 h-10 rounded border border-border" style={{ backgroundColor: editForm.bgColor }} />
+              </div>
+            </div>
+
+            {/* Comisión de plataforma (modelo comisión: no cambia el precio al cliente) */}
+            <div className="space-y-2 border-t border-border pt-4">
+              <Label className="flex items-center gap-2"><Percent className="h-4 w-4" />Comisión de plataforma</Label>
+              <p className="text-xs text-muted-foreground">
+                Un margen saludable suele estar entre 8% y 12%. Al activarlo, ese porcentaje se
+                registra como comisión de la plataforma sobre las ventas de este comercio.
+                No modifica el precio que paga el cliente.
+              </p>
+              <div className="flex items-center gap-2">
+                {([
+                  { label: 'Inactiva', val: null as number | null },
+                  { label: '8%', val: 8 },
+                  { label: '12%', val: 12 },
+                ]).map(opt => {
+                  const active = (editForm.platformMarginPct ?? null) === opt.val
+                  return (
+                    <Button
+                      key={String(opt.val)}
+                      type="button"
+                      variant={active ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setEditForm(f => ({ ...f, platformMarginPct: opt.val }))}
+                    >
+                      {opt.label}
+                    </Button>
+                  )
+                })}
               </div>
             </div>
           </div>
