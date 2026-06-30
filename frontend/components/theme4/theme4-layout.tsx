@@ -31,11 +31,11 @@ export function Theme4Layout({ slug, data }: { slug: string; data?: Theme4Data }
   }, [slug, data])
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-slate-900" style={{ ['--dz-bg' as any]: '#0f172a' }}><BoxLoader /></div>
-  if (error || !payload) {
+  if (!payload) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 gap-2 px-4 text-center">
         <p className="text-gray-700 font-medium">{error || 'Perfil no encontrado'}</p>
-        <p className="text-sm text-gray-400">Este perfil aún no está publicado.</p>
+        <p className="text-sm text-gray-400">Este negocio no está disponible.</p>
       </div>
     )
   }
