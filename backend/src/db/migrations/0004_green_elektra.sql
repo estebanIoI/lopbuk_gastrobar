@@ -1,0 +1,1 @@
+ALTER TABLE `tenants` ADD `platform_margin_pct` decimal(5,2);

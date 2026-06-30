@@ -3823,6 +3823,9 @@ export const tenants = mysqlTable("tenants", {
 	allowRegeneration: tinyint("allow_regeneration").default(1).notNull(),
 	hiddenTheme: varchar("hidden_theme", { length: 50 }).default('default'),
 	vipIntroEnabled: tinyint("vip_intro_enabled").default(1).notNull(),
+	// Margen/comisión de plataforma sobre las ventas de este comercio. NULL/0 = inactivo;
+	// 8.00 o 12.00 = activo (se aplica como margin_pct al asentar la venta).
+	platformMarginPct: decimal("platform_margin_pct", { precision: 5, scale: 2 }),
 },
 (table) => {
 	return {
