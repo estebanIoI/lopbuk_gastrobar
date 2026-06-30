@@ -112,7 +112,24 @@ async function attachVariants<T extends { id: any }>(
   } catch { /* la tabla puede no existir aún */ }
   return products.map(p => {
     const variants = variantsByProduct.get(String(p.id)) || [];
-    return { ...p, variants, hasVariants: variants.length > 0 };
+    const hasVariants = variants.length > 0;
+    if (!hasVariants) return { ...p, variants, hasVariants };
+    // Los productos con variantes guardan products.stock = 0 (su stock real vive en las
+    // variantes). Exponemos el stock disponible AGREGADO para que la tienda no los marque
+    // "Agotado" cuando sus variantes sí tienen existencias.
+    const variantStock = variants.reduce(
+      (s: number, v: any) => s + Math.max(0, Number(v.stock ?? 0) - Number(v.reserved_stock ?? 0)),
+      0
+    );
+    // Si alguna variante es de preventa, el producto es comprable aunque no haya stock físico.
+    const anyPresale = variants.some((v: any) => Number(v.presale) === 1);
+    return {
+      ...p,
+      variants,
+      hasVariants,
+      stock: Math.max(Number((p as any).stock ?? 0), variantStock),
+      isPresale: (Number((p as any).isPresale ?? 0) === 1 || anyPresale) ? 1 : 0,
+    };
   }) as any;
 }
 
