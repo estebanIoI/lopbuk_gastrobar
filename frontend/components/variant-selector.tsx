@@ -15,7 +15,7 @@
  *
  * Es autocontenido y tematizable (claro/oscuro) para encajar en cualquier tienda.
  */
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { Check } from 'lucide-react'
 import { colorToCss } from '@/lib/colors'
 
@@ -265,6 +265,11 @@ export function VariantSelector({
   const chipActive = isLightBg
     ? 'border-black bg-black text-white'
     : 'border-white bg-white text-black'
+  // Estilo inline para el chip seleccionado: fuerza contraste negro/blanco con hex
+  // explícito, ganándole al remap de colorimetría del tema (que pisa text-white/bg-black).
+  const activeChipStyle: CSSProperties = isLightBg
+    ? { backgroundColor: '#111', color: '#fff', borderColor: '#111' }
+    : { backgroundColor: '#fff', color: '#111', borderColor: '#fff' }
   const chipDisabled = isLightBg
     ? 'border-black/10 text-black/25 line-through cursor-not-allowed'
     : 'border-white/10 text-white/25 line-through cursor-not-allowed'
@@ -330,6 +335,8 @@ export function VariantSelector({
                     type="button"
                     disabled={blocked}
                     onClick={() => selectComposition(comp)}
+                    // Inline en el activo: contraste negro/blanco garantizado (gana sobre el remap de tema)
+                    style={active ? activeChipStyle : undefined}
                     className={`px-4 py-2 rounded-full border-2 text-sm font-medium transition-all ${active ? chipActive : available ? chipIdle : allowOutOfStock ? chipPreorder : chipDisabled}`}
                   >
                     {weight != null && <span className="block text-[10px] font-semibold leading-tight">{weight} g</span>}
@@ -392,6 +399,8 @@ export function VariantSelector({
                     type="button"
                     disabled={blocked}
                     onClick={() => toggle(axis.key, val)}
+                    // Inline en el activo: contraste negro/blanco garantizado (gana sobre el remap de tema)
+                    style={active ? activeChipStyle : undefined}
                     className={`px-4 py-2 rounded-full border-2 text-sm font-medium transition-all ${active ? chipActive : available ? chipIdle : allowOutOfStock ? chipPreorder : chipDisabled}`}
                   >
                     {val}
