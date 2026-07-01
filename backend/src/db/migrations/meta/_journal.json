@@ -50,6 +50,13 @@
       "when": 1782797051069,
       "tag": "0006_graceful_scrambler",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1782866547991,
+      "tag": "0007_icy_groot",
+      "breakpoints": true
     }
   ]
 }

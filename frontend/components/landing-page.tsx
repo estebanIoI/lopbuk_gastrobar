@@ -400,7 +400,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   // ====== PAYMENT CONFIG STATE ======
   const [paymentConfig, setPaymentConfig] = useState<{
     mercadopago: boolean; addi: boolean; sistecredito: boolean; contraentrega: boolean
-  }>({ mercadopago: false, addi: false, sistecredito: false, contraentrega: true })
+    wompiEnabled?: boolean; contraentregaLabel?: string; contraentregaDesc?: string
+  }>({ mercadopago: false, addi: false, sistecredito: false, contraentrega: true, wompiEnabled: true, contraentregaLabel: 'Contra entrega', contraentregaDesc: 'Paga en efectivo cuando recibas tu pedido' })
   // Wompi (pasarela de plataforma) disponible para el storefront.
   const [wompiAvailable, setWompiAvailable] = useState(false)
   useEffect(() => {
@@ -2630,6 +2631,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
           onPagarConSistecredito={paymentConfig.sistecredito ? handlePagarConSistecredito : undefined}
           onPagarConWompi={wompiAvailable ? handlePagarConWompi : undefined}
           allowContraentrega={paymentConfig.contraentrega}
+          allowWompi={paymentConfig.wompiEnabled !== false}
+          contraentregaLabel={paymentConfig.contraentregaLabel}
+          contraentregaDesc={paymentConfig.contraentregaDesc}
           freeDeliveryMin={DELIVERY_FREE_MIN}
           deliveryFee={activeDeliveryFee}
           accentColor={(activeThemeColors as any)?.primary || '#3483fa'}
@@ -2722,6 +2726,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
           onPagarConSistecredito={paymentConfig.sistecredito ? handlePagarConSistecredito : undefined}
           onPagarConWompi={wompiAvailable ? handlePagarConWompi : undefined}
           allowContraentrega={paymentConfig.contraentrega}
+          allowWompi={paymentConfig.wompiEnabled !== false}
+          contraentregaLabel={paymentConfig.contraentregaLabel}
+          contraentregaDesc={paymentConfig.contraentregaDesc}
           freeDeliveryMin={DELIVERY_FREE_MIN}
           deliveryFee={activeDeliveryFee}
           mlStyle={productDetailStyle === 'ml'}

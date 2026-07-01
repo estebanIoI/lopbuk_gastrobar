@@ -2,6 +2,15 @@
 
 > Actualiza según prioridades. P1 = crítico, P2 = importante, P3 = mejora.
 
+### ✅ [2026-06-30] Métodos de pago del checkout configurables por comercio
+El comerciante decide qué métodos ve el cliente + textos editables (caso preventa).
+- **DB** (`store_info`, migración `0007_icy_groot`): `allow_wompi` (def 1), `contraentrega_label` (def "Contra entrega"), `contraentrega_desc` (def "Paga en efectivo cuando recibas tu pedido"). (`allow_contraentrega` ya existía.)
+- **Backend**: `payment-config/:slug` devuelve `wompiEnabled` + `contraentregaLabel/Desc`; `PUT /store-extended-info` (+ GET customization) los guarda/lee.
+- **Checkout** (`CheckoutView.tsx` + `checkout-wizard-ml.tsx`): método offline usa la etiqueta/desc editable; Wompi se oculta si `allow_wompi=0` (`showWompi = onPagarConWompi && allowWompi`). Ambos temas.
+- **Admin** (`store-customization.tsx`): toggle "Mostrar Wompi" + toggle contraentrega (ya existía) + campos "Nombre del método" / "Descripción" del método offline.
+- Cubre: "solo Wompi" (contraentrega off), "solo Confirmar pedido" preventa (wompi off + etiqueta custom), o ambos. MP/ADDI/Siste siguen auto-gateados por llaves.
+- tsc 0 errores (front+back). **Migración `0007` pendiente de aplicar.**
+
 ### 🧩 [2026-06-30] Productos Digitales (ex "Cartilla Inga") — Fase A hecha; faltan B + C
 Renombrado el catálogo público **"Cartilla Inga" → "Productos Digitales"** (`CatalogoCartillas.tsx`, solo display; la ruta sigue `/cartilla-inga`).
 

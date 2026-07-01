@@ -1198,17 +1198,24 @@ router.get('/payment-config/:storeSlug', async (req: Request, res: Response) => 
       process.env.SISTECREDITO_API_KEY
     );
 
-    // Read per-tenant contraentrega setting from store_info
+    // Config editable por comercio (visibilidad + textos) desde store_info.
     let contraentrega = true;
+    let wompiEnabled = true;
+    let contraentregaLabel = 'Contra entrega';
+    let contraentregaDesc = 'Paga en efectivo cuando recibas tu pedido';
     try {
       const [siRows] = await pool.query(
-        'SELECT allow_contraentrega FROM store_info WHERE tenant_id = ? LIMIT 1',
+        'SELECT allow_contraentrega, allow_wompi, contraentrega_label, contraentrega_desc FROM store_info WHERE tenant_id = ? LIMIT 1',
         [tenantId]
       ) as any;
-      if (siRows && siRows.length > 0 && siRows[0].allow_contraentrega !== undefined) {
-        contraentrega = siRows[0].allow_contraentrega === 1 || siRows[0].allow_contraentrega === true;
+      const si = siRows?.[0];
+      if (si) {
+        if (si.allow_contraentrega !== undefined) contraentrega = si.allow_contraentrega === 1 || si.allow_contraentrega === true;
+        if (si.allow_wompi !== undefined) wompiEnabled = si.allow_wompi === 1 || si.allow_wompi === true;
+        if (si.contraentrega_label) contraentregaLabel = String(si.contraentrega_label);
+        if (si.contraentrega_desc) contraentregaDesc = String(si.contraentrega_desc);
       }
-    } catch { /* column may not exist yet — default to true */ }
+    } catch { /* columnas aún no migradas → defaults seguros */ }
 
     res.json({
       success: true,
@@ -1217,12 +1224,17 @@ router.get('/payment-config/:storeSlug', async (req: Request, res: Response) => 
         addi,
         sistecredito,
         contraentrega,
+        // Visibilidad de Wompi por comercio (además de la disponibilidad de plataforma).
+        wompiEnabled,
+        // Textos editables del método offline (para preventa puede decir "Confirmar pedido").
+        contraentregaLabel,
+        contraentregaDesc,
       },
     });
   } catch (error) {
     console.error('Payment config error:', error);
     // On error, return safe defaults (only contraentrega)
-    res.json({ success: true, data: { mercadopago: false, addi: false, sistecredito: false, contraentrega: true } });
+    res.json({ success: true, data: { mercadopago: false, addi: false, sistecredito: false, contraentrega: true, wompiEnabled: true, contraentregaLabel: 'Contra entrega', contraentregaDesc: 'Paga en efectivo cuando recibas tu pedido' } });
   }
 });
 
@@ -1495,6 +1507,9 @@ router.get('/customization', authenticate, requirePlan('empresarial'), async (re
                 si.product_card_style as productCardStyle,
                 si.product_detail_style as productDetailStyle,
                 si.allow_contraentrega as allowContraentrega,
+                si.allow_wompi as allowWompi,
+                si.contraentrega_label as contraentregaLabel,
+                si.contraentrega_desc as contraentregaDesc,
                 si.logo_size as logoSize,
                 si.show_info_module as showInfoModule,
                 si.info_module_description as infoModuleDescription
@@ -1905,10 +1920,14 @@ router.put('/store-extended-info', authenticate, requirePlan('empresarial'), asy
       logoUrl, logoSize, schedule, locationMapUrl, termsContent, privacyContent, shippingTerms, paymentMethods,
       socialInstagram, socialFacebook, socialTiktok, socialWhatsapp,
       department, municipality, productCardStyle, productDetailStyle, allowContraentrega,
+      allowWompi, contraentregaLabel, contraentregaDesc,
       showInfoModule, infoModuleDescription, metaPixelId,
     } = req.body;
 
     const allowCod = allowContraentrega === false ? 0 : 1;
+    const allowWompiVal = allowWompi === false ? 0 : 1;
+    const ceLabel = (contraentregaLabel && String(contraentregaLabel).trim().slice(0, 60)) || 'Contra entrega';
+    const ceDesc = (contraentregaDesc && String(contraentregaDesc).trim().slice(0, 160)) || 'Paga en efectivo cuando recibas tu pedido';
     const infoModule = showInfoModule ? 1 : 0;
     const logoSizeNum = Number(logoSize) > 0 ? Math.max(16, Math.min(200, Math.round(Number(logoSize)))) : null;
 
@@ -1920,6 +1939,7 @@ router.put('/store-extended-info', authenticate, requirePlan('empresarial'), asy
           payment_methods = ?, social_instagram = ?, social_facebook = ?,
           social_tiktok = ?, social_whatsapp = ?,
           department = ?, municipality = ?, product_card_style = ?, product_detail_style = ?, allow_contraentrega = ?,
+          allow_wompi = ?, contraentrega_label = ?, contraentrega_desc = ?,
           show_info_module = ?, info_module_description = ?, meta_pixel_id = ?
          WHERE tenant_id = ?`,
         [
@@ -1927,6 +1947,7 @@ router.put('/store-extended-info', authenticate, requirePlan('empresarial'), asy
           paymentMethods || null, socialInstagram || null, socialFacebook || null,
           socialTiktok || null, socialWhatsapp || null,
           department || null, municipality || null, productCardStyle || 'style1', productDetailStyle || 'default', allowCod,
+          allowWompiVal, ceLabel, ceDesc,
           infoModule, infoModuleDescription || null, metaPixelId || null,
           tenantId,
         ]
