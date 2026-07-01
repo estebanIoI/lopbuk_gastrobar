@@ -414,7 +414,7 @@ export const cartillaCompras = mysqlTable("cartilla_compras", {
 	precio: decimal({ precision: 10, scale: 2 }).default('0.00').notNull(),
 	moneda: varchar({ length: 8 }).default('COP').notNull(),
 	estado: mysqlEnum(['gratis','pendiente','pagado','reembolsado']).default('pendiente').notNull(),
-	metodo: mysqlEnum(['gratis','stripe','credito','efectivo','manual']).default('manual').notNull(),
+	metodo: mysqlEnum(['gratis','stripe','credito','efectivo','manual','wompi']).default('manual').notNull(),
 	referencia: varchar({ length: 255 }),
 	pagadoEn: timestamp("pagado_en", { mode: 'string' }),
 	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),

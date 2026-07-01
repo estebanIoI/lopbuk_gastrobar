@@ -1,0 +1,1 @@
+ALTER TABLE `cartilla_compras` MODIFY COLUMN `metodo` enum('gratis','stripe','credito','efectivo','manual','wompi') NOT NULL DEFAULT 'manual';
