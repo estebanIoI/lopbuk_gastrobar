@@ -76,8 +76,13 @@ interface CheckoutViewProps {
   onPagarConSistecredito?: () => Promise<void>;
   // Wompi (tarjeta / PSE / Nequi)
   onPagarConWompi?: () => Promise<void>;
+  // Visibilidad de Wompi por comercio (además de la disponibilidad de plataforma)
+  allowWompi?: boolean;
   // Contraentrega toggle
   allowContraentrega?: boolean;
+  // Textos editables del método offline (para preventa puede decir "Confirmar pedido")
+  contraentregaLabel?: string;
+  contraentregaDesc?: string;
   // Mínimo para domicilio gratis
   freeDeliveryMin?: number;
   // Tarifa cobrada cuando no alcanza el mínimo
@@ -118,7 +123,10 @@ export function CheckoutView({
   onPagarConAddi,
   onPagarConSistecredito,
   onPagarConWompi,
+  allowWompi = true,
   allowContraentrega = true,
+  contraentregaLabel = 'Contra entrega',
+  contraentregaDesc = 'Paga en efectivo cuando recibas tu pedido',
   freeDeliveryMin = 0,
   deliveryFee = 0,
   mlStyle = false,
@@ -138,7 +146,9 @@ export function CheckoutView({
   const [errorSiste, setErrorSiste] = useState('');
   const [loadingWompi, setLoadingWompi] = useState(false);
   const [errorWompi, setErrorWompi] = useState('');
-  const defaultPayment = allowContraentrega ? 'contraentrega' : onPagarEnLinea ? 'mercadopago' : onPagarConAddi ? 'addi' : onPagarConSistecredito ? 'sistecredito' : onPagarConWompi ? 'wompi' : 'contraentrega';
+  // Wompi visible solo si la plataforma lo ofrece Y el comercio lo tiene activo.
+  const showWompi = !!onPagarConWompi && allowWompi;
+  const defaultPayment = allowContraentrega ? 'contraentrega' : onPagarEnLinea ? 'mercadopago' : onPagarConAddi ? 'addi' : onPagarConSistecredito ? 'sistecredito' : showWompi ? 'wompi' : 'contraentrega';
   const [paymentMethod, setPaymentMethod] = useState<'contraentrega' | 'mercadopago' | 'addi' | 'sistecredito' | 'wompi'>(defaultPayment);
   const [isLocatingAddress, setIsLocatingAddress] = useState(false);
   const [detectedAddress, setDetectedAddress] = useState<string | null>(null);
@@ -912,8 +922,8 @@ export function CheckoutView({
                           <rect x="35" y="28" width="5" height="5" rx="1" fill="#9CA3AF"/>
                         </svg>
                         <div className="flex-1 min-w-0">
-                          <span className="text-sm font-semibold text-gray-900">Contra entrega</span>
-                          <p className="text-xs text-gray-500 font-light mt-0.5">Paga en efectivo cuando recibas tu pedido</p>
+                          <span className="text-sm font-semibold text-gray-900">{contraentregaLabel}</span>
+                          <p className="text-xs text-gray-500 font-light mt-0.5">{contraentregaDesc}</p>
                         </div>
                       </label>
                       )}
@@ -1017,7 +1027,7 @@ export function CheckoutView({
                       )}
 
                       {/* Wompi */}
-                      {onPagarConWompi && (
+                      {showWompi && (
                         <label className={`flex items-center gap-3 p-3 border cursor-pointer transition-colors ${paymentMethod === 'wompi' ? 'border-[#3483fa] bg-blue-50' : 'border-gray-200 hover:border-gray-400'}`}>
                           <input type="radio" name="paymentMethod" value="wompi" checked={paymentMethod === 'wompi'} onChange={() => setPaymentMethod('wompi')} className="shrink-0" style={{ accentColor: '#3483fa' }} />
                           <svg viewBox="0 0 48 48" className="w-10 h-10 shrink-0" xmlns="http://www.w3.org/2000/svg">

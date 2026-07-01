@@ -3573,6 +3573,10 @@ export const storeInfo = mysqlTable("store_info", {
 	invoiceCopies: tinyint("invoice_copies").default(1).notNull(),
 	productCardStyle: varchar("product_card_style", { length: 20 }).default('style1'),
 	allowContraentrega: tinyint("allow_contraentrega").default(1).notNull(),
+	// Visibilidad y textos editables de los métodos de pago del checkout, por comercio.
+	allowWompi: tinyint("allow_wompi").default(1).notNull(),
+	contraentregaLabel: varchar("contraentrega_label", { length: 60 }).default('Contra entrega').notNull(),
+	contraentregaDesc: varchar("contraentrega_desc", { length: 160 }).default('Paga en efectivo cuando recibas tu pedido').notNull(),
 	onlineDiscountEnabled: tinyint("online_discount_enabled").default(0).notNull(),
 	ageGateEnabled: tinyint("age_gate_enabled").default(0).notNull(),
 	ageGateDescription: text("age_gate_description"),

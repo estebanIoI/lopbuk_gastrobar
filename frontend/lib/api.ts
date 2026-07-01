@@ -1514,7 +1514,8 @@ class ApiService {
     paymentMethods?: string; socialInstagram?: string; socialFacebook?: string;
     socialTiktok?: string; socialWhatsapp?: string;
     department?: string; municipality?: string; productCardStyle?: string; productDetailStyle?: string;
-    allowContraentrega?: boolean; showInfoModule?: boolean; infoModuleDescription?: string;
+    allowContraentrega?: boolean; allowWompi?: boolean; contraentregaLabel?: string; contraentregaDesc?: string;
+    showInfoModule?: boolean; infoModuleDescription?: string;
     metaPixelId?: string;
     contactPageEnabled?: boolean; contactPageTitle?: string; contactPageDescription?: string;
     contactPageImage?: string; contactPageProducts?: string[]; contactPageLinks?: { label: string; url: string }[];

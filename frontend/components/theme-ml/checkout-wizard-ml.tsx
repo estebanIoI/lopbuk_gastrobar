@@ -46,6 +46,9 @@ export interface CheckoutWizardMLProps {
   onPagarConSistecredito?: () => Promise<void>
   onPagarConWompi?: () => Promise<void>
   allowContraentrega?: boolean
+  allowWompi?: boolean
+  contraentregaLabel?: string
+  contraentregaDesc?: string
   freeDeliveryMin?: number
   deliveryFee?: number
   accentColor?: string
@@ -65,9 +68,13 @@ export function CheckoutWizardML(props: CheckoutWizardMLProps) {
     deliveryLatitude, deliveryLongitude, isDeliveryOrder = false, onLocationChange,
     onInputChange, onConfirmar, onCerrarModal, onVolver,
     onPagarEnLinea, onPagarConAddi, onPagarConSistecredito, onPagarConWompi,
-    allowContraentrega = true, freeDeliveryMin = 0, deliveryFee = 0,
+    allowContraentrega = true, allowWompi = true,
+    contraentregaLabel = 'Contra entrega', contraentregaDesc = 'Paga en efectivo cuando recibas tu pedido',
+    freeDeliveryMin = 0, deliveryFee = 0,
     accentColor = '#3483fa', storeName = 'la tienda',
   } = props
+  // Wompi visible solo si la plataforma lo ofrece Y el comercio lo tiene activo.
+  const showWompi = !!onPagarConWompi && allowWompi
 
   const accent = accentColor
 
@@ -86,7 +93,7 @@ export function CheckoutWizardML(props: CheckoutWizardMLProps) {
   const [locationError, setLocationError] = useState<string | null>(null)
 
   // Pago
-  const defaultPayment: PayMethod = allowContraentrega ? 'contraentrega' : onPagarEnLinea ? 'mercadopago' : onPagarConAddi ? 'addi' : onPagarConSistecredito ? 'sistecredito' : 'contraentrega'
+  const defaultPayment: PayMethod = allowContraentrega ? 'contraentrega' : onPagarEnLinea ? 'mercadopago' : onPagarConAddi ? 'addi' : onPagarConSistecredito ? 'sistecredito' : showWompi ? 'wompi' : 'contraentrega'
   const [payMethod, setPayMethod] = useState<PayMethod>(defaultPayment)
   const [loadingPay, setLoadingPay] = useState(false)
   const [payError, setPayError] = useState('')
@@ -370,11 +377,11 @@ export function CheckoutWizardML(props: CheckoutWizardMLProps) {
           <div className="space-y-3">
             <div className="bg-white rounded-xl border border-[#e6e6e6] divide-y divide-[#f0f0f0] overflow-hidden">
               {([
-                allowContraentrega && { id: 'contraentrega' as PayMethod, name: 'Pago contra entrega', desc: 'Paga en efectivo al recibir', color: '#6B7280' },
+                allowContraentrega && { id: 'contraentrega' as PayMethod, name: contraentregaLabel, desc: contraentregaDesc, color: '#6B7280' },
                 onPagarEnLinea && { id: 'mercadopago' as PayMethod, name: 'Tarjeta / PSE (Mercado Pago)', desc: '10% de descuento', color: '#009ee3' },
                 onPagarConAddi && { id: 'addi' as PayMethod, name: 'ADDI · Cuotas sin interés', desc: 'Aprobación inmediata', color: '#FF5E00' },
                 onPagarConSistecredito && { id: 'sistecredito' as PayMethod, name: 'Sistecrédito · Solo con cédula', desc: 'Compra a cuotas sin tarjeta', color: '#1A3FA0' },
-                onPagarConWompi && { id: 'wompi' as PayMethod, name: 'Pagar con Wompi', desc: 'Tarjeta, PSE, Nequi y más', color: '#3483fa' },
+                showWompi && { id: 'wompi' as PayMethod, name: 'Pagar con Wompi', desc: 'Tarjeta, PSE, Nequi y más', color: '#3483fa' },
               ].filter(Boolean) as { id: PayMethod; name: string; desc: string; color: string }[]).map(m => (
                 <button key={m.id} onClick={() => setPayMethod(m.id)} className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-[#fafafa]">
                   <span className="w-9 h-9 rounded-full shrink-0 flex items-center justify-center text-white text-[10px] font-bold" style={{ backgroundColor: m.color }}>

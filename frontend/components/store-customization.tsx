@@ -101,6 +101,9 @@ interface StoreExtendedInfo {
   productCardStyle: string
   productDetailStyle: string
   allowContraentrega: boolean
+  allowWompi: boolean
+  contraentregaLabel: string
+  contraentregaDesc: string
   showInfoModule: boolean
   infoModuleDescription: string
   metaPixelId: string
@@ -147,7 +150,8 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
     paymentMethods: '', socialInstagram: '', socialFacebook: '',
     socialTiktok: '', socialWhatsapp: '',
     department: '', municipality: '', productCardStyle: 'style1', productDetailStyle: 'default',
-    allowContraentrega: true, showInfoModule: false, infoModuleDescription: '', metaPixelId: '',
+    allowContraentrega: true, allowWompi: true, contraentregaLabel: 'Contra entrega', contraentregaDesc: 'Paga en efectivo cuando recibas tu pedido',
+    showInfoModule: false, infoModuleDescription: '', metaPixelId: '',
   })
 
   // Chatbot config
@@ -267,6 +271,9 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
             productCardStyle: result.data.storeInfo.productCardStyle || 'style1',
             productDetailStyle: result.data.storeInfo.productDetailStyle || 'default',
             allowContraentrega: result.data.storeInfo.allowContraentrega !== false,
+            allowWompi: result.data.storeInfo.allowWompi !== false,
+            contraentregaLabel: result.data.storeInfo.contraentregaLabel || 'Contra entrega',
+            contraentregaDesc: result.data.storeInfo.contraentregaDesc || 'Paga en efectivo cuando recibas tu pedido',
             showInfoModule: !!result.data.storeInfo.showInfoModule,
             infoModuleDescription: result.data.storeInfo.infoModuleDescription || '',
             metaPixelId: result.data.storeInfo.metaPixelId || '',
@@ -1628,6 +1635,62 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
                     <span
                       className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
                         storeInfo.allowContraentrega ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* Textos editables del método offline (para preventa: "Confirmar pedido"). */}
+                {storeInfo.allowContraentrega && (
+                  <div className="p-3 border rounded-lg bg-muted/20 space-y-2">
+                    <p className="text-xs text-muted-foreground">
+                      Personaliza cómo se ve ese método en el checkout. En preventa suele decir
+                      &quot;Confirmar pedido&quot; en vez de &quot;Contra entrega&quot;.
+                    </p>
+                    <div>
+                      <label className="text-xs font-medium mb-1 block">Nombre del método</label>
+                      <Input
+                        placeholder="Contra entrega"
+                        maxLength={60}
+                        value={storeInfo.contraentregaLabel}
+                        onChange={e => setStoreInfo(prev => ({ ...prev, contraentregaLabel: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium mb-1 block">Descripción</label>
+                      <Input
+                        placeholder="Paga en efectivo cuando recibas tu pedido"
+                        maxLength={160}
+                        value={storeInfo.contraentregaDesc}
+                        onChange={e => setStoreInfo(prev => ({ ...prev, contraentregaDesc: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Toggle de Wompi por comercio */}
+                <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
+                  <div>
+                    <p className="text-sm font-medium flex items-center gap-1">
+                      <CreditCard className="h-3 w-3" />
+                      Mostrar Wompi (tarjeta / PSE / Nequi)
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {storeInfo.allowWompi
+                        ? 'Los clientes pueden pagar en línea con Wompi'
+                        : 'Wompi oculto en el checkout de esta tienda'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setStoreInfo(prev => ({ ...prev, allowWompi: !prev.allowWompi }))}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+                      storeInfo.allowWompi ? 'bg-green-500' : 'bg-gray-300'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                        storeInfo.allowWompi ? 'translate-x-6' : 'translate-x-1'
                       }`}
                     />
                   </button>
