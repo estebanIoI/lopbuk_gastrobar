@@ -14,6 +14,7 @@
  *   - AppError('mensaje', httpCode) para errores controlados.
  */
 import { v4 as uuidv4 } from 'uuid';
+import { randomBytes } from 'crypto';
 import { db } from '../../config';
 import { AppError } from '../../common/middleware';
 import { RowDataPacket, ResultSetHeader } from 'mysql2';
@@ -676,7 +677,7 @@ async function crearWompiCheckout(cartilla: RowDataPacket, usuarioId: string, co
       amountInCents: Math.round(Number(cartilla.precio) * 100),
       currency: cartilla.moneda || 'COP',
       customerEmail: email,
-      redirectUrl: `${frontend}/cartilla-inga/${cartilla.slug}`,
+      redirectUrl: `${frontend}/productos-digitales/${cartilla.slug}`,
     });
     await db.query(`UPDATE cartilla_compras SET referencia = ? WHERE id = ?`, [r.reference, compraId]);
     return r.checkoutUrl;
@@ -704,14 +705,97 @@ async function crearStripeCheckout(cartilla: RowDataPacket, usuarioId: string, c
         quantity: 1,
       }],
       metadata: { compraId, cartillaId: cartilla.id, usuarioId },
-      success_url: `${process.env.FRONTEND_URL || ''}/cartilla-inga/${cartilla.slug}?compra=ok`,
-      cancel_url: `${process.env.FRONTEND_URL || ''}/cartilla-inga/${cartilla.slug}?compra=cancelada`,
+      success_url: `${process.env.FRONTEND_URL || ''}/productos-digitales/${cartilla.slug}?compra=ok`,
+      cancel_url: `${process.env.FRONTEND_URL || ''}/productos-digitales/${cartilla.slug}?compra=cancelada`,
     });
     await db.query(`UPDATE cartilla_compras SET referencia = ? WHERE id = ?`, [session.id, compraId]);
     return session.url || null;
   } catch {
     return null;
   }
+}
+
+/** Crea un Web Checkout de Wompi para una compra de INVITADO. Redirige a la pantalla de éxito con el token. */
+async function crearWompiCheckoutInvitado(cartilla: RowDataPacket, compraId: string, token: string, email?: string): Promise<string | null> {
+  try {
+    const { createCheckout } = await import('../payments/payments.service');
+    const frontend = process.env.FRONTEND_URL || '';
+    const r = await createCheckout({
+      context: 'cartilla',
+      contextId: compraId, // el monto/tenant se resuelven en el server desde cartilla_compras
+      tenantId: cartilla.tenant_id,
+      amountInCents: Math.round(Number(cartilla.precio) * 100),
+      currency: cartilla.moneda || 'COP',
+      customerEmail: email,
+      redirectUrl: `${process.env.FRONTEND_URL || ''}/productos-digitales/exito?c=${token}`,
+    });
+    await db.query(`UPDATE cartilla_compras SET referencia = ? WHERE id = ?`, [r.reference, compraId]);
+    return r.checkoutUrl;
+  } catch (e) {
+    console.error('crearWompiCheckoutInvitado error:', e);
+    return null;
+  }
+}
+
+/**
+ * Compra de un producto digital SIN cuenta (invitado). Crea la compra con los datos
+ * del comprador + un token público y devuelve la URL de Wompi. El acceso/descargas se
+ * recuperan luego con ese token en la pantalla de éxito (obtenerCompraPorToken).
+ */
+export async function comprarCartillaInvitado(idOrSlug: string, datos: { nombre?: string; email?: string; telefono?: string }) {
+  const nombre = String(datos?.nombre || '').trim();
+  const email = String(datos?.email || '').trim();
+  const telefono = String(datos?.telefono || '').trim();
+  if (nombre.length < 2) throw new AppError('Ingresa tu nombre', 400);
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new AppError('Ingresa un correo válido', 400);
+
+  const [rows] = await db.query<RowDataPacket[]>(
+    `SELECT * FROM cartillas WHERE (id = ? OR slug = ?) AND is_active = TRUE LIMIT 1`, [idOrSlug, idOrSlug]);
+  if (rows.length === 0) throw new AppError('Producto no encontrado', 404);
+  const c = rows[0];
+  const token = randomBytes(24).toString('hex'); // 48 hex chars, no adivinable
+
+  if (c.es_gratis) {
+    // Gratis: sin pago; se emite acceso por token de inmediato.
+    await db.query(
+      `INSERT INTO cartilla_compras (id, tenant_id, cartilla_id, usuario_id, precio, moneda, estado, metodo, token, guest_nombre, guest_email, guest_telefono, pagado_en)
+       VALUES (?,?,?,?,?,?,'gratis','gratis',?,?,?,?,NOW())`,
+      [uuidv4(), c.tenant_id, c.id, null, 0, c.moneda, token, nombre, email, telefono || null]);
+    return { token, checkoutUrl: null, gratis: true };
+  }
+
+  const compraId = uuidv4();
+  await db.query(
+    `INSERT INTO cartilla_compras (id, tenant_id, cartilla_id, usuario_id, precio, moneda, estado, metodo, token, guest_nombre, guest_email, guest_telefono)
+     VALUES (?,?,?,?,?,?,'pendiente','wompi',?,?,?,?)`,
+    [compraId, c.tenant_id, c.id, null, c.precio, c.moneda, token, nombre, email, telefono || null]);
+
+  const checkoutUrl = await crearWompiCheckoutInvitado(c, compraId, token, email);
+  if (!checkoutUrl) throw new AppError('No se pudo iniciar el pago con Wompi. Intenta de nuevo.', 502);
+  return { token, checkoutUrl, gratis: false };
+}
+
+/** Estado + descargas de una compra por su token público (pantalla de éxito del invitado). */
+export async function obtenerCompraPorToken(token: string) {
+  const [rows] = await db.query<RowDataPacket[]>(
+    `SELECT co.*, c.slug, c.titulo, c.autor, c.tipo, c.portada_url
+       FROM cartilla_compras co JOIN cartillas c ON c.id = co.cartilla_id
+      WHERE co.token = ? LIMIT 1`, [token]);
+  if (rows.length === 0) throw new AppError('Compra no encontrada', 404);
+  const co = rows[0];
+  const pagada = co.estado === 'pagado' || co.estado === 'gratis';
+  const archivosRaw = await listarArchivos(co.cartilla_id);
+  const archivos = archivosRaw.map((a: any) => ({
+    id: a.id, nombre: a.nombre, tipo: a.tipo, sizeBytes: a.sizeBytes,
+    url: pagada ? a.url : null, locked: !pagada,
+  }));
+  return {
+    token, estado: co.estado, pagada,
+    slug: co.slug, titulo: co.titulo, autor: co.autor, tipo: co.tipo, portadaUrl: co.portada_url,
+    precio: Number(co.precio), moneda: co.moneda,
+    comprador: { nombre: co.guest_nombre, email: co.guest_email },
+    archivos,
+  };
 }
 
 /** Marca una compra como pagada y concede acceso (webhook Stripe / admin del comercio). */

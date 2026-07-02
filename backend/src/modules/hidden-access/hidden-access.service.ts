@@ -31,6 +31,30 @@ function verifyToken(token: string): { tenantId: string; nonce: string } | null 
   return sig === expected ? { tenantId, nonce } : null
 }
 
+// ── Grant de acceso (tras validar token/código): permite servir la tienda oculta
+//    por su slug SOLO a quien probó el token. Corto (12h) y firmado. Formato:
+//    `<tenantId>.<expMs>.<sig>`
+const GRANT_TTL_MS = 12 * 60 * 60 * 1000
+
+export function signGrant(tenantId: string): string {
+  const exp = Date.now() + GRANT_TTL_MS
+  const sig = createHmac('sha256', HMAC_SECRET).update(`grant.${tenantId}.${exp}`).digest('base64url')
+  return `${tenantId}.${exp}.${sig}`
+}
+
+/** ¿El grant es válido y corresponde a este tenant (y no expiró)? */
+export function verifyStoreGrant(grant: string | undefined | null, tenantId: string): boolean {
+  if (!grant || typeof grant !== 'string') return false
+  const parts = grant.split('.')
+  if (parts.length !== 3) return false
+  const [gTenant, expStr, sig] = parts
+  if (gTenant !== tenantId) return false
+  const exp = Number(expStr)
+  if (!Number.isFinite(exp) || exp < Date.now()) return false
+  const expected = createHmac('sha256', HMAC_SECRET).update(`grant.${gTenant}.${exp}`).digest('base64url')
+  return sig === expected
+}
+
 // ── Service ───────────────────────────────────────────────────────────────────
 
 export async function generateHiddenAccess(tenantId: string, expiresInDays?: number) {
@@ -109,6 +133,7 @@ export async function validateHiddenToken(rawToken: string) {
       city: store.city,
       hiddenTheme: store.hiddenTheme || 'default',
       vipIntroEnabled: Boolean(store.vipIntroEnabled),
+      grant: signGrant(store.id),
     },
   }
 }
@@ -138,6 +163,7 @@ export async function validateHiddenCode(code: string) {
       cardDescription: store.cardDescription,
       hiddenTheme: store.hiddenTheme || 'default',
       vipIntroEnabled: Boolean(store.vipIntroEnabled),
+      grant: signGrant(store.id),
     },
   }
 }

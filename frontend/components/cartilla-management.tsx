@@ -119,7 +119,7 @@ export function CartillaManagement() {
           <p className="text-gray-500 text-sm">Publica cartillas, libros y cursos. Gratis o con precio.</p>
         </div>
         <div className="flex items-center gap-2">
-          <a href="/cartilla-inga" target="_blank" className="text-sm text-emerald-700 inline-flex items-center gap-1 px-3 py-2 rounded-lg hover:bg-emerald-50">
+          <a href="/productos-digitales" target="_blank" className="text-sm text-emerald-700 inline-flex items-center gap-1 px-3 py-2 rounded-lg hover:bg-emerald-50">
             Ver catálogo <ExternalLink className="w-3.5 h-3.5" />
           </a>
           <button onClick={() => setEditing(empty())} className="bg-emerald-600 text-white px-4 py-2 rounded-lg font-medium inline-flex items-center gap-2 hover:bg-emerald-700">

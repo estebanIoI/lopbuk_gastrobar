@@ -9,8 +9,9 @@
 //    (ver daimuz/decisions/lopbuk-landing-superadmin-plan.md).
 // ════════════════════════════════════════════════════════════════════════════
 import { useEffect, useState } from 'react'
+import { LOGIN_PATH } from '@/lib/login-path'
 
-const LOGIN_URL = '/login'
+const LOGIN_URL = LOGIN_PATH
 const WHATSAPP = 'https://wa.me/573000000000'
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'
 

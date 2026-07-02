@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useStore } from '@/lib/store'
 import { useAuthStore } from '@/lib/auth-store'
+import { loginHref } from '@/lib/login-path'
 import { MerchantPanel } from '@/components/merchant-panel'
 import { sectionForSlug, DEFAULT_SLUG } from '@/lib/panel-sections'
 import { FullPageLoader } from '@/components/box-loader'
@@ -46,7 +47,7 @@ export default function PanelSectionPage() {
     if (isCheckingAuth) return
     if (!isAuthenticated) {
       const next = encodeURIComponent(`/panel/${slug}`)
-      router.replace(`/login?next=${next}`)
+      router.replace(loginHref(next))
       return
     }
     setReady(true)

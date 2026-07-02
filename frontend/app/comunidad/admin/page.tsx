@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/lib/auth-store'
+import { loginHref } from '@/lib/login-path'
 import { CommunityAdmin } from '@/components/community/community-admin'
 import { BoxLoader } from '@/components/box-loader'
 
@@ -16,7 +17,7 @@ export default function ComunidadAdminPage() {
 
   useEffect(() => {
     if (isCheckingAuth) return
-    if (!isAuthenticated) { router.replace('/login?next=/comunidad/admin'); return }
+    if (!isAuthenticated) { router.replace(loginHref('/comunidad/admin')); return }
     if (user?.role !== 'comunidad_admin') { router.replace('/comunidad'); return }
     setReady(true)
   }, [isAuthenticated, isCheckingAuth, user, router])

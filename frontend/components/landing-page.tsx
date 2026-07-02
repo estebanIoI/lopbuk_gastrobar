@@ -253,6 +253,20 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   const [selectedStore, setSelectedStore] = useState<string>(() => {
     return getStoreSlugFromUrl() || 'all'
   })
+
+  // Grant de acceso a TIENDA OCULTA: viene por ?hg= (desde /hidden/[token]) y se
+  // persiste por tienda. El storefront lo reenvía en cada request; sin él, una
+  // tienda oculta responde 404 aunque se conozca su slug.
+  const hiddenGrant = useMemo<string>(() => {
+    if (typeof window === 'undefined' || !selectedStore || selectedStore === 'all') return ''
+    try {
+      const fromUrl = new URLSearchParams(window.location.search).get('hg')
+      if (fromUrl) { try { sessionStorage.setItem(`hg:${selectedStore}`, fromUrl) } catch { /* noop */ } ; return fromUrl }
+      return sessionStorage.getItem(`hg:${selectedStore}`) || ''
+    } catch { return '' }
+  }, [selectedStore])
+  const grantQ = hiddenGrant ? `&hg=${encodeURIComponent(hiddenGrant)}` : ''   // para URLs con query previa
+  const grantQ1 = hiddenGrant ? `?hg=${encodeURIComponent(hiddenGrant)}` : ''  // para URLs sin query
   const [showStoresView, setShowStoresView] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search)
@@ -510,8 +524,10 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
     const onStorePath = /^\/t\//.test(window.location.pathname)
     if (selectedStore && selectedStore !== 'all') {
-      const target = `/t/${encodeURIComponent(selectedStore)}`
-      if (window.location.pathname !== target) {
+      // Conserva el grant de tienda oculta en la URL (si lo hay) para sobrevivir refresh.
+      const hg = new URLSearchParams(window.location.search).get('hg')
+      const target = `/t/${encodeURIComponent(selectedStore)}${hg ? `?hg=${encodeURIComponent(hg)}` : ''}`
+      if (window.location.pathname + window.location.search !== target) {
         window.history.replaceState({}, '', target)
       }
     } else if (onStorePath) {
@@ -1038,7 +1054,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         const munParam = clientMunicipality ? `&municipality=${encodeURIComponent(clientMunicipality)}` : ''
         const noLocationParam = !clientMunicipality && locationSkipped ? '&no_location=true' : ''
         const sedeParam = activeSede ? `&sede=${activeSede}` : ''
-        const res = await fetch(`${API_URL}/storefront/products?limit=200${storeParam}${munParam}${noLocationParam}${sedeParam}`)
+        const res = await fetch(`${API_URL}/storefront/products?limit=200${storeParam}${munParam}${noLocationParam}${sedeParam}${grantQ}`)
         const json = await res.json()
         if (json.success && json.data?.products) {
           setProducts(json.data.products)
@@ -1064,7 +1080,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     const fetchCategories = async () => {
       try {
         const storeParam = selectedStore !== 'all' ? `?store=${selectedStore}` : ''
-        const res = await fetch(`${API_URL}/storefront/categories${storeParam}`)
+        const res = await fetch(`${API_URL}/storefront/categories${storeParam}${grantQ}`)
         const json = await res.json()
         if (json.success && json.data) {
           setCategories(json.data)
@@ -1084,7 +1100,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     const fetchSedes = async () => {
       if (!selectedStore || selectedStore === 'all') { setStoreSedes([]); setActiveSede(null); return }
       try {
-        const res = await fetch(`${API_URL}/storefront/sedes?store=${selectedStore}`)
+        const res = await fetch(`${API_URL}/storefront/sedes?store=${selectedStore}${grantQ}`)
         const json = await res.json()
         if (json.success && json.data) {
           setStoreSedes(json.data)
@@ -1204,7 +1220,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       setLoadingOffers(true)
       try {
         const storeParam = selectedStore !== 'all' ? `?store=${selectedStore}` : ''
-        const res = await fetch(`${API_URL}/storefront/offers${storeParam}`)
+        const res = await fetch(`${API_URL}/storefront/offers${storeParam}${grantQ}`)
         const json = await res.json()
         if (json.success && json.data) {
           setOfferProducts(json.data)
@@ -1226,7 +1242,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     }
     const fetchStoreConfig = async () => {
       try {
-        const res = await fetch(`${API_URL}/storefront/store-config/${selectedStore}`)
+        const res = await fetch(`${API_URL}/storefront/store-config/${selectedStore}${grantQ1}`)
         const json = await res.json()
         if (json.success && json.data) {
           setStoreConfig(json.data)
@@ -1237,7 +1253,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     }
     const fetchPaymentConfig = async () => {
       try {
-        const res = await fetch(`${API_URL}/storefront/payment-config/${selectedStore}`)
+        const res = await fetch(`${API_URL}/storefront/payment-config/${selectedStore}${grantQ1}`)
         const json = await res.json()
         if (json.success && json.data) {
           setPaymentConfig(json.data)
@@ -8046,7 +8062,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
             if (found) { openProductModal(found); return }
             // 2. Fetch full list from storefront API (fallback for paginated stores)
             try {
-              const r = await fetch(`${API_URL}/storefront/products?store=${selectedStore}&limit=200`)
+              const r = await fetch(`${API_URL}/storefront/products?store=${selectedStore}&limit=200${grantQ}`)
               const j = await r.json()
               if (j.success && j.data?.products) {
                 const match = (j.data.products as any[]).find((p: any) => String(p.id) === String(productId))

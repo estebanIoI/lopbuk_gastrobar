@@ -1,14 +1,15 @@
 'use client'
 
-// Cartilla ACTIVA (scope: cartilla-(slug)). Si es de pago y el usuario no tiene
-// acceso, CartillaPage muestra el muro de pago; si es gratis o adquirida,
-// monta la experiencia completa (módulos, actividades, comunidad, retos).
-import { useParams } from 'next/navigation'
-import CartillaPage from '@/cartilla-inga/CartillaPage'
+// Ruta legada: /cartilla-inga/[slug] → /productos-digitales/[slug] (canónica).
+import { useEffect } from 'react'
+import { useParams, useRouter } from 'next/navigation'
 
-export default function CartillaIngaActivaPage() {
+export default function CartillaIngaActivaLegacyRedirect() {
+  const router = useRouter()
   const params = useParams()
   const slug = Array.isArray(params?.slug) ? params.slug[0] : (params?.slug as string)
-  if (!slug) return null
-  return <CartillaPage slug={slug} />
+  useEffect(() => {
+    router.replace(slug ? `/productos-digitales/${slug}` : '/productos-digitales')
+  }, [router, slug])
+  return <div className="min-h-screen bg-[#F5F5F5]" />
 }

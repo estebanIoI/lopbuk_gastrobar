@@ -4,6 +4,7 @@ import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Search, Loader2, Sparkles } from 'lucide-react'
 import { useAuthStore } from '@/lib/auth-store'
+import { loginHref } from '@/lib/login-path'
 import { communityApi, type CommunityPost } from './api'
 import { PostCard } from './post-card'
 import { CommunitySidebar, AboutCard } from './community-sidebar'
@@ -62,7 +63,7 @@ export function CommunityFeed() {
     return () => io.disconnect()
   }, [hasMore, load])
 
-  const requireLogin = () => router.push('/login?next=/comunidad')
+  const requireLogin = () => router.push(loginHref('/comunidad'))
 
   return (
     <div className="min-h-screen bg-gray-50">
