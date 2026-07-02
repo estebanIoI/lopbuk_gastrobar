@@ -8,6 +8,7 @@ import {
   Users, Award, Headphones, Rocket, CheckCircle2,
 } from 'lucide-react'
 import { useAuthStore } from '@/lib/auth-store'
+import { loginHref } from '@/lib/login-path'
 import { theme4Api, type Theme4Config, type Service, type Stat, type Step, type TeamMember, type Testimonial } from './types'
 
 const ICONS: Record<string, React.ElementType> = {
@@ -202,7 +203,7 @@ export function CommunityBar({ slug, accent, initial }: { slug: string; accent: 
   const [s, setS] = useState(initial)
 
   const react = async (type: 'like' | 'save') => {
-    if (!isAuthenticated) { router.push(`/login?next=/t/${slug}`); return }
+    if (!isAuthenticated) { router.push(loginHref(`/t/${slug}`)); return }
     try {
       const r = await theme4Api.react(slug, type)
       setS(prev => ({ ...prev, likes: r.likes, saves: r.saves, liked: type === 'like' ? r.active : prev.liked, saved: type === 'save' ? r.active : prev.saved }))

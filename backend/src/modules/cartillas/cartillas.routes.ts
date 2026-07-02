@@ -181,6 +181,18 @@ router.get('/catalogo/:slug', optionalAuth, async (req: AuthRequest, res: Respon
   catch (e) { fail(res, e, 'Error al obtener la cartilla'); }
 });
 
+// ── Compra como INVITADO (sin cuenta) — público ──
+// Crea la compra + checkout Wompi; el acceso/descargas se recuperan por token.
+router.post('/:cartillaId/comprar-invitado', async (req, res) => {
+  try { ok(res, await svc.comprarCartillaInvitado(req.params.cartillaId, req.body || {}), 201); }
+  catch (e) { fail(res, e, 'No se pudo iniciar la compra'); }
+});
+// Estado + descargas de la compra por token (pantalla de éxito).
+router.get('/compra/:token', async (req, res) => {
+  try { ok(res, await svc.obtenerCompraPorToken(req.params.token)); }
+  catch (e) { fail(res, e, 'Compra no encontrada'); }
+});
+
 // Comentarios (lectura pública)
 router.get('/comunidad/:pubId/comentarios', async (req, res) => {
   try { ok(res, await svc.listarComentarios(req.params.pubId)); }

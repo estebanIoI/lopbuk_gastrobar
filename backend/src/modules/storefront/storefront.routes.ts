@@ -5,8 +5,40 @@ import pool from '../../config/database';
 import { authenticate, requirePlan } from '../../common/middleware';
 import { computeOpenState, computeNextOpen } from '../../utils/store-hours';
 import { themePaletteService } from './theme-palette.service';
+import { verifyStoreGrant } from '../hidden-access/hidden-access.service';
 
 const router: ReturnType<typeof Router> = Router();
+
+/** Grant de acceso a tienda oculta, tomado del query (?hg=) o del header. */
+const grantFrom = (req: Request): string | undefined =>
+  (req.query.hg as string) || (req.headers['x-hidden-grant'] as string) || undefined;
+
+/**
+ * Resuelve un tenant ACTIVO por slug para endpoints públicos. Si la tienda es
+ * OCULTA (is_hidden), exige un grant válido (emitido por /hidden-access al validar
+ * el token/código); sin él, se comporta como inexistente → la tienda no es accesible
+ * por su slug "a pelo". Devuelve la fila (con las columnas extra pedidas) o null.
+ */
+async function resolvePublicTenantBySlug(
+  slug: string, grant?: string, extraCols = ''
+): Promise<any | null> {
+  const cols = `id, is_hidden${extraCols ? ', ' + extraCols : ''}`;
+  const [rows] = await pool.query(
+    `SELECT ${cols} FROM tenants WHERE status = ? AND slug = ? LIMIT 1`,
+    ['activo', slug]
+  ) as any;
+  const t = rows?.[0];
+  if (!t) return null;
+  if (t.is_hidden && !verifyStoreGrant(grant, t.id)) return null;
+  return t;
+}
+
+/** Igual que resolvePublicTenantBySlug pero con forma de array ([] | [row]) para
+ *  reemplazar mínimamente los `const [tenants] = await pool.query(...)` existentes. */
+async function resolvePublicTenantRows(slug: string, grant?: string, extraCols = ''): Promise<any[]> {
+  const t = await resolvePublicTenantBySlug(slug, grant, extraCols);
+  return t ? [t] : [];
+}
 
 const THEME_COLORS_KEY = (tenantId: string) => `store_theme_colors:${tenantId}`;
 
@@ -164,11 +196,8 @@ router.get(
       const showAll = !store || store === 'all';
 
       if (!showAll) {
-        const [tenants] = await pool.query(
-          'SELECT id FROM tenants WHERE status = ? AND slug = ? LIMIT 1',
-          ['activo', store]
-        ) as any;
-        if (tenants && tenants.length > 0) tenantId = tenants[0].id;
+        const t = await resolvePublicTenantBySlug(store, grantFrom(req));
+        if (t) tenantId = t.id;
       }
 
       let whereClause: string;
@@ -343,10 +372,7 @@ router.get('/categories', async (req: Request, res: Response) => {
     let tenantId: string | null = null;
 
     if (store) {
-      const [tenants] = await pool.query(
-        'SELECT id FROM tenants WHERE status = ? AND slug = ? LIMIT 1',
-        ['activo', store]
-      ) as any;
+      const tenants = await resolvePublicTenantRows(store, grantFrom(req)) as any;
       if (tenants && tenants.length > 0) tenantId = tenants[0].id;
     }
 
@@ -383,10 +409,7 @@ router.get('/sedes', async (req: Request, res: Response) => {
   try {
     const store = req.query.store as string | undefined;
     if (!store) return res.json({ success: true, data: [] });
-    const [tenants] = await pool.query(
-      'SELECT id FROM tenants WHERE status = ? AND slug = ? LIMIT 1',
-      ['activo', store]
-    ) as any;
+    const tenants = await resolvePublicTenantRows(store, grantFrom(req)) as any;
     if (!tenants?.length) return res.json({ success: true, data: [] });
     const [rows] = await pool.query(
       'SELECT id, name, address FROM sedes WHERE tenant_id = ? ORDER BY created_at ASC',
@@ -784,10 +807,7 @@ router.get('/offers', async (req: Request, res: Response) => {
     const params: any[] = [];
 
     if (store && store !== 'all') {
-      const [tenants] = await pool.query(
-        'SELECT id FROM tenants WHERE status = ? AND slug = ? LIMIT 1',
-        ['activo', store]
-      ) as any;
+      const tenants = await resolvePublicTenantRows(store, grantFrom(req)) as any;
       if (tenants && tenants.length > 0) {
         tenantFilter = 'AND p.tenant_id = ?';
         params.push(tenants[0].id);
@@ -834,19 +854,15 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
   try {
     const { storeSlug } = req.params;
 
-    const [tenants] = await pool.query(
-      'SELECT id, bg_color, public_menu_enabled FROM tenants WHERE status = ? AND slug = ? LIMIT 1',
-      ['activo', storeSlug]
-    ) as any;
-
-    if (!tenants || tenants.length === 0) {
+    const tenant = await resolvePublicTenantBySlug(storeSlug, grantFrom(req), 'bg_color, public_menu_enabled');
+    if (!tenant) {
       res.status(404).json({ success: false, error: 'Tienda no encontrada' });
       return;
     }
 
-    const tenantId = tenants[0].id;
-    const tenantBgColor = tenants[0].bg_color || '#000000';
-    const publicMenuEnabled = !!tenants[0].public_menu_enabled;
+    const tenantId = tenant.id;
+    const tenantBgColor = tenant.bg_color || '#000000';
+    const publicMenuEnabled = !!tenant.public_menu_enabled;
 
     // Banners (table may not exist if migration not run yet)
     let banners: any[] = [];
@@ -1161,10 +1177,7 @@ router.get('/payment-config/:storeSlug', async (req: Request, res: Response) => 
   try {
     const { storeSlug } = req.params;
 
-    const [tenants] = await pool.query(
-      'SELECT id FROM tenants WHERE status = ? AND slug = ? LIMIT 1',
-      ['activo', storeSlug]
-    ) as any;
+    const tenants = await resolvePublicTenantRows(storeSlug, grantFrom(req)) as any;
 
     if (!tenants || tenants.length === 0) {
       res.status(404).json({ success: false, error: 'Tienda no encontrada' });
@@ -2456,10 +2469,7 @@ router.get('/order-bump', async (req: Request, res: Response) => {
     }
 
     // Get tenant
-    const [tenants] = await pool.query(
-      'SELECT id FROM tenants WHERE status = ? AND slug = ? LIMIT 1',
-      ['activo', store]
-    ) as any;
+    const tenants = await resolvePublicTenantRows(store, grantFrom(req)) as any;
 
     if (!tenants || tenants.length === 0) {
       res.json({ success: true, data: { isEnabled: false, products: [], title: '' } });
@@ -2613,10 +2623,7 @@ router.get('/new-launches', async (req: Request, res: Response) => {
     const params: any[] = [];
 
     if (store && store !== 'all') {
-      const [tenants] = await pool.query(
-        'SELECT id FROM tenants WHERE status = ? AND slug = ? LIMIT 1',
-        ['activo', store]
-      ) as any;
+      const tenants = await resolvePublicTenantRows(store, grantFrom(req)) as any;
       if (tenants && tenants.length > 0) {
         tenantFilter = 'AND p.tenant_id = ?';
         params.push(tenants[0].id);

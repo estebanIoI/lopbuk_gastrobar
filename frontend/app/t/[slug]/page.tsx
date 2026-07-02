@@ -7,6 +7,7 @@ import { Theme2Storefront } from '@/components/theme2/theme2-storefront'
 import { ProfileThemeThree } from '@/components/profile-theme3/profile-theme-three'
 import { Theme4Layout } from '@/components/theme4/theme4-layout'
 import { BoxLoader } from '@/components/box-loader'
+import { loginHref } from '@/lib/login-path'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'
 
@@ -50,5 +51,5 @@ export default function StoreBySlugPage() {
   if (theme === 'theme3') return <ProfileThemeThree slug={slug} />
   if (theme === 'theme4') return <Theme4Layout slug={slug} />
 
-  return <LandingPage onGoToLogin={() => router.push('/login')} />
+  return <LandingPage onGoToLogin={() => router.push(loginHref())} />
 }

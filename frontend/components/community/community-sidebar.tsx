@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react'
 import { Sparkles, Store, ShoppingBag, ArrowRight, TrendingUp, Tag } from 'lucide-react'
 import { communityApi, formatCOP, type PublicProductLite } from './api'
+import { LOGIN_PATH } from '@/lib/login-path'
 
 /** Tarjeta "Sobre DAIMUZ" — se muestra también compacta en móvil. */
 export function AboutCard({ compact = false }: { compact?: boolean }) {
@@ -62,7 +63,7 @@ function MerchantCTA() {
     <div className="rounded-2xl border border-gray-100 bg-white p-4">
       <h3 className="font-bold text-gray-900 text-sm flex items-center gap-1.5"><Tag className="w-4 h-4 text-emerald-600" /> ¿Tienes un comercio?</h3>
       <p className="text-xs text-gray-500 mt-1">Publica tus productos y aparece en la comunidad.</p>
-      <a href="/login" className="mt-2.5 inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-700">Empezar <ArrowRight className="w-4 h-4" /></a>
+      <a href={LOGIN_PATH} className="mt-2.5 inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-700">Empezar <ArrowRight className="w-4 h-4" /></a>
     </div>
   )
 }

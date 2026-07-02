@@ -193,8 +193,35 @@ export const cartillasAPI = {
       `/cartillas/${encodeURIComponent(slug)}/comprar`,
       { method: 'POST', headers: headers(true), body: JSON.stringify({ metodo }) }
     ),
+  /** Compra sin cuenta: devuelve token + URL de Wompi (o gratis=true). */
+  comprarInvitado: (slug: string, datos: { nombre: string; email: string; telefono?: string }) =>
+    request<{ token: string; checkoutUrl: string | null; gratis: boolean }>(
+      `/cartillas/${encodeURIComponent(slug)}/comprar-invitado`,
+      { method: 'POST', headers: headers(false), body: JSON.stringify(datos) }
+    ),
+  /** Estado + descargas de una compra por su token público (pantalla de éxito). */
+  compraPorToken: (token: string) =>
+    request<CompraTokenAPI>(`/cartillas/compra/${encodeURIComponent(token)}`, { headers: headers(false) }),
   misCompras: () => request<any[]>(`/cartillas/mis-compras`, { headers: headers(true) }),
 };
+
+/** ¿Hay sesión Lopbuk activa? (para decidir compra directa vs. invitado). */
+export const estaLogueado = (): boolean => !!getToken();
+
+export interface CompraTokenAPI {
+  token: string;
+  estado: string;
+  pagada: boolean;
+  slug: string;
+  titulo: string;
+  autor?: string | null;
+  tipo?: string;
+  portadaUrl?: string | null;
+  precio: number;
+  moneda: string;
+  comprador: { nombre?: string | null; email?: string | null };
+  archivos: CartillaCatalogoAPI['archivos'];
+}
 
 // ════════════════════ AUTH (sesión Lopbuk) ════════════════════
 const mapProfile = (u: any): UsuarioAPI => ({

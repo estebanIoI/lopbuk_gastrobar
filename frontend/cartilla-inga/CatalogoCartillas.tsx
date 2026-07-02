@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { BookOpen, GraduationCap, BookMarked, Search, Lock, Sparkles, Store } from 'lucide-react';
+import { BookOpen, GraduationCap, BookMarked, Search, Lock, Sparkles, Store, FileText, ArrowRight } from 'lucide-react';
 import { cartillasAPI, type CartillaCatalogoAPI } from './services/api';
 
 const TIPO_META: Record<string, { label: string; icon: React.ReactNode }> = {
@@ -30,35 +30,61 @@ const formatPrecio = (precio: number, moneda: string) => {
 const CartillaCard: React.FC<{ c: CartillaCatalogoAPI; onOpen: (slug: string) => void }> = ({ c, onOpen }) => {
   const tipo = TIPO_META[c.tipo] || TIPO_META.cartilla;
   const grad = COLOR_BG[c.color] || COLOR_BG.emerald;
+  const nArchivos = (c as any).archivos?.length ?? 0;
   return (
     <button
       onClick={() => onOpen(c.slug)}
-      className="group text-left bg-white rounded-2xl shadow-sm hover:shadow-xl transition-all overflow-hidden border border-gray-100 flex flex-col"
+      className="group relative text-left bg-white rounded-[22px] shadow-[0_2px_10px_-4px_rgba(0,0,0,0.1)] hover:shadow-[0_24px_50px_-20px_rgba(16,185,129,0.45)] hover:-translate-y-1 transition-all duration-300 overflow-hidden border border-gray-100 hover:border-emerald-200 flex flex-col ring-1 ring-transparent hover:ring-emerald-100"
     >
-      <div className={`relative h-36 bg-gradient-to-br ${grad} flex items-center justify-center`}>
+      {/* Portada */}
+      <div className={`relative h-40 bg-gradient-to-br ${grad} flex items-center justify-center overflow-hidden`}>
         {c.portadaUrl
-          ? <img src={c.portadaUrl} alt={c.titulo} className="w-full h-full object-cover" />
-          : <div className="text-white/90 text-5xl">{tipo.icon}</div>}
-        <span className="absolute top-2 left-2 inline-flex items-center gap-1 bg-white/90 text-gray-800 text-xs font-semibold px-2 py-1 rounded-full">
+          ? <img src={c.portadaUrl} alt={c.titulo} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+          : (
+            <>
+              {/* Brillo decorativo premium */}
+              <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full bg-white/15 blur-2xl" />
+              <div className="absolute -bottom-10 -left-6 w-28 h-28 rounded-full bg-black/10 blur-2xl" />
+              <div className="text-white/90 text-5xl drop-shadow-sm group-hover:scale-110 transition-transform duration-500">{tipo.icon}</div>
+            </>
+          )}
+        {/* Tipo (glass) */}
+        <span className="absolute top-2.5 left-2.5 inline-flex items-center gap-1 bg-white/95 backdrop-blur text-gray-800 text-[11px] font-semibold px-2.5 py-1 rounded-full shadow-sm">
           {tipo.icon}{tipo.label}
         </span>
+        {/* Precio / estado */}
         {c.esGratis ? (
-          <span className="absolute top-2 right-2 inline-flex items-center gap-1 bg-emerald-600 text-white text-xs font-bold px-2 py-1 rounded-full">
+          <span className="absolute top-2.5 right-2.5 inline-flex items-center gap-1 bg-emerald-500 text-white text-[11px] font-bold px-2.5 py-1 rounded-full shadow-md">
             <Sparkles className="w-3 h-3" />Gratis
           </span>
+        ) : c.acceso ? (
+          <span className="absolute top-2.5 right-2.5 inline-flex items-center gap-1 bg-white text-emerald-700 text-[11px] font-bold px-2.5 py-1 rounded-full shadow-md">
+            ✓ Adquirida
+          </span>
         ) : (
-          <span className="absolute top-2 right-2 inline-flex items-center gap-1 bg-gray-900/80 text-white text-xs font-bold px-2 py-1 rounded-full">
-            {c.acceso ? 'Adquirida' : <><Lock className="w-3 h-3" />{formatPrecio(c.precio, c.moneda)}</>}
+          <span className="absolute top-2.5 right-2.5 inline-flex items-center gap-1 bg-gray-900/85 backdrop-blur text-white text-[11px] font-bold px-2.5 py-1 rounded-full shadow-md">
+            <Lock className="w-3 h-3" />{formatPrecio(c.precio, c.moneda)}
           </span>
         )}
+        {/* Degradado inferior para legibilidad */}
+        <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/25 to-transparent" />
       </div>
+
+      {/* Cuerpo */}
       <div className="p-4 flex flex-col gap-1 flex-1">
-        <h3 className="font-bold text-gray-900 leading-tight line-clamp-2">{c.titulo}</h3>
+        <h3 className="font-bold text-gray-900 leading-tight line-clamp-2 group-hover:text-emerald-700 transition-colors">{c.titulo}</h3>
         {c.autor && <p className="text-xs text-gray-500">por {c.autor}</p>}
         {c.descripcion && <p className="text-sm text-gray-600 line-clamp-2 mt-1">{c.descripcion}</p>}
-        <div className="mt-auto pt-3 flex items-center justify-between text-xs text-gray-500">
-          <span className="inline-flex items-center gap-1"><Store className="w-3.5 h-3.5" />{c.comercio || 'Comercio'}</span>
-          {c.totalModulos != null && <span>{c.totalModulos} módulos</span>}
+
+        <div className="mt-auto pt-3 flex items-center justify-between text-[11px] text-gray-500 border-t border-gray-50">
+          <span className="inline-flex items-center gap-1 pt-2.5 font-medium text-gray-600 min-w-0">
+            <Store className="w-3.5 h-3.5 text-emerald-600 shrink-0" /><span className="truncate">{c.comercio || 'Comercio'}</span>
+          </span>
+          <span className="inline-flex items-center gap-2 pt-2.5 shrink-0">
+            {nArchivos > 0 && <span className="inline-flex items-center gap-0.5"><FileText className="w-3.5 h-3.5" />{nArchivos}</span>}
+            {c.totalModulos != null && <span>{c.totalModulos} mód.</span>}
+            <ArrowRight className="w-3.5 h-3.5 text-emerald-600 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all" />
+          </span>
         </div>
       </div>
     </button>
@@ -93,7 +119,7 @@ const CatalogoCartillas: React.FC = () => {
     return () => clearTimeout(t);
   }, [q]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const abrir = (slug: string) => router.push(`/cartilla-inga/${slug}`);
+  const abrir = (slug: string) => router.push(`/productos-digitales/${slug}`);
 
   return (
     <div className="min-h-screen bg-[#F5F5F5]">

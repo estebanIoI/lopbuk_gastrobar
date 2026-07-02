@@ -410,12 +410,18 @@ export const cartillaCompras = mysqlTable("cartilla_compras", {
 	id: varchar({ length: 36 }).notNull(),
 	tenantId: varchar("tenant_id", { length: 36 }).notNull(),
 	cartillaId: varchar("cartilla_id", { length: 36 }).notNull().references(() => cartillas.id, { onDelete: "cascade" } ),
-	usuarioId: varchar("usuario_id", { length: 36 }).notNull(),
+	usuarioId: varchar("usuario_id", { length: 36 }),
 	precio: decimal({ precision: 10, scale: 2 }).default('0.00').notNull(),
 	moneda: varchar({ length: 8 }).default('COP').notNull(),
 	estado: mysqlEnum(['gratis','pendiente','pagado','reembolsado']).default('pendiente').notNull(),
-	metodo: mysqlEnum(['gratis','stripe','credito','efectivo','manual']).default('manual').notNull(),
+	metodo: mysqlEnum(['gratis','stripe','credito','efectivo','manual','wompi']).default('manual').notNull(),
 	referencia: varchar({ length: 255 }),
+	// Compra como invitado (sin cuenta): datos del comprador + token público para
+	// recuperar el estado y las descargas en la pantalla de éxito tras pagar por Wompi.
+	guestNombre: varchar("guest_nombre", { length: 120 }),
+	guestEmail: varchar("guest_email", { length: 160 }),
+	guestTelefono: varchar("guest_telefono", { length: 40 }),
+	token: varchar({ length: 64 }),
 	pagadoEn: timestamp("pagado_en", { mode: 'string' }),
 	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
@@ -424,6 +430,7 @@ export const cartillaCompras = mysqlTable("cartilla_compras", {
 	return {
 		idxCompraCartilla: index("idx_compra_cartilla").on(table.cartillaId),
 		idxCompraTenant: index("idx_compra_tenant").on(table.tenantId),
+		idxCompraToken: index("idx_compra_token").on(table.token),
 		cartillaComprasId: primaryKey({ columns: [table.id], name: "cartilla_compras_id"}),
 		uqCompraUsuarioCartilla: unique("uq_compra_usuario_cartilla").on(table.usuarioId, table.cartillaId),
 	}

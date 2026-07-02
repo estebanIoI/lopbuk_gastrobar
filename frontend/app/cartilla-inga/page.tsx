@@ -1,9 +1,12 @@
 'use client'
 
-// Área global e independiente CARTILLA-INGA: catálogo de cartillas, libros y
-// cursos publicados por todos los comercios.
-import CatalogoCartillas from '@/cartilla-inga/CatalogoCartillas'
+// Ruta legada: /cartilla-inga → /productos-digitales (canónica). Redirección
+// permanente en cliente para no romper enlaces viejos ni redirects de Wompi.
+import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 
-export default function CartillaIngaCatalogoPage() {
-  return <CatalogoCartillas />
+export default function CartillaIngaLegacyRedirect() {
+  const router = useRouter()
+  useEffect(() => { router.replace('/productos-digitales') }, [router])
+  return <div className="min-h-screen bg-[#F5F5F5]" />
 }

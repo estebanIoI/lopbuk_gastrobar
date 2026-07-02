@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useAuthStore } from '@/lib/auth-store'
+import { loginHref } from '@/lib/login-path'
 import { useRouter } from 'next/navigation'
 import { api } from '@/lib/api'
 import {
@@ -164,7 +165,7 @@ export default function DeliveryOSPage() {
   useEffect(() => { checkAuth() }, [checkAuth])
   useEffect(() => {
     if (isCheckingAuth) return
-    if (!isAuthenticated) router.replace('/login?next=/delivery-os')
+    if (!isAuthenticated) router.replace(loginHref('/delivery-os'))
   }, [isAuthenticated, isCheckingAuth, router])
 
   // Load ops data
