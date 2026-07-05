@@ -22,6 +22,7 @@ interface Message {
   role: 'user' | 'assistant'
   content: string
   products?: SuggestedProduct[]
+  quickReplies?: string[]
 }
 
 interface ChatWidgetProps {
@@ -32,6 +33,30 @@ interface ChatWidgetProps {
   onClose: () => void
   /** Called when the user clicks "Ver" on a suggested product. Widget closes automatically. */
   onProductClick?: (productId: string) => void
+  /** Agrega el producto al carrito REAL de la tienda (cierre sin fricción). */
+  onAddToCart?: (productId: string) => void
+  /** Abre la política de tratamiento de datos de la tienda. */
+  onOpenPolicy?: () => void
+}
+
+// ─── Markdown ligero (negrita, saltos, viñetas) sin dependencias ────────────────
+
+function renderMarkdownLite(text: string): React.ReactNode {
+  const lines = text.split('\n')
+  return lines.map((line, li) => {
+    const parts = line.split(/(\*\*[^*]+\*\*)/g).map((chunk, ci) =>
+      chunk.startsWith('**') && chunk.endsWith('**')
+        ? <strong key={ci}>{chunk.slice(2, -2)}</strong>
+        : chunk
+    )
+    const isBullet = /^\s*[-•]\s+/.test(line)
+    return (
+      <span key={li} className={isBullet ? 'block pl-2' : undefined}>
+        {parts}
+        {li < lines.length - 1 && !isBullet ? <br /> : null}
+      </span>
+    )
+  })
 }
 
 // ─── Color helper ───────────────────────────────────────────────────────────────
@@ -52,14 +77,18 @@ function ProductCard({
   isLight,
   onProductClick,
   onOrderByChat,
+  onAddToCart,
+  added,
 }: {
   product: SuggestedProduct
   accentColor: string
   isLight: boolean
   onProductClick?: (id: string) => void
   onOrderByChat?: (product: SuggestedProduct) => void
+  onAddToCart?: (product: SuggestedProduct) => void
+  added?: boolean
 }) {
-  const hasActions = onProductClick || onOrderByChat
+  const hasActions = onProductClick || onOrderByChat || onAddToCart
   return (
     <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden min-w-0">
       {/* Info row */}
@@ -100,6 +129,17 @@ function ProductCard({
               Ver en tienda
             </button>
           )}
+          {onAddToCart && (
+            <button
+              onClick={() => onAddToCart(product)}
+              disabled={added}
+              className={`flex-1 flex items-center justify-center gap-1 text-[11px] font-semibold py-2 transition-colors ${added ? 'text-green-600' : `${isLight ? 'text-gray-900' : 'text-white'}`}`}
+              style={added ? undefined : { background: accentColor }}
+            >
+              <ShoppingCart className="w-3 h-3" />
+              {added ? '✓ En el carrito' : 'Agregar al carrito'}
+            </button>
+          )}
           {onOrderByChat && (
             <button
               onClick={() => onOrderByChat(product)}
@@ -118,7 +158,7 @@ function ProductCard({
 
 // ─── Main widget ───────────────────────────────────────────────────────────────
 
-export function ChatWidget({ storeSlug, botName, botAvatarUrl, accentColor = '#f59e0b', onClose, onProductClick }: ChatWidgetProps) {
+export function ChatWidget({ storeSlug, botName, botAvatarUrl, accentColor = '#f59e0b', onClose, onProductClick, onAddToCart, onOpenPolicy }: ChatWidgetProps) {
   const isLight = isLightColor(accentColor)
   const textColor = isLight ? 'text-gray-900' : 'text-white'
   const textMutedColor = isLight ? 'text-gray-600' : 'text-white/80'
@@ -130,10 +170,37 @@ export function ChatWidget({ storeSlug, botName, botAvatarUrl, accentColor = '#f
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [sessionToken, setSessionToken] = useState<string | undefined>()
+  const [addedToCartIds, setAddedToCartIds] = useState<Set<string>>(new Set())
+  // Modo asesor humano: el bot calla y el widget hace polling de las respuestas manuales
+  const [takeover, setTakeover] = useState(false)
+  const lastMessageIdRef = useRef(0)
   const bottomRef = useRef<HTMLDivElement>(null)
   const sessionTokenRef = useRef<string | undefined>(undefined)
 
   useEffect(() => { sessionTokenRef.current = sessionToken }, [sessionToken])
+
+  // Polling ligero mientras un asesor humano atiende la conversación
+  useEffect(() => {
+    if (!takeover) return
+    const interval = setInterval(async () => {
+      const token = sessionTokenRef.current
+      if (!token) return
+      try {
+        const res = await fetch(
+          `${API_URL}/chatbot/session-updates?slug=${encodeURIComponent(storeSlug)}&sessionToken=${encodeURIComponent(token)}&afterId=${lastMessageIdRef.current}`
+        )
+        const json = await res.json()
+        if (!json.success) return
+        const incoming: { id: number; content: string }[] = json.data.messages || []
+        if (incoming.length > 0) {
+          lastMessageIdRef.current = Math.max(lastMessageIdRef.current, ...incoming.map(m => m.id))
+          setMessages(prev => [...prev, ...incoming.map(m => ({ role: 'assistant' as const, content: m.content }))])
+        }
+        if (json.data.takeover === false) setTakeover(false)
+      } catch { /* siguiente tick */ }
+    }, 4000)
+    return () => clearInterval(interval)
+  }, [takeover, storeSlug])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -154,11 +221,21 @@ export function ChatWidget({ storeSlug, botName, botAvatarUrl, accentColor = '#f
       })
       const json = await res.json()
       if (json.success) {
-        setMessages(prev => [...prev, {
-          role: 'assistant',
-          content: json.data.reply,
-          products: json.data.suggestedProducts,
-        }])
+        if (json.data.lastMessageId) {
+          lastMessageIdRef.current = Math.max(lastMessageIdRef.current, Number(json.data.lastMessageId))
+        }
+        if (json.data.takeover) setTakeover(true)
+        setMessages(prev => {
+          // En takeover el backend responde siempre el mismo aviso: no lo repetimos.
+          const lastAssistant = [...prev].reverse().find(m => m.role === 'assistant')
+          if (json.data.takeover && lastAssistant?.content === json.data.reply) return prev
+          return [...prev, {
+            role: 'assistant',
+            content: json.data.reply,
+            products: json.data.suggestedProducts,
+            quickReplies: json.data.suggestedReplies,
+          }]
+        })
         if (json.data.sessionToken) setSessionToken(json.data.sessionToken)
       } else {
         setMessages(prev => [...prev, { role: 'assistant', content: 'Lo siento, hubo un problema. Por favor intenta nuevamente.' }])
@@ -193,6 +270,12 @@ export function ChatWidget({ storeSlug, botName, botAvatarUrl, accentColor = '#f
   const handleOrderByChat = (product: SuggestedProduct) => {
     // Excluye SOLO en este mensaje: el bot no repite la tarjeta del producto que ya está pidiendo.
     sendMessageText(`Quiero pedir: ${product.name}`, [product.id])
+  }
+
+  const handleAddToCart = (product: SuggestedProduct) => {
+    if (!onAddToCart) return
+    onAddToCart(product.id)
+    setAddedToCartIds(prev => new Set(prev).add(product.id))
   }
 
   return (
@@ -246,7 +329,7 @@ export function ChatWidget({ storeSlug, botName, botAvatarUrl, accentColor = '#f
                 }`}
                 style={msg.role === 'user' ? { background: accentColor } : undefined}
               >
-                {msg.content}
+                {msg.role === 'assistant' ? renderMarkdownLite(msg.content) : msg.content}
               </div>
 
               {/* Tarjetas de producto sugeridas */}
@@ -260,7 +343,25 @@ export function ChatWidget({ storeSlug, botName, botAvatarUrl, accentColor = '#f
                       isLight={isLight}
                       onProductClick={onProductClick ? handleProductClick : undefined}
                       onOrderByChat={handleOrderByChat}
+                      onAddToCart={onAddToCart ? handleAddToCart : undefined}
+                      added={addedToCartIds.has(product.id)}
                     />
+                  ))}
+                </div>
+              )}
+
+              {/* Respuestas rápidas — solo en el último mensaje del bot y si no está escribiendo */}
+              {msg.role === 'assistant' && msg.quickReplies && msg.quickReplies.length > 0 && i === messages.length - 1 && !sending && (
+                <div className="flex flex-wrap gap-1.5 pt-0.5">
+                  {msg.quickReplies.map((qr, qi) => (
+                    <button
+                      key={qi}
+                      onClick={() => sendMessageText(qr)}
+                      className="text-xs font-medium px-3 py-1.5 rounded-full border transition-colors hover:opacity-80 bg-white"
+                      style={{ borderColor: accentColor, color: accentColor }}
+                    >
+                      {qr}
+                    </button>
                   ))}
                 </div>
               )}
@@ -306,7 +407,17 @@ export function ChatWidget({ storeSlug, botName, botAvatarUrl, accentColor = '#f
       </div>
 
       <div className="text-center py-1.5 bg-white border-t border-gray-50">
-        <p className="text-[10px] text-gray-300">Asistente IA · Puede cometer errores</p>
+        <p className="text-[10px] text-gray-300">
+          Asistente IA · Puede cometer errores
+          {onOpenPolicy && (
+            <>
+              {' · '}
+              <button onClick={onOpenPolicy} className="underline hover:text-gray-400">
+                Tratamiento de datos
+              </button>
+            </>
+          )}
+        </p>
       </div>
     </div>
   )

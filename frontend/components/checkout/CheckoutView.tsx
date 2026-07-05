@@ -91,6 +91,11 @@ interface CheckoutViewProps {
   mlStyle?: boolean;
   accentColor?: string;
   storeName?: string;
+  // Consentimiento Ley 1581: aceptación obligatoria de la política de datos
+  acceptsDataPolicy?: boolean;
+  acceptsMarketing?: boolean;
+  onConsentChange?: (acceptsDataPolicy: boolean, acceptsMarketing: boolean) => void;
+  onOpenDataPolicy?: () => void;
 }
 
 export function CheckoutView({
@@ -132,6 +137,10 @@ export function CheckoutView({
   mlStyle = false,
   accentColor = '#3483fa',
   storeName = 'la tienda',
+  acceptsDataPolicy = false,
+  acceptsMarketing = false,
+  onConsentChange,
+  onOpenDataPolicy,
 }: CheckoutViewProps) {
   const [inputCupon, setInputCupon] = useState(cuponCodigo);
   const [validandoCupon, setValidandoCupon] = useState(false);
@@ -153,6 +162,7 @@ export function CheckoutView({
   const [isLocatingAddress, setIsLocatingAddress] = useState(false);
   const [detectedAddress, setDetectedAddress] = useState<string | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
+  const [consentError, setConsentError] = useState('');
 
   const validateForm = (): boolean => {
     const errors: FieldError[] = [];
@@ -183,8 +193,16 @@ export function CheckoutView({
       // Scroll to the first error field
       const firstErrorField = document.querySelector(`[name="${errors[0].field}"]`);
       firstErrorField?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return false;
     }
-    return errors.length === 0;
+    // Ley 1581: sin aceptación explícita no se procesan datos personales
+    if (!acceptsDataPolicy) {
+      setConsentError('Debes aceptar la política de tratamiento de datos personales para continuar');
+      document.querySelector('[data-consent-block]')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return false;
+    }
+    setConsentError('');
+    return true;
   };
 
   const handleConfirmar = () => {
@@ -1084,6 +1102,44 @@ export function CheckoutView({
                     </div>
                   )
                 })()}
+
+                {/* ── Consentimiento Ley 1581 (obligatorio para procesar el pedido) ── */}
+                <div className="mt-6 space-y-2" data-consent-block>
+                  <label className={`flex items-start gap-2.5 p-3 border cursor-pointer transition-colors ${consentError ? 'border-red-400 bg-red-50' : 'border-gray-200 bg-gray-50'}`}>
+                    <input
+                      type="checkbox"
+                      checked={acceptsDataPolicy}
+                      onChange={(e) => {
+                        onConsentChange?.(e.target.checked, acceptsMarketing);
+                        if (e.target.checked) setConsentError('');
+                      }}
+                      className="mt-0.5 h-4 w-4 shrink-0 accent-gray-900"
+                    />
+                    <span className="text-xs text-gray-600 font-light leading-relaxed">
+                      Acepto la{' '}
+                      {onOpenDataPolicy ? (
+                        <button type="button" onClick={(e) => { e.preventDefault(); onOpenDataPolicy() }} className="underline font-medium text-gray-800 hover:text-gray-900">
+                          política de tratamiento de datos personales
+                        </button>
+                      ) : (
+                        <span className="font-medium">política de tratamiento de datos personales</span>
+                      )}{' '}
+                      y los términos de compra (Ley 1581 de 2012). *
+                    </span>
+                  </label>
+                  <label className="flex items-start gap-2.5 px-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={acceptsMarketing}
+                      onChange={(e) => onConsentChange?.(acceptsDataPolicy, e.target.checked)}
+                      className="mt-0.5 h-4 w-4 shrink-0 accent-gray-900"
+                    />
+                    <span className="text-xs text-gray-500 font-light leading-relaxed">
+                      Autorizo recibir ofertas y novedades por WhatsApp (opcional)
+                    </span>
+                  </label>
+                  {consentError && <p className="text-xs text-red-500 px-3">{consentError}</p>}
+                </div>
 
                 {/* Acceso visual de pago — solo cuando hay una pasarela en línea configurada
                     (MercadoPago / Addi / Sistecrédito). No reemplaza el botón funcional. */}

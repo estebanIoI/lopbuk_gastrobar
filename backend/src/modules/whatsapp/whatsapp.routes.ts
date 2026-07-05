@@ -95,6 +95,30 @@ router.post('/webhook/:tenantSlug', async (req: Request, res: Response) => {
     // Optional: check whatsapp_enabled flag if column exists
     if (config.whatsapp_enabled === 0) return;
 
+    // ── Opt-out de marketing (Ley 1581: revocación de la autorización) ──
+    // Palabras clave estándar: el cliente deja de recibir mensajes promocionales.
+    const normalized = messageText.toUpperCase().replace(/[¡!.,]/g, '').trim();
+    if (['BAJA', 'STOP', 'NO MAS', 'NO MÁS', 'CANCELAR SUSCRIPCION', 'CANCELAR SUSCRIPCIÓN', 'UNSUBSCRIBE'].includes(normalized)) {
+      const { privacyService } = await import('../privacy/privacy.service');
+      await privacyService.recordConsent({
+        tenantId,
+        subjectType: 'chat_contact',
+        identifier: phoneNumber,
+        consentType: 'marketing_whatsapp',
+        granted: false,
+        source: 'whatsapp',
+      }).catch(() => {/* la revocación no debe romper el webhook */});
+      const optOutInstance = config.evolution_instance as string | null;
+      if (optOutInstance) {
+        await sendTextMessage(
+          optOutInstance,
+          phoneNumber,
+          '✅ Listo. No volverás a recibir mensajes promocionales nuestros. Si necesitas ayuda con un pedido, escríbenos cuando quieras.'
+        ).catch(() => {});
+      }
+      return;
+    }
+
     // Session keyed by phone number (stable across conversations)
     const sessionToken = `wa:${phoneNumber}`;
     const sessionId    = await getOrCreateSession(sessionToken, tenantId, {

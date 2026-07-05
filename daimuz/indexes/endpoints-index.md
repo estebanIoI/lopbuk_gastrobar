@@ -137,6 +137,49 @@ CUSTOMERS
   POST  /customers
   PUT   /customers/:id
   POST  /customers/bulk
+  DELETE /customers/:id          soft delete (is_active=0; borrado real → PRIVACY erase)
+
+CHATBOT / AGENTE DE VENTAS 🤖
+  GET   /chatbot/status/:slug              público: si el bot está activo + branding
+  POST  /chatbot/message                   público: mensaje → { reply, suggestedProducts, suggestedReplies, lastMessageId, takeover? }
+  GET   /chatbot/session-updates           público: polling del widget en takeover (?slug&sessionToken&afterId)
+  GET   /chatbot/sessions                  comerciante: conversaciones con último mensaje y canal (web/wa)
+  GET   /chatbot/sessions/:id/messages     comerciante: historial completo
+  PATCH /chatbot/sessions/:id/takeover     comerciante: { takeover } silencia/reactiva el bot
+  POST  /chatbot/sessions/:id/reply        comerciante: respuesta manual (web por polling; WhatsApp por Evolution)
+  GET/PUT /chatbot/config                  comerciante: nombre, tono, FAQs, prompt extra, notificaciones
+
+LOGÍSTICA / FLOTA (Sistema Operativo Logístico) 🚛
+  GET   /fleet/routes/suggestions          agrupación por zona + vehículo/auxiliares sugeridos + sumar a ruta activa
+  POST  /fleet/routes                      crear ruta (valida capacidad; sobrepeso → 400)
+  GET   /fleet/routes                      rutas activas con paradas
+  PATCH /fleet/routes/:id/status           cascada a pedidos + vehículo + historial + WhatsApp cliente
+  PATCH /fleet/routes/:id/stops/:oid/delivered  entrega por parada (última cierra ruta)
+  GET   /fleet/ops-board                   tablero: pedidos con espera, vehículos con carga, personal
+  GET   /fleet/analytics                   rentabilidad por vehículo, ranking conductores, tiempos
+  GET/POST /fleet/expenses                 gastos reales (combustible/peajes/repuestos; repartidor puede)
+  PUT   /fleet/vehicles/:id/profile        SOAT/tecno/seguro/odómetro/consumo/mantenimiento-km
+  PUT   /fleet/staff-status                estado del personal (disponible/almuerzo/incapacidad…)
+
+PRODUCT TEMPLATES (plantillas dinámicas de producto) 🧩
+  GET    /product-templates                    lista con # productos · auth
+  POST   /product-templates                    crear (draft) · comerciante
+  POST   /product-templates/seed-defaults      semillas Moda/Tech/Belleza
+  PUT    /product-templates/:id                actualizar secciones/nombre
+  PATCH  /product-templates/:id/status         draft | published | archived
+  POST   /product-templates/:id/duplicate      duplicar
+  DELETE /product-templates/:id                soft delete
+  PATCH  /product-templates/assign             asignación masiva a productos
+  PUT    /product-templates/products/:id/page-content   contenido único del producto
+  GET    /storefront/product-page/:productId   PÚBLICO: secciones + page_content (caché 60s)
+
+PRIVACY (Ley 1581 — habeas data) 🔐
+  POST  /privacy/public/consents           registrar consentimiento (banner/checkout) · público, 10/min
+  POST  /privacy/public/requests           solicitud de derechos del titular · público, 5/min, anti-enumeración
+  GET   /privacy/requests                  solicitudes del tenant (?status=) · auth
+  PATCH /privacy/requests/:id              { status, notes } atender/completar/denegar · comerciante
+  GET   /privacy/customers/:id/export      derecho de acceso: JSON consolidado · comerciante, audita pii_export
+  POST  /privacy/customers/:id/erase       derecho al olvido: anonimización irreversible · comerciante, audita pii_erasure
 
 CREDITS (Fiados)
   GET   /credits                 créditos pendientes

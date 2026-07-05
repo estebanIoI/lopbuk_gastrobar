@@ -4,10 +4,14 @@ import { v4 as uuidv4 } from 'uuid';
 import { authenticate, authorize, AuthRequest } from '../../common/middleware';
 import { validateRequest } from '../../utils/validators';
 import pool from '../../config/database';
+import logisticsRoutes, { emitOps } from './logistics.routes';
 
 const router: ReturnType<typeof Router> = Router();
 
 router.use(authenticate);
+
+// Sistema Operativo Logístico: rutas agrupadas, gastos, tablero ops, analítica
+router.use(logisticsRoutes);
 
 // ─── Utilidad: convertir peso a kg ───────────────────────────────────────────
 function toKg(weight: number, unit: string | null | undefined): number {
@@ -665,6 +669,16 @@ router.put(
         `UPDATE storefront_orders SET ${updates.join(', ')} WHERE id = ? AND tenant_id = ?`,
         values
       );
+
+      // Trazabilidad + tablero en vivo
+      try {
+        await pool.query(
+          `INSERT INTO order_status_history (order_id, tenant_id, from_status, to_status, changed_by, note)
+           VALUES (?, ?, NULL, ?, ?, 'Cambio de estado de despacho')`,
+          [orderId, tenantId, dispatchStatus, req.user!.userId]
+        );
+      } catch { /* historial es best-effort */ }
+      emitOps(tenantId!, 'dispatch-changed', { kind: 'order-status', orderId, dispatchStatus });
 
       res.json({ success: true, message: `Estado actualizado a: ${dispatchStatus}` });
     } catch (error) {

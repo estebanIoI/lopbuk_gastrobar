@@ -47,6 +47,27 @@ export async function sendTextMessage(
   await api('POST', `/message/sendText/${instanceName}`, { number, text });
 }
 
+/**
+ * Envío de MARKETING por WhatsApp — Ley 1581: exige autorización previa.
+ * Cualquier feature futura de campañas/broadcast DEBE usar esta función (no
+ * sendTextMessage directo): verifica el último consentimiento marketing_whatsapp
+ * del teléfono y no envía si el cliente no autorizó o revocó ("BAJA"/"STOP").
+ */
+export async function sendMarketingMessage(
+  tenantId: string,
+  instanceName: string,
+  to: string,
+  text: string,
+): Promise<{ sent: boolean; reason?: string }> {
+  const { privacyService } = await import('../privacy/privacy.service');
+  const allowed = await privacyService.hasConsent(tenantId, to, 'marketing_whatsapp');
+  if (!allowed) {
+    return { sent: false, reason: 'sin-consentimiento-marketing' };
+  }
+  await sendTextMessage(instanceName, to, text);
+  return { sent: true };
+}
+
 // ─────────────────────────────────────────────────────────────
 // Instance management
 // ─────────────────────────────────────────────────────────────

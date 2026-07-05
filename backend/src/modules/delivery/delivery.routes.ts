@@ -218,6 +218,7 @@ router.put(
       } else if (deliveryStatus === 'entregado') {
         updates.push('delivery_delivered_at = NOW()');
         updates.push('status = \'entregado\'');
+        updates.push('dispatch_status = \'entregado\'');
       }
 
       values.push(orderId);
@@ -226,6 +227,37 @@ router.put(
         `UPDATE storefront_orders SET ${updates.join(', ')} WHERE id = ?`,
         values
       );
+
+      // Si el pedido pertenece a una ruta agrupada y era la última parada,
+      // cerrar la ruta y liberar el vehículo automáticamente.
+      if (deliveryStatus === 'entregado') {
+        try {
+          const [routeRow] = await pool.query(
+            'SELECT route_id, tenant_id FROM storefront_orders WHERE id = ?', [orderId]
+          ) as any;
+          const routeId = routeRow?.[0]?.route_id;
+          const tenantId = routeRow?.[0]?.tenant_id;
+          if (routeId) {
+            const [pending] = await pool.query(
+              `SELECT COUNT(*) AS cnt FROM storefront_orders WHERE route_id = ? AND dispatch_status != 'entregado'`,
+              [routeId]
+            ) as any;
+            if (Number(pending[0].cnt) === 0) {
+              await pool.query(
+                `UPDATE dispatch_routes SET status = 'cerrada', closed_at = NOW() WHERE id = ?`, [routeId]
+              );
+              await pool.query(
+                `UPDATE fleet_vehicles fv JOIN dispatch_routes r ON r.vehicle_id = fv.id
+                    SET fv.status = 'disponible' WHERE r.id = ?`, [routeId]
+              );
+            }
+            const { emitOps } = await import('../fleet/logistics.routes');
+            emitOps(tenantId, 'dispatch-changed', { kind: 'stop-delivered', routeId, orderId });
+          }
+        } catch (e: any) {
+          console.error('Route auto-close failed:', e?.message || e);
+        }
+      }
 
       res.json({ success: true, message: `Estado actualizado a: ${deliveryStatus}` });
     } catch (error) {

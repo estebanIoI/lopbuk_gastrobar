@@ -9,6 +9,29 @@ import { verifyStoreGrant } from '../hidden-access/hidden-access.service';
 
 const router: ReturnType<typeof Router> = Router();
 
+// =============================================
+// PUBLIC: Página de producto (plantilla dinámica JSON-driven)
+// GET /api/storefront/product-page/:productId
+// Devuelve las secciones de la plantilla PUBLICADA asignada al producto +
+// su page_content. Sin plantilla → { sections: [] } (el detalle se ve como hoy).
+// Caché en memoria 60s por producto (dentro del service).
+// =============================================
+router.get(
+  '/product-page/:productId',
+  [param('productId').notEmpty(), validateRequest],
+  async (req: Request, res: Response) => {
+    try {
+      const { productTemplatesService } = await import('../product-templates/product-templates.service');
+      const { sections, pageContent } = await productTemplatesService.getPublicProductPage(req.params.productId);
+      res.json({ success: true, data: { sections, pageContent } });
+    } catch (error) {
+      console.error('Product page error:', error);
+      // Nunca romper el detalle de producto por la plantilla
+      res.json({ success: true, data: { sections: [], pageContent: null } });
+    }
+  }
+);
+
 /** Grant de acceso a tienda oculta, tomado del query (?hg=) o del header. */
 const grantFrom = (req: Request): string | undefined =>
   (req.query.hg as string) || (req.headers['x-hidden-grant'] as string) || undefined;
@@ -207,7 +230,7 @@ router.get(
 
       if (showAll || !tenantId) {
         // Show products from all active tenants (preorder products bypass stock check)
-        whereClause = `WHERE ${STOCK_VISIBLE} AND p.published_in_store = 1 AND p.tenant_id IN (SELECT id FROM tenants WHERE status = 'activo')`;
+        whereClause = `WHERE ${STOCK_VISIBLE} AND p.published_in_store = 1 AND p.tenant_id IN (SELECT id FROM tenants WHERE status = 'activo' AND (is_hidden IS NULL OR is_hidden = 0))`;
       } else {
         whereClause = `WHERE p.tenant_id = ? AND ${STOCK_VISIBLE} AND p.published_in_store = 1`;
         params.push(tenantId);
@@ -830,7 +853,7 @@ router.get('/offers', async (req: Request, res: Response) => {
       WHERE p.is_on_offer = 1
         AND p.published_in_store = 1
         AND ${stockVisibleSql('p')}
-        AND p.tenant_id IN (SELECT id FROM tenants WHERE status = 'activo')
+        AND p.tenant_id IN (SELECT id FROM tenants WHERE status = 'activo' AND (is_hidden IS NULL OR is_hidden = 0))
         AND (p.offer_end IS NULL OR p.offer_end > NOW())
         ${tenantFilter}
       ORDER BY p.updated_at DESC
@@ -1161,6 +1184,7 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
         bgColor: tenantBgColor,
         platformBgColor,
         publicMenuEnabled,
+        isHidden: !!tenant.is_hidden,
         customSections,
         cartMinPurchase,
         cartDeliveryFee,
@@ -2643,7 +2667,7 @@ router.get('/new-launches', async (req: Request, res: Response) => {
       WHERE p.is_new_launch = 1
         AND p.published_in_store = 1
         AND ${stockVisibleSql('p')}
-        AND p.tenant_id IN (SELECT id FROM tenants WHERE status = 'activo')
+        AND p.tenant_id IN (SELECT id FROM tenants WHERE status = 'activo' AND (is_hidden IS NULL OR is_hidden = 0))
         ${tenantFilter}
       ORDER BY p.launch_date DESC, p.updated_at DESC
       LIMIT 20`,
@@ -2775,7 +2799,7 @@ router.get('/recommended', authenticate, async (req: Request, res: Response) => 
          FROM products p
          LEFT JOIN tenants t ON t.id = p.tenant_id
         WHERE p.published_in_store = 1 AND p.stock > 0
-          AND p.tenant_id IN (SELECT id FROM tenants WHERE status = 'activo')
+          AND p.tenant_id IN (SELECT id FROM tenants WHERE status = 'activo' AND (is_hidden IS NULL OR is_hidden = 0))
         ORDER BY p.is_on_offer DESC, p.created_at DESC
         LIMIT 300`
     ) as any;
@@ -2868,7 +2892,7 @@ router.get('/platform-featured', async (req: Request, res: Response) => {
       WHERE p.id IN (${placeholders})
         AND p.published_in_store = 1
         AND ${stockVisibleSql('p')}
-        AND p.tenant_id IN (SELECT id FROM tenants WHERE status = 'activo')`,
+        AND p.tenant_id IN (SELECT id FROM tenants WHERE status = 'activo' AND (is_hidden IS NULL OR is_hidden = 0))`,
       ids
     ) as any;
 

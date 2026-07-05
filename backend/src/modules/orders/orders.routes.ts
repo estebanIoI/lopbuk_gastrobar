@@ -8,12 +8,39 @@ import { config } from '../../config/env';
 import { MercadoPagoConfig, Preference } from 'mercadopago';
 import crypto from 'crypto';
 import { audit } from '../../utils/audit-logger';
-import { autoAssignVehicle, calcOrderWeight } from '../fleet';
+import { autoAssignVehicle, calcOrderWeight, emitOps } from '../fleet';
 import { affiliatesService } from '../affiliates/affiliates.service';
 import { variantsService } from '../variants/variants.service';
 import { orderPricingService } from './order-pricing.service';
+import { privacyService } from '../privacy/privacy.service';
+import { redactPII } from '../../utils/redact';
 
 const router: ReturnType<typeof Router> = Router();
+
+// ── Ley 1581: el checkout público no procesa PII sin aceptación explícita ──────
+const requireDataPolicyConsent = body('acceptsDataPolicy')
+  .custom((v) => v === true || v === 'true')
+  .withMessage('Debes aceptar la política de tratamiento de datos personales (Ley 1581 de 2012)');
+
+/**
+ * Registra los consentimientos del checkout (tratamiento de datos + términos +
+ * marketing WhatsApp opcional). Si el registro falla no se bloquea la venta,
+ * pero queda rastro del fallo en logs para reintento/monitoreo.
+ */
+async function recordCheckoutConsent(req: Request, tenantId: string): Promise<string | null> {
+  try {
+    return await privacyService.recordCheckoutConsents({
+      tenantId,
+      phone: String(req.body.customerPhone || ''),
+      acceptsMarketing: req.body.acceptsMarketing !== undefined ? !!req.body.acceptsMarketing : undefined,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+  } catch (e: any) {
+    console.error('[orders] consent record failed (order continues):', e?.message || e);
+    return null;
+  }
+}
 
 // =============================================
 // ONE-TIME SCHEMA MIGRATION — corre una sola vez al arrancar el módulo,
@@ -204,6 +231,7 @@ router.post(
     body('deliveryLongitude').optional().isFloat().withMessage('Longitud inválida'),
     body('clientUserId').optional().notEmpty(),
     body('tenantId').optional().notEmpty(),
+    requireDataPolicyConsent,
     validateRequest,
   ],
   async (req: Request, res: Response, _next: NextFunction) => {
@@ -327,18 +355,21 @@ router.post(
       // Asegurar schema (no-op si ya corrió)
       if (!schemaMigrationDone) await ensureOrdersSchema();
 
+      // Prueba de consentimiento Ley 1581 (tratamiento de datos + términos)
+      const consentId = await recordCheckoutConsent(req, tenantId);
+
       await pool.query(
         `INSERT INTO storefront_orders
           (id, tenant_id, order_number, customer_name, customer_phone, customer_email, customer_cedula,
            department, municipality, address, neighborhood, delivery_latitude, delivery_longitude,
            notes, subtotal, shipping_cost, discount, total, payment_method, client_user_id,
-           total_weight_kg, vehicle_id, idempotency_key, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendiente')`,
+           total_weight_kg, vehicle_id, idempotency_key, consent_id, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendiente')`,
         [orderId, tenantId, orderNumber, customerName, customerPhone, customerEmail || null, customerCedula || null,
           department || null, municipality || null, address || null, neighborhood || null,
           deliveryLatitude || null, deliveryLongitude || null, finalNotes,
           subtotal, shippingCost, discount, total, paymentMethod || null, clientUserId || null,
-          totalWeightKg || null, assignedVehicleId, idempotencyKey || null]
+          totalWeightKg || null, assignedVehicleId, idempotencyKey || null, consentId]
       );
 
       // Insert order items (con descuento por item para reportes DIAN)
@@ -377,6 +408,9 @@ router.post(
       // Atribución de afiliado por enlace (?ref=TOKEN). No bloquea la respuesta.
       affiliatesService.attributeOrder({ refToken: req.body?.refToken, tenantId, orderId, orderTotalCop: total }).catch(() => {});
 
+      // Tablero de despachos en vivo: el pedido aparece apenas se factura
+      emitOps(tenantId, 'dispatch-changed', { kind: 'order-created', orderId, orderNumber, weightKg: totalWeightKg });
+
       res.status(201).json({
         success: true,
         data: {
@@ -391,7 +425,7 @@ router.post(
       });
     } catch (error: any) {
       const errMsg = error?.message || String(error) || 'Error desconocido';
-      console.error('Create order error:', errMsg, error);
+      console.error('Create order error:', errMsg, redactPII({ ...error }));
       // Si ya se había reservado stock de variante pero algo falló después, libéralo
       if (variantReserved && createdOrderId && cleanupTenantId) {
         await variantsService.releaseForOrder(createdOrderId, cleanupTenantId).catch(() => {});
@@ -416,6 +450,7 @@ router.post(
     body('items.*.quantity').isInt({ min: 1 }),
     body('items.*.unitPrice').isFloat({ min: 0 }),
     body('items.*.modifierOptionIds').optional().isArray(),
+    requireDataPolicyConsent,
     validateRequest,
   ],
   async (req: Request, res: Response, _next: NextFunction) => {
@@ -535,15 +570,16 @@ router.post(
       });
 
       // Insertar orden solo si la preferencia MP fue exitosa
+      const mpConsentId = await recordCheckoutConsent(req, tenantId);
       await pool.query(
         `INSERT INTO storefront_orders
           (id, tenant_id, order_number, customer_name, customer_phone, customer_email, customer_cedula,
            department, municipality, address, neighborhood, notes, subtotal, shipping_cost, discount,
-           total, payment_method, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 'mercadopago', 'pendiente')`,
+           total, consent_id, payment_method, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, 'mercadopago', 'pendiente')`,
         [orderId, tenantId, orderNumber, customerName, customerPhone, customerEmail || null, customerCedula || null,
           department || null, municipality || null, address || null, neighborhood || null, finalNotes,
-          subtotal, discount, total]
+          subtotal, discount, total, mpConsentId]
       );
 
       const itemDiscountPct = onlineDiscountEnabled ? 10 : 0;
@@ -610,6 +646,7 @@ router.post(
     body('items.*.quantity').isInt({ min: 1 }),
     body('items.*.unitPrice').isFloat({ min: 0 }),
     body('items.*.modifierOptionIds').optional().isArray(),
+    requireDataPolicyConsent,
     validateRequest,
   ],
   async (req: Request, res: Response, _next: NextFunction) => {
@@ -706,15 +743,16 @@ router.post(
       const couponNote = couponCode ? ` [Cupón: ${couponCode} - Desc: $${discount}]` : '';
       const finalNotes = `[PAGO ADDI] ${notes || ''}${couponNote}`.trim();
 
+      const addiConsentId = await recordCheckoutConsent(req, tenantId);
       await pool.query(
         `INSERT INTO storefront_orders
           (id, tenant_id, order_number, customer_name, customer_phone, customer_email, customer_cedula,
            department, municipality, address, neighborhood, notes, subtotal, shipping_cost, discount,
-           total, payment_method, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 'addi', 'pendiente')`,
+           total, consent_id, payment_method, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, 'addi', 'pendiente')`,
         [orderId, tenantId, orderNumber, customerName, customerPhone, customerEmail || null, customerCedula || null,
           department || null, municipality || null, address || null, neighborhood || null, finalNotes,
-          subtotal, discount, total]
+          subtotal, discount, total, addiConsentId]
       );
 
       for (const item of items) {
@@ -796,14 +834,14 @@ router.post(
       const appData: any = await appRes.json();
 
       if (!appRes.ok) {
-        console.error('ADDI application error:', appData);
+        console.error('ADDI application error:', redactPII(appData));
         res.status(502).json({ success: false, error: appData?.message || 'Error al crear aplicación de crédito en ADDI.' });
         return;
       }
 
       const applicationUrl = appData.applicationUrl || appData.url || appData.redirectUrl;
       if (!applicationUrl) {
-        console.error('ADDI response missing URL:', appData);
+        console.error('ADDI response missing URL:', redactPII(appData));
         res.status(502).json({ success: false, error: 'ADDI no devolvió una URL de pago.' });
         return;
       }
@@ -996,6 +1034,7 @@ router.post(
     body('items.*.quantity').isInt({ min: 1 }),
     body('items.*.unitPrice').isFloat({ min: 0 }),
     body('items.*.modifierOptionIds').optional().isArray(),
+    requireDataPolicyConsent,
     validateRequest,
   ],
   async (req: Request, res: Response, _next: NextFunction) => {
@@ -1049,15 +1088,16 @@ router.post(
       const couponNote = couponCode ? ` [Cupón: ${couponCode} - Desc: $${discount}]` : '';
       const finalNotes = `[PAGO SISTECREDITO] ${notes || ''}${couponNote}`.trim();
 
+      const sisteConsentId = await recordCheckoutConsent(req, tenantId);
       await pool.query(
         `INSERT INTO storefront_orders
           (id, tenant_id, order_number, customer_name, customer_phone, customer_email, customer_cedula,
            department, municipality, address, notes, subtotal, shipping_cost, discount,
-           total, payment_method, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 'sistecredito', 'pendiente')`,
+           total, consent_id, payment_method, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, 'sistecredito', 'pendiente')`,
         [orderId, tenantId, orderNumber, customerName, customerPhone, customerEmail || null, customerCedula || null,
           department || null, municipality || null, address || null, finalNotes,
-          subtotal, discount, total]
+          subtotal, discount, total, sisteConsentId]
       );
 
       for (const item of items) {
@@ -1122,7 +1162,7 @@ router.post(
       const appData: any = await appRes.json();
 
       if (!appRes.ok) {
-        console.error('Sistecredito application error:', appData);
+        console.error('Sistecredito application error:', redactPII(appData));
         res.status(502).json({
           success: false,
           error: appData?.message || appData?.mensaje || appData?.error || 'Error al crear solicitud en Sistecredito.',
@@ -1164,7 +1204,7 @@ router.post(
           });
           return;
         }
-        console.error('Sistecredito response missing URL:', appData);
+        console.error('Sistecredito response missing URL:', redactPII(appData));
         res.status(502).json({ success: false, error: 'Sistecredito no devolvió una URL de validación.' });
         return;
       }

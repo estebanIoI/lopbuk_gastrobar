@@ -71,6 +71,34 @@
       "when": 1782968240633,
       "tag": "0009_wandering_steel_serpent",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1783049487451,
+      "tag": "0010_tense_turbo",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "5",
+      "when": 1783101083961,
+      "tag": "0011_strange_morgan_stark",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "5",
+      "when": 1783215982847,
+      "tag": "0012_mysterious_vapor",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "5",
+      "when": 1783277736266,
+      "tag": "0013_white_ultimates",
+      "breakpoints": true
     }
   ]
 }

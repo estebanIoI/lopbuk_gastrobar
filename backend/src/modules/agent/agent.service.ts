@@ -20,6 +20,17 @@ import type { ToolDef } from '../ai/orchestrator.service';
 // Types
 // ─────────────────────────────────────────────────────────────
 
+export interface VariantOption {
+  id: string;
+  /** Etiqueta legible: "Talla M · Rojo" */
+  label: string;
+  color: string | null;
+  size: string | null;
+  price: number;
+  /** Unidades realmente vendibles: stock - reserved_stock */
+  available: number;
+}
+
 export interface ProductMatch {
   id: string;
   name: string;
@@ -27,6 +38,8 @@ export interface ProductMatch {
   imageUrl: string | null;
   category: string | null;
   stock: number;
+  /** Variantes activas (tallas/colores) con disponibilidad real. Vacío = producto simple. */
+  variants?: VariantOption[];
 }
 
 const EMPTY_CONTEXT: DynamicContext = {
@@ -43,7 +56,22 @@ const EMPTY_CONTEXT: DynamicContext = {
   services: [],
   featuredProducts: [],
   reservationsEnabled: false,
+  offers: [],
+  activeCoupons: [],
+  deliveryFee: 0,
+  freeDeliveryMin: 0,
+  bumpTitle: null,
+  bumpProducts: [],
+  allowContraentrega: true,
 };
+
+/** Datos del PROPIO cliente de la sesión para personalizar (la dirección nunca va al LLM). */
+export interface ReturningCustomer {
+  name: string | null;
+  daysAgo: number;
+  lastItems: string;
+  hasKnownAddress: boolean;
+}
 
 // ─────────────────────────────────────────────────────────────
 // AI keys — multi-provider
@@ -357,17 +385,22 @@ export async function searchProductsForChatbot(
   const likeValues: string[] = [phraseParam, phraseParam, phraseParam, phraseParam];
   for (const w of words) likeValues.push(`%${w}%`, `%${w}%`, `%${w}%`, `%${w}%`);
 
+  // Un producto con variantes suele tener products.stock = 0 (el stock vive en
+  // product_variants): también debe aparecer si alguna variante tiene disponibilidad.
   const [rows] = await pool.query(
     `SELECT p.id, p.name, p.sale_price AS salePrice, p.image_url AS imageUrl, p.category, p.stock
      FROM products p
-     WHERE p.tenant_id = ? AND p.published_in_store = 1 AND p.stock > 0
+     WHERE p.tenant_id = ? AND p.published_in_store = 1
+       AND (p.stock > 0 OR EXISTS (
+             SELECT 1 FROM product_variants v
+             WHERE v.product_id = p.id AND v.is_active = 1 AND (v.stock - v.reserved_stock) > 0))
        AND (${combinedWhere})
      ORDER BY CASE WHEN p.name LIKE ? THEN 0 ELSE 1 END, p.stock DESC
      LIMIT 5`,
     [tenantId, ...likeValues, phraseParam],
   ) as any;
 
-  const allResults = (rows as any[]).map((r: any) => ({
+  const allResults: ProductMatch[] = (rows as any[]).map((r: any) => ({
     id: String(r.id),
     name: r.name,
     salePrice: Number(r.salePrice),
@@ -375,6 +408,41 @@ export async function searchProductsForChatbot(
     category: r.category || null,
     stock: Number(r.stock),
   }));
+
+  // Adjuntar variantes activas (talla/color/precio/disponibilidad) a los matches:
+  // el agente necesita saber exactamente qué opciones puede ofrecer y cuáles están agotadas.
+  if (allResults.length > 0) {
+    const ids = allResults.map(p => p.id);
+    const [vrows] = await pool.query(
+      `SELECT id, product_id AS productId, color, size,
+              COALESCE(price_override, NULL) AS priceOverride,
+              (stock - reserved_stock) AS available
+       FROM product_variants
+       WHERE product_id IN (${ids.map(() => '?').join(',')}) AND is_active = 1
+       ORDER BY sort_order ASC, size ASC
+       LIMIT 60`,
+      ids,
+    ) as any;
+    const byProduct = new Map<string, VariantOption[]>();
+    for (const v of (vrows as any[])) {
+      const parts = [v.size ? `Talla ${v.size}` : null, v.color || null].filter(Boolean);
+      const list = byProduct.get(String(v.productId)) || [];
+      const base = allResults.find(p => p.id === String(v.productId));
+      list.push({
+        id: String(v.id),
+        label: parts.join(' · ') || 'Única',
+        color: v.color || null,
+        size: v.size || null,
+        price: v.priceOverride != null ? Number(v.priceOverride) : (base?.salePrice ?? 0),
+        available: Math.max(0, Number(v.available) || 0),
+      });
+      byProduct.set(String(v.productId), list);
+    }
+    for (const p of allResults) {
+      const vs = byProduct.get(p.id);
+      if (vs?.length) p.variants = vs;
+    }
+  }
 
   // Prefer products whose NAME contains at least one content word.
   // This avoids returning items that only matched via description
@@ -397,6 +465,7 @@ export function buildEnrichedSystemPrompt(
   config: any,
   ctx: DynamicContext,
   products: ProductMatch[],
+  returningCustomer?: ReturningCustomer | null,
 ): string {
   const fmt = (v: number) => `$${v.toLocaleString('es-CO')}`;
 
@@ -413,7 +482,8 @@ export function buildEnrichedSystemPrompt(
     `- Mensajes MUY cortos: 1 o 2 frases, casi nunca más de 40 palabras. Una sola idea o pregunta por mensaje.\n` +
     `- Nada de párrafos largos, listas largas ni "muros de texto". No repitas tu presentación en cada mensaje.\n` +
     `- Tono cercano y seguro: "¡Claro!", "Perfecto", "De una". Máximo 1 emoji ocasional.\n` +
-    `- Habla de BENEFICIOS, no solo de características. Adapta el lenguaje al cliente.\n\n` +
+    `- Habla de BENEFICIOS, no solo de características. Adapta el lenguaje al cliente.\n` +
+    `- RESPUESTAS RÁPIDAS: cuando ayude a avanzar la venta, termina tu mensaje con una línea EXACTA en el formato [[opciones: Opción A|Opción B|Opción C]] con 2-3 respuestas cortas (2-4 palabras) que el cliente pueda tocar (ej: [[opciones: Sí, pedirlo|Ver tallas|¿Cuánto el envío?]]). No la uses tras confirmar un pedido registrado.\n\n` +
     `## CÓMO VENDES (asesor consultivo)\n` +
     `1) ENTIENDE antes de ofrecer: detecta qué necesita y qué tan listo está para comprar. Si falta info, haz 1 pregunta corta.\n` +
     `2) RECOMIENDA UNA sola opción principal, la que mejor encaja (no la más cara). Si comparas, máximo 2 y di cuál conviene.\n` +
@@ -485,11 +555,18 @@ export function buildEnrichedSystemPrompt(
     prompt += `\nUsa esta carta solo para responder con precisión lo que el cliente pregunte. Menciona un producto únicamente si lo pide o encaja con lo que busca; NUNCA la enumeres completa ni ofrezcas productos al azar. Si el cliente quiere pedir, usa la herramienta registrar_pedido.`;
   }
 
-  // Productos que coincidieron con la búsqueda del cliente
+  // Productos que coincidieron con la búsqueda del cliente (con variantes y disponibilidad real)
   if (products.length > 0) {
     prompt += `\n\n## PRODUCTOS QUE COINCIDEN CON LA CONSULTA:\n`;
     products.forEach(p => {
-      prompt += `- ${p.name} — ${fmt(p.salePrice)} | ${p.category || 'General'} | Stock: ${p.stock}\n`;
+      if (p.variants?.length) {
+        const opts = p.variants
+          .map(v => `${v.label} ${fmt(v.price)}${v.available > 0 ? (v.available <= 3 ? ` (¡quedan ${v.available}!)` : '') : ' (agotada)'}`)
+          .join(' · ');
+        prompt += `- ${p.name} | ${p.category || 'General'} | Opciones: ${opts}\n`;
+      } else {
+        prompt += `- ${p.name} — ${fmt(p.salePrice)} | ${p.category || 'General'} | Stock: ${p.stock}\n`;
+      }
     });
     prompt +=
       `\nEstos productos aparecerán como tarjetas interactivas en el chat. ` +
@@ -497,11 +574,73 @@ export function buildEnrichedSystemPrompt(
       `para ver la información completa del plato y hacer su pedido directamente desde ahí.`;
   }
 
+  // ── Palancas de cierre: ofertas, cupones y envío gratis (siempre datos REALES) ──
+  const levers: string[] = [];
+  if (ctx.offers.length > 0) {
+    const offerLines = ctx.offers
+      .map(o => `${o.name}: antes ${fmt(o.salePrice)}, HOY ${fmt(o.offerPrice)}${o.offerLabel ? ` (${o.offerLabel})` : ''}`)
+      .join(' · ');
+    levers.push(`OFERTAS ACTIVAS: ${offerLines}`);
+  }
+  if (ctx.activeCoupons.length > 0) {
+    const couponLines = ctx.activeCoupons
+      .map(c => `${c.code} = ${c.discountType === 'porcentaje' ? `${c.discountValue}% de descuento` : `${fmt(c.discountValue)} de descuento`}${c.minPurchase ? ` en compras desde ${fmt(c.minPurchase)}` : ''}`)
+      .join(' · ');
+    levers.push(`CUPONES VIGENTES: ${couponLines}. Si el cliente duda por precio, ofrécele el cupón y regístralo en el pedido (parámetro cupon).`);
+  }
+  if (ctx.freeDeliveryMin > 0) {
+    levers.push(`ENVÍO: domicilio ${ctx.deliveryFee > 0 ? fmt(ctx.deliveryFee) : 'con costo según zona'} — GRATIS desde ${fmt(ctx.freeDeliveryMin)}. Si al cliente le falta poco para el envío gratis, díselo ("te faltan $X para envío gratis") y sugiere completar con algo pequeño.`);
+  } else if (ctx.deliveryFee > 0) {
+    levers.push(`ENVÍO: el domicilio cuesta ${fmt(ctx.deliveryFee)}; menciónalo antes de confirmar.`);
+  }
+  if (levers.length > 0) {
+    prompt += `\n\n## PALANCAS DE CIERRE (usa solo estos datos, nunca inventes descuentos):\n- ${levers.join('\n- ')}`;
+  }
+
+  // ── Upsell: UN complemento tras la decisión de compra ──
+  if (ctx.bumpProducts.length > 0) {
+    const bumpLines = ctx.bumpProducts.map(b => `${b.name} (${fmt(b.salePrice)})`).join(' · ');
+    prompt += `\n\n## COMPLEMENTOS SUGERIDOS (upsell):\n` +
+      `${ctx.bumpTitle || '¿También te puede interesar?'}: ${bumpLines}\n` +
+      `Cuando el cliente YA decidió su pedido y antes de pedirle los datos, ofrece UNO de estos complementos en una frase corta ("¿Le sumamos X por ${fmt(ctx.bumpProducts[0].salePrice)}?"). Solo UNA vez por conversación; si dice no, sigue sin insistir.`;
+  }
+
+  // ── Cliente recurrente: trato VIP, cero fricción ──
+  if (returningCustomer) {
+    prompt += `\n\n## CLIENTE RECURRENTE (dato interno):\n` +
+      `${returningCustomer.name ? `Se llama ${returningCustomer.name}. ` : ''}` +
+      `Compró hace ${returningCustomer.daysAgo} día(s): ${returningCustomer.lastItems}.\n` +
+      `- Salúdalo por su nombre y trátalo como cliente de la casa (sin exagerar).\n` +
+      (returningCustomer.hasKnownAddress
+        ? `- Ya tenemos su dirección: NO se la pidas de nuevo; pregunta "¿te lo enviamos a la misma dirección de la vez pasada?" y si dice que sí, usa "misma" como dirección en registrar_pedido.\n`
+        : '') +
+      `- Puedes sugerir repetir su pedido anterior como atajo de cierre.`;
+  }
+
+  // ── Manejo de objeciones con datos reales ──
+  prompt += `\n\n## MANEJO DE OBJECIONES (siempre con datos reales, nunca presión):\n` +
+    `- "Está caro" → valida ("te entiendo") y ancla valor: beneficio concreto + oferta o cupón vigente si existe. Nunca bajes el precio por tu cuenta.\n` +
+    (ctx.allowContraentrega
+      ? `- "No sé si confiar" → recuérdale que puede pagar CONTRA ENTREGA: paga solo cuando recibe. Riesgo cero.\n`
+      : '') +
+    `- "Lo pienso" → pregunta corta para descubrir la duda real ("¿es por el precio o por la talla?") y resuélvela.\n` +
+    `- Urgencia SOLO real: usa "quedan N unidades" o la vigencia de una oferta únicamente si aparecen en tu contexto.`;
+
+  // Disponibilidad y variantes — el agente nunca promete lo que no hay
+  prompt += `\n\n## DISPONIBILIDAD Y VARIANTES (OBLIGATORIO):\n` +
+    `- Si un producto tiene "Opciones" (tallas/colores), pregunta CUÁL quiere ANTES de registrar el pedido. Nunca registres un producto con variantes sin la opción elegida en los items (ej: "1x Camiseta talla M").\n` +
+    `- NUNCA ofrezcas una opción marcada como (agotada). Si lo que quiere está agotado, dilo con honestidad y ofrece la alternativa disponible más parecida.\n` +
+    `- Si quedan pocas unidades ("¡quedan N!"), úsalo con honestidad para cerrar: es urgencia REAL.\n` +
+    `- El sistema verifica stock al registrar: si te informa que no alcanza, ofrece menos unidades u otra opción, sin inventar excusas.`;
+
   // Instrucciones de pedidos/domicilio
   prompt += `\n\n## PEDIDOS Y DOMICILIOS:\n` +
-    `Para tomar un pedido necesitas: nombre completo, teléfono, lista de productos con cantidades, ` +
+    `Para tomar un pedido necesitas: nombre completo, teléfono, lista de productos con cantidades (con talla/color si aplica), ` +
     `y si es domicilio la dirección de entrega. ` +
-    `Usa la herramienta registrar_pedido para confirmar el pedido y notificar al negocio.`;
+    `Usa la herramienta registrar_pedido para confirmar el pedido y notificar al negocio.\n` +
+    `Al pedir el último dato, incluye en la MISMA frase la autorización de datos, por ejemplo: ` +
+    `"¿Confirmo tu pedido? Al confirmar autorizas el tratamiento de tus datos para gestionarlo (política disponible en la tienda)". ` +
+    `Solo registra el pedido después de ese sí.`;
   if (ctx.storeWhatsapp) {
     prompt += ` El cliente también puede contactar directamente por WhatsApp al ${ctx.storeWhatsapp}.`;
   }
@@ -574,11 +713,12 @@ export async function saveMessage(
   tenantId: string,
   role: 'user' | 'assistant',
   content: string,
-): Promise<void> {
-  await pool.query(
+): Promise<number> {
+  const [result] = await pool.query(
     'INSERT INTO chatbot_messages (session_id, tenant_id, role, content) VALUES (?, ?, ?, ?)',
     [sessionId, tenantId, role, content],
-  );
+  ) as any;
+  return Number(result?.insertId || 0);
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -670,25 +810,88 @@ const TOOL_TAG_RE = /<function[^>]*>[\s\S]*?<\/function>|<function[\s\S]*$|<\/?f
 // Main pipeline — channel-agnostic
 // ─────────────────────────────────────────────────────────────
 
+/**
+ * Si la sesión ya tiene teléfono (WhatsApp siempre; web cuando el cliente lo dio),
+ * busca su última compra para trato de cliente recurrente. Solo nombre + resumen
+ * de ítems van al LLM; la dirección se queda server-side (privacidad).
+ */
+async function getReturningCustomer(
+  tenantId: string,
+  sessionId: string,
+): Promise<ReturningCustomer | null> {
+  try {
+    const [srows] = await pool.query(
+      'SELECT customer_phone, customer_name FROM chatbot_sessions WHERE id = ? LIMIT 1',
+      [sessionId],
+    ) as any;
+    const phone = String(srows?.[0]?.customer_phone || '').replace(/\D/g, '');
+    if (phone.length < 7) return null;
+
+    const [orows] = await pool.query(
+      `SELECT id, customer_name, address, created_at
+         FROM storefront_orders
+        WHERE tenant_id = ? AND REPLACE(REPLACE(customer_phone,' ',''),'+','') LIKE ?
+          AND status != 'cancelado'
+        ORDER BY created_at DESC LIMIT 1`,
+      [tenantId, `%${phone.slice(-10)}`],
+    ) as any;
+    const order = orows?.[0];
+    if (!order) return null;
+
+    const [irows] = await pool.query(
+      'SELECT product_name, quantity FROM storefront_order_items WHERE order_id = ? LIMIT 5',
+      [order.id],
+    ) as any;
+    const lastItems = ((irows as any[]) || [])
+      .map((i: any) => `${i.quantity}x ${i.product_name}`)
+      .join(', ') || 'compra anterior';
+    const daysAgo = Math.max(0, Math.floor((Date.now() - new Date(order.created_at).getTime()) / 86400000));
+
+    return {
+      name: order.customer_name && order.customer_name !== '[ANONIMIZADO]' ? order.customer_name : (srows[0].customer_name || null),
+      daysAgo,
+      lastItems,
+      hasKnownAddress: !!order.address,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Extrae el marcador [[opciones: a|b|c]] del texto → chips de respuesta rápida. */
+function extractQuickReplies(text: string): { cleaned: string; replies: string[] } {
+  const re = /\[\[\s*opciones?\s*:\s*([^\]]+)\]\]/gi;
+  const replies: string[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text))) {
+    for (const opt of m[1].split('|')) {
+      const t = opt.trim();
+      if (t && replies.length < 4 && !replies.includes(t)) replies.push(t);
+    }
+  }
+  return { cleaned: text.replace(re, '').replace(/\n{3,}/g, '\n\n').trim(), replies };
+}
+
 export async function processAgentMessage(
   tenantId: string,
   sessionId: string,
   message: string,
   config: any,
   excludeProductIds: string[] = [],   // productos que el cliente ya está pidiendo: no repetir su tarjeta
-): Promise<{ reply: string; suggestedProducts: ProductMatch[] }> {
+): Promise<{ reply: string; suggestedProducts: ProductMatch[]; suggestedReplies: string[] }> {
   const historyMessages = await getConversationHistory(sessionId);
 
   const productQuery = isProductQuery(message);
 
-  const [matchedProducts, dynamicCtx] = await Promise.all([
+  const [matchedProducts, dynamicCtx, returningCustomer] = await Promise.all([
     productQuery
       ? searchProductsForChatbot(tenantId, message).catch(() => [] as ProductMatch[])
       : Promise.resolve([] as ProductMatch[]),
     buildDynamicContext(tenantId).catch(() => EMPTY_CONTEXT),
+    getReturningCustomer(tenantId, sessionId),
   ]);
 
-  const systemPrompt        = buildEnrichedSystemPrompt(config, dynamicCtx, matchedProducts);
+  const systemPrompt        = buildEnrichedSystemPrompt(config, dynamicCtx, matchedProducts, returningCustomer);
   const conversationMessages = [...historyMessages, { role: 'user', content: message }];
 
   // IA7: TODOS los proveedores pasan por el agentLoop con las herramientas reales del
@@ -740,10 +943,10 @@ export async function processAgentMessage(
     // Errores de IA (rate limit del proveedor, caída temporal): respuesta amable, NUNCA 500.
     // El front muestra el texto y conserva las tarjetas de producto que ya encontramos.
     if (msg.includes('429') || /rate.?limit|tokens per minute|\bTPM\b|quota/i.test(msg)) {
-      return { reply: 'Estoy recibiendo muchas consultas ahora mismo 🙏 Dame unos segundos y vuelve a escribirme.', suggestedProducts };
+      return { reply: 'Estoy recibiendo muchas consultas ahora mismo 🙏 Dame unos segundos y vuelve a escribirme.', suggestedProducts, suggestedReplies: [] };
     }
     console.warn('[chatbot] Error de IA:', msg.slice(0, 200));
-    return { reply: 'Tuve un problemita para responder. Intenta de nuevo en un momento. 🙂', suggestedProducts };
+    return { reply: 'Tuve un problemita para responder. Intenta de nuevo en un momento. 🙂', suggestedProducts, suggestedReplies: [] };
   }
 
   // Si el modelo escribió el/los llamado(s) como TEXTO, los procesamos: ejecutamos los
@@ -784,5 +987,9 @@ export async function processAgentMessage(
       reply = '¡Con gusto te ayudo! Cuéntame qué producto buscas. 🙂';
     }
   }
-  return { reply, suggestedProducts };
+
+  // Chips de respuesta rápida: se extraen del texto (web los muestra como botones;
+  // en WhatsApp simplemente desaparecen del mensaje).
+  const { cleaned: finalReply, replies: suggestedReplies } = extractQuickReplies(reply);
+  return { reply: finalReply || reply, suggestedProducts, suggestedReplies };
 }

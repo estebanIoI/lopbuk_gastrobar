@@ -1,9 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useStore } from '@/lib/store'
 import { useAuthStore } from '@/lib/auth-store'
-import { AuthForm } from '@/components/auth-form'
+import { loginHref } from '@/lib/login-path'
 import { LandingPage } from '@/components/landing-page'
 import { MerchantPanel } from '@/components/merchant-panel'
 import ConsumerOS from '@/components/consumer/ConsumerOS'
@@ -11,9 +12,12 @@ import { WorkspaceSelector } from '@/components/workspace-selector'
 import { FullPageLoader } from '@/components/box-loader'
 
 export default function Home() {
+  const router = useRouter()
   const { activeSection, setActiveSection } = useStore()
   const { isAuthenticated, checkAuth, user, isCheckingAuth } = useAuthStore()
-  const [showLogin, setShowLogin] = useState(false)
+  // El login ya no se muestra inline en "/": se navega a la ruta de login
+  // centralizada (oculta si hay NEXT_PUBLIC_LOGIN_KEY) para no exponerlo aquí.
+  const goToLogin = () => router.push(loginHref())
   // Espacio elegido por cuentas con doble acceso (comerciante + OS): 'merchant' | 'os'.
   const [workspace, setWorkspace] = useState<string | null>(null)
   useEffect(() => { try { setWorkspace(localStorage.getItem('dz_workspace')) } catch { /* noop */ } }, [])
@@ -87,7 +91,7 @@ export default function Home() {
   // admin está autenticado. Esto hace que el preview del Editor Visual muestre la
   // página real de la tienda y no el dashboard.
   if (isStorePreview) {
-    return <LandingPage onGoToLogin={() => setShowLogin(true)} />
+    return <LandingPage onGoToLogin={goToLogin} />
   }
 
   // Cliente: Consumer OS (el panel ES el producto; el marketplace es "Explore" dentro).
@@ -96,12 +100,10 @@ export default function Home() {
     return <ConsumerOS />
   }
 
-  // Sin sesión: landing pública y, al pulsar acceder, el formulario de login
+  // Sin sesión: landing pública. Al pulsar "acceder" se navega a la ruta de login
+  // (oculta si hay NEXT_PUBLIC_LOGIN_KEY) — ya no se renderiza el formulario en "/".
   if (!isAuthenticated) {
-    if (!showLogin) {
-      return <LandingPage onGoToLogin={() => setShowLogin(true)} />
-    }
-    return <AuthForm onGoBack={() => setShowLogin(false)} />
+    return <LandingPage onGoToLogin={goToLogin} />
   }
 
   // Comerciante: tiene DOBLE espacio (su panel + el OS personal). Si no ha elegido,

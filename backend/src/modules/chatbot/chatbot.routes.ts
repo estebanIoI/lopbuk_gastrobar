@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import pool from '../../config/database';
-import { authenticate } from '../../common/middleware';
+import { authenticate, AuthRequest } from '../../common/middleware';
+import { sendTextMessage } from '../whatsapp/whatsapp.service';
 import { v4 as uuidv4 } from 'uuid';
 import {
   getOrCreateSession,
@@ -92,9 +93,20 @@ router.post('/message', async (req: Request, res: Response) => {
 
     if (await isHumanTakeover(sessionId)) {
       await saveMessage(sessionId, tenantId, 'user', message.trim());
+      // El widget entra en modo "asesor humano": hace polling de session-updates
+      // para recibir las respuestas manuales del comerciante.
+      const [maxRows] = await pool.query(
+        'SELECT COALESCE(MAX(id), 0) AS maxId FROM chatbot_messages WHERE session_id = ?',
+        [sessionId]
+      ) as any;
       res.json({
         success: true,
-        data: { reply: 'Un asesor te atenderá en breve.', sessionToken: token },
+        data: {
+          reply: 'Un asesor te atenderá en breve.',
+          sessionToken: token,
+          takeover: true,
+          lastMessageId: Number(maxRows?.[0]?.maxId || 0),
+        },
       });
       return;
     }
@@ -102,19 +114,21 @@ router.post('/message', async (req: Request, res: Response) => {
     // Se procesa ANTES de guardar el mensaje del usuario: así el historial que ve el
     // modelo no incluye el mensaje actual (se anexa una sola vez dentro del pipeline),
     // evitando el duplicado. Si el pipeline falla, no queda un mensaje huérfano.
-    const { reply, suggestedProducts } = await processAgentMessage(
+    const { reply, suggestedProducts, suggestedReplies } = await processAgentMessage(
       tenantId, sessionId, message.trim(), config,
       Array.isArray(excludeProductIds) ? excludeProductIds.map(String) : []
     );
 
     await saveMessage(sessionId, tenantId, 'user', message.trim());
-    await saveMessage(sessionId, tenantId, 'assistant', reply);
+    const lastMessageId = await saveMessage(sessionId, tenantId, 'assistant', reply);
 
     res.json({
       success: true,
       data: {
         reply,
         sessionToken: token,
+        lastMessageId,
+        suggestedReplies: suggestedReplies.length > 0 ? suggestedReplies : undefined,
         suggestedProducts: suggestedProducts.length > 0
           ? suggestedProducts.map(p => ({
               id:        p.id,
@@ -129,6 +143,161 @@ router.post('/message', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Chatbot message error:', error);
     res.status(500).json({ success: false, error: 'Error al procesar el mensaje' });
+  }
+});
+
+// =============================================
+// PUBLIC: GET actualizaciones de sesión (polling del widget en takeover)
+// GET /api/chatbot/session-updates?slug=&sessionToken=&afterId=
+// Devuelve las respuestas manuales del comerciante (role=assistant) posteriores
+// a afterId. Solo tiene sentido mientras human_takeover está activo.
+// =============================================
+router.get('/session-updates', async (req: Request, res: Response) => {
+  try {
+    const slug = String(req.query.slug || '');
+    const sessionToken = String(req.query.sessionToken || '');
+    const afterId = Number(req.query.afterId || 0);
+    if (!slug || !sessionToken) {
+      res.status(400).json({ success: false, error: 'slug y sessionToken son requeridos' });
+      return;
+    }
+    const [tenants] = await pool.query(
+      "SELECT id FROM tenants WHERE slug = ? AND status = 'activo' LIMIT 1", [slug]
+    ) as any;
+    if (!tenants?.length) { res.status(404).json({ success: false, error: 'Tienda no encontrada' }); return; }
+    const [sessions] = await pool.query(
+      'SELECT id, human_takeover FROM chatbot_sessions WHERE session_token = ? AND tenant_id = ? LIMIT 1',
+      [sessionToken, tenants[0].id]
+    ) as any;
+    if (!sessions?.length) { res.json({ success: true, data: { takeover: false, messages: [] } }); return; }
+
+    const [msgs] = await pool.query(
+      `SELECT id, content FROM chatbot_messages
+        WHERE session_id = ? AND role = 'assistant' AND id > ?
+        ORDER BY id ASC LIMIT 20`,
+      [sessions[0].id, afterId]
+    ) as any;
+    res.json({
+      success: true,
+      data: {
+        takeover: !!sessions[0].human_takeover,
+        messages: ((msgs as any[]) || []).map((m: any) => ({ id: Number(m.id), content: m.content })),
+      },
+    });
+  } catch (error) {
+    console.error('Chatbot session-updates error:', error);
+    res.status(500).json({ success: false, error: 'Error al consultar la sesión' });
+  }
+});
+
+// =============================================
+// MERCHANT: conversaciones del chatbot (asesoría + cierre humano)
+// =============================================
+
+// GET /api/chatbot/sessions — sesiones del tenant con último mensaje
+router.get('/sessions', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const [rows] = await pool.query(
+      `SELECT s.id, s.session_token AS sessionToken, s.customer_name AS customerName,
+              s.customer_phone AS customerPhone, s.human_takeover AS humanTakeover,
+              s.channel, s.last_activity AS lastActivity,
+              (SELECT content FROM chatbot_messages m WHERE m.session_id = s.id ORDER BY m.id DESC LIMIT 1) AS lastMessage,
+              (SELECT COUNT(*) FROM chatbot_messages m WHERE m.session_id = s.id) AS messageCount
+         FROM chatbot_sessions s
+        WHERE s.tenant_id = ?
+        ORDER BY s.last_activity DESC
+        LIMIT 100`,
+      [tenantId]
+    ) as any;
+    res.json({
+      success: true,
+      data: ((rows as any[]) || []).map((r: any) => ({
+        ...r,
+        humanTakeover: !!r.humanTakeover,
+        channel: String(r.sessionToken || '').startsWith('wa:') ? 'whatsapp' : (r.channel || 'web'),
+      })),
+    });
+  } catch (error) {
+    console.error('Chatbot sessions error:', error);
+    res.status(500).json({ success: false, error: 'Error al listar conversaciones' });
+  }
+});
+
+// GET /api/chatbot/sessions/:id/messages — historial completo de una sesión
+router.get('/sessions/:id/messages', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const [sessions] = await pool.query(
+      'SELECT id FROM chatbot_sessions WHERE id = ? AND tenant_id = ? LIMIT 1',
+      [req.params.id, tenantId]
+    ) as any;
+    if (!sessions?.length) { res.status(404).json({ success: false, error: 'Conversación no encontrada' }); return; }
+    const [msgs] = await pool.query(
+      'SELECT id, role, content, created_at AS createdAt FROM chatbot_messages WHERE session_id = ? ORDER BY id ASC LIMIT 300',
+      [req.params.id]
+    ) as any;
+    res.json({ success: true, data: msgs });
+  } catch (error) {
+    console.error('Chatbot session messages error:', error);
+    res.status(500).json({ success: false, error: 'Error al cargar la conversación' });
+  }
+});
+
+// PATCH /api/chatbot/sessions/:id/takeover — el comerciante toma o devuelve el control
+router.patch('/sessions/:id/takeover', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const takeover = req.body?.takeover === true || req.body?.takeover === 'true';
+    const [result] = await pool.query(
+      'UPDATE chatbot_sessions SET human_takeover = ? WHERE id = ? AND tenant_id = ?',
+      [takeover ? 1 : 0, req.params.id, tenantId]
+    ) as any;
+    if (!result?.affectedRows) { res.status(404).json({ success: false, error: 'Conversación no encontrada' }); return; }
+    res.json({ success: true, data: { takeover } });
+  } catch (error) {
+    console.error('Chatbot takeover error:', error);
+    res.status(500).json({ success: false, error: 'Error al cambiar el modo de atención' });
+  }
+});
+
+// POST /api/chatbot/sessions/:id/reply — respuesta manual del comerciante.
+// Se guarda como assistant (el widget web la recibe por polling); si la sesión es
+// de WhatsApp (wa:<phone>), también se envía por Evolution API.
+router.post('/sessions/:id/reply', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const message = String(req.body?.message || '').trim();
+    if (!message) { res.status(400).json({ success: false, error: 'message es requerido' }); return; }
+
+    const [sessions] = await pool.query(
+      'SELECT id, session_token AS sessionToken FROM chatbot_sessions WHERE id = ? AND tenant_id = ? LIMIT 1',
+      [req.params.id, tenantId]
+    ) as any;
+    if (!sessions?.length) { res.status(404).json({ success: false, error: 'Conversación no encontrada' }); return; }
+
+    const messageId = await saveMessage(sessions[0].id, tenantId!, 'assistant', message);
+    await pool.query('UPDATE chatbot_sessions SET last_activity = NOW() WHERE id = ?', [sessions[0].id]);
+
+    // Canal WhatsApp: entregar el mensaje real al teléfono del cliente
+    let whatsappSent = false;
+    const token = String(sessions[0].sessionToken || '');
+    if (token.startsWith('wa:')) {
+      const [cfgRows] = await pool.query(
+        'SELECT evolution_instance FROM chatbot_config WHERE tenant_id = ? LIMIT 1', [tenantId]
+      ) as any;
+      const instance = cfgRows?.[0]?.evolution_instance;
+      if (instance) {
+        await sendTextMessage(instance, token.slice(3), message)
+          .then(() => { whatsappSent = true; })
+          .catch((e: any) => console.error('Manual reply WA send failed:', e?.message || e));
+      }
+    }
+
+    res.json({ success: true, data: { messageId, whatsappSent } });
+  } catch (error) {
+    console.error('Chatbot manual reply error:', error);
+    res.status(500).json({ success: false, error: 'Error al enviar la respuesta' });
   }
 });
 

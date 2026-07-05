@@ -28,7 +28,9 @@
 | `categories` | Categorías: CRUD + color + sort_order + toggle visibilidad | `categories.service.ts` |
 | `purchases` | Órdenes de compra a proveedores, ingreso de stock. `suppliers` CRUD incluido | `purchases.service.ts` |
 | `suppliers` | Catálogo proveedores, productos por proveedor (N:N), stock por variante | `suppliers.service.ts`, `provider-products.tsx` |
-| `customers` | CRM básico, historial de compras, créditos | `customers.service.ts` |
+| `customers` | CRM básico, historial de compras, créditos (soft delete; borrado real vía privacy) | `customers.service.ts` |
+| `privacy` | 🔐 Ley 1581/RGPD: consentimientos, habeas data, derecho al olvido, retención, auditoría PII | `privacy.service.ts`, `retention.job.ts` |
+| `product-templates` | 🧩 Plantillas dinámicas de producto (landing JSON-driven tipo Shopify) | `product-templates.service.ts`, `SectionRenderer.tsx`, `product-template-editor.tsx` |
 | `credits` | Fiados: cupo, pagos parciales, historial | `credits.service.ts` |
 | `finances` | Flujo de caja, ingresos/egresos, P&L | `finances.service.ts` |
 | `coupons` | Cupones de descuento por tenant (código, %, fijo, expiración) | `coupons.routes.ts` |

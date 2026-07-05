@@ -22,7 +22,12 @@
 | `cash_movements` | cash-sessions | Movimientos durante la sesión |
 | `orders` | orders | Pedidos (mesa + delivery) |
 | `order_items` | orders | Ítems de cada pedido |
-| `customers` | customers | CRM de clientes |
+| `customers` | customers | CRM de clientes (`is_active`, `deleted_at`, `anonymized_at`) |
+| `consent_records` | privacy | 🔐 Consentimientos Ley 1581 (inmutable, solo INSERT) |
+| `product_templates` | product-templates | 🧩 Plantillas JSON de página de producto (draft/published/archived) |
+| `dispatch_routes` | fleet | 🚛 Rutas agrupadas de despacho (vehículo+conductor+paradas) |
+| `fleet_vehicle_expenses` | fleet | 🚛 Gastos reales por vehículo (combustible/peajes/repuestos) |
+| `data_subject_requests` | privacy | 🔐 Solicitudes habeas data (SLA 10 días hábiles) |
 | `credits` | credits | Fiados/créditos |
 | `credit_payments` | credits | Pagos de créditos |
 | `purchases` | purchases | Órdenes de compra |

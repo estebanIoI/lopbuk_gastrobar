@@ -939,6 +939,28 @@ class ApiService {
     return this.request<any>(`/customers/${id}/balance`)
   }
 
+  // Privacy endpoints (Ley 1581 — habeas data)
+  async exportCustomerData(id: string) {
+    return this.request<any>(`/privacy/customers/${id}/export`)
+  }
+
+  async eraseCustomerData(id: string) {
+    return this.request<any>(`/privacy/customers/${id}/erase`, {
+      method: 'POST',
+    })
+  }
+
+  async getPrivacyRequests(status?: string) {
+    return this.request<any>(`/privacy/requests${status ? `?status=${status}` : ''}`)
+  }
+
+  async updatePrivacyRequest(id: string, data: { status?: string; notes?: string }) {
+    return this.request<any>(`/privacy/requests/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    })
+  }
+
   // Credits endpoints
   async getPendingCredits(params?: { page?: number; limit?: number; customerId?: string; status?: string }) {
     const searchParams = new URLSearchParams()
@@ -2066,6 +2088,76 @@ class ApiService {
     })
   }
 
+  // Plantillas dinámicas de producto (JSON-driven, tipo Shopify)
+  async getProductTemplates() {
+    return this.request<any>('/product-templates')
+  }
+
+  async getProductTemplate(id: string) {
+    return this.request<any>(`/product-templates/${id}`)
+  }
+
+  async createProductTemplate(data: { name: string; description?: string; sections?: any[] }) {
+    return this.request<any>('/product-templates', { method: 'POST', body: JSON.stringify(data) })
+  }
+
+  async updateProductTemplate(id: string, data: { name?: string; description?: string; sections?: any[] }) {
+    return this.request<any>(`/product-templates/${id}`, { method: 'PUT', body: JSON.stringify(data) })
+  }
+
+  async setProductTemplateStatus(id: string, status: 'draft' | 'published' | 'archived') {
+    return this.request<any>(`/product-templates/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) })
+  }
+
+  async duplicateProductTemplate(id: string) {
+    return this.request<any>(`/product-templates/${id}/duplicate`, { method: 'POST' })
+  }
+
+  async deleteProductTemplate(id: string) {
+    return this.request<any>(`/product-templates/${id}`, { method: 'DELETE' })
+  }
+
+  async assignProductTemplate(productIds: string[], templateId: string | null) {
+    return this.request<any>('/product-templates/assign', {
+      method: 'PATCH',
+      body: JSON.stringify({ productIds, templateId }),
+    })
+  }
+
+  async seedDefaultTemplates() {
+    return this.request<any>('/product-templates/seed-defaults', { method: 'POST' })
+  }
+
+  async setProductPageContent(productId: string, pageContent: any) {
+    return this.request<any>(`/product-templates/products/${productId}/page-content`, {
+      method: 'PUT',
+      body: JSON.stringify({ pageContent }),
+    })
+  }
+
+  // Conversaciones del chatbot (asesoría + cierre humano)
+  async getChatSessions() {
+    return this.request<any>('/chatbot/sessions')
+  }
+
+  async getChatSessionMessages(sessionId: string) {
+    return this.request<any>(`/chatbot/sessions/${sessionId}/messages`)
+  }
+
+  async setChatTakeover(sessionId: string, takeover: boolean) {
+    return this.request<any>(`/chatbot/sessions/${sessionId}/takeover`, {
+      method: 'PATCH',
+      body: JSON.stringify({ takeover }),
+    })
+  }
+
+  async replyChatSession(sessionId: string, message: string) {
+    return this.request<any>(`/chatbot/sessions/${sessionId}/reply`, {
+      method: 'POST',
+      body: JSON.stringify({ message }),
+    })
+  }
+
   async getNotifications() {
     return this.request<any>('/chatbot/notifications')
   }
@@ -2846,6 +2938,64 @@ class ApiService {
 
   async deleteFleetVehicle(id: string) {
     return this.request<any>(`/fleet/vehicles/${id}`, { method: 'DELETE' });
+  }
+
+  // ── Sistema Operativo Logístico ──
+  async updateVehicleProfile(id: string, data: Partial<{
+    soatExpiry: string; tecnoExpiry: string; insuranceExpiry: string;
+    odometerKm: number; fuelType: string; volumeM3: number; maintenanceEveryKm: number;
+  }>) {
+    return this.request<any>(`/fleet/vehicles/${id}/profile`, { method: 'PUT', body: JSON.stringify(data) });
+  }
+
+  async getFleetExpenses(params?: { vehicleId?: string; days?: number }) {
+    const q = new URLSearchParams();
+    if (params?.vehicleId) q.set('vehicleId', params.vehicleId);
+    if (params?.days) q.set('days', String(params.days));
+    const s = q.toString();
+    return this.request<any[]>(`/fleet/expenses${s ? `?${s}` : ''}`);
+  }
+
+  async createFleetExpense(data: {
+    vehicleId: string; type: string; amount: number;
+    gallons?: number; odometerKm?: number; routeId?: string; notes?: string;
+  }) {
+    return this.request<any>('/fleet/expenses', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async setStaffStatus(status: string, userId?: string) {
+    return this.request<any>('/fleet/staff-status', { method: 'PUT', body: JSON.stringify({ status, userId }) });
+  }
+
+  async getDispatchRoutes(status?: string) {
+    return this.request<any[]>(`/fleet/routes${status ? `?status=${status}` : ''}`);
+  }
+
+  async getRouteSuggestions() {
+    return this.request<any[]>('/fleet/routes/suggestions');
+  }
+
+  async createDispatchRoute(data: {
+    orderIds: string[]; vehicleId: string; driverId?: string;
+    auxiliaries?: Array<{ name: string }>; zoneLabel?: string; sedeId?: string; notes?: string;
+  }) {
+    return this.request<any>('/fleet/routes', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async setRouteStatus(routeId: string, status: string) {
+    return this.request<any>(`/fleet/routes/${routeId}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
+  }
+
+  async markStopDelivered(routeId: string, orderId: string) {
+    return this.request<any>(`/fleet/routes/${routeId}/stops/${orderId}/delivered`, { method: 'PATCH' });
+  }
+
+  async getOpsBoard() {
+    return this.request<any>('/fleet/ops-board');
+  }
+
+  async getFleetAnalytics(days = 30) {
+    return this.request<any>(`/fleet/analytics?days=${days}`);
   }
 
   async getFleetMaintenance(params?: { vehicleId?: string; status?: string }) {

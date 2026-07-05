@@ -1,5 +1,42 @@
 # ✅ Features Completados
 
+## Sistema Operativo Logístico — flota, rutas y rentabilidad (2026-07-05)
+
+> Verificado E2E 11/11 por HTTP real. Detalle en [[modules/ferreteria/ferreteria]] + `changelog.md`.
+
+- **Rutas agrupadas**: sugeridor por zona (vehículo más ajustado, # auxiliares por peso, o sumar a ruta activa con capacidad — el ahorro real de combustible), validación de capacidad, cascada de estados ruta→pedidos→vehículo con historial auditado, cierre automático en la última parada.
+- **Centro de operaciones** ("🛰️ Centro" del despachador): kanban con semáforo de espera (>30/>60 min), vehículos con % de carga, personal con 6 estados operativos, actualizaciones en vivo por Socket.io.
+- **Vehículo empresarial**: documentos con vencimientos (SOAT/tecno/seguro), odómetro, gastos reales reportables por el conductor, alertas diarias automáticas (vencimientos, mantenimiento por km, consumo anómalo).
+- **Rentabilidad medible** ("📊 Rentabilidad & Docs"): facturación movilizada vs costos reales = utilidad por vehículo, costo por entrega, ranking de conductores por min/entrega.
+- **Cliente informado**: WhatsApp transaccional automático ("salió" / "entregado") vía Evolution API.
+
+## Plantillas Dinámicas de Producto — MVP tipo Shopify (2026-07-04)
+
+> Verificado E2E 9/9 + HTTP. Detalle en [[modules/product-templates/product-templates]] + `changelog.md`.
+
+- **JSON-driven**: `product_templates.sections` `{id,type,settings,order,visible}` con estados draft/published/archived, duplicar, asignación masiva y contenido único por producto (`page_content`). La plantilla guarda estructura; el contenido llega por `{{product.*}}`.
+- **10 secciones de venta** renderizadas debajo del hero de compra intacto (patrón Shopify): beneficios, texto enriquecido, video, FAQ, testimonios (reviews aprobadas automáticas), comparación, urgencia con stock real, garantías, banner CTA y relacionados configurables. En detalle clásico (móvil+desktop) y ML.
+- **Editor visual** en el panel (tab Plantillas): catálogo de secciones, drag&drop + flechas, settings por tipo, vista previa en vivo con el mismo renderer de la tienda, semillas Moda/Tecnología/Belleza.
+- **Performance y SEO**: endpoint público con caché 60s, imágenes lazy con Cloudinary, JSON-LD Product schema client-side.
+
+## Chat Vendedor — agente IA asesor y cerrador de ventas (2026-07-02)
+
+> Verificado E2E (16/16 checks deterministas + takeover HTTP). Detalle en [[modules/agent/agent]] + `changelog.md`.
+
+- **Vende con datos reales**: variantes con disponibilidad exacta en búsqueda/prompt, validación de stock, reserva atómica de variantes (mismo motor race-safe del checkout web), envío real con umbral de gratis, cupones server-side, consentimiento Ley 1581 en cada pedido del chat.
+- **Cierra mejor**: ofertas/cupones/envío gratis como palancas, upsell con el order bump (UNA vez), cliente recurrente saludado por nombre con "¿misma dirección?" (resuelta server-side, sin PII al LLM), manejo de objeciones anclado a datos (contra entrega, urgencia real).
+- **Widget que convierte**: quick replies como chips, "Agregar al carrito" real (abre modal si hay tallas), markdown ligero, aviso de privacidad.
+- **Cierre humano**: panel de conversaciones en el tab Chatbot — leer, "Atender yo" (silencia el bot) y responder manual a web (polling) y WhatsApp (Evolution).
+
+## Blindaje de Privacidad — Ley 1581 / RGPD (2026-07-02)
+
+> Verificado E2E en dev (rama `esteban`). Detalle en [[modules/privacy/privacy]] + `changelog.md`. Reglas permanentes en [[governance/universal-constraints]] § Protección de Datos.
+
+- **Consentimiento**: registro inmutable en `consent_records`; checkout público exige aceptación (400 sin ella) y guarda `consent_id` en la orden; banner de cookies granular; **Meta Pixel solo con opt-in de marketing**; opt-out WhatsApp por "BAJA"/"STOP".
+- **Derechos del titular (habeas data)**: formulario público en el footer → `data_subject_requests` con SLA 10 días hábiles y verificación anti-suplantación; panel de gestión en el CRM; exportación JSON (derecho de acceso); **derecho al olvido por anonimización** (identidad fuera, montos fiscales quedan) auditado en `audit_log`.
+- **Minimización**: retención automática diaria (chatbot 12m, delivery chat 6m, GPS entregados 90d); payload de webhook Wompi reducido; `redactPII()` en logs; prohibido PII de clientes en el RAG del agente.
+- **Plantillas legales Ley 1581** por defecto por tienda (política de datos, términos, cookies) — pendiente validación jurídica.
+
 ## Workout Engine — Progression + Runtime + Workout Mode UI (2026-06-25)
 
 > Construido, NO deployado. Detalle en `context/current-sprint.md` + `changelog.md`. Arquitectura determinística por capas (la IA interpreta, el motor ejecuta). 31 tests verdes (19+12), tsc 0 errores.

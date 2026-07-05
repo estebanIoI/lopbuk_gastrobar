@@ -1,0 +1,1 @@
+ALTER TABLE `merchant_notifications` MODIFY COLUMN `type` enum('new_order','new_booking','chatbot_lead','new_service_booking','fleet_alert') NOT NULL DEFAULT 'new_order';

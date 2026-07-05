@@ -199,6 +199,65 @@ Detalle completo: [[brain/colorimetria]].
 
 ---
 
+## 🔐 Protección de Datos Personales (Ley 1581 de 2012 / estándar RGPD)
+
+> Implementado 2026-07-02 en el módulo [[modules/privacy/privacy]]. Estas reglas
+> aplican a TODO código nuevo que toque datos de clientes finales.
+
+### Clasificación de PII
+- **Identificadores**: nombre, cédula, teléfono, email
+- **Ubicación**: dirección, barrio, GPS (`delivery_latitude/longitude`)
+- **Comportamiento**: historial de compras, conversaciones de chat
+- **Nunca almacenar**: datos de tarjetas (los maneja la pasarela)
+
+### Reglas que nunca se rompen
+
+```typescript
+// ✅ SIEMPRE — capturar PII solo tras consentimiento explícito registrado
+// El checkout público exige acceptsDataPolicy=true (400 si falta) y persiste
+// la prueba en consent_records (inmutable: revocar = nuevo registro granted=0)
+
+// ✅ SIEMPRE — marketing (Meta Pixel, WhatsApp promocional, email) detrás de opt-in
+// Frontend: el pixel NO se inyecta sin consentimiento (lib/consent.ts)
+// Backend: usar sendMarketingMessage() (verifica consent), NUNCA sendTextMessage
+// directo para campañas. "BAJA"/"STOP" en WhatsApp = revocación inmediata.
+
+// ✅ SIEMPRE — derecho al olvido = ANONIMIZACIÓN, no DELETE
+// Se borra la identidad (name/cedula/phone/email/address/GPS/chat), se conservan
+// montos y registros transaccionales (obligación fiscal). privacyService.eraseCustomer()
+
+// ✅ SIEMPRE — todo export/borrado de PII escribe en audit_log
+// acciones: pii_export, pii_erasure, consent_recorded, dsr_created, retention_purge
+
+// ❌ NUNCA — PII en logs (console.log de errores mysql incluye el SQL con valores)
+// usar redactPII() de utils/redact.ts. Webhooks de pasarela: minimizeGatewayPayload()
+
+// ❌ NUNCA — PII de clientes en el contexto RAG del agente IA
+// (saldría al proveedor del LLM sin base legal — guard en agent.rag.ts)
+```
+
+### Retención (job diario `retention.job.ts`)
+| Dato | Retención |
+|---|---|
+| `chatbot_messages` | 12 meses |
+| `delivery_chat_messages` | 6 meses |
+| GPS de pedidos entregados | 90 días (→ NULL) |
+
+### Solicitudes de titulares (habeas data)
+- SLA legal: **10 días hábiles** (`data_subject_requests.due_at`)
+- Formulario público en el footer de cada tienda → panel en CRM de clientes
+- Verificación anti-suplantación: nombre debe coincidir con pedidos previos del teléfono
+
+### Pendiente (acción del negocio, no de código)
+- [ ] Firmar DPAs con Wompi, Cloudinary, Evolution API, MercadoPago, ADDI, Sistecrédito
+- [ ] Validación jurídica de las plantillas legales (`frontend/lib/legal-templates.ts`)
+- [x] ~~Consentimiento en pedidos creados por el chatbot~~ ✅ 2026-07-02: `registrar_pedido` registra
+      `consent_records` (source whatsapp) + `consent_id` en la orden; el prompt exige el sí explícito.
+      Excepción sancionada de personalización: el agente puede ver nombre + resumen de compras del
+      PROPIO cliente de la sesión; la dirección se resuelve server-side ("misma"), nunca va al LLM.
+
+---
+
 ## ⚡ Lo que Claude NO puede hacer sin preguntar explícitamente
 
 1. Cambiar el schema de la base de datos

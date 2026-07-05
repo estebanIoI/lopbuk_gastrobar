@@ -46,6 +46,8 @@ import {
 } from 'lucide-react'
 import { CloudinaryUpload } from '@/components/ui/cloudinary-upload'
 import { LogoThemeGenerator } from '@/components/logo-theme-generator'
+import { ChatbotConversations } from '@/components/chatbot-conversations'
+import { ProductTemplateEditor } from '@/components/product-template-editor'
 import { departamentosMunicipios } from '@/constants'
 
 interface Banner {
@@ -130,7 +132,7 @@ interface Drop {
   products?: Array<{ productId: string; customDiscount: number | null; name: string; imageUrl: string | null; salePrice: number }>
 }
 
-type Tab = 'banners' | 'categories' | 'featured' | 'info' | 'announcement' | 'drops' | 'chatbot' | 'carrito'
+type Tab = 'banners' | 'categories' | 'featured' | 'info' | 'announcement' | 'drops' | 'chatbot' | 'carrito' | 'plantillas'
 
 export function StoreCustomization({ onBack }: { onBack: () => void }) {
   const [activeTab, setActiveTab] = useState<Tab>('banners')
@@ -664,6 +666,7 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
     { key: 'featured', label: 'Destacados', icon: <Star className="h-4 w-4" /> },
     { key: 'announcement', label: 'Anuncio', icon: <ExternalLink className="h-4 w-4" /> },
     { key: 'drops', label: 'Drops', icon: <Zap className="h-4 w-4" /> },
+    { key: 'plantillas', label: 'Plantillas', icon: <Layout className="h-4 w-4" /> },
     { key: 'info', label: 'Info Tienda', icon: <Info className="h-4 w-4" /> },
     { key: 'chatbot', label: 'Chatbot IA', icon: <Bot className="h-4 w-4" /> },
     { key: 'carrito', label: 'Carrito', icon: <ShoppingCart className="h-4 w-4" /> },
@@ -1558,6 +1561,11 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+                  Si dejas estos campos vacíos, tu tienda mostrará automáticamente una <strong>plantilla base
+                  conforme a la Ley 1581 de 2012</strong> (tratamiento de datos personales). Es una plantilla
+                  técnica de referencia: valídala con tu abogado antes de operar en producción.
+                </div>
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                   <div className="flex flex-col gap-2">
                     <label className="text-sm font-medium flex items-center gap-1">
@@ -1959,6 +1967,13 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
       {/* ──────────────────────────────────────────
           TAB: CHATBOT IA
       ────────────────────────────────────────── */}
+      {/* ========== PLANTILLAS DE PRODUCTO TAB ========== */}
+      {activeTab === 'plantillas' && (
+        <div className="space-y-4">
+          <ProductTemplateEditor />
+        </div>
+      )}
+
       {activeTab === 'chatbot' && (
         <div className="space-y-4">
           {/* Status banner */}
@@ -2121,6 +2136,9 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
               </div>
             </CardContent>
           </Card>
+
+          {/* ── Conversaciones: leer, tomar el control y cerrar ventas en persona ── */}
+          <ChatbotConversations />
 
           {/* ── WhatsApp Connection ── */}
           <Card>
