@@ -1222,6 +1222,10 @@ export const customers = mysqlTable("customers", {
 	address: varchar({ length: 500 }),
 	creditLimit: decimal("credit_limit", { precision: 12, scale: 2 }).default('0.00').notNull(),
 	notes: text(),
+	isActive: tinyint("is_active").default(1).notNull(),
+	deletedAt: timestamp("deleted_at", { mode: 'string' }),
+	// Ley 1581: marca de derecho al olvido — el registro persiste sin PII para integridad de ventas
+	anonymizedAt: timestamp("anonymized_at", { mode: 'string' }),
 	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
@@ -1231,6 +1235,56 @@ export const customers = mysqlTable("customers", {
 		idxCustomersName: index("idx_customers_name").on(table.name),
 		customersId: primaryKey({ columns: [table.id], name: "customers_id"}),
 		idxCustomerTenantCedula: unique("idx_customer_tenant_cedula").on(table.tenantId, table.cedula),
+	}
+});
+
+// ── Ley 1581 / RGPD: registro inmutable de consentimientos ─────────────────────
+// Solo INSERT: revocar = nuevo registro con granted=0. El último registro por
+// (identifier, consent_type) es el estado vigente.
+export const consentRecords = mysqlTable("consent_records", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" } ),
+	subjectType: mysqlEnum("subject_type", ['customer','guest','chat_contact']).default('guest').notNull(),
+	subjectId: varchar("subject_id", { length: 36 }),
+	identifier: varchar({ length: 255 }).notNull(),
+	consentType: mysqlEnum("consent_type", ['data_processing','terms','marketing_whatsapp','marketing_email','analytics_tracking']).notNull(),
+	granted: tinyint().default(1).notNull(),
+	policyVersion: varchar("policy_version", { length: 20 }).default('1.0').notNull(),
+	source: mysqlEnum(['checkout','cookie_banner','whatsapp','admin','signup']).notNull(),
+	ipAddress: varchar("ip_address", { length: 45 }),
+	userAgent: varchar("user_agent", { length: 500 }),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+},
+(table) => {
+	return {
+		idxConsentTenantIdentifier: index("idx_consent_tenant_identifier").on(table.tenantId, table.identifier),
+		idxConsentTenantType: index("idx_consent_tenant_type").on(table.tenantId, table.consentType),
+		consentRecordsId: primaryKey({ columns: [table.id], name: "consent_records_id"}),
+	}
+});
+
+// ── Ley 1581 arts. 14-15: solicitudes de titulares (acceso, rectificación,
+// borrado, revocación). SLA legal: 10 días hábiles → due_at. ───────────────────
+export const dataSubjectRequests = mysqlTable("data_subject_requests", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" } ),
+	requestType: mysqlEnum("request_type", ['access','rectify','erase','revoke_consent']).notNull(),
+	status: mysqlEnum(['pending','in_progress','completed','denied']).default('pending').notNull(),
+	identifier: varchar({ length: 255 }).notNull(),
+	requesterName: varchar("requester_name", { length: 255 }).notNull(),
+	verificationMethod: varchar("verification_method", { length: 100 }),
+	details: text(),
+	requestedAt: timestamp("requested_at", { mode: 'string' }).default(sql`(now())`),
+	dueAt: timestamp("due_at", { mode: 'string' }),
+	completedAt: timestamp("completed_at", { mode: 'string' }),
+	handledBy: varchar("handled_by", { length: 36 }).references(() => users.id, { onDelete: "set null" } ),
+	notes: text(),
+},
+(table) => {
+	return {
+		idxDsrTenantStatus: index("idx_dsr_tenant_status").on(table.tenantId, table.status),
+		idxDsrIdentifier: index("idx_dsr_identifier").on(table.tenantId, table.identifier),
+		dataSubjectRequestsId: primaryKey({ columns: [table.id], name: "data_subject_requests_id"}),
 	}
 });
 
@@ -1534,6 +1588,17 @@ export const fleetVehicles = mysqlTable("fleet_vehicles", {
 	brand: varchar({ length: 50 }),
 	model: varchar({ length: 50 }),
 	notes: text(),
+	// ── Perfil empresarial del vehículo (documentos, odómetro, consumo) ─────────
+	soatExpiry: date("soat_expiry", { mode: 'string' }),
+	tecnoExpiry: date("tecno_expiry", { mode: 'string' }),
+	insuranceExpiry: date("insurance_expiry", { mode: 'string' }),
+	odometerKm: int("odometer_km").default(0).notNull(),
+	fuelType: varchar("fuel_type", { length: 20 }),
+	volumeM3: decimal("volume_m3", { precision: 8, scale: 2 }),
+	/** Mantenimiento preventivo cada N km (0 = sin regla) */
+	maintenanceEveryKm: int("maintenance_every_km").default(0).notNull(),
+	/** Odómetro del último mantenimiento completado (para la alerta por km) */
+	lastMaintenanceKm: int("last_maintenance_km").default(0).notNull(),
 	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
@@ -1543,6 +1608,60 @@ export const fleetVehicles = mysqlTable("fleet_vehicles", {
 		idxFleetTenant: index("idx_fleet_tenant").on(table.tenantId),
 		idxFleetType: index("idx_fleet_type").on(table.type),
 		fleetVehiclesId: primaryKey({ columns: [table.id], name: "fleet_vehicles_id"}),
+	}
+});
+
+// ── Gastos reales por vehículo (combustible, peajes, repuestos) ────────────────
+// Los reporta el conductor o el despachador; alimentan consumo/km y rentabilidad.
+export const fleetVehicleExpenses = mysqlTable("fleet_vehicle_expenses", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" } ),
+	vehicleId: varchar("vehicle_id", { length: 36 }).notNull().references(() => fleetVehicles.id, { onDelete: "cascade" } ),
+	type: mysqlEnum(['combustible','peaje','repuesto','lavado','otro']).default('combustible').notNull(),
+	amount: decimal({ precision: 12, scale: 2 }).notNull(),
+	/** Galones tanqueados (solo combustible) para calcular consumo/km */
+	gallons: decimal({ precision: 8, scale: 2 }),
+	odometerKm: int("odometer_km"),
+	routeId: varchar("route_id", { length: 36 }),
+	notes: varchar({ length: 300 }),
+	createdBy: varchar("created_by", { length: 36 }).references(() => users.id, { onDelete: "set null" } ),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+},
+(table) => {
+	return {
+		idxFvexpTenantVehicle: index("idx_fvexp_tenant_vehicle").on(table.tenantId, table.vehicleId),
+		idxFvexpDate: index("idx_fvexp_date").on(table.tenantId, table.createdAt),
+		fleetVehicleExpensesId: primaryKey({ columns: [table.id], name: "fleet_vehicle_expenses_id"}),
+	}
+});
+
+// ── Rutas de despacho: varios pedidos agrupados en un vehículo+conductor ───────
+export const dispatchRoutes = mysqlTable("dispatch_routes", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" } ),
+	routeNumber: varchar("route_number", { length: 20 }).notNull(),
+	vehicleId: varchar("vehicle_id", { length: 36 }).references(() => fleetVehicles.id, { onDelete: "set null" } ),
+	driverId: varchar("driver_id", { length: 36 }).references(() => users.id, { onDelete: "set null" } ),
+	/** [{ name }] — auxiliares sugeridos/asignados al cargue */
+	auxiliaries: json(),
+	status: mysqlEnum(['planificada','cargando','en_ruta','retornando','cerrada','cancelada']).default('planificada').notNull(),
+	totalWeightKg: decimal("total_weight_kg", { precision: 10, scale: 3 }).default('0.000').notNull(),
+	stopsCount: int("stops_count").default(0).notNull(),
+	zoneLabel: varchar("zone_label", { length: 120 }),
+	sedeId: varchar("sede_id", { length: 36 }),
+	startedAt: timestamp("started_at", { mode: 'string' }),
+	closedAt: timestamp("closed_at", { mode: 'string' }),
+	notes: varchar({ length: 300 }),
+	createdBy: varchar("created_by", { length: 36 }).references(() => users.id, { onDelete: "set null" } ),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
+},
+(table) => {
+	return {
+		idxDrouteTenantStatus: index("idx_droute_tenant_status").on(table.tenantId, table.status),
+		idxDrouteVehicle: index("idx_droute_vehicle").on(table.vehicleId),
+		idxDrouteDriver: index("idx_droute_driver").on(table.driverId),
+		dispatchRoutesId: primaryKey({ columns: [table.id], name: "dispatch_routes_id"}),
 	}
 });
 
@@ -1848,7 +1967,7 @@ export const merchantEvents = mysqlTable("merchant_events", {
 export const merchantNotifications = mysqlTable("merchant_notifications", {
 	id: int().autoincrement().notNull(),
 	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" } ),
-	type: mysqlEnum(['new_order','new_booking','chatbot_lead','new_service_booking']).default('new_order').notNull(),
+	type: mysqlEnum(['new_order','new_booking','chatbot_lead','new_service_booking','fleet_alert']).default('new_order').notNull(),
 	title: varchar({ length: 255 }).notNull(),
 	message: text().notNull(),
 	data: json(),
@@ -2420,6 +2539,11 @@ export const products = mysqlTable("products", {
 	images: text(),
 	hormaId: varchar("horma_id", { length: 36 }),
 	basePrice: decimal("base_price", { precision: 12, scale: 2 }),
+	// ── Plantillas dinámicas de producto (landing de venta JSON-driven) ─────────
+	templateId: varchar("template_id", { length: 36 }),
+	// Contenido único del producto que consumen las secciones de la plantilla
+	// (videoUrl, beneficios propios, faqs, testimonios manuales, comparación)
+	pageContent: json("page_content"),
 },
 (table) => {
 	return {
@@ -2433,10 +2557,32 @@ export const products = mysqlTable("products", {
 		idxProductsOffer: index("idx_products_offer").on(table.tenantId, table.isOnOffer),
 		idxProductsPreorder: index("idx_products_preorder").on(table.tenantId, table.isPreorder),
 		idxProductsStore: index("idx_products_store").on(table.tenantId, table.publishedInStore),
+		idxProductsTemplate: index("idx_products_template").on(table.tenantId, table.templateId),
 		supplierId: index("supplier_id").on(table.supplierId),
 		productsId: primaryKey({ columns: [table.id], name: "products_id"}),
 		idxProductTenantBarcode: unique("idx_product_tenant_barcode").on(table.tenantId, table.barcode),
 		idxProductTenantSku: unique("idx_product_tenant_sku").on(table.tenantId, table.sku),
+	}
+});
+
+// ── Plantillas dinámicas de producto (tipo Shopify product templates) ──────────
+// sections = JSON array de { id, type, settings, order, visible }. La plantilla NO
+// guarda contenido del producto: las secciones consumen {{product.*}} + page_content.
+export const productTemplates = mysqlTable("product_templates", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" } ),
+	name: varchar({ length: 120 }).notNull(),
+	description: varchar({ length: 300 }),
+	sections: json().notNull(),
+	status: mysqlEnum(['draft','published','archived']).default('draft').notNull(),
+	isActive: tinyint("is_active").default(1).notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
+},
+(table) => {
+	return {
+		idxPtplTenantStatus: index("idx_ptpl_tenant_status").on(table.tenantId, table.status),
+		productTemplatesId: primaryKey({ columns: [table.id], name: "product_templates_id"}),
 	}
 });
 
@@ -3618,6 +3764,9 @@ export const storeInfo = mysqlTable("store_info", {
 	cloudinaryUploadPreset: varchar("cloudinary_upload_preset", { length: 120 }),
 	cloudinaryApiKey: varchar("cloudinary_api_key", { length: 120 }),
 	cloudinaryApiSecret: varchar("cloudinary_api_secret", { length: 255 }), // cifrado (crypto.ts)
+	// ── Protección de datos (Ley 1581) ──────────────────────────────────────────
+	privacyPolicyVersion: varchar("privacy_policy_version", { length: 20 }).default('1.0').notNull(),
+	cookiesContent: text("cookies_content"),
 },
 (table) => {
 	return {
@@ -3734,6 +3883,12 @@ export const storefrontOrders = mysqlTable("storefront_orders", {
 	dataEncrypted: tinyint("data_encrypted").default(0).notNull(),
 	gatewayPaymentId: varchar("gateway_payment_id", { length: 100 }),
 	refundStatus: varchar("refund_status", { length: 30 }),
+	// FK lógica a consent_records: prueba del consentimiento capturado en el checkout
+	consentId: varchar("consent_id", { length: 36 }),
+	// ── Logística: ruta agrupada + orden de parada + bodega origen ──────────────
+	routeId: varchar("route_id", { length: 36 }),
+	routeSequence: int("route_sequence"),
+	sedeId: varchar("sede_id", { length: 36 }),
 },
 (table) => {
 	return {
@@ -4597,6 +4752,8 @@ export const courierAvailability = mysqlTable("courier_availability", {
 	isOnline: tinyint("is_online").default(0).notNull(),
 	currentLat: decimal("current_lat", { precision: 10, scale: 7 }),
 	currentLng: decimal("current_lng", { precision: 10, scale: 7 }),
+	// Estado operativo del personal (asignación inteligente + tablero de bodega)
+	status: mysqlEnum(['disponible','en_ruta','descargando','almuerzo','fuera_turno','incapacidad']).default('disponible').notNull(),
 	lastSeenAt: timestamp("last_seen_at", { mode: 'string' }).default(sql`(now())`),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },

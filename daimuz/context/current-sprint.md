@@ -2,7 +2,64 @@
 
 > Actualiza este archivo al inicio de cada sesion de trabajo.
 
-## Sprint activo: Junio 2026
+## Sprint activo: Julio 2026
+
+### ✅ [2026-07-05]: Sistema Operativo Logístico — flota, rutas y rentabilidad (4 fases, E2E 11/11)
+
+Objetivo: convertir el módulo fleet en un sistema logístico empresarial (ferretería multi-sede). Detalle: [[modules/ferreteria/ferreteria]] + `memory/changelog.md`.
+
+| Fase | Estado | Qué |
+|---|---|---|
+| 1 DB + alertas | ✅ | Migraciones 0012/0013: dispatch_routes, gastos, docs vehículo, estados personal; job diario de alertas |
+| 2 Rutas agrupadas | ✅ | Sugeridor por zona, crear con validación de capacidad, cascada + historial, cierre automático |
+| 3+4 Centro + asignación v2 | ✅ | Tablero "🛰️ Centro" con semáforos, socket dispatch-changed, sumar a ruta activa, auxiliares sugeridos |
+| 5+6 Analítica + cliente | ✅ | Rentabilidad por vehículo, ranking conductores, WhatsApp transaccional, sede en rutas |
+
+**Pendiente próxima iteración:** GPS en mapa ops · optimización de paradas · evidencia formal de entrega · sede automática por zona · peso obligatorio en productos ferretería.
+
+### ✅ [2026-07-04]: Plantillas Dinámicas de Producto — MVP tipo Shopify (4 fases, E2E 9/9)
+
+Objetivo: convertir cada producto en una landing de venta configurable sin código (JSON-driven). Detalle: [[modules/product-templates/product-templates]] + `memory/changelog.md`.
+
+| Fase | Estado | Qué |
+|---|---|---|
+| 1 DB + backend | ✅ | Migración 0011, módulo product-templates (CRUD/duplicar/estados/assign/seeds), endpoint público con caché 60s |
+| 2 Renderer | ✅ | SectionRenderer con 10 secciones + variables {{product.*}}, integrado en detalle clásico y ML |
+| 3 Editor | ✅ | Tab "Plantillas": drag&drop, settings por tipo, preview en vivo, publicar, asignación masiva + contenido por producto |
+| 4 SEO + verificación | ✅ | JSON-LD Product, E2E 9/9 + HTTP, tsc limpio, docs DAIMUZ |
+
+**Pendiente próxima iteración:** SEO SSR con slugs (`app/p/[slug]`) · selector de plantilla en el form de producto del inventario · precarga de page_content en el modal · responsive por breakpoint · bloques globales · A/B testing.
+
+### ✅ [2026-07-02]: Chat Vendedor — agente IA asesor y cerrador de ventas (5 fases, E2E 16/16)
+
+Objetivo: que el chatbot de tienda sea el mejor asesor/cerrador. Detalle: [[modules/agent/agent]] + `memory/changelog.md`.
+
+| Fase | Estado | Qué |
+|---|---|---|
+| 1 Cerebro | ✅ | Variantes en RAG, stock+reserva atómica, envío real, consentimiento Ley 1581 en `registrar_pedido` |
+| 2 Cierre | ✅ | Ofertas/cupones/envío gratis en prompt, upsell (order bump), cliente recurrente, objeciones con datos |
+| 3 Widget | ✅ | Quick replies, "Agregar al carrito" real, markdown ligero, link privacidad |
+| 4 Panel | ✅ | Conversaciones + takeover + respuesta manual (web polling / WhatsApp Evolution) |
+| 5 Verificación | ✅ | Suite determinista 16/16 + prueba HTTP takeover; tsc limpio |
+
+**Pendiente próxima iteración:** streaming SSE · pago Wompi en el chat · follow-up post-venta (base de consentimiento ya lista).
+
+### ✅ [2026-07-02]: Blindaje de privacidad — Ley 1581 / RGPD (6 fases, verificado E2E)
+
+Objetivo: cerrar los gaps de auditoría de datos personales (pixel sin consentimiento, checkout sin autorización, DELETE físico en CRM, sin derecho al olvido/acceso/retención). Detalle: [[modules/privacy/privacy]] + `memory/changelog.md`.
+
+| Fase | Estado | Qué |
+|---|---|---|
+| 1 DB | ✅ | Migración `0010_tense_turbo`: `consent_records` + `data_subject_requests` + columnas (customers soft-delete real, `consent_id` en órdenes) |
+| 2 Backend | ✅ | Módulo `privacy` (consents/DSR/export/erasure + audit_log), checkout exige `acceptsDataPolicy`, soft delete CRM, redacción PII, payload Wompi minimizado |
+| 3 Frontend | ✅ | Banner cookies granular, Meta Pixel gated, checkbox Ley 1581 en ambos checkouts, plantillas legales por defecto, formulario público de derechos |
+| 4 CRM | ✅ | Exportar datos, desactivar vs borrado definitivo (habeas data), panel de solicitudes con SLA 10 días hábiles |
+| 5 Retención | ✅ | Job diario (chat 12m/6m, GPS 90d), opt-out "BAJA"/"STOP" WhatsApp, `sendMarketingMessage()`, guard anti-PII en RAG |
+| 6 Governance | ✅ | universal-constraints § Protección de Datos, security-policy (procesadores), módulo daimuz/privacy, indexes |
+
+**Pendiente:** DPAs con procesadores (negocio) · validación jurídica de plantillas · consentimiento en pedidos del chatbot (`agent.tools.ts`) · deploy (la migración corre sola en Docker).
+
+## Sprint anterior: Junio 2026
 
 ### ✅ [2026-06-25]: Workout Engine — Progression + Runtime + Workout Mode UI
 

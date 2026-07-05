@@ -8,6 +8,7 @@ import {
   RefreshCw, LogOut, CheckCircle2, AlertCircle, Clock, Loader2,
   ClipboardList, Navigation, User,
 } from 'lucide-react';
+import { LogisticsOps } from '@/components/logistics-board';
 
 const formatCOP = (v: number) =>
   new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(v);
@@ -69,9 +70,10 @@ interface Vehicle {
   maxWeightKg: number; status: string;
 }
 
-type Tab = 'activos' | 'despachados' | 'entregados';
+type Tab = 'centro' | 'activos' | 'despachados' | 'entregados';
 
 const TAB_FILTERS: Record<Tab, string[]> = {
+  centro:      [],
   activos:     ['pendiente', 'en_pista', 'cargado'],
   despachados: ['despachado'],
   entregados:  ['entregado'],
@@ -201,7 +203,7 @@ export function DispatchPanel() {
 
       {/* Tabs */}
       <div className="flex border-b bg-white">
-        {(['activos', 'despachados', 'entregados'] as Tab[]).map(t => (
+        {(['centro', 'activos', 'despachados', 'entregados'] as Tab[]).map(t => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -211,15 +213,25 @@ export function DispatchPanel() {
                 : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
           >
-            {t}
-            <span className="ml-1 text-xs opacity-70">
-              ({orders.filter(o => TAB_FILTERS[t].includes(o.dispatchStatus)).length})
-            </span>
+            {t === 'centro' ? '🛰️ Centro' : t}
+            {t !== 'centro' && (
+              <span className="ml-1 text-xs opacity-70">
+                ({orders.filter(o => TAB_FILTERS[t].includes(o.dispatchStatus)).length})
+              </span>
+            )}
           </button>
         ))}
       </div>
 
+      {/* Centro de Operaciones Logísticas (rutas agrupadas, semáforos, personal) */}
+      {tab === 'centro' && (
+        <div className="p-4">
+          <LogisticsOps />
+        </div>
+      )}
+
       {/* Lista de pedidos */}
+      {tab !== 'centro' && (
       <div className="p-4 space-y-3">
         {loading && orders.length === 0 && (
           <div className="flex justify-center py-10">
@@ -405,6 +417,7 @@ export function DispatchPanel() {
           );
         })}
       </div>
+      )}
     </div>
   );
 }

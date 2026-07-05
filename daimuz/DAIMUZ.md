@@ -20,7 +20,7 @@
 | [[governance/approval-policy]] · [[governance/security-policy]] | ✅🔒 Qué exige aprobación / reglas de seguridad |
 | [[tasks/task-template]] · [[indexes/tasks-index]] | 🗂️ Capa de tareas v4 |
 
----
+---para los de mas
 
 ## ⚡ Acceso Rápido (Indexes)
 
@@ -146,6 +146,7 @@
 | [[modules/purchases/purchases]] | Compras a proveedores | [[modules/purchases/compressed]] |
 | [[modules/orders/orders]] | Pedidos y estados | [[modules/orders/compressed]] |
 | [[modules/customers/customers]] | CRM de clientes | [[modules/customers/compressed]] |
+| [[modules/privacy/privacy]] | 🔐 Ley 1581/RGPD: consentimientos, habeas data, retención | [[modules/privacy/compressed]] |
 | [[modules/finances/finances]] | Flujo de caja y Stripe | [[modules/finances/compressed]] |
 | [[modules/subscriptions/subscriptions]] | Planes SaaS | [[modules/subscriptions/compressed]] |
 
@@ -168,6 +169,7 @@
 | Módulo | Función | Compressed |
 |---|---|---|
 | [[modules/storefront/storefront]] | Tienda online pública | [[modules/storefront/compressed]] |
+| [[modules/product-templates/product-templates]] | 🧩 Plantillas dinámicas de producto (tipo Shopify) | [[modules/product-templates/compressed]] |
 | [[modules/delivery/delivery]] | Delivery y flota | [[modules/delivery/compressed]] |
 | [[modules/whatsapp/whatsapp]] | Mensajería WhatsApp | [[modules/whatsapp/compressed]] |
 | [[modules/agent/agent]] | Agente IA con RAG | [[modules/agent/compressed]] |

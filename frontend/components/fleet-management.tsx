@@ -7,6 +7,7 @@ import {
   CheckCircle2, Clock, X, Loader2, RefreshCw, MapPin, Package,
   Weight, Calendar, ChevronDown, ChevronUp,
 } from 'lucide-react';
+import { FleetInsights } from '@/components/logistics-board';
 
 const formatCOP = (v: number) =>
   new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(v);
@@ -28,7 +29,7 @@ const MAINT_STATUS_CLS: Record<string, string> = {
   cancelado:   'bg-gray-100 text-gray-500',
 };
 
-type Tab = 'vehiculos' | 'mantenimientos' | 'metricas';
+type Tab = 'vehiculos' | 'mantenimientos' | 'metricas' | 'insights';
 
 interface Vehicle {
   id: string; name: string; plate: string | null; type: string;
@@ -178,7 +179,7 @@ export function FleetManagement() {
 
       {/* Tabs */}
       <div className="flex border-b mb-4">
-        {([['vehiculos', 'Vehículos'], ['mantenimientos', 'Mantenimientos'], ['metricas', 'Métricas']] as [Tab, string][]).map(([t, label]) => (
+        {([['vehiculos', 'Vehículos'], ['mantenimientos', 'Mantenimientos'], ['metricas', 'Métricas'], ['insights', '📊 Rentabilidad & Docs']] as [Tab, string][]).map(([t, label]) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -381,6 +382,13 @@ export function FleetManagement() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* ─── RENTABILIDAD, DOCUMENTOS Y GASTOS (Sistema Logístico) ───────────── */}
+      {tab === 'insights' && (
+        <div className="flex-1 overflow-y-auto">
+          <FleetInsights />
         </div>
       )}
 

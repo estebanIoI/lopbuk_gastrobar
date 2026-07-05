@@ -84,6 +84,11 @@ import { useAuthStore } from '@/lib/auth-store'
 import { GoogleLogin, type CredentialResponse } from '@react-oauth/google'
 import { api } from '@/lib/api'
 import { parsePlatformPalette } from '@/lib/platform-theme'
+import { CookieConsentBanner } from '@/components/consent/CookieConsentBanner'
+import { DataRightsModal } from '@/components/consent/DataRightsModal'
+import { hasMarketingConsent, CONSENT_CHANGED_EVENT, type ConsentState } from '@/lib/consent'
+import { DEFAULT_PRIVACY_POLICY, DEFAULT_TERMS, DEFAULT_COOKIES_POLICY, fillTemplate } from '@/lib/legal-templates'
+import { SectionRenderer, type TemplateSection } from '@/components/product-template/SectionRenderer'
 import type { ProductoCarrito, PedidoForm, PedidoConfirmado, CuponValidacion } from '@/types'
 
 interface LandingPageProps {
@@ -259,11 +264,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   // tienda oculta responde 404 aunque se conozca su slug.
   const hiddenGrant = useMemo<string>(() => {
     if (typeof window === 'undefined' || !selectedStore || selectedStore === 'all') return ''
-    try {
-      const fromUrl = new URLSearchParams(window.location.search).get('hg')
-      if (fromUrl) { try { sessionStorage.setItem(`hg:${selectedStore}`, fromUrl) } catch { /* noop */ } ; return fromUrl }
-      return sessionStorage.getItem(`hg:${selectedStore}`) || ''
-    } catch { return '' }
+    // Solo desde la URL (?hg=). NO se cachea: si el visitante quita el parámetro,
+    // una tienda oculta vuelve a responder 404 → "escondida de verdad".
+    try { return new URLSearchParams(window.location.search).get('hg') || '' } catch { return '' }
   }, [selectedStore])
   const grantQ = hiddenGrant ? `&hg=${encodeURIComponent(hiddenGrant)}` : ''   // para URLs con query previa
   const grantQ1 = hiddenGrant ? `?hg=${encodeURIComponent(hiddenGrant)}` : ''  // para URLs sin query
@@ -373,6 +376,11 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   useEffect(() => { setActiveImageIdx(0); setTierResolvedPrice(null) }, [selectedVariant?.id])
   const [viewersCount, setViewersCount] = useState(0)
   const viewersIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  // Contenedor scrolleable del detalle de producto (clásico y ML): al cambiar de
+  // producto (ej. desde "Productos relacionados") se vuelve arriba, a la imagen principal.
+  const productDetailScrollRef = useRef<HTMLDivElement>(null)
+  // Plantilla dinámica del producto (secciones JSON asignadas desde el panel)
+  const [templatePage, setTemplatePage] = useState<{ sections: TemplateSection[]; pageContent: any } | null>(null)
   const [ctaVisible, setCtaVisible] = useState(false)
   const ctaRef = useRef<HTMLDivElement>(null)
 
@@ -483,6 +491,11 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   const [locationSkipped, setLocationSkipped] = useState(false)
 
   const [legalModal, setLegalModal] = useState<{ title: string; content: string } | null>(null)
+  // Habeas data (Ley 1581): formulario público de derechos del titular
+  const [showDataRights, setShowDataRights] = useState(false)
+  // Consentimiento del checkout (Ley 1581): obligatorio para crear el pedido
+  const [checkoutAcceptsPolicy, setCheckoutAcceptsPolicy] = useState(false)
+  const [checkoutAcceptsMarketing, setCheckoutAcceptsMarketing] = useState(false)
 
   // Age gate state
   const [showAgeGate, setShowAgeGate] = useState(false)
@@ -535,23 +548,40 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     }
   }, [selectedStore])
 
-  // Meta Pixel — inicializar cuando se cargue el storeConfig con pixelId
+  // Meta Pixel — SOLO se inyecta con consentimiento de marketing (Ley 1581 / RGPD).
+  // Sin consentimiento no existe window.fbq, así que los eventos Purchase/Lead
+  // (que verifican typeof fbq === 'function') quedan silenciados automáticamente.
   useEffect(() => {
     const pixelId = storeConfig?.storeInfo?.metaPixelId
     if (!pixelId || typeof window === 'undefined') return
-    const w = window as any
-    if (w.fbq) return
-    const n: any = (w.fbq = function (...args: any[]) {
-      n.callMethod ? n.callMethod.apply(n, args) : n.queue.push(args)
-    })
-    if (!w._fbq) w._fbq = n
-    n.push = n; n.loaded = true; n.version = '2.0'; n.queue = []
-    const s = document.createElement('script')
-    s.async = true
-    s.src = 'https://connect.facebook.net/en_US/fbevents.js'
-    document.head.appendChild(s)
-    w.fbq('init', pixelId)
-    w.fbq('track', 'PageView')
+
+    const loadPixel = () => {
+      const w = window as any
+      if (w.fbq) return
+      const n: any = (w.fbq = function (...args: any[]) {
+        n.callMethod ? n.callMethod.apply(n, args) : n.queue.push(args)
+      })
+      if (!w._fbq) w._fbq = n
+      n.push = n; n.loaded = true; n.version = '2.0'; n.queue = []
+      const s = document.createElement('script')
+      s.async = true
+      s.src = 'https://connect.facebook.net/en_US/fbevents.js'
+      document.head.appendChild(s)
+      w.fbq('init', pixelId)
+      w.fbq('track', 'PageView')
+    }
+
+    if (hasMarketingConsent()) {
+      loadPixel()
+      return
+    }
+    // Esperar a que el usuario decida en el banner de consentimiento
+    const onConsent = (e: Event) => {
+      const detail = (e as CustomEvent<ConsentState>).detail
+      if (detail?.marketing) loadPixel()
+    }
+    window.addEventListener(CONSENT_CHANGED_EVENT, onConsent)
+    return () => window.removeEventListener(CONSENT_CHANGED_EVENT, onConsent)
   }, [storeConfig?.storeInfo?.metaPixelId])
 
   // Handle MercadoPago return URL (?mp=success|failure|pending&order=<id>)
@@ -1604,6 +1634,12 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     setTierResolvedPrice(null)
     setPromoUnitPrice(null)
     setShowProductModal(true)
+    // El contenedor del detalle es el MISMO div cuando se navega entre productos
+    // (relacionados): su scroll se queda abajo. Volver a la imagen principal siempre.
+    requestAnimationFrame(() => {
+      productDetailScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    })
     // Seed viewers count uniquely per product and fluctuate over time
     const seed = (product.id * 2654435761) >>> 0
     const base = 4 + (seed % 28)
@@ -1648,6 +1684,55 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     setTierResolvedPrice(null)
     window.history.replaceState({}, '', window.location.pathname)
   }
+
+  // SEO ligero por producto: JSON-LD Product schema + título del documento.
+  // (El SEO SSR real con slugs requiere una ruta de servidor — siguiente iteración.)
+  useEffect(() => {
+    if (!showProductModal || !selectedProduct) return
+    const prevTitle = document.title
+    document.title = `${selectedProduct.name} · ${storeConfig?.storeInfo?.name || 'Tienda'}`
+    const price = selectedProduct.isOnOffer && selectedProduct.offerPrice
+      ? selectedProduct.offerPrice : selectedProduct.salePrice
+    const schema = {
+      '@context': 'https://schema.org',
+      '@type': 'Product',
+      name: selectedProduct.name,
+      description: selectedProduct.description || undefined,
+      image: selectedProduct.imageUrl || undefined,
+      brand: selectedProduct.brand ? { '@type': 'Brand', name: selectedProduct.brand } : undefined,
+      offers: {
+        '@type': 'Offer',
+        price: Number(price),
+        priceCurrency: 'COP',
+        availability: selectedProduct.stock > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+      },
+    }
+    const script = document.createElement('script')
+    script.type = 'application/ld+json'
+    script.setAttribute('data-product-seo', '1')
+    script.textContent = JSON.stringify(schema)
+    document.head.appendChild(script)
+    return () => {
+      document.title = prevTitle
+      script.remove()
+    }
+  }, [showProductModal, selectedProduct?.id])
+
+  // Cargar la plantilla dinámica del producto (secciones publicadas + page_content)
+  useEffect(() => {
+    if (!showProductModal || !selectedProduct) { setTemplatePage(null); return }
+    let cancelled = false
+    setTemplatePage(null)
+    fetch(`${API_URL}/storefront/product-page/${selectedProduct.id}`)
+      .then(r => r.json())
+      .then(j => {
+        if (!cancelled && j.success && Array.isArray(j.data?.sections) && j.data.sections.length > 0) {
+          setTemplatePage({ sections: j.data.sections, pageContent: j.data.pageContent || null })
+        }
+      })
+      .catch(() => { /* sin plantilla: el detalle se ve como siempre */ })
+    return () => { cancelled = true }
+  }, [showProductModal, selectedProduct?.id])
 
   // Observe CTA visibility for sticky mobile bar
   useEffect(() => {
@@ -2019,6 +2104,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
             presaleShipStart: p.presaleShipStart || p.preorderShipStart || null,
             presaleShipEnd: p.presaleShipEnd || p.preorderShipEnd || null,
           })),
+          // Consentimiento Ley 1581 capturado en el checkout
+          acceptsDataPolicy: checkoutAcceptsPolicy,
+          acceptsMarketing: checkoutAcceptsMarketing,
         }
 
         // Set tenant ID so the backend routes the order correctly
@@ -2143,6 +2231,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         variantId: p.variantId,
         modifierOptionIds: p.modifierOptionIds,
       })),
+      acceptsDataPolicy: checkoutAcceptsPolicy,
+      acceptsMarketing: checkoutAcceptsMarketing,
     }
     if (firstTenantId) payload.tenantId = firstTenantId
     if (cuponAplicado?.valido && cuponAplicado?.descuento) {
@@ -2174,6 +2264,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       customerCedula: formData.cedula, department: formData.departamento, municipality: formData.municipio,
       address: formData.direccion, neighborhood: formData.barrio, notes: formData.notas,
       paymentMethod: 'wompi',
+      acceptsDataPolicy: checkoutAcceptsPolicy,
+      acceptsMarketing: checkoutAcceptsMarketing,
       items: carrito.map(p => ({
         productId: String(p.id), productName: p.nombre, quantity: p.cantidad,
         unitPrice: p.precio, originalPrice: p.precioOriginal || p.precio,
@@ -2222,6 +2314,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         variantId: p.variantId,
         modifierOptionIds: p.modifierOptionIds,
       })),
+      acceptsDataPolicy: checkoutAcceptsPolicy,
+      acceptsMarketing: checkoutAcceptsMarketing,
     }
     if (firstTenantId) payload.tenantId = firstTenantId
     if (cuponAplicado?.valido && cuponAplicado?.descuento) {
@@ -2264,6 +2358,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         variantId: p.variantId,
         modifierOptionIds: p.modifierOptionIds,
       })),
+      acceptsDataPolicy: checkoutAcceptsPolicy,
+      acceptsMarketing: checkoutAcceptsMarketing,
     }
     if (firstTenantId) payload.tenantId = firstTenantId
     if (cuponAplicado?.valido && cuponAplicado?.descuento) {
@@ -2646,6 +2742,13 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
           onPagarConAddi={paymentConfig.addi ? handlePagarConAddi : undefined}
           onPagarConSistecredito={paymentConfig.sistecredito ? handlePagarConSistecredito : undefined}
           onPagarConWompi={wompiAvailable ? handlePagarConWompi : undefined}
+          acceptsDataPolicy={checkoutAcceptsPolicy}
+          acceptsMarketing={checkoutAcceptsMarketing}
+          onConsentChange={(policy, marketing) => { setCheckoutAcceptsPolicy(policy); setCheckoutAcceptsMarketing(marketing) }}
+          onOpenDataPolicy={() => setLegalModal({
+            title: 'Política de tratamiento de datos',
+            content: storeConfig?.storeInfo?.privacyContent || fillTemplate(DEFAULT_PRIVACY_POLICY, { storeName: storeConfig?.storeInfo?.name, contactEmail: storeConfig?.storeInfo?.email || undefined, contactPhone: storeConfig?.storeInfo?.phone || undefined }),
+          })}
           allowContraentrega={paymentConfig.contraentrega}
           allowWompi={paymentConfig.wompiEnabled !== false}
           contraentregaLabel={paymentConfig.contraentregaLabel}
@@ -2750,6 +2853,13 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
           mlStyle={productDetailStyle === 'ml'}
           accentColor={(activeThemeColors as any)?.primary || '#3483fa'}
           storeName={storeConfig?.storeInfo?.name || 'la tienda'}
+          acceptsDataPolicy={checkoutAcceptsPolicy}
+          acceptsMarketing={checkoutAcceptsMarketing}
+          onConsentChange={(policy, marketing) => { setCheckoutAcceptsPolicy(policy); setCheckoutAcceptsMarketing(marketing) }}
+          onOpenDataPolicy={() => setLegalModal({
+            title: 'Política de tratamiento de datos',
+            content: storeConfig?.storeInfo?.privacyContent || fillTemplate(DEFAULT_PRIVACY_POLICY, { storeName: storeConfig?.storeInfo?.name, contactEmail: storeConfig?.storeInfo?.email || undefined, contactPhone: storeConfig?.storeInfo?.phone || undefined }),
+          })}
         />
       </div>
     )
@@ -3289,8 +3399,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       {/* ========== MOBILE SIDEBAR MENU ========== */}
       {mobileMenuOpen && (
         <>
-          <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm" onClick={() => setMobileMenuOpen(false)} />
-          <div className="fixed top-0 left-0 h-full w-[280px] landing-sidebar border-r border-white/10 z-[70] p-6 animate-in slide-in-from-left duration-300 flex flex-col">
+          {/* z-[160/170]: el menú móvil abre ENCIMA del detalle de producto (z-150) */}
+          <div className="fixed inset-0 z-[160] bg-black/80 backdrop-blur-sm" onClick={() => setMobileMenuOpen(false)} />
+          <div className="fixed top-0 left-0 h-full w-[280px] landing-sidebar border-r border-white/10 z-[170] p-6 animate-in slide-in-from-left duration-300 flex flex-col">
             <div className="flex items-center justify-between mb-8">
               {storeConfig?.storeInfo?.logoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -3383,6 +3494,54 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
           .filter(p => p.id !== selectedProduct.id && (p.category === selectedProduct.category || p.brand === selectedProduct.brand))
           .slice(0, 8)
 
+        // ── Plantilla dinámica del producto (secciones JSON debajo del hero) ──
+        const templateHasRelated = !!templatePage?.sections.some(s => s.type === 'related' && s.visible !== false)
+        const renderTemplateSections = (light: boolean) => templatePage ? (
+          <SectionRenderer
+            sections={templatePage.sections}
+            ctx={{
+              product: {
+                name: selectedProduct.name,
+                salePrice: selectedProduct.salePrice,
+                offerPrice: selectedProduct.offerPrice ?? null,
+                isOnOffer: selectedProduct.isOnOffer,
+                stock: selectedProduct.stock,
+                brand: selectedProduct.brand || null,
+                category: selectedProduct.category || null,
+                description: selectedProduct.description || null,
+              },
+              store: {
+                name: storeConfig?.storeInfo?.name || null,
+                whatsapp: storeConfig?.storeInfo?.socialWhatsapp || null,
+              },
+              pageContent: templatePage.pageContent,
+              reviews: (productReviews || []).map((r: any) => ({
+                rating: Number(r.rating) || 5,
+                text: r.body || r.title || '',
+                author: r.reviewerName || r.reviewer_name,
+                date: (r.createdAt || r.created_at)
+                  ? new Date(r.createdAt || r.created_at).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' })
+                  : undefined,
+                photo: r.imageUrl1 || r.image_url_1 || null,
+              })),
+              relatedProducts: relatedProducts.map(rp => ({
+                id: rp.id,
+                name: rp.name,
+                price: rp.isOnOffer && rp.offerPrice ? rp.offerPrice : rp.salePrice,
+                imageUrl: rp.imageUrl || null,
+              })),
+              onRelatedClick: (id) => {
+                const orig = products.find(x => String(x.id) === String(id))
+                if (orig) openProductModal(orig)
+              },
+              onCta: () => productDetailScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' }),
+              formatPrice: formatCOP,
+              isLightBg: light,
+              accentColor: (activeThemeColors as any)?.primary || undefined,
+            }}
+          />
+        ) : null
+
         // Color name → CSS color mapper
         const colorToCss = (name: string): string | null => {
           const map: Record<string, string> = {
@@ -3426,6 +3585,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
           }
           return (
             <div
+              ref={productDetailScrollRef}
               className="fixed z-[150] overflow-y-auto"
               style={{
                 top: storeConfig?.announcementBar?.isActive ? '104px' : '64px',
@@ -3462,12 +3622,19 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 qtyPromo={parseQtyPromo((selectedProduct as any).qtyPromo)}
                 onPromoSelect={(u) => setPromoUnitPrice(u)}
               />
+              {/* ── Plantilla dinámica (secciones JSON) — fondo claro del tema ML ── */}
+              {templatePage && (
+                <div className="max-w-5xl mx-auto px-4 py-10">
+                  {renderTemplateSections(true)}
+                </div>
+              )}
             </div>
           )
         }
 
         return (
           <div
+            ref={productDetailScrollRef}
             className="fixed z-[150] overflow-y-auto animate-in fade-in duration-200"
             style={{
               top: storeConfig?.announcementBar?.isActive ? '104px' : '64px',
@@ -4079,6 +4246,13 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   )}
                 </div>
               </div>
+
+              {/* ── Plantilla dinámica (secciones JSON) — móvil ── */}
+              {templatePage && (
+                <div className="px-4 mt-10">
+                  {renderTemplateSections(isLightBg)}
+                </div>
+              )}
             </div>
 
             {/* ══════════════════════════════════════════
@@ -4734,8 +4908,15 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   )}
                 </div>
 
-                {/* ── Related products ── */}
-                {relatedProducts.length > 0 && (
+                {/* ── Plantilla dinámica (secciones JSON debajo del hero) ── */}
+                {templatePage && (
+                  <div className="mt-16 pt-12 border-t border-white/5">
+                    {renderTemplateSections(isLightBg)}
+                  </div>
+                )}
+
+                {/* ── Related products (se oculta si la plantilla trae su propia sección) ── */}
+                {relatedProducts.length > 0 && !templateHasRelated && (
                   <div className="mt-20 pt-12 border-t border-white/5">
                     <h3 className="text-xs text-white/40 uppercase tracking-widest mb-8">Productos relacionados</h3>
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
@@ -7149,7 +7330,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
           {/* Search bar — only when in specific store */}
           {!(showStoresView && selectedStore === 'all') && (
             <div className="flex flex-col sm:flex-row gap-4 mb-6 sm:mb-10 max-w-3xl mx-auto">
-              {selectedStore !== 'all' && stores.length > 1 && (
+              {selectedStore !== 'all' && stores.length > 1 && !(storeConfig as any)?.isHidden && (
                 <button
                   onClick={() => { setSelectedStore('all'); setShowStoresView(true) }}
                   className="flex items-center gap-2 px-4 py-3 bg-white/10 border border-white/20 text-white text-sm font-light hover:bg-white/15 transition-colors whitespace-nowrap"
@@ -7761,32 +7942,55 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 </div>
               </div>
 
-              {/* Información Legal */}
+              {/* Información Legal — con plantillas Ley 1581 por defecto si el comercio no definió textos */}
               <div className="space-y-3">
                 <h4 className="text-xs text-white/50 uppercase tracking-[0.2em] font-medium">Legal</h4>
                 <ul className="space-y-2">
-                  {storeConfig.storeInfo.termsContent && (
-                    <li>
-                      <button
-                        onClick={() => setLegalModal({ title: 'Términos y condiciones', content: storeConfig.storeInfo!.termsContent! })}
-                        className="text-white/40 text-sm font-light hover:text-white transition-colors flex items-center gap-1.5"
-                      >
-                        <FileText className="w-3 h-3" />
-                        Términos y condiciones
-                      </button>
-                    </li>
-                  )}
-                  {storeConfig.storeInfo.privacyContent && (
-                    <li>
-                      <button
-                        onClick={() => setLegalModal({ title: 'Política de privacidad', content: storeConfig.storeInfo!.privacyContent! })}
-                        className="text-white/40 text-sm font-light hover:text-white transition-colors flex items-center gap-1.5"
-                      >
-                        <Shield className="w-3 h-3" />
-                        Política de privacidad
-                      </button>
-                    </li>
-                  )}
+                  <li>
+                    <button
+                      onClick={() => setLegalModal({
+                        title: 'Términos y condiciones',
+                        content: storeConfig.storeInfo!.termsContent || fillTemplate(DEFAULT_TERMS, { storeName: storeConfig.storeInfo!.name, contactEmail: storeConfig.storeInfo!.email || undefined, contactPhone: storeConfig.storeInfo!.phone || undefined }),
+                      })}
+                      className="text-white/40 text-sm font-light hover:text-white transition-colors flex items-center gap-1.5"
+                    >
+                      <FileText className="w-3 h-3" />
+                      Términos y condiciones
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      onClick={() => setLegalModal({
+                        title: 'Política de tratamiento de datos',
+                        content: storeConfig.storeInfo!.privacyContent || fillTemplate(DEFAULT_PRIVACY_POLICY, { storeName: storeConfig.storeInfo!.name, contactEmail: storeConfig.storeInfo!.email || undefined, contactPhone: storeConfig.storeInfo!.phone || undefined }),
+                      })}
+                      className="text-white/40 text-sm font-light hover:text-white transition-colors flex items-center gap-1.5"
+                    >
+                      <Shield className="w-3 h-3" />
+                      Política de privacidad
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      onClick={() => setLegalModal({
+                        title: 'Política de cookies',
+                        content: fillTemplate(DEFAULT_COOKIES_POLICY, { storeName: storeConfig.storeInfo!.name, contactEmail: storeConfig.storeInfo!.email || undefined, contactPhone: storeConfig.storeInfo!.phone || undefined }),
+                      })}
+                      className="text-white/40 text-sm font-light hover:text-white transition-colors flex items-center gap-1.5"
+                    >
+                      <Info className="w-3 h-3" />
+                      Política de cookies
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      onClick={() => setShowDataRights(true)}
+                      className="text-white/40 text-sm font-light hover:text-white transition-colors flex items-center gap-1.5"
+                    >
+                      <ShieldCheck className="w-3 h-3" />
+                      Protección de datos (habeas data)
+                    </button>
+                  </li>
                   {storeConfig.storeInfo.shippingTerms && (
                     <li>
                       <button
@@ -8070,6 +8274,32 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               }
             } catch { /* ignore */ }
           }}
+          onAddToCart={async (productId) => {
+            // Cierre sin fricción: agrega el producto al carrito REAL de la tienda.
+            // Si tiene variantes, abre el modal para que elija talla/color primero.
+            const resolve = async (): Promise<StorefrontProduct | null> => {
+              const found = products.find(p => String(p.id) === String(productId))
+              if (found) return found
+              try {
+                const r = await fetch(`${API_URL}/storefront/products?store=${selectedStore}&limit=200${grantQ}`)
+                const j = await r.json()
+                return (j.success && j.data?.products)
+                  ? ((j.data.products as any[]).find((p: any) => String(p.id) === String(productId)) || null)
+                  : null
+              } catch { return null }
+            }
+            const product = await resolve()
+            if (!product) return
+            if ((product as any).hasVariants || ((product as any).variants?.length > 0)) {
+              openProductModal(product)
+            } else {
+              agregarAlCarrito(product)
+            }
+          }}
+          onOpenPolicy={() => setLegalModal({
+            title: 'Política de tratamiento de datos',
+            content: storeConfig?.storeInfo?.privacyContent || fillTemplate(DEFAULT_PRIVACY_POLICY, { storeName: storeConfig?.storeInfo?.name, contactEmail: storeConfig?.storeInfo?.email || undefined, contactPhone: storeConfig?.storeInfo?.phone || undefined }),
+          })}
         />
       )}
 
@@ -8136,9 +8366,11 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       {/* ========== CART SIDEBAR ========== */}
       {showCart && (
         <>
-          <div className="fixed inset-0 z-[65] bg-black/60 backdrop-blur-sm" onClick={() => setShowCart(false)} />
+          {/* z-[160]: el carrito abre ENCIMA del detalle de producto (z-150) — el header
+              queda visible durante el detalle y desde ahí se abre el carrito */}
+          <div className="fixed inset-0 z-[160] bg-black/60 backdrop-blur-sm" onClick={() => setShowCart(false)} />
           <div
-            className="fixed top-0 right-0 h-full w-full max-w-md z-[65] flex flex-col shadow-2xl animate-in slide-in-from-right duration-300"
+            className="fixed top-0 right-0 h-full w-full max-w-md z-[161] flex flex-col shadow-2xl animate-in slide-in-from-right duration-300"
             style={{ backgroundColor: '#ffffff', borderLeft: '1px solid rgba(0,0,0,0.12)' }}
           >
             {/* Header */}
@@ -8415,14 +8647,15 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       {/* ========== CLIENT LOGIN MODAL ========== */}
       {showClientLogin && !isAuthenticated && (
         <>
-          {/* Backdrop */}
+          {/* Backdrop — z-[180]: el login SIEMPRE se superpone al detalle de producto (z-150)
+              y al carrito (z-160); solo los modales legales/alertas (z-200+) van encima */}
           <div
-            className="fixed inset-0 z-[80] bg-black/70 backdrop-blur-sm"
+            className="fixed inset-0 z-[180] bg-black/70 backdrop-blur-sm"
             onClick={() => setShowClientLogin(false)}
           />
 
           {/* Desktop: centered · Mobile: bottom sheet */}
-          <div className="fixed inset-0 z-[81] flex items-end sm:items-center justify-center pointer-events-none">
+          <div className="fixed inset-0 z-[181] flex items-end sm:items-center justify-center pointer-events-none">
             <div
               className={`w-full sm:max-w-[400px] pointer-events-auto animate-in sm:fade-in slide-in-from-bottom sm:slide-in-from-bottom-0 duration-300 border-t sm:border ${
                 isLightBg
@@ -10091,6 +10324,25 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       )}
 
       {/* ========== LEGAL CONTENT MODAL ========== */}
+      {/* Consentimiento de cookies (Ley 1581): bloquea pixel/analítica hasta aceptación */}
+      <CookieConsentBanner
+        tenantId={stores.find(s => s.slug === selectedStore)?.id || null}
+        apiUrl={API_URL}
+        onOpenPolicy={() => setLegalModal({
+          title: 'Política de cookies',
+          content: fillTemplate(DEFAULT_COOKIES_POLICY, { storeName: storeConfig?.storeInfo?.name, contactEmail: storeConfig?.storeInfo?.email || undefined, contactPhone: storeConfig?.storeInfo?.phone || undefined }),
+        })}
+      />
+
+      {/* Habeas data: solicitud pública de acceso/rectificación/borrado */}
+      {showDataRights && (
+        <DataRightsModal
+          tenantId={stores.find(s => s.slug === selectedStore)?.id || null}
+          apiUrl={API_URL}
+          onClose={() => setShowDataRights(false)}
+        />
+      )}
+
       {legalModal && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
           <div className="bg-background rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col">
@@ -10185,7 +10437,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
       {/* ========== STICKER FLOTANTE "VER TODAS LAS TIENDAS" ==========
           Usa el logo del comercio activo; izquierda, se expande al interactuar. */}
-      {selectedStore !== 'all' && stores.length > 1 && !showProductModal && (
+      {selectedStore !== 'all' && stores.length > 1 && !showProductModal && !(storeConfig as any)?.isHidden && (
         <FloatingMarketplaceSticker
           storeName={storeConfig?.storeInfo?.name || 'Tienda'}
           logo={storeConfig?.storeInfo?.logoUrl || null}

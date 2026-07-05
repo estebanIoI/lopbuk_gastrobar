@@ -18,6 +18,8 @@ import { salesRoutes } from './modules/sales';
 import { inventoryRoutes } from './modules/inventory';
 import { dashboardRoutes } from './modules/dashboard';
 import { customersRoutes } from './modules/customers';
+import { privacyRoutes } from './modules/privacy';
+import { productTemplatesRoutes } from './modules/product-templates';
 import { creditsRoutes } from './modules/credits';
 import { categoriesRoutes } from './modules/categories';
 import { cashSessionsRoutes } from './modules/cash-sessions';
@@ -167,6 +169,8 @@ app.use(`${apiPrefix}/sales`, salesRoutes);
 app.use(`${apiPrefix}/inventory`, inventoryRoutes);
 app.use(`${apiPrefix}/dashboard`, dashboardRoutes);
 app.use(`${apiPrefix}/customers`, customersRoutes);
+app.use(`${apiPrefix}/privacy`, privacyRoutes);
+app.use(`${apiPrefix}/product-templates`, productTemplatesRoutes);
 app.use(`${apiPrefix}/credits`, creditsRoutes);
 app.use(`${apiPrefix}/categories`, categoriesRoutes);
 app.use(`${apiPrefix}/cash-sessions`, cashSessionsRoutes);
@@ -298,6 +302,22 @@ const startServer = async () => {
 
     // Iniciar scheduler de sync offline→nube (solo si IS_LOCAL_INSTANCE=true)
     startSyncScheduler();
+
+    // Retención de datos personales (Ley 1581): purga diaria de chat vencido y GPS
+    try {
+      const { startRetentionJob } = await import('./modules/privacy/retention.job');
+      startRetentionJob();
+    } catch (e) {
+      console.error('Retention job no iniciado:', e);
+    }
+
+    // Alertas de flota (SOAT/tecno/seguro por vencer, mantenimiento por km, consumo)
+    try {
+      const { startFleetAlertsJob } = await import('./modules/fleet/alerts.job');
+      startFleetAlertsJob();
+    } catch (e) {
+      console.error('Fleet alerts job no iniciado:', e);
+    }
 
     httpServer.listen(config.port, () => {
       console.log(`

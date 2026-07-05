@@ -12,6 +12,7 @@ import crypto from 'crypto';
 import { db } from '../../config';
 import { AppError } from '../../common/middleware';
 import { encrypt, decrypt } from '../../utils/crypto';
+import { minimizeGatewayPayload } from '../../utils/redact';
 
 export type WompiEnv = 'sandbox' | 'production';
 export type PayContext = 'subscription' | 'package' | 'order' | 'coach_booking' | 'drop' | 'legend_subscription' | 'cartilla';
@@ -270,9 +271,11 @@ export async function handleWebhook(body: any): Promise<{ ok: boolean; status?: 
   }
 
   const status = String(tx.status || 'PENDING').toUpperCase();
+  // Ley 1581 (minimización): el evento completo trae email/nombre/método de pago
+  // del cliente — solo se persiste lo necesario para auditar el pago.
   await db.query(
     `UPDATE wompi_transactions SET status = ?, wompi_id = ?, payload = ? WHERE reference = ?`,
-    [status, tx.id ?? null, JSON.stringify(tx).slice(0, 60000), tx.reference]
+    [status, tx.id ?? null, minimizeGatewayPayload(tx), tx.reference]
   );
 
   // Efecto al aprobar: activar suscripción / habilitar paquete (idempotente).

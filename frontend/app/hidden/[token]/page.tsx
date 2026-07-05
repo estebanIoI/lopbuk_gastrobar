@@ -189,11 +189,8 @@ export default function HiddenAccessPage() {
   const goToStore = () => {
     if (!store) return
     setEntering(true)
-    // Persistimos el grant (clave de acceso a la tienda oculta) para que el
-    // storefront lo envíe en cada request; sin él, el slug "a pelo" da 404.
-    if (store.grant && typeof sessionStorage !== 'undefined') {
-      try { sessionStorage.setItem(`hg:${store.slug}`, store.grant) } catch { /* noop */ }
-    }
+    // El grant viaja SOLO en la URL (no se cachea): así, si se quita el ?hg=, la
+    // tienda oculta vuelve a bloquearse. El redirect a /t/[slug] lo conserva.
     const hg = store.grant ? `&hg=${encodeURIComponent(store.grant)}` : ''
     setTimeout(() => router.push(`/?store=${store.slug}${hg}`), 620)
   }

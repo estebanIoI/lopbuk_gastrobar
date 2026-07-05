@@ -1,9 +1,34 @@
-# 🤖 Módulo: Agent IA (Recepcionista Virtual)
+# 🤖 Módulo: Agent IA (Asesor y Cerrador de Ventas)
 
 ## Qué hace
 Agente conversacional multicanal con RAG dinámico y function calling.
-Responde preguntas del negocio, crea reservas, registra leads, sugiere productos.
+Responde preguntas del negocio, crea reservas, registra leads, sugiere productos
+y **cierra pedidos con validación real de stock, variantes, envío y consentimiento**.
 Funciona en **chat web**, **WhatsApp** y (próximamente) **voz telefónica**.
+
+## 🆕 [2026-07-02] Upgrade "Chat Vendedor" (6 capacidades)
+
+1. **Variantes con disponibilidad real**: la búsqueda RAG adjunta tallas/colores con
+   `stock - reserved_stock` (incluye productos con stock=0 en el padre pero variantes vivas).
+   El prompt muestra opciones y marca "(agotada)" / "(¡quedan N!)" con datos reales.
+2. **`registrar_pedido` blindado**: match de producto con recorte progresivo del texto
+   ("Body Siso GRIS JASPEADO" → resuelve producto + variante), pide la opción si es ambigua,
+   valida stock (simple) y **reserva atómica** de variantes (`reserveForPublicOrder`, con
+   release si el pedido falla), envío real (`cart_delivery_fee`/`cart_min_purchase` → gratis
+   sobre el mínimo), cupón validado server-side (`resolveCouponDiscount`) y **consentimiento
+   Ley 1581** (`consent_records` + `consent_id` en la orden).
+3. **Palancas de cierre en el prompt**: ofertas activas (`is_on_offer`), cupones vigentes
+   (`discount_coupons`), umbral de envío gratis y **upsell** con el order bump del comercio
+   (UN complemento tras la decisión, una sola vez). Sección de **objeciones** con datos
+   (contra entrega = riesgo cero, urgencia solo con stock real).
+4. **Cliente recurrente**: si la sesión tiene teléfono, ve nombre + resumen de su última compra
+   → saluda por nombre y ofrece "¿misma dirección?" (la dirección se resuelve server-side con
+   `direccion: "misma"`; nunca va al LLM — privacidad).
+5. **Quick replies**: el modelo emite `[[opciones: A|B|C]]`; el pipeline lo extrae y lo devuelve
+   como `suggestedReplies` (chips en el widget; en WhatsApp el marcador se elimina).
+6. **Panel de conversaciones + takeover** (`chatbot-conversations.tsx` en el tab Chatbot):
+   el comerciante lee las conversaciones, activa "Atender yo" (silencia el bot) y responde
+   manual — al widget web por polling (`/chatbot/session-updates`) y a WhatsApp por Evolution.
 
 ## Archivos
 

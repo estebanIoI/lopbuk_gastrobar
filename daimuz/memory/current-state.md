@@ -1,6 +1,64 @@
-# 📍 Estado Actual — Junio 2026
+# 📍 Estado Actual — Julio 2026
 
 > Actualiza este archivo después de cada sesión de trabajo significativa.
+
+## 🆕 [2026-07-05] Sistema Operativo Logístico — flota, rutas y rentabilidad (✅ E2E 11/11)
+
+> El módulo fleet pasó de básico a sistema logístico empresarial para ferretería multi-sede.
+> Detalle en [[modules/ferreteria/ferreteria]] § Sistema Operativo Logístico y `changelog.md`.
+
+- ✅ Rutas agrupadas por zona con sugeridor (vehículo ajustado + # auxiliares + sumar a ruta activa), cascada de estados con historial, cierre automático en última parada.
+- ✅ Centro de operaciones "🛰️ Centro" en el dispatch-panel: kanban con semáforo de espera, vehículos con carga, personal con 6 estados; eventos en vivo por Socket.io.
+- ✅ Vehículo empresarial: SOAT/tecno/seguro/odómetro, gastos reales (el conductor reporta), alertas diarias automáticas.
+- ✅ Analítica "📊 Rentabilidad & Docs" en flota: facturación movilizada, costos reales, utilidad por vehículo, ranking de conductores.
+- ✅ WhatsApp transaccional al cliente (salió / entregado). Migraciones 0012 + 0013 aplicadas en dev.
+- ⏳ Siguiente: GPS en mapa ops, orden de paradas optimizado, evidencia de entrega, peso obligatorio en ferretería.
+
+## 🆕 [2026-07-04] Plantillas Dinámicas de Producto — MVP tipo Shopify (✅ E2E 9/9)
+
+> Cada producto puede ser una landing de venta configurable sin código. Detalle en
+> [[modules/product-templates/product-templates]] y `changelog.md`.
+
+- ✅ `product_templates` (JSON sections, draft/published/archived) + `products.template_id/page_content` (migración 0011 aplicada en dev).
+- ✅ 10 secciones (beneficios, texto, video, FAQ, testimonios auto de reviews, comparación, urgencia con stock real, garantías, banner, relacionados) con variables `{{product.*}}`.
+- ✅ Render en detalle clásico (móvil+desktop) y ML, debajo del hero de compra intacto. Endpoint público con caché 60s.
+- ✅ Editor visual en tab "Plantillas": drag&drop, settings por tipo, preview en vivo, publicar, asignación masiva, contenido por producto. Semillas Moda/Tech/Belleza.
+- ✅ SEO ligero: JSON-LD Product + document.title.
+- ⏳ Siguiente iteración: SEO SSR con slugs, selector de plantilla en el form de producto, precarga de page_content en el modal, responsive por breakpoint, A/B.
+
+## 🆕 [2026-07-02] Chat Vendedor — agente IA asesor y cerrador (5 fases ✅, E2E 16/16)
+
+> El chatbot de tienda (web + WhatsApp) ahora vende con datos reales. Detalle en
+> [[modules/agent/agent]] § Upgrade Chat Vendedor y `changelog.md`.
+
+- ✅ Variantes con disponibilidad real en búsqueda y prompt; pedido con validación de stock + reserva atómica + envío real + cupón server-side + consentimiento Ley 1581 (cierra el pendiente del chatbot).
+- ✅ Palancas de cierre: ofertas, cupones, envío gratis, upsell (order bump), cliente recurrente ("¿misma dirección?" resuelta server-side), objeciones con datos.
+- ✅ Widget: quick replies (chips), "Agregar al carrito" real, markdown ligero, link de privacidad.
+- ✅ Panel comerciante: conversaciones + "Atender yo" (takeover) + respuesta manual (web por polling, WhatsApp por Evolution).
+- ⏳ Siguiente iteración: streaming SSE · pago Wompi dentro del chat · follow-up post-venta.
+
+## 🆕 [2026-07-02] Blindaje de Privacidad — Ley 1581 / RGPD (6 fases ✅, verificado E2E)
+
+> Módulo `privacy` completo + consentimiento en checkout + derecho al olvido + retención.
+> Detalle en [[modules/privacy/privacy]] y `changelog.md`. Reglas nuevas en
+> [[governance/universal-constraints]] § Protección de Datos.
+
+**Listo y verificado (rama `esteban`, migración `0010_tense_turbo` aplicada en dev):**
+- ✅ **DB:** `consent_records` (inmutable) + `data_subject_requests` (SLA 10 días hábiles); `customers.is_active/deleted_at/anonymized_at`; `storefront_orders.consent_id`; `store_info.privacy_policy_version/cookies_content`.
+- ✅ **Checkout:** las 4 rutas públicas (`/public`, MP, ADDI, Sistecrédito) exigen `acceptsDataPolicy=true` (probado: 400 sin él, 201 con él + 3 consent_records + consent_id en la orden). Checkbox obligatorio + opcional WhatsApp en CheckoutView y CheckoutWizardML.
+- ✅ **Meta Pixel gated:** solo se inyecta con consentimiento de marketing (banner `CookieConsentBanner` + `lib/consent.ts`).
+- ✅ **Derecho al olvido:** `eraseCustomer()` anonimiza cliente + órdenes + ventas POS + chat, conserva montos, audita `pii_erasure` (probado E2E). CRM delete = soft delete ahora.
+- ✅ **Derechos del titular:** export JSON (acceso), formulario público en footer, panel de solicitudes en CRM con SLA.
+- ✅ **Retención diaria:** chatbot 12m, delivery chat 6m, GPS entregados 90d (`retention.job.ts`).
+- ✅ **WhatsApp opt-out:** "BAJA"/"STOP" revoca marketing; `sendMarketingMessage()` para campañas futuras.
+- ✅ **Fugas:** payload Wompi minimizado; `redactPII()` en logs de orders; guard anti-PII en `agent.rag.ts`.
+- ✅ Plantillas legales Ley 1581 por defecto (`frontend/lib/legal-templates.ts`) con fallback en el footer; nota "valida con tu abogado" en store-customization.
+
+**⏳ PENDIENTE (negocio/próximas sesiones):**
+1. Firmar DPAs con Wompi/Cloudinary/Evolution/MercadoPago/ADDI/Sistecrédito.
+2. Validación jurídica de las plantillas legales.
+3. Consentimiento en pedidos creados por el chatbot (`agent.tools.ts`).
+4. Deploy: la migración `0010` corre sola en el CMD de Docker (`migrate.js`).
 
 ## 🆕 [2026-06-27] Drizzle Kit — Baseline completo + DDL de runtime congelado (FASE 1 y 2 ✅)
 

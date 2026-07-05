@@ -107,7 +107,7 @@ export class CustomersService {
   ): Promise<PaginatedResponse<CustomerWithBalance>> {
     const offset = (page - 1) * limit;
 
-    let countQuery = 'SELECT COUNT(*) as total FROM customers WHERE tenant_id = ?';
+    let countQuery = 'SELECT COUNT(*) as total FROM customers WHERE tenant_id = ? AND is_active = 1';
     let dataQuery = `
       SELECT
         c.id as customer_id,
@@ -144,7 +144,7 @@ export class CustomersService {
         c.created_at,
         c.updated_at
       FROM customers c
-      WHERE c.tenant_id = ?
+      WHERE c.tenant_id = ? AND c.is_active = 1
     `;
     const params: string[] = [tenantId];
     const countParams: string[] = [tenantId];
@@ -220,7 +220,7 @@ export class CustomersService {
         c.created_at,
         c.updated_at
       FROM customers c
-      WHERE c.tenant_id = ? AND (c.name LIKE ? OR c.phone LIKE ? OR c.cedula LIKE ?)
+      WHERE c.tenant_id = ? AND c.is_active = 1 AND (c.name LIKE ? OR c.phone LIKE ? OR c.cedula LIKE ?)
       ORDER BY c.name ASC
       LIMIT 10
       `,
@@ -400,6 +400,8 @@ export class CustomersService {
     return this.mapCustomer(rows[0]);
   }
 
+  // Soft delete (regla universal: nunca DELETE físico en datos de negocio).
+  // El borrado real de PII es la anonimización del módulo privacy (derecho al olvido).
   async delete(id: string): Promise<void> {
     const customer = await this.findById(id);
 
@@ -412,7 +414,7 @@ export class CustomersService {
     }
 
     const [result] = await db.execute<ResultSetHeader>(
-      'DELETE FROM customers WHERE id = ?',
+      'UPDATE customers SET is_active = 0, deleted_at = NOW() WHERE id = ?',
       [id]
     );
 

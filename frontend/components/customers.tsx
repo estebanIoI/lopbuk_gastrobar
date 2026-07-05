@@ -49,7 +49,45 @@ import {
   CreditCard,
   FileText,
   IdCard,
+  Download,
+  ShieldAlert,
+  ShieldCheck,
+  Clock,
 } from 'lucide-react'
+
+interface PrivacyRequest {
+  id: string
+  requestType: 'access' | 'rectify' | 'erase' | 'revoke_consent'
+  status: 'pending' | 'in_progress' | 'completed' | 'denied'
+  identifier: string
+  requesterName: string
+  verificationMethod: string | null
+  details: string | null
+  requestedAt: string
+  dueAt: string | null
+  notes: string | null
+}
+
+const REQUEST_TYPE_LABEL: Record<PrivacyRequest['requestType'], string> = {
+  access: 'Acceso a datos',
+  rectify: 'Rectificación',
+  erase: 'Supresión (olvido)',
+  revoke_consent: 'Revocar autorización',
+}
+
+const REQUEST_STATUS_LABEL: Record<PrivacyRequest['status'], string> = {
+  pending: 'Pendiente',
+  in_progress: 'En proceso',
+  completed: 'Completada',
+  denied: 'Denegada',
+}
+
+/** Días calendario restantes hasta el vencimiento del SLA (10 días hábiles Ley 1581). */
+function daysUntil(dateStr: string | null): number | null {
+  if (!dateStr) return null
+  const diff = new Date(dateStr).getTime() - Date.now()
+  return Math.ceil(diff / (24 * 60 * 60 * 1000))
+}
 
 interface CustomerFormData {
   cedula: string
@@ -81,10 +119,57 @@ export function Customers() {
   const [customerToDelete, setCustomerToDelete] = useState<CustomerFull | null>(null)
   const [formData, setFormData] = useState<CustomerFormData>(emptyCustomer)
   const [isSaving, setIsSaving] = useState(false)
+  // Habeas data (Ley 1581): borrado definitivo por anonimización + solicitudes de titulares
+  const [customerToErase, setCustomerToErase] = useState<CustomerFull | null>(null)
+  const [isErasing, setIsErasing] = useState(false)
+  const [privacyRequests, setPrivacyRequests] = useState<PrivacyRequest[]>([])
+  const [showRequests, setShowRequests] = useState(false)
 
   useEffect(() => {
     fetchCustomers()
+    fetchPrivacyRequests()
   }, [])
+
+  const fetchPrivacyRequests = async () => {
+    const result = await api.getPrivacyRequests()
+    if (result.success && Array.isArray(result.data)) {
+      setPrivacyRequests(result.data)
+    }
+  }
+
+  const handleExport = async (customer: CustomerFull) => {
+    const result = await api.exportCustomerData(customer.id)
+    if (result.success && result.data) {
+      // Descarga como JSON (derecho de acceso, Ley 1581 art. 8)
+      const blob = new Blob([JSON.stringify(result.data, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `datos-cliente-${customer.cedula || customer.id}.json`
+      a.click()
+      URL.revokeObjectURL(url)
+    }
+  }
+
+  const handleErase = async () => {
+    if (!customerToErase) return
+    setIsErasing(true)
+    const result = await api.eraseCustomerData(customerToErase.id)
+    setIsErasing(false)
+    if (result.success) {
+      await fetchCustomers()
+      setCustomerToErase(null)
+    } else {
+      alert(result.error || 'No se pudo anonimizar el cliente')
+    }
+  }
+
+  const handleRequestAction = async (id: string, status: 'in_progress' | 'completed' | 'denied') => {
+    const result = await api.updatePrivacyRequest(id, { status })
+    if (result.success) await fetchPrivacyRequests()
+  }
+
+  const openRequestsCount = privacyRequests.filter(r => r.status === 'pending' || r.status === 'in_progress').length
 
   const fetchCustomers = async () => {
     setIsLoading(true)
@@ -173,11 +258,105 @@ export function Customers() {
           <h1 className="text-2xl font-bold">Clientes</h1>
           <p className="text-muted-foreground">Gestión de clientes y saldos</p>
         </div>
-        <Button data-tour="cli-new" onClick={handleOpenNew}>
-          <Plus className="h-4 w-4 mr-2" />
-          Nuevo Cliente
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setShowRequests(v => !v)}>
+            <ShieldCheck className="h-4 w-4 mr-2" />
+            Solicitudes de datos
+            {openRequestsCount > 0 && (
+              <Badge variant="destructive" className="ml-2">{openRequestsCount}</Badge>
+            )}
+          </Button>
+          <Button data-tour="cli-new" onClick={handleOpenNew}>
+            <Plus className="h-4 w-4 mr-2" />
+            Nuevo Cliente
+          </Button>
+        </div>
       </div>
+
+      {/* Solicitudes de titulares (Ley 1581 — SLA 10 días hábiles) */}
+      {showRequests && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4" />
+              Solicitudes de protección de datos
+            </CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Por Ley 1581 de 2012 debes responder cada solicitud en máximo 10 días hábiles.
+            </p>
+          </CardHeader>
+          <CardContent className="p-0">
+            {privacyRequests.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">No hay solicitudes registradas</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Solicitante</TableHead>
+                      <TableHead>Tipo</TableHead>
+                      <TableHead className="hidden md:table-cell">Contacto</TableHead>
+                      <TableHead>Vence</TableHead>
+                      <TableHead>Estado</TableHead>
+                      <TableHead className="text-right">Acciones</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {privacyRequests.map((r) => {
+                      const days = daysUntil(r.dueAt)
+                      const overdue = days !== null && days < 0 && (r.status === 'pending' || r.status === 'in_progress')
+                      return (
+                        <TableRow key={r.id}>
+                          <TableCell>
+                            <p className="font-medium">{r.requesterName}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {r.verificationMethod === 'phone_name_match' ? '✓ Identidad verificada' : '⚠ Sin verificar'}
+                            </p>
+                          </TableCell>
+                          <TableCell>{REQUEST_TYPE_LABEL[r.requestType]}</TableCell>
+                          <TableCell className="hidden md:table-cell">{r.identifier}</TableCell>
+                          <TableCell>
+                            {r.status === 'completed' || r.status === 'denied' ? (
+                              '—'
+                            ) : (
+                              <span className={`flex items-center gap-1 text-xs ${overdue ? 'text-destructive font-semibold' : ''}`}>
+                                <Clock className="h-3 w-3" />
+                                {days === null ? '—' : overdue ? `Vencida hace ${Math.abs(days)} d` : `${days} días`}
+                              </span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={r.status === 'completed' ? 'outline' : r.status === 'denied' ? 'secondary' : overdue ? 'destructive' : 'default'}>
+                              {REQUEST_STATUS_LABEL[r.status]}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {(r.status === 'pending' || r.status === 'in_progress') && (
+                              <div className="flex items-center justify-end gap-1">
+                                {r.status === 'pending' && (
+                                  <Button variant="ghost" size="sm" onClick={() => handleRequestAction(r.id, 'in_progress')}>
+                                    Atender
+                                  </Button>
+                                )}
+                                <Button variant="ghost" size="sm" className="text-green-600" onClick={() => handleRequestAction(r.id, 'completed')}>
+                                  Completar
+                                </Button>
+                                <Button variant="ghost" size="sm" className="text-destructive" onClick={() => handleRequestAction(r.id, 'denied')}>
+                                  Denegar
+                                </Button>
+                              </div>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Stats */}
       <div className="grid gap-4 sm:grid-cols-3" data-tour="cli-stats">
@@ -297,6 +476,14 @@ export function Customers() {
                           <Button
                             variant="ghost"
                             size="icon"
+                            title="Exportar datos (derecho de acceso)"
+                            onClick={() => handleExport(customer)}
+                          >
+                            <Download className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             onClick={() => handleOpenEdit(customer)}
                           >
                             <Edit className="h-4 w-4" />
@@ -304,10 +491,21 @@ export function Customers() {
                           <Button
                             variant="ghost"
                             size="icon"
+                            title="Desactivar cliente"
                             onClick={() => handleOpenDelete(customer)}
                             disabled={customer.balance > 0}
                           >
                             <Trash2 className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title="Borrado definitivo (habeas data)"
+                            className="text-destructive"
+                            onClick={() => setCustomerToErase(customer)}
+                            disabled={customer.balance > 0}
+                          >
+                            <ShieldAlert className="h-4 w-4" />
                           </Button>
                         </div>
                       </TableCell>
@@ -431,20 +629,56 @@ export function Customers() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation */}
+      {/* Delete Confirmation (soft delete: desactiva sin borrar datos) */}
       <AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar cliente?</AlertDialogTitle>
+            <AlertDialogTitle>¿Desactivar cliente?</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta acción no se puede deshacer. Se eliminará permanentemente el cliente
-              <strong> {customerToDelete?.name}</strong> del sistema.
+              El cliente <strong>{customerToDelete?.name}</strong> dejará de aparecer en el sistema,
+              pero sus datos y su historial de ventas se conservan. Si el cliente pidió que borres
+              sus datos personales, usa el <strong>borrado definitivo (habeas data)</strong>.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Eliminar
+              Desactivar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Borrado definitivo — anonimización irreversible (Ley 1581, derecho al olvido) */}
+      <AlertDialog open={!!customerToErase} onOpenChange={(open) => { if (!open) setCustomerToErase(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <ShieldAlert className="h-5 w-5 text-destructive" />
+              Borrado definitivo de datos personales
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm">
+                <p>
+                  Vas a ejercer el <strong>derecho al olvido</strong> (Ley 1581 de 2012) sobre{' '}
+                  <strong>{customerToErase?.name}</strong>. Esta acción es <strong>irreversible</strong>:
+                </p>
+                <ul className="list-disc pl-5 space-y-1">
+                  <li>Se eliminan de forma permanente: nombre, cédula, teléfono, email, dirección, ubicación GPS, notas y conversaciones de chat.</li>
+                  <li>Se conservan los montos de ventas y pedidos (obligación contable/fiscal), ya anonimizados.</li>
+                  <li>Queda registro del borrado en el log de auditoría como prueba de cumplimiento.</li>
+                </ul>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isErasing}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); handleErase() }}
+              disabled={isErasing}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isErasing ? 'Anonimizando…' : 'Borrar definitivamente'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

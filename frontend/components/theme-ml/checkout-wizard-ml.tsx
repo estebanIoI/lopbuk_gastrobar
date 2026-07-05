@@ -53,6 +53,11 @@ export interface CheckoutWizardMLProps {
   deliveryFee?: number
   accentColor?: string
   storeName?: string
+  // Consentimiento Ley 1581: aceptación obligatoria de la política de datos
+  acceptsDataPolicy?: boolean
+  acceptsMarketing?: boolean
+  onConsentChange?: (acceptsDataPolicy: boolean, acceptsMarketing: boolean) => void
+  onOpenDataPolicy?: () => void
 }
 
 type PayMethod = 'contraentrega' | 'mercadopago' | 'addi' | 'sistecredito' | 'wompi'
@@ -72,6 +77,7 @@ export function CheckoutWizardML(props: CheckoutWizardMLProps) {
     contraentregaLabel = 'Contra entrega', contraentregaDesc = 'Paga en efectivo cuando recibas tu pedido',
     freeDeliveryMin = 0, deliveryFee = 0,
     accentColor = '#3483fa', storeName = 'la tienda',
+    acceptsDataPolicy = false, acceptsMarketing = false, onConsentChange, onOpenDataPolicy,
   } = props
   // Wompi visible solo si la plataforma lo ofrece Y el comercio lo tiene activo.
   const showWompi = !!onPagarConWompi && allowWompi
@@ -178,6 +184,11 @@ export function CheckoutWizardML(props: CheckoutWizardMLProps) {
   // ── Pago ──
   const pagar = async () => {
     setPayError('')
+    // Ley 1581: sin aceptación explícita no se procesan datos personales
+    if (!acceptsDataPolicy) {
+      setPayError('Debes aceptar la política de tratamiento de datos personales para continuar')
+      return
+    }
     // Pasarela en línea según el método (Wompi funciona también para domicilio).
     const online =
       payMethod === 'mercadopago' ? onPagarEnLinea :
@@ -423,6 +434,40 @@ export function CheckoutWizardML(props: CheckoutWizardMLProps) {
                 )}
               </div>
             )}
+
+            {/* ── Consentimiento Ley 1581 (obligatorio) ── */}
+            <div className="bg-white rounded-xl border border-[#e6e6e6] p-4 space-y-2">
+              <label className="flex items-start gap-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={acceptsDataPolicy}
+                  onChange={(e) => { onConsentChange?.(e.target.checked, acceptsMarketing); if (e.target.checked) setPayError('') }}
+                  className="mt-0.5 h-4 w-4 shrink-0"
+                  style={{ accentColor: accent }}
+                />
+                <span className="text-xs text-[#666] leading-relaxed">
+                  Acepto la{' '}
+                  {onOpenDataPolicy ? (
+                    <button type="button" onClick={(e) => { e.preventDefault(); onOpenDataPolicy() }} className="underline font-medium text-[#333]">
+                      política de tratamiento de datos personales
+                    </button>
+                  ) : (
+                    <span className="font-medium">política de tratamiento de datos personales</span>
+                  )}{' '}
+                  y los términos de compra (Ley 1581 de 2012). *
+                </span>
+              </label>
+              <label className="flex items-start gap-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={acceptsMarketing}
+                  onChange={(e) => onConsentChange?.(acceptsDataPolicy, e.target.checked)}
+                  className="mt-0.5 h-4 w-4 shrink-0"
+                  style={{ accentColor: accent }}
+                />
+                <span className="text-xs text-[#999] leading-relaxed">Autorizo recibir ofertas por WhatsApp (opcional)</span>
+              </label>
+            </div>
 
             <div className="flex items-center gap-2 text-xs text-[#999] justify-center">
               <ShieldCheck className="w-4 h-4" /> Pago protegido con encriptación SSL

@@ -1,6 +1,57 @@
 # 🔩 Módulo: Ferretería
 
-> Plan de implementación acordado. Estado: **⏳ Pendiente de desarrollo.**  
+> Estado: **🟢 Sistema Operativo Logístico implementado (2026-07-05)** — rutas agrupadas,
+> centro de operaciones en vivo, perfil empresarial del vehículo (SOAT/tecno/seguro/odómetro),
+> gastos reales, alertas automáticas y analítica de rentabilidad. Detalle abajo en
+> "Sistema Operativo Logístico". Pendientes originales de storefront/POS siguen en [[context/pending]].
+
+## 🚛 Sistema Operativo Logístico (2026-07-05)
+
+**DB (migraciones 0012/0013):** `dispatch_routes` (rutas agrupadas: vehículo+conductor+auxiliares,
+estados planificada→cargando→en_ruta→retornando→cerrada) · `fleet_vehicle_expenses` (combustible/
+peajes/repuestos con galones y odómetro) · `fleet_vehicles` + soat/tecno/seguro/odómetro/volumen/
+mantenimiento-cada-km · `storefront_orders.route_id/route_sequence/sede_id` ·
+`courier_availability.status` (disponible/en_ruta/descargando/almuerzo/fuera_turno/incapacidad) ·
+`merchant_notifications` enum + `fleet_alert`.
+
+**Backend** (`fleet/logistics.routes.ts`, montado bajo `/api/fleet` · `fleet/alerts.job.ts` diario):
+- `GET /fleet/routes/suggestions` — agrupa pedidos pendientes por barrio/municipio, propone
+  vehículo más ajustado o **sumar a ruta activa con capacidad** (el ahorro real), y # auxiliares por peso.
+- `POST /fleet/routes` — crea ruta validando capacidad (sobrepeso → 400) + vincula paradas con secuencia.
+- `PATCH /fleet/routes/:id/status` — **cascada** a pedidos (cargado/despachado/entregado) + vehículo
+  en espejo + `order_status_history` + WhatsApp transaccional al cliente ("salió"/"entregado").
+- `PATCH /fleet/routes/:id/stops/:orderId/delivered` — entrega por parada; la última **cierra la ruta
+  y libera el vehículo** automáticamente (también desde el flujo del repartidor en delivery.routes).
+- `GET /fleet/ops-board` — kanban con minutos de espera, vehículos con % de carga, personal con estado.
+- `GET /fleet/analytics` — por vehículo: entregas, **facturación movilizada, costos reales, utilidad
+  estimada, costo/entrega**; ranking de conductores (min/entrega); operación (tiempos promedio).
+- `POST /fleet/expenses` (el conductor también puede) · `PUT /fleet/vehicles/:id/profile` ·
+  `PUT /fleet/staff-status`.
+- **Alertas diarias** → merchant_notifications: SOAT/tecno/seguro ≤15 días o vencidos, mantenimiento
+  vencido por km, consumo >30% sobre el promedio de la flota. Dedupe por día.
+- **Tiempo real**: `emitOps()` publica `dispatch-changed`/`staff-status-changed` en el canal
+  Socket.io `ops:{tenantId}` existente (el pedido aparece al facturarse).
+
+**Frontend** (`logistics-board.tsx`):
+- `<LogisticsOps/>` en la pestaña **"🛰️ Centro"** de `dispatch-panel.tsx` (rol despachador):
+  sugerencias de agrupación con un clic → modal crear ruta (vehículo/conductor/auxiliares),
+  kanban con semáforo (verde/>30min ámbar/>60min rojo), rutas activas con avance de estado y
+  paradas, vehículos con barra de carga, personal con selector de estado.
+- `<FleetInsights/>` en la pestaña **"📊 Rentabilidad & Docs"** de `fleet-management.tsx`
+  (comerciante): tabla de rentabilidad por vehículo, ranking de conductores, KPIs de operación
+  (7/30/90 días), y por vehículo: documentos con vencimientos + registro/histórico de gastos.
+
+**Verificado E2E 11/11** (HTTP real con JWT): sugerencia agrupa zona, sobrepeso rechazado, ruta
+creada, cascada de estados + historial, cierre automático en última parada, gasto+odómetro,
+alerta SOAT, analítica (300k movilizado − 80k combustible = 220k utilidad), tablero ops.
+
+**Siguiente iteración:** GPS histórico por vehículo en mapa ops · optimización de orden de paradas ·
+firma/foto como evidencia formal de entrega · sede origen con regla automática por zona · pedidos
+web de ferretería con peso en carrito.
+
+---
+
+> Plan original (pre-implementación):
 > Ver backlog: [[context/pending]]
 
 ## Qué hace
