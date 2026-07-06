@@ -13,8 +13,11 @@ import { LogisticsOps } from '@/components/logistics-board';
 const formatCOP = (v: number) =>
   new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(v);
 
-const formatKg = (kg: number | null) =>
-  kg != null ? `${kg.toFixed(2)} kg` : '— kg';
+// Los DECIMAL de MySQL llegan como STRING por la API: coercionar siempre antes de toFixed
+const formatKg = (kg: number | string | null) => {
+  const n = Number(kg);
+  return kg != null && Number.isFinite(n) ? `${n.toFixed(2)} kg` : '— kg';
+};
 
 // ─── Colores y etiquetas de dispatch_status ─────────────────────────────────
 const DISPATCH_LABEL: Record<string, string> = {

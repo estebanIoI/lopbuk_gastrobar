@@ -431,7 +431,14 @@ async function agentOpenAICompat(url: string, apiKey: string, model: string, req
     usage = addUsage(usage, { prompt: u.prompt_tokens || 0, completion: u.completion_tokens || 0, total: u.total_tokens || 0 });
     const msg = d.choices?.[0]?.message;
     const calls = msg?.tool_calls;
-    if (!calls || calls.length === 0) return { text: msg?.content || '', usage, rounds };
+    if (!calls || calls.length === 0) {
+      const text = String(msg?.content || '').trim();
+      if (text) return { text, usage, rounds };
+      // Contenido VACÍO sin tool_calls (típico de modelos con razonamiento —
+      // DeepSeek — cuando max_tokens se consume en el razonamiento interno):
+      // romper hacia el cierre forzado sin tools y con más presupuesto.
+      break;
+    }
     messages.push({ role: 'assistant', content: msg.content ?? null, tool_calls: calls });
     for (const c of calls) {
       let args: any = {}; try { args = JSON.parse(c.function?.arguments || '{}'); } catch { /* sin args */ }
@@ -440,10 +447,11 @@ async function agentOpenAICompat(url: string, apiKey: string, model: string, req
       messages.push({ role: 'tool', tool_call_id: c.id, content: result });
     }
   }
-  // Se agotaron las rondas con tools: cierre forzado pidiendo texto final (sin tools).
+  // Cierre forzado (rondas agotadas o contenido vacío): pedir el texto final SIN
+  // tools y con presupuesto amplio, para que el razonamiento no se coma la respuesta.
   const rf = await fetch(url, {
     method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ model, messages, max_tokens: req.maxTokens ?? 700, temperature: req.temperature ?? 0.6 }),
+    body: JSON.stringify({ model, messages, max_tokens: Math.max(req.maxTokens ?? 700, 700), temperature: req.temperature ?? 0.6 }),
   });
   if (!rf.ok) return { text: '', usage, rounds };
   const df = await rf.json() as any;
@@ -476,7 +484,11 @@ async function agentGemini(apiKey: string, model: string, req: AgentRequest, fla
     usage = addUsage(usage, { prompt: m.promptTokenCount || 0, completion: m.candidatesTokenCount || 0, total: m.totalTokenCount || 0 });
     const parts = d.candidates?.[0]?.content?.parts || [];
     const fc = parts.find((p: any) => p.functionCall)?.functionCall;
-    if (!fc) return { text: parts.find((p: any) => p.text)?.text || '', usage, rounds };
+    if (!fc) {
+      const text = String(parts.find((p: any) => p.text)?.text || '').trim();
+      if (text) return { text, usage, rounds };
+      break; // contenido vacío → cierre forzado sin tools
+    }
     contents.push({ role: 'model', parts: [{ functionCall: fc }] });
     flag.executed = true;
     const result = await req.execute(fc.name, fc.args || {});
