@@ -19,6 +19,7 @@ import {
   X,
   Users,
   UserCheck,
+  Network,
   CreditCard,
   Vault,
   Crown,
@@ -114,6 +115,7 @@ const navigation: NavItem[] = [
   { id: 'customers', name: 'Clientes', icon: Users, adminOnly: true, superadminOnly: false, merchantOnly: true, group: 'ops' },
   { id: 'fiados', name: 'Fiados', icon: CreditCard, adminOnly: true, superadminOnly: false, merchantOnly: true, group: 'ops' },
   { id: 'vendedores', name: 'Empleados', icon: UserCheck, adminOnly: true, superadminOnly: false, merchantOnly: true, group: 'ops' },
+  { id: 'organigrama', name: 'Organigrama', icon: Network, adminOnly: true, superadminOnly: false, merchantOnly: true, group: 'ops' },
   // flota ferretería
   { id: 'fleet', name: 'Mi Flota', icon: Truck, adminOnly: true, superadminOnly: false, merchantOnly: true, group: 'ops' },
   // inmobiliaria

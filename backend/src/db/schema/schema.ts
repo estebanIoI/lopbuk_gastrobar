@@ -4406,6 +4406,8 @@ export const users = mysqlTable("users", {
 	monthlyGoal: decimal("monthly_goal", { precision: 12, scale: 2 }).default('0.00').notNull(),
 	goalBonus: decimal("goal_bonus", { precision: 12, scale: 2 }).default('0.00').notNull(),
 	dataEncrypted: tinyint("data_encrypted").default(0).notNull(),
+	// Organigrama: a quién le reporta este colaborador (self-ref, mismo tenant)
+	managerId: varchar("manager_id", { length: 36 }),
 },
 (table) => {
 	return {
@@ -4413,6 +4415,7 @@ export const users = mysqlTable("users", {
 		idxUsersActive: index("idx_users_active").on(table.isActive),
 		idxUsersRole: index("idx_users_role").on(table.role),
 		idxUsersTenant: index("idx_users_tenant").on(table.tenantId),
+		idxUsersManager: index("idx_users_manager").on(table.managerId),
 		usersId: primaryKey({ columns: [table.id], name: "users_id"}),
 		email: unique("email").on(table.email),
 	}

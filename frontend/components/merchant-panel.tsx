@@ -35,6 +35,7 @@ import { Theme4Editor } from '@/components/theme4/theme4-editor'
 import { PlatformAssistant } from '@/components/platform-assistant'
 import { PrintersConfig } from '@/components/printers'
 import { VendedoresPanel } from '@/components/vendedores-panel'
+import { OrgChart } from '@/components/org-chart'
 import { ReviewsPanel } from '@/components/reviews-panel'
 import { RestBar } from '@/components/restbar'
 import { Finances } from '@/components/finances'
@@ -197,6 +198,8 @@ export function MerchantPanel() {
         return <PrintersConfig />
       case 'vendedores':
         return <VendedoresPanel />
+      case 'organigrama':
+        return <OrgChart />
       case 'reviews':
         return (
           <div className="p-6 space-y-4">

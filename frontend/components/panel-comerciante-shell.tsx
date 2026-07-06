@@ -14,7 +14,7 @@ import {
   Search, Bell, LogOut, ChevronDown, AlertTriangle, ShoppingBag,
   FlaskConical, Truck, Receipt, History, CalendarDays, Ticket, Star,
   Scissors, CreditCard, UserCheck, Printer, ArrowRight, Boxes, PieChart,
-  HelpCircle, UtensilsCrossed, Trash2, Wine, ClipboardList,
+  HelpCircle, UtensilsCrossed, Trash2, Wine, ClipboardList, Network,
 } from 'lucide-react'
 
 // ──────────────────────────────────────────────────────────────
@@ -61,6 +61,7 @@ const NAV: NavGroup[] = [
       { id: 'customers', label: 'Clientes', icon: Users, adminOnly: true },
       { id: 'fiados', label: 'Fiados', icon: CreditCard, adminOnly: true },
       { id: 'vendedores', label: 'Empleados', icon: UserCheck, adminOnly: true },
+      { id: 'organigrama', label: 'Organigrama', icon: Network, adminOnly: true },
     ],
   },
   {
@@ -104,6 +105,7 @@ const MORE_TOOLS = [
   { id: 'tienda', label: 'Mi tienda online', icon: Store, adminOnly: true },
   { id: 'cupones', label: 'Cupones', icon: Ticket, adminOnly: true },
   { id: 'vendedores', label: 'Empleados', icon: UserCheck, adminOnly: true },
+  { id: 'organigrama', label: 'Organigrama', icon: Network, adminOnly: true },
   { id: 'gastrobar-ops', label: 'Operación gastrobar', icon: ClipboardList, adminOnly: true },
   { id: 'recipes', label: 'Recetas (BOM)', icon: FlaskConical, adminOnly: true },
   { id: 'settings', label: 'Configuración', icon: Settings, adminOnly: true },
