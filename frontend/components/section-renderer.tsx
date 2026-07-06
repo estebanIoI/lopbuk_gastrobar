@@ -23,6 +23,7 @@ import { ServicesManagement } from '@/components/services-management'
 import { GymManagement } from '@/components/gym-management'
 import { PrintersConfig } from '@/components/printers'
 import { VendedoresPanel } from '@/components/vendedores-panel'
+import { OrgChart } from '@/components/org-chart'
 import { ReviewsPanel } from '@/components/reviews-panel'
 import { RestBar } from '@/components/restbar'
 import { Finances } from '@/components/finances'
@@ -121,6 +122,8 @@ export function SectionRenderer() {
       return <PrintersConfig />
     case 'vendedores':
       return <VendedoresPanel />
+    case 'organigrama':
+      return <OrgChart />
     case 'reviews':
       return (
         <div className="p-6 space-y-4">

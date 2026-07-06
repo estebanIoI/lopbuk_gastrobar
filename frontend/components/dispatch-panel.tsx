@@ -9,6 +9,7 @@ import {
   ClipboardList, Navigation, User,
 } from 'lucide-react';
 import { LogisticsOps } from '@/components/logistics-board';
+import { DispatchCommandCenter } from '@/components/dispatch-command-center';
 
 const formatCOP = (v: number) =>
   new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(v);
@@ -86,6 +87,8 @@ export function DispatchPanel() {
   const { user, logout } = useAuthStore();
 
   const [tab, setTab] = useState<Tab>('activos');
+  // Vista principal: centro de comando (nuevo, una pantalla) · rutas · lista clásica
+  const [view, setView] = useState<'comando' | 'rutas' | 'clasico'>('comando');
   const [orders, setOrders] = useState<DispatchOrder[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(false);
@@ -156,22 +159,30 @@ export function DispatchPanel() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="h-screen flex flex-col bg-gray-50">
       {/* Header */}
-      <header className="bg-white border-b px-4 py-3 flex items-center justify-between sticky top-0 z-10">
-        <div className="flex items-center gap-2">
-          <Truck className="text-orange-500" size={22} />
-          <div>
-            <p className="font-semibold text-gray-800 text-sm leading-tight">Panel de Despacho</p>
-            <p className="text-xs text-gray-500">{user?.name}</p>
+      <header className="bg-white border-b px-4 py-2.5 flex items-center justify-between gap-3 shrink-0">
+        <div className="flex items-center gap-2 min-w-0">
+          <Truck className="text-orange-500 shrink-0" size={22} />
+          <div className="min-w-0">
+            <p className="font-semibold text-gray-800 text-sm leading-tight truncate">Panel de Despacho</p>
+            <p className="text-xs text-gray-500 truncate">{user?.name}</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={fetchData}
-            disabled={loading}
-            className="p-2 rounded-lg text-gray-500 hover:bg-gray-100"
-          >
+        {/* Selector de vista */}
+        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
+          {([['comando', 'Comando'], ['rutas', 'Rutas'], ['clasico', 'Clásico']] as const).map(([v, label]) => (
+            <button
+              key={v}
+              onClick={() => setView(v)}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${view === v ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <button onClick={fetchData} disabled={loading} className="p-2 rounded-lg text-gray-500 hover:bg-gray-100">
             <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
           </button>
           <button onClick={logout} className="p-2 rounded-lg text-gray-500 hover:bg-gray-100">
@@ -180,6 +191,23 @@ export function DispatchPanel() {
         </div>
       </header>
 
+      {/* ═══ Vista COMANDO: centro de comando de una sola pantalla ═══ */}
+      {view === 'comando' && (
+        <div className="flex-1 min-h-0">
+          <DispatchCommandCenter />
+        </div>
+      )}
+
+      {/* ═══ Vista RUTAS: centro de operaciones logísticas ═══ */}
+      {view === 'rutas' && (
+        <div className="flex-1 overflow-y-auto p-4">
+          <LogisticsOps />
+        </div>
+      )}
+
+      {/* ═══ Vista CLÁSICA: lista por pestañas (fallback) ═══ */}
+      {view === 'clasico' && (
+      <div className="flex-1 overflow-y-auto">
       {/* Resumen de vehículos disponibles */}
       <div className="px-4 py-3 bg-white border-b overflow-x-auto">
         <div className="flex gap-2 min-w-max">
@@ -206,7 +234,7 @@ export function DispatchPanel() {
 
       {/* Tabs */}
       <div className="flex border-b bg-white">
-        {(['centro', 'activos', 'despachados', 'entregados'] as Tab[]).map(t => (
+        {(['activos', 'despachados', 'entregados'] as Tab[]).map(t => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -216,25 +244,15 @@ export function DispatchPanel() {
                 : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
           >
-            {t === 'centro' ? '🛰️ Centro' : t}
-            {t !== 'centro' && (
-              <span className="ml-1 text-xs opacity-70">
-                ({orders.filter(o => TAB_FILTERS[t].includes(o.dispatchStatus)).length})
-              </span>
-            )}
+            {t}
+            <span className="ml-1 text-xs opacity-70">
+              ({orders.filter(o => TAB_FILTERS[t].includes(o.dispatchStatus)).length})
+            </span>
           </button>
         ))}
       </div>
 
-      {/* Centro de Operaciones Logísticas (rutas agrupadas, semáforos, personal) */}
-      {tab === 'centro' && (
-        <div className="p-4">
-          <LogisticsOps />
-        </div>
-      )}
-
       {/* Lista de pedidos */}
-      {tab !== 'centro' && (
       <div className="p-4 space-y-3">
         {loading && orders.length === 0 && (
           <div className="flex justify-center py-10">
@@ -419,6 +437,7 @@ export function DispatchPanel() {
             </div>
           );
         })}
+      </div>
       </div>
       )}
     </div>

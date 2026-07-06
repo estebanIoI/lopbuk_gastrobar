@@ -4,12 +4,16 @@ import { usersController } from './users.controller';
 import { authenticate, authorize, AuthRequest } from '../../common/middleware';
 import { validateRequest } from '../../utils/validators';
 import pool from '../../config/database';
+import orgRoutes from './org.routes';
 
 const router: ReturnType<typeof Router> = Router();
 
 // Todas las rutas requieren autenticacion y rol comerciante o superadmin
 router.use(authenticate);
 router.use(authorize('comerciante', 'superadmin'));
+
+// Organigrama: /org-chart, /:id/manager, /:id/dossier (antes de las rutas /:id genéricas)
+router.use(orgRoutes);
 
 const ROLE_VALUES = ['superadmin', 'comerciante', 'vendedor', 'auxiliar_bodega', 'repartidor', 'cliente',
   'mesero', 'cocinero', 'cajero', 'bartender', 'administrador_rb', 'despachador', 'comunidad_admin'];

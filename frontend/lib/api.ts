@@ -222,6 +222,22 @@ class ApiService {
     return this.request<{ users: any[]; pagination: any }>(`/users${query ? `?${query}` : ''}`)
   }
 
+  // Organigrama del comercio
+  async getOrgChart() {
+    return this.request<any[]>('/users/org-chart')
+  }
+
+  async setUserManager(userId: string, managerId: string | null) {
+    return this.request<any>(`/users/${userId}/manager`, {
+      method: 'PATCH',
+      body: JSON.stringify({ managerId }),
+    })
+  }
+
+  async getUserDossier(userId: string) {
+    return this.request<any>(`/users/${userId}/dossier`)
+  }
+
   async createUser(data: { email: string; password: string; name: string; role: 'comerciante' | 'vendedor' | 'repartidor' | 'cliente'; phone?: string; tenantId?: string | null; cargoId?: string | null }) {
     return this.request<any>('/users', {
       method: 'POST',

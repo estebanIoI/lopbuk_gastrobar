@@ -5,6 +5,37 @@
 ---
 
 
+## [2026-07-06] — Organigrama del comercio con expediente consolidado por colaborador
+
+El comerciante ahora ve a todo su equipo en un árbol jerárquico y, al tocar una tarjeta, todo lo vinculado a esa persona en un solo lugar. Verificado por HTTP (org-chart, set-manager con anti-ciclo, dossier).
+
+- **DB (migración 0014 `confused_shatterstar`)**: `users.manager_id` (self-ref) + índice — habilita la jerarquía que no existía (antes solo había rol y cargo, sin padre).
+- **Backend** (`users/org.routes.ts`, montado bajo `/api/users` antes de las rutas `/:id`):
+  - `GET /users/org-chart` — todos los colaboradores del tenant (sin clientes) con cargo y managerId para armar el árbol.
+  - `PATCH /users/:id/manager` — define "reporta a" con **validación anti-ciclo** (recorre la cadena de jefes; rechaza si crearía un bucle) y tenant-scoped.
+  - `GET /users/:id/dossier` — expediente consolidado en una consulta paralela: datos personales + cargo + jefe; **compensación** (salario base, comisión, meta, bono); **ventas generadas** (histórico + mes desde `sales.seller_id`); **vacaciones** del año (concedidas/usadas/disponibles); **nómina** (últimos 12 `payroll_records`); **novedades** (`employee_novelties`); **ajustes** (bonos/descuentos de `payroll_adjustments`); y **vehículo asignado ahora** (ruta activa como conductor o pedido en curso — para ferretería).
+- **Frontend** (`org-chart.tsx`): árbol recursivo con líneas conectoras y tarjetas (avatar/iniciales por rol con degradado, cargo, "N a cargo"); búsqueda que atenúa los que no coinciden; clic → **drawer lateral** con el expediente completo en tarjetas (contacto, compensación, ventas, vacaciones con barra, vehículo, nómina, ajustes, novedades) y **selector "reporta a"** para armar la jerarquía desde la misma UI.
+- **Menú "Organigrama"** (icono Network, grupo Operaciones) cableado en los 4 registros existentes (`sidebar.tsx`, `merchant-panel.tsx`, `section-renderer.tsx`, `panel-comerciante-shell.tsx`) + `lib/modules.ts` para que aparezca sin importar el shell activo.
+- `api.ts`: `getOrgChart`, `setUserManager`, `getUserDossier`. `tsc` back y front sin errores nuevos.
+- **Siguiente iteración**: exportar organigrama a PDF/imagen · foto de perfil subible desde el dossier · adjuntar contrato/documentos del empleado · drag&drop para reorganizar el árbol.
+
+
+## [2026-07-06] — Rediseño del panel del despachador: Centro de Comando de una sola pantalla
+
+Feedback del usuario: el panel obligaba a saltar entre pestañas (Centro/Activos/Despachados/Entregados), perdía contexto, desperdiciaba >50% de la pantalla en monitores grandes y no escalaba a decenas de pedidos. Rediseño de UI **sin tocar el backend** (reutiliza los endpoints fleet existentes).
+
+- **Nuevo `dispatch-command-center.tsx`** — todo en una pantalla:
+  - **Strip de 7 KPIs**: pendientes, en preparación, en ruta, entregados hoy, tiempo promedio (+retrasados), vehículos/conductores, capacidad usada (con barra).
+  - **Kanban de 4 columnas** (Pendientes 🟠 / En preparación 🔵🟣 / En ruta 🟢 / Entregados ⚪) con **drag & drop nativo** que cambia el estado del pedido (bloqueado para pedidos en ruta; confirma retrocesos). Tarjetas compactas con cliente, zona, peso, total, "hace X min", urgencia por tiempo de espera (Alta/Media/Normal con anillo de color) y acciones rápidas (llamar/mapa/WhatsApp) sin abrir el pedido.
+  - **Panel de detalle persistente** a la derecha (desktop) / bottom-sheet (móvil): cliente, dirección con acciones, productos/vehículo/nota colapsables, asignación de vehículo+conductor inline y botón de siguiente estado — **sin perder el listado** (estilo Trello/Jira).
+  - **Tira de vehículos** con barra de capacidad real (peso asignado/máximo, %, color por saturación) calculada en cliente desde los pedidos.
+  - **Sugerencias de agrupación** inline con creación de ruta en un modal compacto (reutiliza `createDispatchRoute`).
+  - **Búsqueda** (pedido/cliente/teléfono/dirección) + filtro por vehículo; refresco automático cada 25s; entregados limitados a HOY (tope 60) sin cambiar backend.
+- **`dispatch-panel.tsx`**: ahora tiene selector de vista en el header — **Comando** (nuevo, por defecto) · **Rutas** (LogisticsOps) · **Clásico** (lista por pestañas anterior, conservada como fallback). Contenedor a `h-screen flex flex-col` para que el comando ocupe toda la altura.
+- Sin cambios de backend ni de datos; `tsc` frontend sin errores nuevos. Datos DECIMAL coercionados con `Number()` en todo el componente (evita el bug de `toFixed`).
+- **Siguiente iteración**: mapa Leaflet embebido en el panel de detalle y en Rutas (hoy es link a Google Maps) · swipe para cambiar estado en tablet · optimización de orden de paradas.
+
+
 ## [2026-07-06] — Fix producción: crash `t.toFixed is not a function` (DECIMAL de MySQL como string)
 
 Crash en el bundle de producción dentro de un `.map()`: los campos DECIMAL de MySQL (`total_weight_kg`, `AVG()`…) llegan como **string** por la API (mysql2 sin `decimalNumbers`), y varios componentes les aplicaban `.toFixed()` directo.
