@@ -5,6 +5,27 @@
 ---
 
 
+## [2026-07-06] — Fix producción: crash `t.toFixed is not a function` (DECIMAL de MySQL como string)
+
+Crash en el bundle de producción dentro de un `.map()`: los campos DECIMAL de MySQL (`total_weight_kg`, `AVG()`…) llegan como **string** por la API (mysql2 sin `decimalNumbers`), y varios componentes les aplicaban `.toFixed()` directo.
+
+- `dispatch-panel.tsx` — `formatKg()` ahora coerciona con `Number()` y valida `isFinite` (el peso de `/fleet/pending-dispatch` es DECIMAL→string).
+- `driver-panel.tsx` — `Number(order.totalWeightKg).toFixed(2)` en la tarjeta del vehículo.
+- `restbar.tsx` — `avgGuests` (AVG SQL) coercionado en sus 3 usos (excel x2 + tabla).
+- Regla para el futuro: **todo campo numérico que venga de la API se envuelve en `Number()` antes de `.toFixed()`** (los componentes nuevos de logistics-board ya lo hacían).
+- Nota de incidente: un reemplazo masivo con PowerShell corrompió el encoding de restbar.tsx; se restauró desde git y se editó con herramienta segura. No usar `Get-Content`/`Set-Content` para editar código con tildes.
+
+
+## [2026-07-05] — Fix chatbot: respuestas vacías del modelo (DeepSeek razonador) + fallback consciente de venta
+
+Bug reportado con captura: el bot respondía siempre con los textos de FALLBACK ("¡Claro que sí! Tenemos X…" / "Cuéntame qué producto buscas") e ignoraba el "Quiero pedir: X" del botón. Causa raíz: en `orchestrator.service.ts` `agentOpenAICompat`, cuando el modelo no llama tools y `message.content` viene vacío, se devolvía `''` tal cual — y los modelos con razonamiento (DeepSeek v4, proveedor default) consumen el `max_tokens` (260) en el razonamiento interno y entregan content vacío → TODA respuesta caía al fallback.
+
+- **Orchestrator**: content vacío sin tool_calls → ya no retorna `''`; rompe hacia el **cierre forzado** (llamada final sin tools, `max_tokens` ≥700) para extraer el texto. Mismo guard en el camino Gemini.
+- **agent.service**: `maxTokens` del agente 260 → 520 (el prompt sigue exigiendo respuestas cortas; el presupuesto extra es para el razonamiento).
+- **Fallback consciente del contexto**: si el mensaje es "Quiero pedir: X" (botón "Pedir por aquí"), el fallback AVANZA la venta ("¿Cuántas unidades de X quieres?" + quick replies) en vez de reiniciar la conversación. Prioridad: dato faltante → intención de pedido → producto matcheado → genérico.
+- **Diagnóstico**: `console.warn('[chatbot] respuesta vacía del modelo…')` cuando se usa el fallback, para detectar reincidencias en logs.
+
+
 ## [2026-07-05] — Sistema Operativo Logístico para Ferreterías (flota + rutas + rentabilidad)
 
 Extensión del módulo fleet existente a un sistema logístico completo multi-sede. Verificado E2E 11/11 por HTTP real (JWT firmado). Se REUTILIZÓ todo lo existente (autoAssignVehicle, calcOrderWeight, dispatch-panel, driver-panel, fleet-management, canal Socket.io `ops:{tenant}`, order_status_history) — nada duplicado.

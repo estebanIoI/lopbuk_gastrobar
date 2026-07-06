@@ -2157,7 +2157,7 @@ function ReporteSocioView({ from, to, onClose }: { from: string; to: string; onC
       activeTables.forEach((t: any) => {
         tableRows.push([
           `Mesa ${t.number}`, t.area ?? '—', t.visits, t.revenue,
-          t.avgGuests > 0 ? t.avgGuests.toFixed(1) : '—',
+          Number(t.avgGuests) > 0 ? Number(t.avgGuests).toFixed(1) : '—',
           t.avgMinutes > 0 ? Math.round(t.avgMinutes) : '—',
         ])
       })
@@ -2458,7 +2458,7 @@ function ReportesTab() {
       const rows = [['Mesa', 'Área', 'Visitas', 'Ingresos (COP)', 'Prom. Comensales', 'Tiempo Prom. (min)'],
         ...activeTables.map((t: any) => [
           `Mesa ${t.number}`, t.area ?? '—', t.visits, t.revenue,
-          t.avgGuests > 0 ? t.avgGuests.toFixed(1) : '—',
+          Number(t.avgGuests) > 0 ? Number(t.avgGuests).toFixed(1) : '—',
           t.avgMinutes > 0 ? Math.round(t.avgMinutes) : '—',
         ])]
       const ws = XLSX.utils.aoa_to_sheet(rows)
@@ -2764,7 +2764,7 @@ function ReportesTab() {
                           <td className="py-2.5 pr-4 font-bold">Mesa {t.number}</td>
                           <td className="py-2.5 pr-4 text-blue-400">{t.visits}</td>
                           <td className="py-2.5 pr-4 text-green-400 font-bold tabular-nums">{formatCOP(t.revenue)}</td>
-                          <td className="py-2.5 pr-4 text-muted-foreground">{t.avgGuests > 0 ? `${t.avgGuests.toFixed(1)} pers.` : '—'}</td>
+                          <td className="py-2.5 pr-4 text-muted-foreground">{Number(t.avgGuests) > 0 ? `${Number(t.avgGuests).toFixed(1)} pers.` : '—'}</td>
                           <td className="py-2.5 text-muted-foreground">{t.avgMinutes > 0 ? `${Math.round(t.avgMinutes)} min` : '—'}</td>
                         </tr>
                       ))}

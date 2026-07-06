@@ -311,7 +311,8 @@ export function DriverPanel() {
                 <div>
                   <p className="text-blue-700 font-medium text-xs">{order.vehicleName}{order.vehiclePlate ? ` (${order.vehiclePlate})` : ''}</p>
                   {order.totalWeightKg != null && (
-                    <p className="text-blue-500 text-xs">Peso: {order.totalWeightKg.toFixed(2)} kg</p>
+                    // DECIMAL de MySQL llega como string por la API: coercionar antes de toFixed
+                    <p className="text-blue-500 text-xs">Peso: {Number(order.totalWeightKg).toFixed(2)} kg</p>
                   )}
                 </div>
                 {order.dispatchStatus === 'despachado' && (

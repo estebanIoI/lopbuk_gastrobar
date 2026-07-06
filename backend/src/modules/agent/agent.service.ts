@@ -930,7 +930,9 @@ export async function processAgentMessage(
         executedTools.set(sig, out);
         return out;
       },
-      maxTokens: 260,
+      // 520: los modelos con razonamiento (DeepSeek) consumen tokens "pensando";
+      // con 260 el content llegaba vacío y toda respuesta caía al fallback.
+      maxTokens: 520,
       temperature: 0.7,
       maxRounds: 4,
       tier: 'main',
@@ -976,12 +978,19 @@ export async function processAgentMessage(
   // Reply final = texto conversacional limpio + confirmaciones de herramientas ejecutadas.
   let reply = [cleaned, ...inlineMsgs].filter(Boolean).join('\n\n').trim();
   if (!reply) {
+    // Diagnóstico: si esto aparece seguido, el proveedor está devolviendo content
+    // vacío (razonamiento agotando max_tokens) o puro tool-tag sin texto.
+    console.warn(`[chatbot] respuesta vacía del modelo (raw: ${JSON.stringify(rawReply.slice(0, 80))}) — usando fallback de venta`);
     // El modelo no devolvió texto (suele pasar al intentar un tool-call vacío). En vez de
-    // un genérico, damos una respuesta de VENTA: si hay un producto que coincide con lo
-    // que pidió, lo mencionamos con su precio y avanzamos; si faltaba un dato, lo pedimos.
+    // un genérico, damos una respuesta de VENTA que respeta el contexto:
+    const orderIntent = message.match(/quiero pedir:?\s*(.+)/i);
     if (missingPrompt) reply = missingPrompt;
-    else if (suggestedProducts.length > 0) {
-      const p0 = suggestedProducts[0];
+    else if (orderIntent) {
+      // El cliente YA decidió comprar (botón "Pedir por aquí"): avanzar el pedido,
+      // jamás reiniciar la conversación con "cuéntame qué buscas".
+      reply = `¡Perfecto! 🛒 ¿Cuántas unidades de ${orderIntent[1].trim()} quieres? [[opciones: 1 unidad|2 unidades|3 unidades]]`;
+    } else if (matchedProducts.length > 0) {
+      const p0 = matchedProducts[0];
       reply = `¡Claro que sí! Tenemos ${p0.name} a $${Number(p0.salePrice).toLocaleString('es-CO')}. ¿Cuántos necesitas o te muestro más opciones? 🙂`;
     } else {
       reply = '¡Con gusto te ayudo! Cuéntame qué producto buscas. 🙂';

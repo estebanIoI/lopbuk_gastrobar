@@ -286,7 +286,7 @@ memory/lessons-learned.md (si aplica), memory/completed-features.md (si aplica).
 
 ### "Hay un bug"
 → [[prompts/bug-fix]] → [[memory/bugs-history]] → [[memory/important-fixes]]
-
+para mañana 
 ### "Quiero entender la arquitectura"
 → [[architecture/overview]] → [[architecture/frontend]] → [[architecture/backend]] → [[architecture/database]]
 
