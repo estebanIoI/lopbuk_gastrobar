@@ -23,7 +23,7 @@ export const ALL_MODULES: ModuleDef[] = [
   { id: 'customers',     name: 'Clientes',          group: 'ops',       groupLabel: 'Operaciones',    defaultOn: true  },
   { id: 'fiados',        name: 'Fiados / Crédito',  group: 'ops',       groupLabel: 'Operaciones',    defaultOn: true  },
   { id: 'vendedores',    name: 'Empleados',         group: 'ops',       groupLabel: 'Operaciones',    defaultOn: true  },
-  { id: 'organigrama',   name: 'Organigrama',       group: 'ops',       groupLabel: 'Operaciones',    defaultOn: true  },
+  { id: 'organigrama',   name: 'Jerarquía',         group: 'ops',       groupLabel: 'Operaciones',    defaultOn: true  },
   { id: 'fleet',         name: 'Mi Flota',          group: 'ops',       groupLabel: 'Operaciones',    defaultOn: false },
   { id: 'realestate',    name: 'Inmobiliaria',      group: 'ops',       groupLabel: 'Operaciones',    defaultOn: false },
   { id: 'workorders',    name: 'Órdenes de Trabajo', group: 'ops',      groupLabel: 'Operaciones',    defaultOn: false },

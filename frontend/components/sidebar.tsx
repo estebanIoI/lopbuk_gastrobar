@@ -115,7 +115,7 @@ const navigation: NavItem[] = [
   { id: 'customers', name: 'Clientes', icon: Users, adminOnly: true, superadminOnly: false, merchantOnly: true, group: 'ops' },
   { id: 'fiados', name: 'Fiados', icon: CreditCard, adminOnly: true, superadminOnly: false, merchantOnly: true, group: 'ops' },
   { id: 'vendedores', name: 'Empleados', icon: UserCheck, adminOnly: true, superadminOnly: false, merchantOnly: true, group: 'ops' },
-  { id: 'organigrama', name: 'Organigrama', icon: Network, adminOnly: true, superadminOnly: false, merchantOnly: true, group: 'ops' },
+  { id: 'organigrama', name: 'Jerarquía', icon: Network, adminOnly: true, superadminOnly: false, merchantOnly: true, group: 'ops' },
   // flota ferretería
   { id: 'fleet', name: 'Mi Flota', icon: Truck, adminOnly: true, superadminOnly: false, merchantOnly: true, group: 'ops' },
   // inmobiliaria
@@ -173,6 +173,9 @@ export function Sidebar() {
     if (item.adminOnly && !isAdmin) return false
     if (item.id === 'tienda' && !isSuperadmin && !isEmpresarial) return false
     if (item.id === 'daimuz-chat') return isEmpresarial
+    // Jerarquía: módulo nuevo. Los tenants con config guardada aún no lo tienen en su
+    // lista; visible siempre que Empleados lo esté (mismo dominio) para que no quede oculto.
+    if (item.id === 'organigrama') return !activeModules || activeModules.includes('organigrama') || activeModules.includes('vendedores')
     if (activeModules && item.id && !activeModules.includes(item.id)) return false
     return true
   }

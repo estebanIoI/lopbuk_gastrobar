@@ -17,6 +17,10 @@ export function cldImg(url?: string | null, w = 400, h?: number): string {
   if (!abs) return ''
   // Solo transformamos URLs de Cloudinary con el segmento /upload/
   if (!abs.includes('res.cloudinary.com') || !abs.includes('/upload/')) return abs
+  // GIFs animados: NO redimensionar/convertir. Cloudinary devuelve 400 al transformar
+  // GIFs grandes (límite de píxeles × frames) y el f_auto puede romper la animación.
+  // Se entregan tal cual (ya vienen "optimizados" como animación).
+  if (/\.gif($|\?)/i.test(abs)) return abs
   // Evita duplicar transform si la URL ya trae uno (…/upload/w_…/…)
   if (/\/upload\/[a-z]+_/.test(abs)) return abs
   const t = `w_${w},${h ? `h_${h},c_fill,` : ''}q_auto,f_auto,dpr_auto`
