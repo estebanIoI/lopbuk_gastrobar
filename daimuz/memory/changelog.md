@@ -36,6 +36,7 @@ Reporte con captura: al entrar al comercio (SIRIUSGASTROPUD, theme2) la portada 
 
 - **Causa raíz del 400** (`utils/img.ts` `cldImg`): a la URL del GIF se le insertaba `w_…,q_auto,f_auto,dpr_auto`; Cloudinary rechaza (400) transformar GIFs animados grandes (límite píxeles × frames). Verificado por red: URL cruda → 200, URL transformada → 400. **Fix**: `cldImg` detecta `.gif` y devuelve la URL sin transformar (los GIF ya vienen "optimizados" como animación). Beneficia a TODO uso de GIF en el sistema.
 - **Fondo de página completa en escritorio** (`theme2/theme2-storefront.tsx`): nueva capa `fixed inset-0 -z-10` (solo `md:`) con la portada/GIF (`cardCoverUrl`) + velo `bg-black/70` para legibilidad; la raíz pasa a `md:bg-transparent` solo cuando hay portada (si no, mantiene el negro). El cover propio del hero se oculta en escritorio (`md:hidden`) para no duplicar el GIF, y el velo del hero se atenúa (`md:from-black/40…to-transparent`) para dejar ver el fondo. Móvil intacto (sin fondo fijo; el hero conserva su cover).
+- **Mismo fondo en el modal de pedido** (`theme2/theme2-order-flow.tsx`): idéntica capa GIF `fixed -z-10` + velo (solo escritorio) detrás del listado de productos; `T2Info` gana `cardCoverUrl` (el caller ya pasa el `info` completo). El header sticky conserva su fondo semi-oscuro para legibilidad. Móvil sin cambios.
 - `tsc` frontend sin errores nuevos.
 
 

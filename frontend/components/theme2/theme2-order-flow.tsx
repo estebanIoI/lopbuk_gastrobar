@@ -48,6 +48,7 @@ export interface T2Info {
   socialWhatsapp?: string | null
   locationMapUrl?: string | null
   address?: string | null
+  cardCoverUrl?: string | null
 }
 interface CartItem { key: string; product: T2Product; qty: number; notes: string; mods: SelMod[]; unit: number; variantId?: string; variantLabel?: string; variantImage?: string | null }
 
@@ -525,8 +526,17 @@ export function Theme2OrderFlow({
   }
 
   // ════════ MENÚ ════════
+  const pageBg = cldImg(info.cardCoverUrl, 1920)
   return (
-    <div className="fixed inset-0 z-[60] bg-[#0a0a0a] text-white overflow-y-auto">
+    <div className={`fixed inset-0 z-[60] text-white overflow-y-auto bg-[#0a0a0a] ${pageBg ? 'md:bg-transparent' : ''}`}>
+      {/* Fondo de página (solo escritorio): portada/GIF del comercio detrás del contenido */}
+      {pageBg && (
+        <div className="hidden md:block fixed inset-0 -z-10 pointer-events-none">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={pageBg} alt="" className="w-full h-full object-cover" />
+          <div className="absolute inset-0 bg-black/75" />
+        </div>
+      )}
       {/* Header */}
       <div className="sticky top-0 z-20 bg-[#0a0a0a]/95 backdrop-blur border-b border-white/[0.06]">
         <div className="flex items-center gap-3 px-4 py-3">
