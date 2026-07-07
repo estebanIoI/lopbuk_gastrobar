@@ -197,10 +197,21 @@ export function Theme2Storefront({ slug }: { slug: string }) {
   }
 
   const cover = cldImg(info.cardCoverUrl || info.logoUrl, 1200)
+  // Fondo de página completa (escritorio): la portada/GIF del comercio detrás de todo.
+  const pageBg = cldImg(info.cardCoverUrl, 1920)
   const title = (info.cardDescription || info.name || '').toUpperCase()
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white">
+    <div className={`min-h-screen text-white bg-[#0a0a0a] ${pageBg ? 'md:bg-transparent' : ''}`}>
+      {/* ═══ FONDO DE PÁGINA (solo escritorio): portada/GIF detrás de todo ═══ */}
+      {pageBg && (
+        <div className="hidden md:block fixed inset-0 -z-10 pointer-events-none">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={pageBg} alt="" className="w-full h-full object-cover" />
+          {/* Velo oscuro para mantener legible el contenido sobre el GIF */}
+          <div className="absolute inset-0 bg-black/70" />
+        </div>
+      )}
       {/* ═══ NAV ═══ */}
       <header className="absolute top-0 inset-x-0 z-30 flex items-center justify-between px-5 sm:px-10 py-4">
         <div className="flex items-center gap-3">
@@ -223,13 +234,15 @@ export function Theme2Storefront({ slug }: { slug: string }) {
 
       {/* ═══ HERO ═══ */}
       <section className="relative min-h-[88vh] flex flex-col items-center justify-center text-center px-6 overflow-hidden">
+        {/* En escritorio con fondo de página, el hero deja ver ese GIF (no duplica la portada) */}
         {cover ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={cover} alt="" loading="eager" fetchPriority="high" className="absolute inset-0 w-full h-full object-cover" />
+          <img src={cover} alt="" loading="eager" fetchPriority="high" className={`absolute inset-0 w-full h-full object-cover ${pageBg ? 'md:hidden' : ''}`} />
         ) : (
           <div className="absolute inset-0 bg-gradient-to-br from-cyan-900/40 to-black" />
         )}
-        <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/55 to-[#0a0a0a]" />
+        {/* Velo del hero: en escritorio con GIF de fondo se atenúa para no oscurecer de más */}
+        <div className={`absolute inset-0 bg-gradient-to-b from-black/70 via-black/55 to-[#0a0a0a] ${pageBg ? 'md:from-black/40 md:via-black/20 md:to-transparent' : ''}`} />
 
         <div className="relative z-10 flex flex-col items-center gap-6 max-w-3xl">
           {info.logoUrl && (

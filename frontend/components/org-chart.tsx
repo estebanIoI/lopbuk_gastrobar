@@ -80,8 +80,8 @@ export function OrgChart() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2"><Network className="h-6 w-6 text-indigo-500" />Organigrama</h1>
-          <p className="text-sm text-muted-foreground">Tu equipo completo. Toca una tarjeta para ver todo su expediente.</p>
+          <h1 className="text-2xl font-bold flex items-center gap-2"><Network className="h-6 w-6 text-indigo-500" />Jerarquía</h1>
+          <p className="text-sm text-muted-foreground">Tu equipo completo entrelazado. Toca una tarjeta para ver todo su expediente: cargo, responsabilidades, sueldo, vacaciones, novedades y asignaciones.</p>
         </div>
         <div className="flex items-center gap-2">
           <div className="relative">
@@ -253,6 +253,24 @@ function DossierDrawer({ userId, allUsers, onClose, onManagerChanged }: {
                   ))}
                 </select>
               </SectionCard>
+
+              {/* Responsabilidades del cargo */}
+              {(d.responsibilities?.description || (d.responsibilities?.permissions?.length > 0)) && (
+                <SectionCard icon={<Briefcase size={15} />} title="Responsabilidades y permisos">
+                  {d.responsibilities.description && (
+                    <p className="text-xs text-muted-foreground leading-relaxed mb-2">{d.responsibilities.description}</p>
+                  )}
+                  {d.responsibilities.permissions?.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {d.responsibilities.permissions.slice(0, 20).map((perm: string, i: number) => (
+                        <span key={i} className="text-[10px] bg-indigo-50 text-indigo-600 border border-indigo-100 px-1.5 py-0.5 rounded-full capitalize">
+                          {String(perm).replace(/[._]/g, ' ')}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </SectionCard>
+              )}
 
               {/* Compensación */}
               <SectionCard icon={<Wallet size={15} />} title="Sueldo y comisión">

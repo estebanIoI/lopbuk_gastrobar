@@ -97,7 +97,7 @@ router.get(
                   u.manager_id AS managerId, m.name AS managerName,
                   u.commission_type AS commissionType, u.commission_value AS commissionValue,
                   u.salary_base AS salaryBase, u.monthly_goal AS monthlyGoal, u.goal_bonus AS goalBonus,
-                  c.name AS cargoName
+                  c.name AS cargoName, c.description AS cargoDescription, c.permissions AS cargoPermissions
              FROM users u
              LEFT JOIN users m ON m.id = u.manager_id
              LEFT JOIN employee_cargos c ON c.id = u.cargo_id
@@ -160,10 +160,23 @@ router.get(
       const vacGranted = Number(vac[0]?.daysGranted ?? 15);
       const vacUsed = Number(vac[0]?.daysUsed ?? 0);
 
+      // Responsabilidades del cargo: descripción + permisos (JSON → lista)
+      let permissions: string[] = [];
+      const rawPerms = p.cargoPermissions;
+      if (rawPerms) {
+        try { permissions = typeof rawPerms === 'string' ? JSON.parse(rawPerms) : rawPerms; }
+        catch { permissions = []; }
+      }
+
       res.json({
         success: true,
         data: {
           person: p,
+          responsibilities: {
+            cargo: p.cargoName || null,
+            description: p.cargoDescription || null,
+            permissions: Array.isArray(permissions) ? permissions : [],
+          },
           compensation: {
             salaryBase: Number(p.salaryBase),
             commissionType: p.commissionType,

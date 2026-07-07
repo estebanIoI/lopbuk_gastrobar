@@ -20,6 +20,25 @@ El comerciante ahora ve a todo su equipo en un árbol jerárquico y, al tocar un
 - **Siguiente iteración**: exportar organigrama a PDF/imagen · foto de perfil subible desde el dossier · adjuntar contrato/documentos del empleado · drag&drop para reorganizar el árbol.
 
 
+## [2026-07-06] — Jerarquía: fix de visibilidad del módulo + rename + responsabilidades del cargo
+
+El comerciante no veía el módulo "Organigrama" pese a estar cableado. Causa: `sidebar.tsx` filtra los ítems por `enabledModules` guardados del tenant (resolveActiveModules); un módulo NUEVO no está en la lista guardada de tenants existentes → quedaba oculto (Tema 1). El Tema 2 (PanelComercianteShell) filtra solo por rol, así que ahí sí salía.
+
+- **Fix visibilidad** (`sidebar.tsx` `filterItem`): caso especial para `organigrama` → visible siempre que Empleados (`vendedores`) esté activo o no haya config de módulos, sin exigir reconfigurar. Los tenants nuevos ya lo traen (defaultOn).
+- **Rename a "Jerarquía"** (petición del usuario) en sidebar.tsx, panel-comerciante-shell.tsx (×2) y lib/modules.ts; el id interno sigue siendo `organigrama` (no se tocan cases ni API). Título del componente y descripción actualizados.
+- **Responsabilidades del cargo**: el dossier (`users/org.routes.ts`) ahora incluye `responsibilities` (descripción del cargo + permisos parseados de `employee_cargos`). Nueva sección "Responsabilidades y permisos" en el expediente (org-chart.tsx) con la descripción y los permisos como chips. Completa el control del empleado: cargo, responsabilidades, permisos, sueldo, comisión, meta, ventas, vacaciones, nómina, bonos/descuentos, novedades/permisos y vehículo asignado.
+- `tsc` back y front sin errores nuevos.
+
+
+## [2026-07-06] — Fix GIF de portada (400 Cloudinary) + fondo de página completa en escritorio (theme2)
+
+Reporte con captura: al entrar al comercio (SIRIUSGASTROPUD, theme2) la portada GIF fallaba con 400 y quedaba el hero negro. Además el usuario quiere el GIF de fondo de TODO el contenido en escritorio.
+
+- **Causa raíz del 400** (`utils/img.ts` `cldImg`): a la URL del GIF se le insertaba `w_…,q_auto,f_auto,dpr_auto`; Cloudinary rechaza (400) transformar GIFs animados grandes (límite píxeles × frames). Verificado por red: URL cruda → 200, URL transformada → 400. **Fix**: `cldImg` detecta `.gif` y devuelve la URL sin transformar (los GIF ya vienen "optimizados" como animación). Beneficia a TODO uso de GIF en el sistema.
+- **Fondo de página completa en escritorio** (`theme2/theme2-storefront.tsx`): nueva capa `fixed inset-0 -z-10` (solo `md:`) con la portada/GIF (`cardCoverUrl`) + velo `bg-black/70` para legibilidad; la raíz pasa a `md:bg-transparent` solo cuando hay portada (si no, mantiene el negro). El cover propio del hero se oculta en escritorio (`md:hidden`) para no duplicar el GIF, y el velo del hero se atenúa (`md:from-black/40…to-transparent`) para dejar ver el fondo. Móvil intacto (sin fondo fijo; el hero conserva su cover).
+- `tsc` frontend sin errores nuevos.
+
+
 ## [2026-07-06] — Rediseño del panel del despachador: Centro de Comando de una sola pantalla
 
 Feedback del usuario: el panel obligaba a saltar entre pestañas (Centro/Activos/Despachados/Entregados), perdía contexto, desperdiciaba >50% de la pantalla en monitores grandes y no escalaba a decenas de pedidos. Rediseño de UI **sin tocar el backend** (reutiliza los endpoints fleet existentes).
