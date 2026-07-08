@@ -72,6 +72,26 @@ export async function runFleetAlerts(): Promise<number> {
     count++;
   }
 
+  // 2b. Mantenimiento preventivo por fecha (próximo servicio programado ≤7 días o vencido)
+  const [maintDate] = await pool.query(
+    `SELECT id, tenant_id, name, plate, next_maintenance_date,
+            DATEDIFF(next_maintenance_date, CURDATE()) AS days
+       FROM fleet_vehicles
+      WHERE status != 'inactivo' AND next_maintenance_date IS NOT NULL
+        AND DATEDIFF(next_maintenance_date, CURDATE()) <= 7`
+  ) as any;
+  for (const v of maintDate as any[]) {
+    const days = Number(v.days);
+    await notify(v.tenant_id,
+      days < 0
+        ? `🔧 Servicio programado VENCIDO: ${v.name}${v.plate ? ` (${v.plate})` : ''}`
+        : `🔧 Servicio programado en ${days} día(s): ${v.name}${v.plate ? ` (${v.plate})` : ''}`,
+      days < 0 ? `El mantenimiento programado venció hace ${Math.abs(days)} día(s).`
+        : `Agenda el mantenimiento antes de la fecha para no parar el vehículo.`,
+      { vehicleId: v.id, days });
+    count++;
+  }
+
   // 3. Consumo anómalo: costo de combustible por entrega >30% sobre el promedio del tenant (30 días)
   const [consumption] = await pool.query(
     `SELECT t.tenant_id, t.vehicle_id, v.name, v.plate, t.fuel, t.deliveries,

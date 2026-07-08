@@ -4,6 +4,23 @@
 
 ## Sprint activo: Julio 2026
 
+### 🔄 [2026-07-07]: Plan Ferretería (auditoría 60 empleados / 6 ubicaciones) — Fase 1 de 6 ✅
+
+Objetivo: sistema integral para ferretería multi-sede según auditoría de operaciones del usuario. Roadmap acordado: F1 multibodega → F2 cotizaciones con promesa de entrega → F3 picking+ubicaciones → F4 tiempos por etapa+recepción → F5 GPS+portal cliente → F6 dashboard gerencial. Detalle: `memory/changelog.md` [2026-07-07].
+
+| Fase | Estado | Qué |
+|---|---|---|
+| 1 Multibodega | ✅ E2E 28/28 | Migración 0015: sede_stock (desglose, total intacto), sedes tipadas, transferencias con cascada, venta descuenta sede (+fallback sede del vendedor), users.sede_id, UI "Bodegas" en inventario + "¿Dónde hay stock?" en POS |
+| 2 Cotizaciones | ✅ E2E 24/24 | Migraciones 0016 (quotes) + 0017 (products.reserved_stock): módulo Cotizaciones con KPIs de conversión, reserva por sede al aceptar, WhatsApp, facturar 1-clic, vencimiento lazy, imprimible |
+| 3 Picking | ✅ E2E 20/20 | Migración 0018: picking_tasks + warehouse_location por sede; tablero 3 columnas con cronómetros, take atómico, generate-pending 1-clic, snapshot ordenado por ubicación, productividad por auxiliar (tablero + dossier Jerarquía) |
+| 4 Tiempos | ✅ E2E 17/17 | Migración 0019: order_stage_events (logStage en picking+despacho), stage-analytics con cuello de botella, at-risk (promesa/tiempo), recepción por proveedor. Módulo "Tiempos Operación" |
+| 5 Tracking | ✅ E2E 23/23 (F5+F6) | Migraciones 0020/0021: GPS ping del conductor, POD (foto+receptor), portal público /seguimiento/:token con WhatsApp |
+| 6 Gerencial | ✅ E2E 23/23 (F5+F6) | Dashboard "Gerencia" (ventas+embudo+logística+talento+inventario en un payload), mapa de calor por zona, sugerencia de compra por consumo |
+
+**🎉 PLAN FERRETERÍA COMPLETO (6/6 fases) + 5 pendientes cerrados.** Migraciones 0015–0023 aplicadas en dev. Pendiente solo de redeploy (back+front) para producción.
+
+**Pendientes cerrados [2026-07-08] (E2E 15/15):** A) pedidos storefront descuentan sede · B) recepción de compras con bodega destino + tablero accionable · C) alerta min_stock por sede · D) mantenimiento preventivo por km/fecha (due + service-done) · E) promesa de entrega automática al salir a ruta.
+
 ### ✅ [2026-07-05]: Sistema Operativo Logístico — flota, rutas y rentabilidad (4 fases, E2E 11/11)
 
 Objetivo: convertir el módulo fleet en un sistema logístico empresarial (ferretería multi-sede). Detalle: [[modules/ferreteria/ferreteria]] + `memory/changelog.md`.

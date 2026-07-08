@@ -3324,5 +3324,75 @@ router.post('/resolve-prices', async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/storefront/tracking/:token — Portal público de seguimiento (F5).
+// El cliente ve el estado de su pedido sin llamar: etapa actual, línea de tiempo,
+// posición aproximada del vehículo si va en ruta, y prueba de entrega al final.
+// Solo expone datos mínimos del propio pedido (token aleatorio ≥20 chars, indexado).
+router.get('/tracking/:token', async (req: Request, res: Response) => {
+  try {
+    const token = String(req.params.token || '');
+    if (token.length < 20) { res.status(404).json({ success: false, error: 'Seguimiento no encontrado' }); return; }
+
+    const [[order]] = await pool.query(
+      `SELECT o.id, o.order_number AS orderNumber, o.status,
+              o.dispatch_status AS dispatchStatus,
+              o.customer_name AS customerName, o.municipality, o.neighborhood,
+              o.promised_at AS promisedAt, o.created_at AS createdAt,
+              o.pod_photo_url AS podPhotoUrl, o.pod_received_by AS podReceivedBy,
+              o.delivery_delivered_at AS deliveredAt,
+              r.status AS routeStatus, r.last_lat AS lastLat, r.last_lng AS lastLng,
+              r.last_ping_at AS lastPingAt,
+              si.name AS storeName, si.phone AS storePhone
+         FROM storefront_orders o
+         LEFT JOIN dispatch_routes r ON r.id = o.route_id
+         LEFT JOIN store_info si ON si.tenant_id = o.tenant_id
+        WHERE o.tracking_token = ?
+        LIMIT 1`,
+      [token]
+    ) as any;
+    if (!order) { res.status(404).json({ success: false, error: 'Seguimiento no encontrado' }); return; }
+
+    const [items] = await pool.query(
+      `SELECT product_name AS productName, quantity FROM storefront_order_items WHERE order_id = ?`,
+      [order.id]
+    ) as any;
+    const [stages] = await pool.query(
+      `SELECT stage, created_at AS at FROM order_stage_events WHERE order_id = ? ORDER BY id ASC`,
+      [order.id]
+    ) as any;
+
+    // Posición del vehículo solo mientras la ruta está activa (privacidad del conductor)
+    const inTransit = ['en_ruta', 'retornando'].includes(order.routeStatus || '');
+
+    res.json({
+      success: true,
+      data: {
+        orderNumber: order.orderNumber,
+        storeName: order.storeName || null,
+        storePhone: order.storePhone || null,
+        // Solo primer nombre: endpoint público, datos mínimos (Ley 1581)
+        customerFirstName: String(order.customerName || '').split(' ')[0],
+        status: order.status,
+        dispatchStatus: order.dispatchStatus,
+        promisedAt: order.promisedAt,
+        createdAt: order.createdAt,
+        deliveredAt: order.deliveredAt,
+        destination: [order.neighborhood, order.municipality].filter(Boolean).join(', ') || null,
+        items: (items as any[]).map(i => ({ productName: i.productName, quantity: i.quantity })),
+        stages: (stages as any[]).map(s => ({ stage: s.stage, at: s.at })),
+        vehicle: inTransit && order.lastLat != null
+          ? { lat: Number(order.lastLat), lng: Number(order.lastLng), lastPingAt: order.lastPingAt }
+          : null,
+        pod: order.podPhotoUrl || order.podReceivedBy
+          ? { photoUrl: order.podPhotoUrl, receivedBy: order.podReceivedBy }
+          : null,
+      },
+    });
+  } catch (error) {
+    console.error('Tracking error:', error);
+    res.status(500).json({ success: false, error: 'Error al cargar el seguimiento' });
+  }
+});
+
 export default router;
 

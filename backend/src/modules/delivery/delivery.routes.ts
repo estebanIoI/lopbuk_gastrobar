@@ -192,6 +192,8 @@ router.put(
   [
     param('orderId').notEmpty(),
     body('deliveryStatus').isIn(['recogido', 'en_camino', 'entregado']).withMessage('Estado de entrega inválido'),
+    body('podPhotoUrl').optional({ nullable: true }).isString().isLength({ max: 500 }),
+    body('podReceivedBy').optional({ nullable: true }).isString().isLength({ max: 120 }),
     validateRequest,
   ],
   async (req: AuthRequest, res: Response) => {
@@ -219,6 +221,9 @@ router.put(
         updates.push('delivery_delivered_at = NOW()');
         updates.push('status = \'entregado\'');
         updates.push('dispatch_status = \'entregado\'');
+        // Prueba de entrega (F5): foto + quién recibió
+        if (req.body.podPhotoUrl) { updates.push('pod_photo_url = ?'); values.push(req.body.podPhotoUrl); }
+        if (req.body.podReceivedBy) { updates.push('pod_received_by = ?'); values.push(req.body.podReceivedBy); }
       }
 
       values.push(orderId);
@@ -231,6 +236,12 @@ router.put(
       // Si el pedido pertenece a una ruta agrupada y era la última parada,
       // cerrar la ruta y liberar el vehículo automáticamente.
       if (deliveryStatus === 'entregado') {
+        try {
+          // Línea de tiempo (F4): etapa entregado también por el flujo delivery
+          const { logStage } = await import('../ops-timeline/ops-timeline.service');
+          const [tRow] = await pool.query('SELECT tenant_id FROM storefront_orders WHERE id = ?', [orderId]) as any;
+          if (tRow?.[0]?.tenant_id) logStage(tRow[0].tenant_id, orderId, 'entregado', driverId).catch(() => {});
+        } catch { /* best-effort */ }
         try {
           const [routeRow] = await pool.query(
             'SELECT route_id, tenant_id FROM storefront_orders WHERE id = ?', [orderId]

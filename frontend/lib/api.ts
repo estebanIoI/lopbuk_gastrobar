@@ -386,6 +386,169 @@ class ApiService {
     return this.request<any>(`/sedes/${id}`, { method: 'DELETE' })
   }
 
+  // Multibodega: stock por sede + transferencias
+  async getSedesStockMatrix(search?: string) {
+    return this.request<any>(`/sedes/stock-matrix${search ? `?search=${encodeURIComponent(search)}` : ''}`)
+  }
+
+  async getSedeStock(sedeId: string) {
+    return this.request<any[]>(`/sedes/${sedeId}/stock`)
+  }
+
+  async setSedeStock(sedeId: string, productId: string, data: { stock: number; minStock?: number; warehouseLocation?: string | null }) {
+    return this.request<any>(`/sedes/${sedeId}/stock/${productId}`, { method: 'PUT', body: JSON.stringify(data) })
+  }
+
+  async getProductSedeAvailability(productId: string) {
+    return this.request<any[]>(`/sedes/availability/${productId}`)
+  }
+
+  async getSedeLowStock(sedeId?: string) {
+    return this.request<any[]>(`/sedes/low-stock${sedeId ? `?sedeId=${sedeId}` : ''}`)
+  }
+
+  async getSedeTransfers(status?: string) {
+    return this.request<any[]>(`/sedes/transfers${status ? `?status=${status}` : ''}`)
+  }
+
+  async createSedeTransfer(data: { fromSedeId: string; toSedeId: string; items: { productId: string; productName: string; quantity: number }[]; notes?: string }) {
+    return this.request<any>('/sedes/transfers', { method: 'POST', body: JSON.stringify(data) })
+  }
+
+  async setSedeTransferStatus(id: string, status: 'en_transito' | 'recibida' | 'cancelada') {
+    return this.request<any>(`/sedes/transfers/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) })
+  }
+
+  async setUserSede(userId: string, sedeId: string | null) {
+    return this.request<any>(`/users/${userId}/sede`, { method: 'PATCH', body: JSON.stringify({ sedeId }) })
+  }
+
+  // Cotizaciones
+  async getQuotes(params?: { status?: string; search?: string }) {
+    const qs = new URLSearchParams()
+    if (params?.status) qs.set('status', params.status)
+    if (params?.search) qs.set('search', params.search)
+    const q = qs.toString()
+    return this.request<any[]>(`/quotes${q ? `?${q}` : ''}`)
+  }
+
+  async getQuoteStats() {
+    return this.request<any>('/quotes/stats')
+  }
+
+  async getQuote(id: string) {
+    return this.request<any>(`/quotes/${id}`)
+  }
+
+  async createQuote(data: any) {
+    return this.request<any>('/quotes', { method: 'POST', body: JSON.stringify(data) })
+  }
+
+  async updateQuote(id: string, data: any) {
+    return this.request<any>(`/quotes/${id}`, { method: 'PUT', body: JSON.stringify(data) })
+  }
+
+  async setQuoteStatus(id: string, status: 'enviada' | 'aceptada' | 'cancelada') {
+    return this.request<any>(`/quotes/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) })
+  }
+
+  async convertQuote(id: string, data: { paymentMethod?: string; amountPaid?: number; applyTax?: boolean }) {
+    return this.request<any>(`/quotes/${id}/convert`, { method: 'POST', body: JSON.stringify(data) })
+  }
+
+  async sendQuoteWhatsApp(id: string) {
+    return this.request<any>(`/quotes/${id}/send-whatsapp`, { method: 'POST' })
+  }
+
+  // Picking (bodega)
+  async getPickingBoard(sedeId?: string) {
+    return this.request<any>(`/picking/board${sedeId ? `?sedeId=${sedeId}` : ''}`)
+  }
+
+  async getPickingProductivity(days = 30) {
+    return this.request<any[]>(`/picking/productivity?days=${days}`)
+  }
+
+  async createPickingTask(orderId: string) {
+    return this.request<any>('/picking/tasks', { method: 'POST', body: JSON.stringify({ orderId }) })
+  }
+
+  async generatePendingPickingTasks() {
+    return this.request<any>('/picking/tasks/generate-pending', { method: 'POST' })
+  }
+
+  async takePickingTask(id: string) {
+    return this.request<any>(`/picking/tasks/${id}/take`, { method: 'PATCH' })
+  }
+
+  async completePickingTask(id: string) {
+    return this.request<any>(`/picking/tasks/${id}/complete`, { method: 'PATCH' })
+  }
+
+  async cancelPickingTask(id: string) {
+    return this.request<any>(`/picking/tasks/${id}/cancel`, { method: 'PATCH' })
+  }
+
+  // Tiempos por etapa / cuellos de botella / riesgo / recepción
+  async getStageAnalytics(days = 30, sedeId?: string) {
+    const qs = new URLSearchParams({ days: String(days) })
+    if (sedeId) qs.set('sedeId', sedeId)
+    return this.request<any>(`/ops/stage-analytics?${qs.toString()}`)
+  }
+
+  async getAtRiskOrders() {
+    return this.request<any>('/ops/at-risk')
+  }
+
+  async getOrderTimeline(orderId: string) {
+    return this.request<any[]>(`/ops/orders/${orderId}/timeline`)
+  }
+
+  async setOrderPromise(orderId: string, promisedAt: string | null) {
+    return this.request<any>(`/ops/orders/${orderId}/promise`, { method: 'PATCH', body: JSON.stringify({ promisedAt }) })
+  }
+
+  async getReceptionAnalytics(days = 90) {
+    return this.request<any>(`/ops/reception-analytics?days=${days}`)
+  }
+
+  async getRecentPurchases() {
+    return this.request<any[]>('/ops/recent-purchases')
+  }
+
+  async markPurchaseArrival(purchaseId: string, sedeId?: string | null) {
+    return this.request<any>(`/ops/purchases/${purchaseId}/arrival`, {
+      method: 'POST',
+      body: JSON.stringify(sedeId !== undefined ? { sedeId } : {}),
+    })
+  }
+
+  async markPurchaseReceived(purchaseId: string) {
+    return this.request<any>(`/ops/purchases/${purchaseId}/received`, { method: 'POST' })
+  }
+
+  // Tracking F5: GPS del conductor + tracking público
+  async pingMyRoute(lat: number, lng: number) {
+    return this.request<any>('/fleet/my-route/ping', { method: 'POST', body: JSON.stringify({ lat, lng }) })
+  }
+
+  async getPublicTracking(token: string) {
+    return this.request<any>(`/storefront/tracking/${token}`)
+  }
+
+  // Dashboard Gerencial F6
+  async getExecutiveDashboard() {
+    return this.request<any>('/ops/executive-dashboard')
+  }
+
+  async getSalesHeatmap(days = 30) {
+    return this.request<any>(`/ops/sales-heatmap?days=${days}`)
+  }
+
+  async getOpsPurchaseSuggestions() {
+    return this.request<any>('/ops/purchase-suggestions')
+  }
+
   async getProduct(id: string) {
     return this.request<any>(`/products/${id}`)
   }
@@ -1854,10 +2017,10 @@ class ApiService {
     })
   }
 
-  async updateDeliveryStatus(orderId: string, deliveryStatus: string) {
+  async updateDeliveryStatus(orderId: string, deliveryStatus: string, pod?: { podPhotoUrl?: string; podReceivedBy?: string }) {
     return this.request<any>(`/delivery/status/${orderId}`, {
       method: 'PUT',
-      body: JSON.stringify({ deliveryStatus }),
+      body: JSON.stringify({ deliveryStatus, ...(pod || {}) }),
     })
   }
 
@@ -3301,6 +3464,17 @@ class ApiService {
   }
   async getPurchaseSuggestions() {
     return this.request<any>('/gastrobar-ops/purchase-suggestions')
+  }
+
+  async getMaintenanceDue() {
+    return this.request<any[]>('/fleet/maintenance-due')
+  }
+
+  async markVehicleServiceDone(vehicleId: string, nextDate?: string | null) {
+    return this.request<any>(`/fleet/vehicles/${vehicleId}/service-done`, {
+      method: 'POST',
+      body: JSON.stringify(nextDate !== undefined ? { nextDate } : {}),
+    })
   }
   async getWeeklyTrend() {
     return this.request<any>('/gastrobar-ops/weekly-trend')

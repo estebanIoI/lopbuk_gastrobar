@@ -20,9 +20,11 @@ router.get('/org-chart', async (req: AuthRequest, res: Response) => {
     const [rows] = await pool.query(
       `SELECT u.id, u.name, u.email, u.role, u.avatar, u.phone, u.cedula,
               u.is_active AS isActive, u.manager_id AS managerId,
+              u.sede_id AS sedeId, sd.name AS sedeName,
               c.name AS cargoName
          FROM users u
          LEFT JOIN employee_cargos c ON c.id = u.cargo_id
+         LEFT JOIN sedes sd ON sd.id = u.sede_id
         WHERE u.tenant_id = ? AND u.role NOT IN ('cliente')
         ORDER BY FIELD(u.role, 'comerciante') DESC, u.name ASC`,
       [tenantId]
@@ -79,6 +81,37 @@ router.patch(
   }
 );
 
+// PATCH /api/users/:id/sede — sede a la que pertenece el colaborador (multibodega)
+router.patch(
+  '/:id/sede',
+  [param('id').notEmpty(), body('sedeId').optional({ nullable: true }).isString(), validateRequest],
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const tenantId = req.user!.tenantId;
+      const { id } = req.params;
+      const sedeId = req.body.sedeId || null;
+
+      const [users] = await pool.query(
+        'SELECT id FROM users WHERE id = ? AND tenant_id = ?', [id, tenantId]
+      ) as any;
+      if (!users.length) { res.status(404).json({ success: false, error: 'Colaborador no encontrado' }); return; }
+
+      if (sedeId) {
+        const [sede] = await pool.query(
+          'SELECT id FROM sedes WHERE id = ? AND tenant_id = ?', [sedeId, tenantId]
+        ) as any;
+        if (!sede.length) { res.status(400).json({ success: false, error: 'Sede inválida' }); return; }
+      }
+
+      await pool.query('UPDATE users SET sede_id = ? WHERE id = ? AND tenant_id = ?', [sedeId, id, tenantId]);
+      res.json({ success: true, data: { id, sedeId } });
+    } catch (error) {
+      console.error('Set sede error:', error);
+      res.status(500).json({ success: false, error: 'Error al asignar la sede' });
+    }
+  }
+);
+
 // GET /api/users/:id/dossier — expediente consolidado del colaborador
 router.get(
   '/:id/dossier',
@@ -90,17 +123,20 @@ router.get(
       const year = new Date().getFullYear();
       const monthStart = `${year}-${String(new Date().getMonth() + 1).padStart(2, '0')}-01`;
 
-      const [[person], [salesAll], [salesMonth], [vac], [payroll], [novelties], [adjustments], [vehicles]] = await Promise.all([
+      const pickingService = (await import('../picking/picking.service')).default;
+      const [[person], [salesAll], [salesMonth], [vac], [payroll], [novelties], [adjustments], [vehicles], pickingStats] = await Promise.all([
         pool.query(
           `SELECT u.id, u.name, u.email, u.role, u.avatar, u.phone, u.cedula,
                   u.department, u.municipality, u.address, u.is_active AS isActive, u.created_at AS createdAt,
                   u.manager_id AS managerId, m.name AS managerName,
                   u.commission_type AS commissionType, u.commission_value AS commissionValue,
                   u.salary_base AS salaryBase, u.monthly_goal AS monthlyGoal, u.goal_bonus AS goalBonus,
-                  c.name AS cargoName, c.description AS cargoDescription, c.permissions AS cargoPermissions
+                  c.name AS cargoName, c.description AS cargoDescription, c.permissions AS cargoPermissions,
+                  u.sede_id AS sedeId, sd.name AS sedeName
              FROM users u
              LEFT JOIN users m ON m.id = u.manager_id
              LEFT JOIN employee_cargos c ON c.id = u.cargo_id
+             LEFT JOIN sedes sd ON sd.id = u.sede_id
             WHERE u.id = ? AND u.tenant_id = ?`,
           [id, tenantId]
         ) as Promise<any>,
@@ -152,6 +188,7 @@ router.get(
             WHERE o.tenant_id = ? AND o.delivery_driver_id = ? AND o.dispatch_status IN ('cargado','despachado')`,
           [tenantId, id, tenantId, id]
         ) as Promise<any>,
+        pickingService.userStats(tenantId!, id),
       ]);
 
       if (!person.length) { res.status(404).json({ success: false, error: 'Colaborador no encontrado' }); return; }
@@ -189,6 +226,7 @@ router.get(
             thisMonth: { count: Number(salesMonth[0].count), amount: Number(salesMonth[0].amount) },
           },
           vacation: { year, daysGranted: vacGranted, daysUsed: vacUsed, daysLeft: vacGranted - vacUsed },
+          picking: pickingStats,
           payroll,
           novelties,
           adjustments,

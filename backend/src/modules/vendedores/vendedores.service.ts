@@ -183,8 +183,8 @@ export class VendedoresService {
               COALESCE(monthly_goal, 0)                 AS monthly_goal,
               COALESCE(goal_bonus, 0)                   AS goal_bonus
        FROM users
-       WHERE tenant_id = ? AND role IN ('vendedor', 'comerciante')
-       ORDER BY name ASC`,
+       WHERE tenant_id = ? AND role NOT IN ('cliente', 'superadmin')
+       ORDER BY FIELD(role, 'comerciante') DESC, name ASC`,
       [tenantId]
     );
     return rows.map(this.mapSeller.bind(this));

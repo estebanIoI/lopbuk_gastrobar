@@ -106,6 +106,69 @@
       "when": 1783353579047,
       "tag": "0014_confused_shatterstar",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "5",
+      "when": 1783399621251,
+      "tag": "0015_eminent_the_fury",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "5",
+      "when": 1783437287743,
+      "tag": "0016_nebulous_husk",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "5",
+      "when": 1783438178943,
+      "tag": "0017_amazing_patriot",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "5",
+      "when": 1783438668415,
+      "tag": "0018_wise_aqueduct",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "5",
+      "when": 1783479396064,
+      "tag": "0019_fine_cardiac",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "5",
+      "when": 1783485079333,
+      "tag": "0020_dapper_gambit",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "5",
+      "when": 1783485183867,
+      "tag": "0021_nice_rick_jones",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "5",
+      "when": 1783541209084,
+      "tag": "0022_military_ikaris",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "5",
+      "when": 1783541939027,
+      "tag": "0023_deep_mach_iv",
+      "breakpoints": true
     }
   ]
 }

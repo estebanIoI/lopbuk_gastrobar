@@ -54,6 +54,8 @@ import {
   Zap,
   Split,
   ImageIcon,
+  Warehouse,
+  Loader2,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Sale } from '@/lib/types'
@@ -66,6 +68,8 @@ export function PointOfSale() {
   const [search, setSearch] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [selectedSede, setSelectedSede] = useState<string | null>(null)
+  // Multibodega: popover de disponibilidad por sede de un producto
+  const [sedeAvail, setSedeAvail] = useState<{ productName: string; loading: boolean; rows: { sedeId: string; sedeName: string; available: number }[] } | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [showScanner, setShowScanner] = useState(false)
   const [showRemoteScanner, setShowRemoteScanner] = useState(false)
@@ -201,6 +205,18 @@ export function PointOfSale() {
     return matchesSearch && matchesCategory && matchesSede && p.stock > 0
   })
   
+  // Multibodega: ¿en qué sedes hay stock físico de este producto?
+  const showSedeAvailability = async (productId: string, productName: string) => {
+    setSedeAvail({ productName, loading: true, rows: [] })
+    try {
+      const res = await api.getProductSedeAvailability(productId)
+      const rows = (res.success && Array.isArray(res.data)) ? (res.data as any[]) : []
+      setSedeAvail({ productName, loading: false, rows })
+    } catch {
+      setSedeAvail({ productName, loading: false, rows: [] })
+    }
+  }
+
   const handleAddToCart = async (productId: string) => {
     const product = products.find(p => p.id === productId)
     if (!product) return
@@ -540,6 +556,9 @@ export function PointOfSale() {
       customerName: customer.name || selectedCustomer?.name || undefined,
       customerPhone: customer.phone || selectedCustomer?.phone || undefined,
       applyTax: applyIva,
+      // Multibodega: la venta descuenta el desglose de la sede filtrada en el POS
+      // (si no hay filtro, el backend usa la sede del vendedor)
+      sedeId: selectedSede || undefined,
     })
 
     setIsProcessing(false)
@@ -821,6 +840,15 @@ export function PointOfSale() {
                               product.stock <= 3 ? 'text-destructive' : product.stock <= 10 ? 'text-amber-600' : 'text-muted-foreground'
                             }`}>
                               {product.isComposite ? 'Ref' : `Stock: ${product.stock}`}
+                              {!product.isComposite && sedes.length >= 2 && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); showSedeAvailability(product.id, product.name) }}
+                                  className="ml-1 inline-flex items-center text-primary/70 hover:text-primary align-middle"
+                                  title="Ver en qué sede está"
+                                >
+                                  <Warehouse className="h-3 w-3" />
+                                </button>
+                              )}
                             </p>
                           </div>
                           <Button
@@ -857,6 +885,39 @@ export function PointOfSale() {
         )}
       </div>
       
+      {/* Multibodega: disponibilidad por sede */}
+      {sedeAvail && (
+        <Dialog open onOpenChange={v => { if (!v) setSedeAvail(null) }}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="text-base flex items-center gap-2">
+                <Warehouse className="h-4 w-4 text-primary" />
+                ¿Dónde hay stock?
+              </DialogTitle>
+              <DialogDescription className="text-xs truncate">{sedeAvail.productName}</DialogDescription>
+            </DialogHeader>
+            {sedeAvail.loading ? (
+              <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+            ) : sedeAvail.rows.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-3">
+                Este producto no tiene stock distribuido por sedes. Distribúyelo desde Inventario → Bodegas.
+              </p>
+            ) : (
+              <div className="space-y-1.5 py-1">
+                {sedeAvail.rows.map(r => (
+                  <div key={r.sedeId} className="flex items-center justify-between rounded-md bg-secondary/50 px-3 py-2 text-sm">
+                    <span className="text-foreground">{r.sedeName}</span>
+                    <span className={`font-semibold ${r.available > 0 ? 'text-green-600' : 'text-muted-foreground'}`}>
+                      {r.available} disp.
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+      )}
+
       {/* Cart - Hidden on mobile, shown on desktop */}
       <div className="hidden lg:block lg:col-span-1 min-w-0">
         <Card className="flex h-full flex-col overflow-hidden border-border bg-card shadow-xl shadow-black/10 ring-1 ring-border/60">

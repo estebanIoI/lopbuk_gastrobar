@@ -20,6 +20,7 @@ import {
   Users,
   UserCheck,
   Network,
+  FileSpreadsheet,
   CreditCard,
   Vault,
   Crown,
@@ -110,6 +111,7 @@ const navigation: NavItem[] = [
   // operations
   { id: 'restbar', name: 'RestBar', icon: UtensilsCrossed, adminOnly: false, superadminOnly: false, merchantOnly: true, group: 'ops' },
   { id: 'pos', name: 'Punto de Venta', icon: ShoppingCart, adminOnly: false, superadminOnly: false, merchantOnly: true, group: 'ops' },
+  { id: 'cotizaciones', name: 'Cotizaciones', icon: FileSpreadsheet, adminOnly: false, superadminOnly: false, merchantOnly: true, group: 'ops' },
   { id: 'cash-register', name: 'Caja', icon: Vault, adminOnly: false, superadminOnly: false, merchantOnly: true, group: 'ops' },
   { id: 'invoices', name: 'Facturación', icon: Receipt, adminOnly: true, superadminOnly: false, merchantOnly: true, group: 'ops' },
   { id: 'customers', name: 'Clientes', icon: Users, adminOnly: true, superadminOnly: false, merchantOnly: true, group: 'ops' },
@@ -118,6 +120,9 @@ const navigation: NavItem[] = [
   { id: 'organigrama', name: 'Jerarquía', icon: Network, adminOnly: true, superadminOnly: false, merchantOnly: true, group: 'ops' },
   // flota ferretería
   { id: 'fleet', name: 'Mi Flota', icon: Truck, adminOnly: true, superadminOnly: false, merchantOnly: true, group: 'ops' },
+  { id: 'picking', name: 'Picking Bodega', icon: ClipboardList, adminOnly: false, superadminOnly: false, merchantOnly: true, group: 'ops' },
+  { id: 'tiempos', name: 'Tiempos Operación', icon: Gauge, adminOnly: true, superadminOnly: false, merchantOnly: true, group: 'ops' },
+  { id: 'gerencia', name: 'Gerencia', icon: LayoutDashboard, adminOnly: true, superadminOnly: false, merchantOnly: true, group: 'reports' },
   // inmobiliaria
   { id: 'realestate', name: 'Inmobiliaria', icon: Building2, adminOnly: true, superadminOnly: false, merchantOnly: true, group: 'ops' },
   { id: 'workorders', name: 'Tapicería', icon: Wrench, adminOnly: true, superadminOnly: false, merchantOnly: true, group: 'ops' },
@@ -176,6 +181,14 @@ export function Sidebar() {
     // Jerarquía: módulo nuevo. Los tenants con config guardada aún no lo tienen en su
     // lista; visible siempre que Empleados lo esté (mismo dominio) para que no quede oculto.
     if (item.id === 'organigrama') return !activeModules || activeModules.includes('organigrama') || activeModules.includes('vendedores')
+    // Cotizaciones: módulo nuevo — visible siempre que POS lo esté (mismo dominio de venta).
+    if (item.id === 'cotizaciones') return !activeModules || activeModules.includes('cotizaciones') || activeModules.includes('pos')
+    // Picking: módulo nuevo — visible con flota o inventario (bodega/logística).
+    if (item.id === 'picking') return !activeModules || activeModules.includes('picking') || activeModules.includes('fleet') || activeModules.includes('inventory')
+    // Tiempos: módulo nuevo — visible con flota (operación logística).
+    if (item.id === 'tiempos') return !activeModules || activeModules.includes('tiempos') || activeModules.includes('fleet')
+    // Gerencia: módulo nuevo — visible con analytics (dominio reportes).
+    if (item.id === 'gerencia') return !activeModules || activeModules.includes('gerencia') || activeModules.includes('analytics')
     if (activeModules && item.id && !activeModules.includes(item.id)) return false
     return true
   }

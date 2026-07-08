@@ -2,6 +2,56 @@
 
 > Actualiza este archivo después de cada sesión de trabajo significativa.
 
+## 🆕 [2026-07-08] F5+F6 — tracking del cliente + dashboard gerencial: PLAN FERRETERÍA COMPLETO (✅ E2E 23/23)
+
+> Cierre del plan de la auditoría ferretería (6/6 fases). Detalle en `changelog.md`.
+
+- ✅ F5: GPS del conductor (ping cada 3 min), prueba de entrega (foto + receptor), portal público **/seguimiento/:token** con link por WhatsApp (migraciones 0020/0021).
+- ✅ F6: módulo **"Gerencia"** — ventas + embudo en vivo + logística + talento + inventario en una pantalla; mapa de calor por zona; sugerencia de compra por consumo real.
+- ✅ **Plan completo**: multibodega, cotizaciones, picking, tiempos, tracking, gerencia. Migraciones 0015–0021.
+- ✅ **Pendientes cerrados [07-08] (E2E 15/15, migr. 0022/0023)**: pedidos descuentan sede · recepción de compras con bodega destino · alerta min_stock por sede · mantenimiento preventivo km/fecha · promesa de entrega automática.
+- ⏳ Solo falta redeploy (back+front) a producción — nada de código pendiente.
+
+## 🆕 [2026-07-07] Tiempos F4 — cuellos de botella + pedidos en riesgo + recepción (✅ E2E 17/17)
+
+> Fase 4 del plan ferretería. Detalle en `changelog.md`.
+
+- ✅ `order_stage_events` con logStage enganchado en picking + despacho (migración 0019); duración precalculada.
+- ✅ Módulo "Tiempos Operación": min por etapa con cuello resaltado + ciclo total; pedidos en riesgo (promesa vencida/tiempo) con WhatsApp; recepción por proveedor.
+- ✅ promised_at en pedidos + arrival_at/received_at en compras.
+- ⏳ Fase 5 del plan: GPS conductor + prueba de entrega foto + portal de seguimiento del cliente.
+
+## 🆕 [2026-07-07] Picking F3 — cola de bodega + ubicaciones + productividad (✅ E2E 20/20)
+
+> Fase 3 del plan ferretería. Detalle en `changelog.md`.
+
+- ✅ Módulo "Picking Bodega": tablero pendientes/en preparación/preparadas con cronómetros, generar tareas 1-clic desde pedidos confirmados, take atómico multi-auxiliar (migración 0018).
+- ✅ Ubicaciones pasillo-bloque-nivel por sede (editable en Inventario → Bodegas); el snapshot de la tarea sale ordenado = ruta de recorrido.
+- ✅ Completar avanza el pedido a "preparando" (Centro de Comando) + socket picking-changed.
+- ✅ Productividad por auxiliar (tareas, min promedio) en el tablero y en el dossier de Jerarquía.
+- ⏳ Fase 4 del plan: tiempos por etapa + recepción de compras + alertas de riesgo.
+
+## 🆕 [2026-07-07] Cotizaciones F2 — reserva por sede + facturar 1-clic (✅ E2E 24/24)
+
+> Fase 2 del plan ferretería. Detalle en `changelog.md`.
+
+- ✅ Módulo "Cotizaciones" (menú Ventas/Operaciones): KPIs de conversión del mes, crear con precio negociado + validez + promesa de entrega + sede.
+- ✅ Aceptar = reserva `products.reserved_stock` + `sede_stock.reserved_stock` (migraciones 0016+0017); cancelar/vencer libera; vencimiento lazy.
+- ✅ Facturar 1-clic → venta real (salesService) con sede; WhatsApp transaccional; vista imprimible.
+- ⏳ Fase 3 del plan: picking + ubicaciones + productividad de auxiliares.
+
+## 🆕 [2026-07-07] Multibodega F1 — stock por sede + transferencias (✅ E2E 28/28)
+
+> Fase 1 del plan "auditoría ferretería" (6 fases: multibodega → cotizaciones → picking →
+> tiempos por etapa → tracking → dashboard gerencial). Detalle en `changelog.md`.
+
+- ✅ `sede_stock` = desglose por sede; `products.stock` sigue siendo el total (flujos existentes intactos). Migración **0015** aplicada en dev.
+- ✅ Sedes tipadas (punto_venta/bodega/mixta) + encargado + soft delete; `users.sede_id` asignable desde el dossier de Jerarquía.
+- ✅ Transferencias entre sedes con cascada auditada (solicitada→en_transito→recibida|cancelada) y validación de disponibilidad bajo lock.
+- ✅ Venta POS descuenta total + desglose de su sede (sedeId explícito o sede del vendedor); anulación devuelve.
+- ✅ UI: botón "Bodegas" en Inventario (matriz editable + transferencias); POS "¿Dónde hay stock?".
+- ⏳ Fase 2 del plan: **cotizaciones con promesa de entrega** (reserva por sede, conversión a venta). Pendiente F1.5: compras con sede destino, storefront descuenta sede.
+
 ## 🆕 [2026-07-05] Sistema Operativo Logístico — flota, rutas y rentabilidad (✅ E2E 11/11)
 
 > El módulo fleet pasó de básico a sistema logístico empresarial para ferretería multi-sede.
