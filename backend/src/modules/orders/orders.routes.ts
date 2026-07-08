@@ -1838,6 +1838,13 @@ router.put(
                 'UPDATE products SET stock = stock - ? WHERE id = ? AND tenant_id = ?',
                 [item.quantity, item.productId, tenantId]
               );
+              // Multibodega: descontar también el desglose de la sede del pedido (si existe)
+              if (order.sede_id) {
+                await connection.query(
+                  'UPDATE sede_stock SET stock = GREATEST(0, stock - ?) WHERE tenant_id = ? AND sede_id = ? AND product_id = ?',
+                  [item.quantity, tenantId, order.sede_id, item.productId]
+                );
+              }
               await connection.query(
                 `INSERT INTO stock_movements (id, tenant_id, product_id, type, quantity, previous_stock, new_stock, reason, reference_id, user_id)
                  VALUES (?, ?, ?, 'venta', ?, ?, ?, ?, ?, ?)`,

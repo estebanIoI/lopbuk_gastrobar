@@ -14,7 +14,7 @@ import {
   Search, Bell, LogOut, ChevronDown, AlertTriangle, ShoppingBag,
   FlaskConical, Truck, Receipt, History, CalendarDays, Ticket, Star,
   Scissors, CreditCard, UserCheck, Printer, ArrowRight, Boxes, PieChart,
-  HelpCircle, UtensilsCrossed, Trash2, Wine, ClipboardList, Network,
+  HelpCircle, UtensilsCrossed, Trash2, Wine, ClipboardList, Network, FileSpreadsheet, Gauge,
 } from 'lucide-react'
 
 // ──────────────────────────────────────────────────────────────
@@ -30,11 +30,13 @@ const NAV: NavGroup[] = [
       { id: 'inventory', label: 'Inventario', icon: Boxes, adminOnly: true, warehouse: true },
       { id: 'recipes', label: 'Recetas BOM', icon: FlaskConical, adminOnly: true, warehouse: true },
       { id: 'purchases', label: 'Compras y proveedores', icon: Truck, adminOnly: true, warehouse: true },
+      { id: 'picking', label: 'Picking bodega', icon: ClipboardList, warehouse: true },
     ],
   },
   {
     key: 'ventas', label: 'Ventas', icon: ShoppingCart, children: [
       { id: 'pos', label: 'Punto de venta', icon: ShoppingCart },
+      { id: 'cotizaciones', label: 'Cotizaciones', icon: FileSpreadsheet },
       { id: 'cash-register', label: 'Caja', icon: CreditCard },
       { id: 'invoices', label: 'Facturación', icon: Receipt, adminOnly: true },
       { id: 'history', label: 'Historial', icon: History },
@@ -66,7 +68,9 @@ const NAV: NavGroup[] = [
   },
   {
     key: 'reportes', label: 'Reportes', icon: TrendingUp, adminOnly: true, children: [
+      { id: 'gerencia', label: 'Gerencia', icon: PieChart, adminOnly: true },
       { id: 'analytics', label: 'Análisis y reportes', icon: TrendingUp, adminOnly: true },
+      { id: 'tiempos', label: 'Tiempos de operación', icon: Gauge, adminOnly: true },
       { id: 'finances', label: 'Finanzas', icon: PieChart, adminOnly: true },
     ],
   },

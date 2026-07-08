@@ -172,6 +172,7 @@ function PersonCard({ node, selected, dim, onClick }: { node: Node; selected: bo
       </div>
       <p className="text-sm font-bold text-gray-800 truncate leading-tight">{node.name}</p>
       <p className="text-[11px] text-indigo-600 font-medium truncate">{node.cargoName || ROLE_LABEL[node.role] || node.role}</p>
+      {(node as any).sedeName && <p className="text-[9px] text-gray-400 truncate">📍 {(node as any).sedeName}</p>}
       {!node.isActive && <span className="text-[9px] text-red-400">inactivo</span>}
       {node.children.length > 0 && (
         <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 text-[9px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full border">
@@ -189,11 +190,22 @@ function DossierDrawer({ userId, allUsers, onClose, onManagerChanged }: {
   const [d, setD] = useState<any | null>(null)
   const [loading, setLoading] = useState(true)
   const [savingMgr, setSavingMgr] = useState(false)
+  const [sedes, setSedes] = useState<{ id: string; name: string }[]>([])
+  const [savingSede, setSavingSede] = useState(false)
 
   useEffect(() => {
     setLoading(true)
     api.getUserDossier(userId).then(r => { if (r.success) setD(r.data); setLoading(false) })
+    api.getSedes().then(r => { if (r.success && Array.isArray(r.data)) setSedes(r.data as any[]) }).catch(() => {})
   }, [userId])
+
+  const changeSede = async (sedeId: string) => {
+    setSavingSede(true)
+    const res = await api.setUserSede(userId, sedeId || null)
+    setSavingSede(false)
+    if (res.success) { api.getUserDossier(userId).then(r => { if (r.success) setD(r.data) }) }
+    else alert((res as any).error || 'No se pudo asignar la sede')
+  }
 
   const changeManager = async (managerId: string) => {
     setSavingMgr(true)
@@ -252,7 +264,42 @@ function DossierDrawer({ userId, allUsers, onClose, onManagerChanged }: {
                     <option key={u.id} value={u.id}>{u.name} · {u.cargoName || ROLE_LABEL[u.role] || u.role}</option>
                   ))}
                 </select>
+                {sedes.length > 0 && (
+                  <>
+                    <label className="text-xs text-muted-foreground mt-2 block">Sede / bodega asignada</label>
+                    <select
+                      value={p.sedeId || ''} disabled={savingSede}
+                      onChange={e => changeSede(e.target.value)}
+                      className="w-full mt-1 text-sm border rounded-lg px-2 py-1.5 bg-white"
+                    >
+                      <option value="">— Sin sede —</option>
+                      {sedes.map(s => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </select>
+                  </>
+                )}
               </SectionCard>
+
+              {/* Picking: productividad de bodega (si tiene actividad) */}
+              {d.picking?.completedTasks > 0 && (
+                <SectionCard icon={<Briefcase size={15} />} title="Productividad en bodega (picking)">
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div>
+                      <p className="text-lg font-bold text-gray-800">{d.picking.completedTasks}</p>
+                      <p className="text-[10px] text-muted-foreground">pedidos preparados</p>
+                    </div>
+                    <div>
+                      <p className="text-lg font-bold text-gray-800">{d.picking.thisMonth}</p>
+                      <p className="text-[10px] text-muted-foreground">este mes</p>
+                    </div>
+                    <div>
+                      <p className="text-lg font-bold text-gray-800">{d.picking.avgMinutes ?? '—'}</p>
+                      <p className="text-[10px] text-muted-foreground">min promedio</p>
+                    </div>
+                  </div>
+                </SectionCard>
+              )}
 
               {/* Responsabilidades del cargo */}
               {(d.responsibilities?.description || (d.responsibilities?.permissions?.length > 0)) && (

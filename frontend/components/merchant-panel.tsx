@@ -36,6 +36,10 @@ import { PlatformAssistant } from '@/components/platform-assistant'
 import { PrintersConfig } from '@/components/printers'
 import { VendedoresPanel } from '@/components/vendedores-panel'
 import { OrgChart } from '@/components/org-chart'
+import { QuotesPanel } from '@/components/quotes-panel'
+import { PickingBoard } from '@/components/picking-board'
+import { OpsTimelinePanel } from '@/components/ops-timeline-panel'
+import { ExecutiveDashboard } from '@/components/executive-dashboard'
 import { ReviewsPanel } from '@/components/reviews-panel'
 import { RestBar } from '@/components/restbar'
 import { Finances } from '@/components/finances'
@@ -200,6 +204,14 @@ export function MerchantPanel() {
         return <VendedoresPanel />
       case 'organigrama':
         return <OrgChart />
+      case 'cotizaciones':
+        return <QuotesPanel />
+      case 'picking':
+        return <PickingBoard />
+      case 'tiempos':
+        return <OpsTimelinePanel />
+      case 'gerencia':
+        return <ExecutiveDashboard />
       case 'reviews':
         return (
           <div className="p-6 space-y-4">

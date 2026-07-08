@@ -10,6 +10,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { authorize, AuthRequest } from '../../common/middleware';
 import { validateRequest } from '../../utils/validators';
 import pool from '../../config/database';
+import { logStage } from '../ops-timeline/ops-timeline.service';
 
 const router: ReturnType<typeof Router> = Router();
 
@@ -25,7 +26,10 @@ export function emitOps(tenantId: string, event: string, payload: Record<string,
  * Notificación transaccional al cliente por WhatsApp (gestión del pedido — base
  * contractual, no marketing: no requiere opt-in de marketing). Best-effort.
  */
-async function notifyCustomers(tenantId: string, orderIds: string[], template: (orderNumber: string) => string): Promise<void> {
+async function notifyCustomers(
+  tenantId: string, orderIds: string[],
+  template: (orderNumber: string, trackingUrl?: string) => string
+): Promise<void> {
   try {
     if (orderIds.length === 0) return;
     const [cfg] = await pool.query(
@@ -33,19 +37,40 @@ async function notifyCustomers(tenantId: string, orderIds: string[], template: (
     ) as any;
     const instance = cfg?.[0]?.evolution_instance;
     if (!instance) return;
+
+    // Tracking (F5): asegurar token público para cada pedido → link de seguimiento
+    await ensureTrackingTokens(tenantId, orderIds);
+
     const [orders] = await pool.query(
-      `SELECT order_number, customer_phone FROM storefront_orders
+      `SELECT order_number, customer_phone, tracking_token FROM storefront_orders
         WHERE tenant_id = ? AND id IN (${orderIds.map(() => '?').join(',')})`,
       [tenantId, ...orderIds]
     ) as any;
+    const frontendUrl = (process.env.FRONTEND_URL || '').replace(/\/$/, '');
     const { sendTextMessage } = await import('../whatsapp/whatsapp.service');
     for (const o of orders as any[]) {
       const phone = String(o.customer_phone || '').replace(/\D/g, '');
       if (phone.length < 7) continue;
-      await sendTextMessage(instance, phone, template(o.order_number)).catch(() => {});
+      const trackingUrl = frontendUrl && o.tracking_token ? `${frontendUrl}/seguimiento/${o.tracking_token}` : undefined;
+      await sendTextMessage(instance, phone, template(o.order_number, trackingUrl)).catch(() => {});
     }
   } catch (e: any) {
     console.error('[logistics] customer notify failed:', e?.message || e);
+  }
+}
+
+/** Tracking (F5): genera el token público de seguimiento a los pedidos que no lo tengan. */
+async function ensureTrackingTokens(tenantId: string, orderIds: string[]): Promise<void> {
+  if (!orderIds.length) return;
+  const [rows] = await pool.query(
+    `SELECT id FROM storefront_orders
+      WHERE tenant_id = ? AND tracking_token IS NULL AND id IN (${orderIds.map(() => '?').join(',')})`,
+    [tenantId, ...orderIds]
+  ) as any;
+  const { randomBytes } = await import('crypto');
+  for (const r of rows as any[]) {
+    const token = randomBytes(18).toString('base64url'); // 24 chars URL-safe
+    await pool.query('UPDATE storefront_orders SET tracking_token = ? WHERE id = ?', [token, r.id]);
   }
 }
 
@@ -80,6 +105,8 @@ router.put(
     body('fuelType').optional().isString().isLength({ max: 20 }),
     body('volumeM3').optional({ nullable: true }).isFloat({ min: 0 }),
     body('maintenanceEveryKm').optional().isInt({ min: 0 }),
+    body('lastMaintenanceKm').optional().isInt({ min: 0 }),
+    body('nextMaintenanceDate').optional({ nullable: true }).isISO8601(),
     validateRequest,
   ],
   async (req: AuthRequest, res: Response) => {
@@ -88,7 +115,8 @@ router.put(
       const fields: Record<string, string> = {
         soatExpiry: 'soat_expiry', tecnoExpiry: 'tecno_expiry', insuranceExpiry: 'insurance_expiry',
         odometerKm: 'odometer_km', fuelType: 'fuel_type', volumeM3: 'volume_m3',
-        maintenanceEveryKm: 'maintenance_every_km',
+        maintenanceEveryKm: 'maintenance_every_km', lastMaintenanceKm: 'last_maintenance_km',
+        nextMaintenanceDate: 'next_maintenance_date',
       };
       const updates: string[] = [];
       const values: any[] = [];
@@ -105,6 +133,55 @@ router.put(
     } catch (error) {
       console.error('Vehicle profile error:', error);
       res.status(500).json({ success: false, error: 'Error al actualizar el perfil del vehículo' });
+    }
+  }
+);
+
+// GET /api/fleet/maintenance-due — vehículos con servicio pendiente (km o fecha)
+router.get('/maintenance-due', authorize(...OPS_ROLES), async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const [rows] = await pool.query(
+      `SELECT id, name, plate, odometer_km AS odometerKm, last_maintenance_km AS lastMaintenanceKm,
+              maintenance_every_km AS maintenanceEveryKm, next_maintenance_date AS nextMaintenanceDate,
+              (odometer_km - last_maintenance_km) AS kmSinceService,
+              CASE WHEN maintenance_every_km > 0
+                   THEN (odometer_km - last_maintenance_km) - maintenance_every_km END AS kmOver,
+              CASE WHEN next_maintenance_date IS NOT NULL
+                   THEN DATEDIFF(next_maintenance_date, CURDATE()) END AS daysToService
+         FROM fleet_vehicles
+        WHERE tenant_id = ? AND status != 'inactivo'
+          AND ((maintenance_every_km > 0 AND (odometer_km - last_maintenance_km) >= maintenance_every_km * 0.9)
+               OR (next_maintenance_date IS NOT NULL AND DATEDIFF(next_maintenance_date, CURDATE()) <= 7))
+        ORDER BY kmOver DESC, daysToService ASC`,
+      [tenantId]
+    ) as any;
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    console.error('Maintenance due error:', error);
+    res.status(500).json({ success: false, error: 'Error al cargar mantenimientos' });
+  }
+});
+
+// POST /api/fleet/vehicles/:id/service-done — registra mantenimiento hecho (reinicia contadores)
+router.post(
+  '/vehicles/:id/service-done',
+  authorize('comerciante', 'superadmin', 'despachador'),
+  [param('id').notEmpty(), body('nextDate').optional({ nullable: true }).isISO8601(), validateRequest],
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const tenantId = req.user!.tenantId;
+      const [result] = await pool.query(
+        `UPDATE fleet_vehicles
+            SET last_maintenance_km = odometer_km, next_maintenance_date = ?
+          WHERE id = ? AND tenant_id = ?`,
+        [req.body.nextDate || null, req.params.id, tenantId]
+      ) as any;
+      if (!result.affectedRows) { res.status(404).json({ success: false, error: 'Vehículo no encontrado' }); return; }
+      res.json({ success: true, data: { serviced: true } });
+    } catch (error) {
+      console.error('Service done error:', error);
+      res.status(500).json({ success: false, error: 'Error al registrar el mantenimiento' });
     }
   }
 );
@@ -482,11 +559,30 @@ router.patch(
             WHERE route_id = ? AND tenant_id = ? AND dispatch_status != 'entregado'`,
           [dispatchStatus, route.id, tenantId]
         );
+        // Promesa de entrega automática (F4/F5): al salir a ruta, si el pedido no tiene
+        // promesa, se estima NOW + ventana según nº de paradas (~40 min/parada, tope 6h).
+        if (status === 'en_ruta') {
+          const [[cnt]] = await pool.query(
+            `SELECT COUNT(*) AS n FROM storefront_orders WHERE route_id = ? AND dispatch_status != 'entregado'`,
+            [route.id]
+          ) as any;
+          const etaMinutes = Math.min(360, 30 + (Number(cnt?.n) || 1) * 40);
+          await pool.query(
+            `UPDATE storefront_orders
+                SET promised_at = DATE_ADD(NOW(), INTERVAL ? MINUTE)
+              WHERE route_id = ? AND tenant_id = ? AND dispatch_status != 'entregado' AND promised_at IS NULL`,
+            [etaMinutes, route.id, tenantId]
+          );
+        }
         const [stops] = await pool.query(
           'SELECT id FROM storefront_orders WHERE route_id = ?', [route.id]
         ) as any;
         for (const s of stops as any[]) {
           await logTransition(tenantId, s.id, route.status, dispatchStatus, req.user!.userId, `Ruta ${route.route_number} → ${status}`);
+          // Línea de tiempo por etapa (F4): solo etapas canónicas de despacho
+          if (['cargado', 'despachado', 'entregado'].includes(dispatchStatus)) {
+            logStage(tenantId, s.id, dispatchStatus as any, req.user!.userId).catch(() => {});
+          }
         }
       }
       // Cancelada: liberar pedidos para re-agrupar
@@ -514,7 +610,9 @@ router.patch(
         ) as any;
         const ids = (stopIds as any[]).map(s => s.id);
         if (status === 'en_ruta') {
-          notifyCustomers(tenantId, ids, n => `🚚 ¡Tu pedido #${n} salió y va en camino! Te avisamos al llegar.`).catch(() => {});
+          notifyCustomers(tenantId, ids, (n, url) =>
+            `🚚 ¡Tu pedido #${n} salió y va en camino! Te avisamos al llegar.${url ? `\n\n📍 Síguelo en vivo aquí:\n${url}` : ''}`
+          ).catch(() => {});
         } else {
           notifyCustomers(tenantId, ids, n => `✅ Tu pedido #${n} fue entregado. ¡Gracias por tu compra!`).catch(() => {});
         }
@@ -529,23 +627,58 @@ router.patch(
   }
 );
 
+// POST /api/fleet/my-route/ping — el teléfono del conductor reporta su posición (F5)
+router.post(
+  '/my-route/ping',
+  authorize('comerciante', 'superadmin', 'despachador', 'repartidor'),
+  [body('lat').isFloat({ min: -90, max: 90 }), body('lng').isFloat({ min: -180, max: 180 }), validateRequest],
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const tenantId = req.user!.tenantId!;
+      const [result] = await pool.query(
+        `UPDATE dispatch_routes
+            SET last_lat = ?, last_lng = ?, last_ping_at = NOW()
+          WHERE tenant_id = ? AND driver_id = ? AND status IN ('en_ruta','retornando')
+          ORDER BY started_at DESC LIMIT 1`,
+        [req.body.lat, req.body.lng, tenantId, req.user!.userId]
+      ) as any;
+      if (result.affectedRows > 0) {
+        emitOps(tenantId, 'route-ping', { driverId: req.user!.userId, lat: req.body.lat, lng: req.body.lng });
+      }
+      res.json({ success: true, data: { tracked: result.affectedRows > 0 } });
+    } catch (error) {
+      console.error('Route ping error:', error);
+      res.status(500).json({ success: false, error: 'Error al reportar la posición' });
+    }
+  }
+);
+
 // PATCH /api/fleet/routes/:id/stops/:orderId/delivered — entrega parada por parada (conductor)
+// Acepta prueba de entrega (F5): foto + nombre de quien recibe.
 router.patch(
   '/routes/:id/stops/:orderId/delivered',
   authorize('comerciante', 'superadmin', 'despachador', 'repartidor'),
-  [param('id').notEmpty(), param('orderId').notEmpty(), validateRequest],
+  [
+    param('id').notEmpty(), param('orderId').notEmpty(),
+    body('podPhotoUrl').optional({ nullable: true }).isString().isLength({ max: 500 }),
+    body('podReceivedBy').optional({ nullable: true }).isString().isLength({ max: 120 }),
+    validateRequest,
+  ],
   async (req: AuthRequest, res: Response) => {
     try {
       const tenantId = req.user!.tenantId!;
       const [result] = await pool.query(
         `UPDATE storefront_orders
             SET dispatch_status = 'entregado', delivery_status = 'entregado',
-                delivery_delivered_at = NOW(), status = 'entregado'
+                delivery_delivered_at = NOW(), status = 'entregado',
+                pod_photo_url = COALESCE(?, pod_photo_url),
+                pod_received_by = COALESCE(?, pod_received_by)
           WHERE id = ? AND route_id = ? AND tenant_id = ?`,
-        [req.params.orderId, req.params.id, tenantId]
+        [req.body.podPhotoUrl || null, req.body.podReceivedBy || null, req.params.orderId, req.params.id, tenantId]
       ) as any;
       if (!result.affectedRows) { res.status(404).json({ success: false, error: 'Parada no encontrada' }); return; }
       await logTransition(tenantId, req.params.orderId, 'despachado', 'entregado', req.user!.userId, 'Entregado en ruta');
+      logStage(tenantId, req.params.orderId, 'entregado', req.user!.userId).catch(() => {});
 
       // ¿Era la última parada? → cerrar la ruta y liberar vehículo automáticamente
       const [pending] = await pool.query(

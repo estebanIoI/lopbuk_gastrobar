@@ -8,6 +8,7 @@ import {
   Truck, ChevronRight, RefreshCw, User, LogOut, List, History,
   Map as MapIcon, Store, X,
 } from 'lucide-react';
+import { CloudinaryUpload } from '@/components/ui/cloudinary-upload';
 
 const formatCOP = (v: number) =>
   new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(v);
@@ -67,6 +68,10 @@ export function DriverPanel() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const [driverPos, setDriverPos] = useState<{ lat: number; lng: number } | null>(null);
+  // Prueba de entrega (F5): pedido pendiente de confirmar con foto/receptor
+  const [podOrderId, setPodOrderId] = useState<string | null>(null);
+  const [podPhoto, setPodPhoto] = useState('');
+  const [podReceiver, setPodReceiver] = useState('');
 
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
@@ -75,13 +80,23 @@ export function DriverPanel() {
   const Lref = useRef<any>(null);
   const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
-  // GPS
+  // GPS: posición local + ping al backend cada 3 min (tracking F5 — el Centro de
+  // Comando y el portal del cliente ven la posición mientras la ruta está activa)
   useEffect(() => {
     if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition(
-      (p) => setDriverPos({ lat: p.coords.latitude, lng: p.coords.longitude }),
-      () => {}
-    );
+    const report = () => {
+      navigator.geolocation.getCurrentPosition(
+        (p) => {
+          const pos = { lat: p.coords.latitude, lng: p.coords.longitude };
+          setDriverPos(pos);
+          api.pingMyRoute(pos.lat, pos.lng).catch(() => {});
+        },
+        () => {}
+      );
+    };
+    report();
+    const t = setInterval(report, 180000);
+    return () => clearInterval(t);
   }, []);
 
   // Load orders
@@ -230,12 +245,18 @@ export function DriverPanel() {
     setActionLoading(null);
   };
 
-  const handleUpdateStatus = async (orderId: string, newStatus: string) => {
+  const handleUpdateStatus = async (orderId: string, newStatus: string, pod?: { podPhotoUrl?: string; podReceivedBy?: string }) => {
+    // Prueba de entrega (F5): al marcar entregado se pide foto/receptor primero
+    if (newStatus === 'entregado' && !pod) {
+      setPodOrderId(orderId);
+      return;
+    }
     setActionLoading(orderId);
-    const res = await api.updateDeliveryStatus(orderId, newStatus);
+    const res = await api.updateDeliveryStatus(orderId, newStatus, pod);
     if (res.success) {
       if (newStatus === 'entregado') {
         setMyOrders(p => p.filter(o => o.id !== orderId));
+        setPodOrderId(null);
       } else {
         setMyOrders(p => p.map(o => o.id === orderId ? { ...o, deliveryStatus: newStatus } : o));
       }
@@ -551,6 +572,56 @@ export function DriverPanel() {
             </div>
         </div>
       </div>
+
+      {/* Prueba de entrega (F5): foto + quién recibe antes de confirmar */}
+      {podOrderId && (
+        <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center" onClick={() => setPodOrderId(null)}>
+          <div className="absolute inset-0 bg-black/50" />
+          <div
+            className="relative w-full sm:max-w-sm bg-white rounded-t-2xl sm:rounded-2xl p-4 space-y-3 shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          >
+            <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+              <CheckCircle2 className="w-5 h-5 text-green-600" /> Confirmar entrega
+            </h3>
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">¿Quién recibió? (nombre)</label>
+              <input
+                value={podReceiver}
+                onChange={e => setPodReceiver(e.target.value)}
+                placeholder="Ej: Sra. Marta — portería"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">Foto de la entrega (opcional)</label>
+              <CloudinaryUpload value={podPhoto} onChange={setPodPhoto} previewClassName="h-24 w-24 object-cover rounded-lg border" />
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={() => { setPodOrderId(null); setPodPhoto(''); setPodReceiver(''); }}
+                className="flex-1 py-2.5 border border-gray-300 text-gray-600 text-sm font-medium rounded-xl"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  const oid = podOrderId;
+                  handleUpdateStatus(oid, 'entregado', {
+                    podPhotoUrl: podPhoto || undefined,
+                    podReceivedBy: podReceiver.trim() || undefined,
+                  }).then(() => { setPodPhoto(''); setPodReceiver(''); });
+                }}
+                disabled={actionLoading === podOrderId}
+                className="flex-1 py-2.5 bg-green-600 text-white text-sm font-medium rounded-xl hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {actionLoading === podOrderId ? <RefreshCw className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                Entregado ✓
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

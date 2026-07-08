@@ -1,0 +1,1 @@
+ALTER TABLE `purchase_invoices` ADD `sede_id` varchar(36);

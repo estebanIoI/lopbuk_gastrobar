@@ -1,0 +1,1 @@
+ALTER TABLE `fleet_vehicles` ADD `next_maintenance_date` date;

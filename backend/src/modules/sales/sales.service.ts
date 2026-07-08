@@ -345,6 +345,17 @@ export class SalesService {
       // Generar numero de factura
       const invoiceNumber = await this.generateInvoiceNumber(connection, tenantId);
 
+      // Multibodega: sede de la venta (explícita o la del vendedor) para
+      // descontar también el desglose sede_stock además del total.
+      let saleSedeId: string | null = data.sedeId || null;
+      if (!saleSedeId && data.sellerId) {
+        const [sellerRows] = await connection.execute<RowDataPacket[]>(
+          'SELECT sede_id FROM users WHERE id = ? LIMIT 1',
+          [data.sellerId]
+        );
+        saleSedeId = (sellerRows[0] as any)?.sede_id || null;
+      }
+
       // Comisión de plataforma del comercio (si está activa): se congela como margin_pct
       // cuando el tier de la variante no define uno propio. Modelo comisión → NO cambia el
       // precio que paga el cliente; solo registra la tajada de la plataforma.
@@ -619,6 +630,14 @@ export class SalesService {
               [requiredQty, ingredient.ingredient_id]
             );
 
+            // Multibodega: descontar también el desglose de la sede (si existe)
+            if (saleSedeId) {
+              await connection.execute(
+                'UPDATE sede_stock SET stock = GREATEST(0, stock - ?) WHERE tenant_id = ? AND sede_id = ? AND product_id = ?',
+                [requiredQty, tenantId, saleSedeId, ingredient.ingredient_id]
+              );
+            }
+
             // Registrar movimiento de insumo
             await connection.execute(
               `INSERT INTO stock_movements (id, tenant_id, product_id, type, quantity, previous_stock, new_stock, reason, reference_id, user_id)
@@ -642,6 +661,14 @@ export class SalesService {
             'UPDATE products SET stock = stock - ? WHERE id = ?',
             [item.quantity, item.productId]
           );
+
+          // Multibodega: descontar también el desglose de la sede (si existe)
+          if (saleSedeId) {
+            await connection.execute(
+              'UPDATE sede_stock SET stock = GREATEST(0, stock - ?) WHERE tenant_id = ? AND sede_id = ? AND product_id = ?',
+              [item.quantity, tenantId, saleSedeId, item.productId]
+            );
+          }
 
           // Registrar movimiento de stock
           await connection.execute(
@@ -729,7 +756,7 @@ export class SalesService {
           data.paymentMethod === 'mixto' ? (data.mixedSecondAmount ?? null) : null,
           data.sellerId,
           data.sellerName,
-          data.sedeId || null,
+          saleSedeId,
           cashSessionId,
           creditStatus,
           dueDate,
@@ -831,6 +858,14 @@ export class SalesService {
           'UPDATE products SET stock = stock + ? WHERE id = ?',
           [item.quantity, item.product_id]
         );
+
+        // Multibodega: devolver también el desglose a la sede de la venta
+        if (sale.sede_id) {
+          await connection.execute(
+            'UPDATE sede_stock SET stock = stock + ? WHERE tenant_id = ? AND sede_id = ? AND product_id = ?',
+            [item.quantity, sale.tenant_id, sale.sede_id, item.product_id]
+          );
+        }
 
         // Registrar movimiento de stock
         await connection.execute(

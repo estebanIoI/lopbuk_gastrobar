@@ -1,0 +1,1 @@
+CREATE INDEX `idx_order_tracking_token` ON `storefront_orders` (`tracking_token`);

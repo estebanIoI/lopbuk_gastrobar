@@ -72,12 +72,14 @@ import {
   X,
   Check,
   Cloud,
+  Warehouse,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { BarcodeScanner } from '@/components/barcode-scanner'
 import { RemoteScanner } from '@/components/remote-scanner'
 import { BulkUploadDialog } from '@/components/bulk-upload-dialog'
 import { HormaManager } from '@/components/horma-manager'
+import { SedeStockPanel } from '@/components/sede-stock-panel'
 import { CloudinaryPickerModal } from '@/components/cloudinary-bulk-wizard/CloudinaryPickerModal'
 
 // Orden estándar de confección — se usa en todos lados donde se muestran tallas
@@ -438,6 +440,7 @@ export function InventoryList() {
   const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false)
   const [isHormaManagerOpen, setIsHormaManagerOpen] = useState(false)
   const [isSedeDialogOpen, setIsSedeDialogOpen] = useState(false)
+  const [isSedeStockOpen, setIsSedeStockOpen] = useState(false)
   const [isImageDialogOpen, setIsImageDialogOpen] = useState(false)
   const [imageDialogData, setImageDialogData] = useState<{ imageUrl: string; images: string[] }>({ imageUrl: '', images: ['', '', '', ''] })
   const [isSavingImages, setIsSavingImages] = useState(false)
@@ -1042,6 +1045,12 @@ export function InventoryList() {
             <MapPin className="h-4 w-4 lg:h-5 lg:w-5" />
             Sedes
           </Button>
+          {sedes.length >= 2 && (
+            <Button variant="outline" onClick={() => setIsSedeStockOpen(true)} className="gap-2 h-10 lg:h-11 text-sm lg:text-base">
+              <Warehouse className="h-4 w-4 lg:h-5 lg:w-5" />
+              Bodegas
+            </Button>
+          )}
           <Button variant="outline" onClick={() => setIsCategoryDialogOpen(true)} className="gap-2 h-10 lg:h-11 text-sm lg:text-base">
             <Tags className="h-4 w-4 lg:h-5 lg:w-5" />
             Categorías
@@ -2382,6 +2391,11 @@ export function InventoryList() {
 
       {/* Horma Manager */}
       <HormaManager open={isHormaManagerOpen} onClose={() => setIsHormaManagerOpen(false)} />
+
+      {/* Multibodega: stock por sede + transferencias */}
+      {isSedeStockOpen && (
+        <SedeStockPanel open={isSedeStockOpen} onClose={() => { setIsSedeStockOpen(false); fetchProducts() }} sedes={sedes} />
+      )}
 
       {/* Cloudinary Picker — importar imágenes y crear productos masivamente */}
       <CloudinaryPickerModal

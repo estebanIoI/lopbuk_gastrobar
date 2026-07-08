@@ -1599,6 +1599,8 @@ export const fleetVehicles = mysqlTable("fleet_vehicles", {
 	maintenanceEveryKm: int("maintenance_every_km").default(0).notNull(),
 	/** Odómetro del último mantenimiento completado (para la alerta por km) */
 	lastMaintenanceKm: int("last_maintenance_km").default(0).notNull(),
+	/** Mantenimiento preventivo por fecha: próximo servicio programado */
+	nextMaintenanceDate: date("next_maintenance_date", { mode: 'string' }),
 	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
@@ -1652,6 +1654,10 @@ export const dispatchRoutes = mysqlTable("dispatch_routes", {
 	startedAt: timestamp("started_at", { mode: 'string' }),
 	closedAt: timestamp("closed_at", { mode: 'string' }),
 	notes: varchar({ length: 300 }),
+	// Tracking (F5): última posición reportada por el teléfono del conductor
+	lastLat: decimal("last_lat", { precision: 10, scale: 7 }),
+	lastLng: decimal("last_lng", { precision: 10, scale: 7 }),
+	lastPingAt: timestamp("last_ping_at", { mode: 'string' }),
 	createdBy: varchar("created_by", { length: 36 }).references(() => users.id, { onDelete: "set null" } ),
 	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
@@ -2014,6 +2020,30 @@ export const orderStatusHistory = mysqlTable("order_status_history", {
 		idxOshOrder: index("idx_osh_order").on(table.orderId),
 		idxOshTenant: index("idx_osh_tenant").on(table.tenantId),
 		orderStatusHistoryId: primaryKey({ columns: [table.id], name: "order_status_history_id"}),
+	}
+});
+
+// Tiempos por etapa (ferretería F4): línea de tiempo canónica de cada pedido para
+// medir CUELLOS DE BOTELLA. Se escribe un evento en cada transición con
+// duration_seconds = tiempo desde la etapa anterior (precalculado → analítica trivial).
+// Etapas: confirmado → en_picking → preparado → cargado → despachado → entregado.
+export const orderStageEvents = mysqlTable("order_stage_events", {
+	id: bigint({ mode: "number", unsigned: true }).autoincrement().notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+	orderId: varchar("order_id", { length: 36 }).notNull(),
+	stage: mysqlEnum(['confirmado','en_picking','preparado','cargado','despachado','entregado','cancelado']).notNull(),
+	fromStage: varchar("from_stage", { length: 30 }),
+	durationSeconds: int("duration_seconds"),
+	sedeId: varchar("sede_id", { length: 36 }),
+	userId: varchar("user_id", { length: 36 }),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+},
+(table) => {
+	return {
+		idxStageEventsOrder: index("idx_stage_events_order").on(table.orderId),
+		idxStageEventsTenantStage: index("idx_stage_events_tenant_stage").on(table.tenantId, table.stage),
+		idxStageEventsTenantDate: index("idx_stage_events_tenant_date").on(table.tenantId, table.createdAt),
+		orderStageEventsId: primaryKey({ columns: [table.id], name: "order_stage_events_id"}),
 	}
 });
 
@@ -2439,6 +2469,8 @@ export const products = mysqlTable("products", {
 	sku: varchar({ length: 50 }).notNull(),
 	barcode: varchar({ length: 100 }),
 	stock: int().default(0).notNull(),
+	// Cotizaciones/apartados: unidades comprometidas (disponible = stock - reserved_stock)
+	reservedStock: int("reserved_stock").default(0).notNull(),
 	reorderPoint: int("reorder_point").default(5).notNull(),
 	supplier: varchar({ length: 255 }),
 	supplierId: varchar("supplier_id", { length: 50 }).references(() => suppliers.id, { onDelete: "set null" } ),
@@ -2646,6 +2678,12 @@ export const purchaseInvoices = mysqlTable("purchase_invoices", {
 	notes: text(),
 	mixedEfectivoAmount: decimal("mixed_efectivo_amount", { precision: 12, scale: 2 }),
 	mixedTransferenciaAmount: decimal("mixed_transferencia_amount", { precision: 12, scale: 2 }),
+	// Recepción de mercancía (F4): mide el tiempo llegada→almacenado por proveedor.
+	arrivalAt: timestamp("arrival_at", { mode: 'string' }),
+	receivedAt: timestamp("received_at", { mode: 'string' }),
+	receivedBy: varchar("received_by", { length: 36 }),
+	// Bodega destino de la compra (multibodega): al recibir, el stock entra a esta sede.
+	sedeId: varchar("sede_id", { length: 36 }),
 	createdBy: varchar("created_by", { length: 50 }).references(() => users.id, { onDelete: "set null" } ),
 	synced: tinyint().default(1).notNull(),
 	syncedAt: timestamp("synced_at", { mode: 'string' }),
@@ -3414,6 +3452,11 @@ export const sedes = mysqlTable("sedes", {
 	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" } ),
 	name: varchar({ length: 100 }).notNull(),
 	address: varchar({ length: 500 }),
+	// Multibodega: tipo de ubicación, contacto y encargado
+	type: mysqlEnum(['punto_venta','bodega','mixta']).default('mixta').notNull(),
+	phone: varchar({ length: 30 }),
+	managerId: varchar("manager_id", { length: 36 }),
+	isActive: tinyint("is_active").default(1).notNull(),
 	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
@@ -3421,6 +3464,130 @@ export const sedes = mysqlTable("sedes", {
 	return {
 		idxSedesTenant: index("idx_sedes_tenant").on(table.tenantId),
 		sedesId: primaryKey({ columns: [table.id], name: "sedes_id"}),
+	}
+});
+
+// Multibodega: desglose del stock de un producto por sede/bodega.
+// products.stock sigue siendo el TOTAL consolidado (fuente de verdad de los flujos
+// existentes); sede_stock es la distribución. Transferencias mueven desglose sin
+// alterar el total; ventas descuentan total + desglose de su sede.
+export const sedeStock = mysqlTable("sede_stock", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" } ),
+	sedeId: varchar("sede_id", { length: 36 }).notNull(),
+	productId: varchar("product_id", { length: 36 }).notNull(),
+	stock: decimal({ precision: 12, scale: 3 }).default('0.000').notNull(),
+	reservedStock: decimal("reserved_stock", { precision: 12, scale: 3 }).default('0.000').notNull(),
+	minStock: decimal("min_stock", { precision: 12, scale: 3 }).default('0.000').notNull(),
+	// Picking: ubicación física en ESTA bodega (ej. "P2-B3-N1" pasillo-bloque-nivel).
+	// Fallback general: products.location_in_store.
+	warehouseLocation: varchar("warehouse_location", { length: 50 }),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
+},
+(table) => {
+	return {
+		idxSedeStockTenant: index("idx_sede_stock_tenant").on(table.tenantId),
+		idxSedeStockProduct: index("idx_sede_stock_product").on(table.productId),
+		sedeStockId: primaryKey({ columns: [table.id], name: "sede_stock_id"}),
+		uqSedeStock: unique("uq_sede_stock").on(table.sedeId, table.productId),
+	}
+});
+
+// Picking (ferretería F3): cola de preparación de pedidos en bodega.
+// El auxiliar toma la tarea, recorre la bodega guiado por ubicaciones y la marca
+// preparada ANTES de que llegue el vehículo. pendiente → en_preparacion → preparada.
+// items: [{ productId, productName, quantity, location }] ordenados por ubicación.
+export const pickingTasks = mysqlTable("picking_tasks", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" } ),
+	orderId: varchar("order_id", { length: 36 }).notNull(),
+	orderNumber: varchar("order_number", { length: 20 }),
+	customerName: varchar("customer_name", { length: 255 }),
+	sedeId: varchar("sede_id", { length: 36 }),
+	items: json().notNull(),
+	status: mysqlEnum(['pendiente','en_preparacion','preparada','cancelada']).default('pendiente').notNull(),
+	priority: int().default(0).notNull(),
+	assignedTo: varchar("assigned_to", { length: 36 }),
+	notes: varchar({ length: 500 }),
+	takenAt: timestamp("taken_at", { mode: 'string' }),
+	completedAt: timestamp("completed_at", { mode: 'string' }),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
+},
+(table) => {
+	return {
+		idxPickingTenantStatus: index("idx_picking_tenant_status").on(table.tenantId, table.status),
+		idxPickingAssigned: index("idx_picking_assigned").on(table.assignedTo),
+		idxPickingCreated: index("idx_picking_created").on(table.tenantId, table.createdAt),
+		pickingTasksId: primaryKey({ columns: [table.id], name: "picking_tasks_id"}),
+		uqPickingOrder: unique("uq_picking_order").on(table.orderId),
+	}
+});
+
+// Multibodega: transferencia de mercancía entre sedes con flujo auditado
+// solicitada → en_transito (descuenta origen) → recibida (suma destino) | cancelada
+export const stockTransfers = mysqlTable("stock_transfers", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" } ),
+	transferNumber: varchar("transfer_number", { length: 20 }).notNull(),
+	fromSedeId: varchar("from_sede_id", { length: 36 }).notNull(),
+	toSedeId: varchar("to_sede_id", { length: 36 }).notNull(),
+	// items: [{ productId, productName, quantity }]
+	items: json().notNull(),
+	status: mysqlEnum(['solicitada','en_transito','recibida','cancelada']).default('solicitada').notNull(),
+	notes: varchar({ length: 500 }),
+	requestedBy: varchar("requested_by", { length: 36 }),
+	sentBy: varchar("sent_by", { length: 36 }),
+	receivedBy: varchar("received_by", { length: 36 }),
+	sentAt: timestamp("sent_at", { mode: 'string' }),
+	receivedAt: timestamp("received_at", { mode: 'string' }),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
+},
+(table) => {
+	return {
+		idxStockTransfersTenant: index("idx_stock_transfers_tenant").on(table.tenantId),
+		idxStockTransfersStatus: index("idx_stock_transfers_status").on(table.tenantId, table.status),
+		stockTransfersId: primaryKey({ columns: [table.id], name: "stock_transfers_id"}),
+	}
+});
+
+// Cotizaciones (ferretería F2): el cliente cotiza su proyecto → se acepta (reserva
+// stock por sede) → se convierte en venta con 1 clic (sale_id) o vence/cancela
+// (libera la reserva). items: [{ productId, productName, quantity, unitPrice, subtotal }]
+export const quotes = mysqlTable("quotes", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" } ),
+	quoteNumber: varchar("quote_number", { length: 20 }).notNull(),
+	customerId: varchar("customer_id", { length: 36 }),
+	customerName: varchar("customer_name", { length: 255 }),
+	customerPhone: varchar("customer_phone", { length: 30 }),
+	customerEmail: varchar("customer_email", { length: 255 }),
+	sellerId: varchar("seller_id", { length: 36 }),
+	sellerName: varchar("seller_name", { length: 255 }),
+	sedeId: varchar("sede_id", { length: 36 }),
+	items: json().notNull(),
+	subtotal: decimal({ precision: 12, scale: 2 }).default('0.00').notNull(),
+	discount: decimal({ precision: 12, scale: 2 }).default('0.00').notNull(),
+	tax: decimal({ precision: 12, scale: 2 }).default('0.00').notNull(),
+	total: decimal({ precision: 12, scale: 2 }).default('0.00').notNull(),
+	status: mysqlEnum(['borrador','enviada','aceptada','facturada','vencida','cancelada']).default('borrador').notNull(),
+	validUntil: date("valid_until", { mode: 'string' }),
+	deliveryPromise: date("delivery_promise", { mode: 'string' }),
+	notes: varchar({ length: 1000 }),
+	saleId: varchar("sale_id", { length: 36 }),
+	sentAt: timestamp("sent_at", { mode: 'string' }),
+	acceptedAt: timestamp("accepted_at", { mode: 'string' }),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
+},
+(table) => {
+	return {
+		idxQuotesTenant: index("idx_quotes_tenant").on(table.tenantId),
+		idxQuotesStatus: index("idx_quotes_status").on(table.tenantId, table.status),
+		idxQuotesCreated: index("idx_quotes_created").on(table.tenantId, table.createdAt),
+		quotesId: primaryKey({ columns: [table.id], name: "quotes_id"}),
 	}
 });
 
@@ -3889,6 +4056,12 @@ export const storefrontOrders = mysqlTable("storefront_orders", {
 	routeId: varchar("route_id", { length: 36 }),
 	routeSequence: int("route_sequence"),
 	sedeId: varchar("sede_id", { length: 36 }),
+	// Promesa de entrega al cliente (F4): base para detectar pedidos en riesgo.
+	promisedAt: datetime("promised_at", { mode: 'string' }),
+	// Tracking público + prueba de entrega (F5)
+	trackingToken: varchar("tracking_token", { length: 48 }),
+	podPhotoUrl: varchar("pod_photo_url", { length: 500 }),
+	podReceivedBy: varchar("pod_received_by", { length: 120 }),
 },
 (table) => {
 	return {
@@ -3902,6 +4075,7 @@ export const storefrontOrders = mysqlTable("storefront_orders", {
 		idxOrderTenantDate: index("idx_order_tenant_date").on(table.tenantId, table.createdAt),
 		idxOrderTenantStatus: index("idx_order_tenant_status").on(table.tenantId, table.status),
 		idxOrderVehicle: index("idx_order_vehicle").on(table.vehicleId),
+		idxOrderTrackingToken: index("idx_order_tracking_token").on(table.trackingToken),
 		storefrontOrdersId: primaryKey({ columns: [table.id], name: "storefront_orders_id"}),
 	}
 });
@@ -4408,6 +4582,8 @@ export const users = mysqlTable("users", {
 	dataEncrypted: tinyint("data_encrypted").default(0).notNull(),
 	// Organigrama: a quién le reporta este colaborador (self-ref, mismo tenant)
 	managerId: varchar("manager_id", { length: 36 }),
+	// Multibodega: sede a la que pertenece el colaborador (ventas descuentan de aquí)
+	sedeId: varchar("sede_id", { length: 36 }),
 },
 (table) => {
 	return {
