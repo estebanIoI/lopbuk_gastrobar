@@ -26,6 +26,7 @@ import {
   Crown,
   Store,
   ClipboardList,
+  ClipboardCheck,
   Ticket,
   FlaskConical,
   ShoppingBag,
@@ -121,6 +122,7 @@ const navigation: NavItem[] = [
   // flota ferretería
   { id: 'fleet', name: 'Mi Flota', icon: Truck, adminOnly: true, superadminOnly: false, merchantOnly: true, group: 'ops' },
   { id: 'picking', name: 'Picking Bodega', icon: ClipboardList, adminOnly: false, superadminOnly: false, merchantOnly: true, group: 'ops' },
+  { id: 'conteo', name: 'Conteo Inventario', icon: ClipboardCheck, adminOnly: true, superadminOnly: false, merchantOnly: true, group: 'ops' },
   { id: 'tiempos', name: 'Tiempos Operación', icon: Gauge, adminOnly: true, superadminOnly: false, merchantOnly: true, group: 'ops' },
   { id: 'gerencia', name: 'Gerencia', icon: LayoutDashboard, adminOnly: true, superadminOnly: false, merchantOnly: true, group: 'reports' },
   // inmobiliaria
@@ -185,6 +187,8 @@ export function Sidebar() {
     if (item.id === 'cotizaciones') return !activeModules || activeModules.includes('cotizaciones') || activeModules.includes('pos')
     // Picking: módulo nuevo — visible con flota o inventario (bodega/logística).
     if (item.id === 'picking') return !activeModules || activeModules.includes('picking') || activeModules.includes('fleet') || activeModules.includes('inventory')
+    // Conteo: módulo nuevo — visible con inventario.
+    if (item.id === 'conteo') return !activeModules || activeModules.includes('conteo') || activeModules.includes('inventory')
     // Tiempos: módulo nuevo — visible con flota (operación logística).
     if (item.id === 'tiempos') return !activeModules || activeModules.includes('tiempos') || activeModules.includes('fleet')
     // Gerencia: módulo nuevo — visible con analytics (dominio reportes).

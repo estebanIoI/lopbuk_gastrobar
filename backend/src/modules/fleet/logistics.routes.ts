@@ -16,6 +16,58 @@ const router: ReturnType<typeof Router> = Router();
 
 const OPS_ROLES = ['comerciante', 'superadmin', 'despachador'] as const;
 
+// ── Optimización de secuencia de paradas (Bloque E) ─────────────────────────────
+type Pt = { lat: number; lng: number };
+function haversineKm(a: Pt, b: Pt): number {
+  const R = 6371;
+  const dLat = (b.lat - a.lat) * Math.PI / 180;
+  const dLng = (b.lng - a.lng) * Math.PI / 180;
+  const s = Math.sin(dLat / 2) ** 2 +
+    Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s));
+}
+/** Distancia total del recorrido origen → paradas en orden. */
+function pathKm(origin: Pt, order: Pt[]): number {
+  let total = 0, prev = origin;
+  for (const p of order) { total += haversineKm(prev, p); prev = p; }
+  return total;
+}
+/** Vecino más cercano desde el origen. */
+function nearestNeighbor(origin: Pt, pts: Pt[]): number[] {
+  const remaining = pts.map((_, i) => i);
+  const order: number[] = [];
+  let cur = origin;
+  while (remaining.length) {
+    let best = 0, bestD = Infinity;
+    for (let k = 0; k < remaining.length; k++) {
+      const d = haversineKm(cur, pts[remaining[k]]);
+      if (d < bestD) { bestD = d; best = k; }
+    }
+    const idx = remaining.splice(best, 1)[0];
+    order.push(idx); cur = pts[idx];
+  }
+  return order;
+}
+/** Mejora local 2-opt sobre un orden de índices. */
+function twoOpt(origin: Pt, pts: Pt[], order: number[]): number[] {
+  const dist = (o: number[]) => pathKm(origin, o.map(i => pts[i]));
+  let best = order.slice();
+  let bestD = dist(best);
+  let improved = true;
+  let guard = 0;
+  while (improved && guard++ < 50) {
+    improved = false;
+    for (let i = 0; i < best.length - 1; i++) {
+      for (let j = i + 1; j < best.length; j++) {
+        const candidate = best.slice(0, i).concat(best.slice(i, j + 1).reverse(), best.slice(j + 1));
+        const d = dist(candidate);
+        if (d + 1e-9 < bestD) { best = candidate; bestD = d; improved = true; }
+      }
+    }
+  }
+  return best;
+}
+
 /** Emite un evento al centro de operaciones del tenant (tablero en vivo). */
 export function emitOps(tenantId: string, event: string, payload: Record<string, unknown>): void {
   const io = (global as any).__deliveryIO;
@@ -182,6 +234,79 @@ router.post(
     } catch (error) {
       console.error('Service done error:', error);
       res.status(500).json({ success: false, error: 'Error al registrar el mantenimiento' });
+    }
+  }
+);
+
+// POST /api/fleet/routes/:id/optimize — reordena las paradas para minimizar km (Bloque E)
+router.post(
+  '/routes/:id/optimize',
+  authorize(...OPS_ROLES),
+  [param('id').notEmpty(), validateRequest],
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const tenantId = req.user!.tenantId!;
+      const [routes] = await pool.query(
+        'SELECT id FROM dispatch_routes WHERE id = ? AND tenant_id = ?', [req.params.id, tenantId]
+      ) as any;
+      if (!routes.length) { res.status(404).json({ success: false, error: 'Ruta no encontrada' }); return; }
+
+      // Paradas pendientes (no entregadas) de la ruta, en su orden actual
+      const [stops] = await pool.query(
+        `SELECT id, delivery_latitude AS lat, delivery_longitude AS lng, route_sequence AS seq
+           FROM storefront_orders
+          WHERE route_id = ? AND tenant_id = ? AND dispatch_status != 'entregado'
+          ORDER BY route_sequence ASC, created_at ASC`,
+        [req.params.id, tenantId]
+      ) as any;
+
+      const withCoords = (stops as any[]).filter(s => s.lat != null && s.lng != null)
+        .map(s => ({ id: s.id, lat: Number(s.lat), lng: Number(s.lng) }));
+      const withoutCoords = (stops as any[]).filter(s => s.lat == null || s.lng == null);
+
+      if (withCoords.length < 2) {
+        res.json({ success: true, data: { optimized: false, reason: 'Se necesitan al menos 2 paradas con ubicación', stops: stops.length } });
+        return;
+      }
+
+      // Origen = ubicación de la tienda (depósito); si no hay, la primera parada
+      const [[store]] = await pool.query(
+        'SELECT latitude, longitude FROM store_info WHERE tenant_id = ? LIMIT 1', [tenantId]
+      ) as any;
+      const origin: Pt = store?.latitude != null && store?.longitude != null
+        ? { lat: Number(store.latitude), lng: Number(store.longitude) }
+        : { lat: withCoords[0].lat, lng: withCoords[0].lng };
+
+      const pts: Pt[] = withCoords.map(s => ({ lat: s.lat, lng: s.lng }));
+      const kmBefore = pathKm(origin, pts);
+      const nnOrder = nearestNeighbor(origin, pts);
+      const optOrder = twoOpt(origin, pts, nnOrder);
+      const kmAfter = pathKm(origin, optOrder.map(i => pts[i]));
+
+      // Reescribir route_sequence: primero las paradas con coords en el orden óptimo,
+      // luego las sin coords conservando su orden relativo
+      let seq = 1;
+      for (const idx of optOrder) {
+        await pool.query('UPDATE storefront_orders SET route_sequence = ? WHERE id = ?', [seq++, withCoords[idx].id]);
+      }
+      for (const s of withoutCoords) {
+        await pool.query('UPDATE storefront_orders SET route_sequence = ? WHERE id = ?', [seq++, s.id]);
+      }
+
+      emitOps(tenantId, 'dispatch-changed', { kind: 'route-optimized', routeId: req.params.id });
+      res.json({
+        success: true,
+        data: {
+          optimized: true,
+          stops: withCoords.length,
+          kmBefore: Math.round(kmBefore * 10) / 10,
+          kmAfter: Math.round(kmAfter * 10) / 10,
+          savedKm: Math.max(0, Math.round((kmBefore - kmAfter) * 10) / 10),
+        },
+      });
+    } catch (error) {
+      console.error('Optimize route error:', error);
+      res.status(500).json({ success: false, error: 'Error al optimizar la ruta' });
     }
   }
 );
@@ -614,7 +739,9 @@ router.patch(
             `🚚 ¡Tu pedido #${n} salió y va en camino! Te avisamos al llegar.${url ? `\n\n📍 Síguelo en vivo aquí:\n${url}` : ''}`
           ).catch(() => {});
         } else {
-          notifyCustomers(tenantId, ids, n => `✅ Tu pedido #${n} fue entregado. ¡Gracias por tu compra!`).catch(() => {});
+          notifyCustomers(tenantId, ids, (n, url) =>
+            `✅ Tu pedido #${n} fue entregado. ¡Gracias por tu compra!${url ? `\n\n⭐ ¿Cómo estuvo? Califícanos aquí:\n${url}#calificar` : ''}`
+          ).catch(() => {});
         }
       }
 
@@ -699,7 +826,9 @@ router.patch(
         );
         routeClosed = true;
       }
-      notifyCustomers(tenantId, [req.params.orderId], n => `✅ Tu pedido #${n} fue entregado. ¡Gracias por tu compra!`).catch(() => {});
+      notifyCustomers(tenantId, [req.params.orderId], (n, url) =>
+        `✅ Tu pedido #${n} fue entregado. ¡Gracias por tu compra!${url ? `\n\n⭐ ¿Cómo estuvo? Califícanos aquí:\n${url}#calificar` : ''}`
+      ).catch(() => {});
       emitOps(tenantId, 'dispatch-changed', { kind: 'stop-delivered', routeId: req.params.id, orderId: req.params.orderId, routeClosed });
       res.json({ success: true, data: { delivered: true, routeClosed } });
     } catch (error) {

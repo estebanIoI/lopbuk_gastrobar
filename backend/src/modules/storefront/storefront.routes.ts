@@ -3339,6 +3339,7 @@ router.get('/tracking/:token', async (req: Request, res: Response) => {
               o.customer_name AS customerName, o.municipality, o.neighborhood,
               o.promised_at AS promisedAt, o.created_at AS createdAt,
               o.pod_photo_url AS podPhotoUrl, o.pod_received_by AS podReceivedBy,
+              o.rating, o.rating_comment AS ratingComment,
               o.delivery_delivered_at AS deliveredAt,
               r.status AS routeStatus, r.last_lat AS lastLat, r.last_lng AS lastLng,
               r.last_ping_at AS lastPingAt,
@@ -3386,6 +3387,7 @@ router.get('/tracking/:token', async (req: Request, res: Response) => {
         pod: order.podPhotoUrl || order.podReceivedBy
           ? { photoUrl: order.podPhotoUrl, receivedBy: order.podReceivedBy }
           : null,
+        rating: order.rating != null ? { stars: Number(order.rating), comment: order.ratingComment || null } : null,
       },
     });
   } catch (error) {
@@ -3393,6 +3395,41 @@ router.get('/tracking/:token', async (req: Request, res: Response) => {
     res.status(500).json({ success: false, error: 'Error al cargar el seguimiento' });
   }
 });
+
+// POST /api/storefront/tracking/:token/rating — el cliente califica su entrega (público).
+// Solo válido en pedidos ya entregados. Sin login: el token es la llave.
+router.post(
+  '/tracking/:token/rating',
+  [
+    body('stars').isInt({ min: 1, max: 5 }),
+    body('comment').optional({ nullable: true }).isString().isLength({ max: 500 }),
+    validateRequest,
+  ],
+  async (req: Request, res: Response) => {
+    try {
+      const token = String(req.params.token || '');
+      if (token.length < 20) { res.status(404).json({ success: false, error: 'Seguimiento no encontrado' }); return; }
+
+      const [[order]] = await pool.query(
+        `SELECT id, dispatch_status, status FROM storefront_orders WHERE tracking_token = ? LIMIT 1`,
+        [token]
+      ) as any;
+      if (!order) { res.status(404).json({ success: false, error: 'Seguimiento no encontrado' }); return; }
+
+      const delivered = order.dispatch_status === 'entregado' || order.status === 'entregado';
+      if (!delivered) { res.status(400).json({ success: false, error: 'Solo puedes calificar un pedido entregado' }); return; }
+
+      await pool.query(
+        `UPDATE storefront_orders SET rating = ?, rating_comment = ?, rating_at = NOW() WHERE id = ?`,
+        [Number(req.body.stars), req.body.comment || null, order.id]
+      );
+      res.json({ success: true, data: { rated: true, stars: Number(req.body.stars) } });
+    } catch (error) {
+      console.error('Rating error:', error);
+      res.status(500).json({ success: false, error: 'Error al registrar la calificación' });
+    }
+  }
+);
 
 export default router;
 

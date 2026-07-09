@@ -10,7 +10,8 @@
 - ✅ F6: módulo **"Gerencia"** — ventas + embudo en vivo + logística + talento + inventario en una pantalla; mapa de calor por zona; sugerencia de compra por consumo real.
 - ✅ **Plan completo**: multibodega, cotizaciones, picking, tiempos, tracking, gerencia. Migraciones 0015–0021.
 - ✅ **Pendientes cerrados [07-08] (E2E 15/15, migr. 0022/0023)**: pedidos descuentan sede · recepción de compras con bodega destino · alerta min_stock por sede · mantenimiento preventivo km/fecha · promesa de entrega automática.
-- ⏳ Solo falta redeploy (back+front) a producción — nada de código pendiente.
+- ✅ **Cierre de vacíos de auditoría** (plan A–G): **A ✅ 8/8** · **B ✅ 19/19** (migr. 0024) · **C ✅ 9/9** (migr. 0025) · **D ✅ 10/10** (migr. 0026) · **E ✅ 9/9** (sin migración). **F 2FA pospuesto** por el comerciante. **G DIAN pendiente** (falta elegir proveedor; fase aparte). Todo lo accionable sin decisiones externas está cerrado. Migraciones totales del proyecto: 0015–0026.
+- ⏳ Redeploy (back+front) a producción pendiente.
 
 ## 🆕 [2026-07-07] Tiempos F4 — cuellos de botella + pedidos en riesgo + recepción (✅ E2E 17/17)
 

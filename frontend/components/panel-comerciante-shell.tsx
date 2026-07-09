@@ -31,6 +31,7 @@ const NAV: NavGroup[] = [
       { id: 'recipes', label: 'Recetas BOM', icon: FlaskConical, adminOnly: true, warehouse: true },
       { id: 'purchases', label: 'Compras y proveedores', icon: Truck, adminOnly: true, warehouse: true },
       { id: 'picking', label: 'Picking bodega', icon: ClipboardList, warehouse: true },
+      { id: 'conteo', label: 'Conteo de inventario', icon: ClipboardList, adminOnly: true, warehouse: true },
     ],
   },
   {

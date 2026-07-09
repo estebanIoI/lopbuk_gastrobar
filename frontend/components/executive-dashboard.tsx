@@ -15,7 +15,7 @@ import { Button } from '@/components/ui/button'
 import {
   LayoutDashboard, RefreshCw, Loader2, ShoppingCart, TrendingUp, Truck,
   Users, Package, AlertTriangle, MapPin, ShoppingBag, Flame, Timer,
-  CheckCircle2, FileSpreadsheet, Boxes, Warehouse,
+  CheckCircle2, FileSpreadsheet, Boxes, Warehouse, Star,
 } from 'lucide-react'
 
 const fmtMin = (m: number | null | undefined) => {
@@ -77,6 +77,9 @@ export function ExecutiveDashboard() {
         <Kpi label="Semana" value={formatCOP(d.sales.week.amount)} sub={`${d.sales.week.count} ventas`} />
         <Kpi label="Mes" value={formatCOP(d.sales.month.amount)} sub={`${d.sales.month.count} ventas`} />
         <Kpi label="Cotizaciones" value={`${d.sales.quotes.conversionRate}%`} sub={`${d.sales.quotes.converted}/${d.sales.quotes.month} facturadas · pipeline ${formatCOP(d.sales.quotes.pipeline)}`} icon={<FileSpreadsheet className="h-3.5 w-3.5" />} />
+        {d.operation?.satisfaction?.avg != null && (
+          <Kpi label="Satisfacción" value={`${d.operation.satisfaction.avg} ★`} sub={`${d.operation.satisfaction.count} calificaciones (30 días)`} accent={d.operation.satisfaction.avg >= 4 ? 'text-green-600' : d.operation.satisfaction.avg >= 3 ? 'text-amber-600' : 'text-red-600'} icon={<Star className="h-3.5 w-3.5" />} />
+        )}
       </Section>
 
       {/* Operación: embudo en vivo */}
@@ -89,8 +92,14 @@ export function ExecutiveDashboard() {
                 <AlertTriangle className="h-3.5 w-3.5" /> {d.operation.enRiesgo} en riesgo
               </span>
             )}
+            {d.operation.otif?.rate != null && (
+              <span className={`ml-auto inline-flex items-center gap-1 normal-case font-medium ${d.operation.otif.rate >= 90 ? 'text-green-600' : d.operation.otif.rate >= 75 ? 'text-amber-600' : 'text-red-600'}`}
+                title={`${d.operation.otif.onTime}/${d.operation.otif.withPromise} entregados a tiempo (30 días)`}>
+                <CheckCircle2 className="h-3.5 w-3.5" /> OTIF {d.operation.otif.rate}%
+              </span>
+            )}
             {d.operation.avgCycleMin != null && (
-              <span className="ml-auto inline-flex items-center gap-1 text-muted-foreground normal-case">
+              <span className={`inline-flex items-center gap-1 text-muted-foreground normal-case ${d.operation.otif?.rate != null ? '' : 'ml-auto'}`}>
                 <Timer className="h-3.5 w-3.5" /> ciclo promedio {fmtMin(d.operation.avgCycleMin)}
               </span>
             )}
@@ -112,6 +121,7 @@ export function ExecutiveDashboard() {
           <Kpi label="Vehículos" value={`${d.logistics.vehicles.disponibles} disp.`} sub={`${d.logistics.vehicles.enRuta} en ruta · ${d.logistics.vehicles.mantenimiento} en taller${d.logistics.maintenanceDue ? ` · 🔧 ${d.logistics.maintenanceDue} req. servicio` : ''}`} accent={d.logistics.maintenanceDue > 0 ? 'text-amber-600' : undefined} />
           <Kpi label="Valor en la calle" value={formatCOP(d.logistics.valorEnCalle)} sub={`entregado hoy: ${formatCOP(d.logistics.valorEntregadoHoy)}`} />
           <Kpi label="Costo logístico/entrega" value={d.logistics.costPerDelivery != null ? formatCOP(d.logistics.costPerDelivery) : '—'} sub={`${d.logistics.deliveriesMonth} entregas · gastos mes ${formatCOP(d.logistics.expensesMonth)}`} />
+          <Kpi label="Utilización de flota" value={d.logistics.utilizationPct != null ? `${d.logistics.utilizationPct}%` : '—'} sub="tiempo en ruta (7 días)" accent={d.logistics.utilizationPct != null && d.logistics.utilizationPct < 30 ? 'text-amber-600' : undefined} />
         </Section>
         <Section title="Talento" icon={<Users className="h-4 w-4" />}>
           <Kpi label="Equipo activo" value={String(d.staff.totalStaff)} sub={`${d.staff.drivers} conductores · ${d.staff.auxiliaries} auxiliares`} />
@@ -139,8 +149,9 @@ export function ExecutiveDashboard() {
             <p className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 mb-3">
               <Package className="h-4 w-4 text-primary" /> Inventario
             </p>
-            <div className="grid grid-cols-2 gap-2 mb-3">
+            <div className="grid grid-cols-3 gap-2 mb-3">
               <Kpi label="Valor inventario" value={formatCOP(d.inventory.inventoryValue)} sub={`${d.inventory.reservedUnits} und. reservadas`} />
+              <Kpi label="Rotación (mes)" value={d.inventory.rotationMonthly != null ? `${d.inventory.rotationMonthly}×` : '—'} sub={d.inventory.accuracy != null ? `exactitud ${d.inventory.accuracy}%` : (d.inventory.daysOfInventory != null ? `${d.inventory.daysOfInventory} días de inventario` : 'sin ventas del mes')} accent={d.inventory.accuracy != null && d.inventory.accuracy < 95 ? 'text-amber-600' : undefined} />
               <Kpi label="Alertas" value={`${d.inventory.outOfStock + d.inventory.lowStock}`} sub={`${d.inventory.outOfStock} agotados · ${d.inventory.lowStock} bajos${d.inventory.sedeLowStock ? ` · ${d.inventory.sedeLowStock} bajo mín. sede` : ''}`} accent={d.inventory.outOfStock > 0 ? 'text-red-500' : undefined} />
             </div>
             <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center gap-1">

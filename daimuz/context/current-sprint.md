@@ -21,6 +21,8 @@ Objetivo: sistema integral para ferretería multi-sede según auditoría de oper
 
 **Pendientes cerrados [2026-07-08] (E2E 15/15):** A) pedidos storefront descuentan sede · B) recepción de compras con bodega destino + tablero accionable · C) alerta min_stock por sede · D) mantenimiento preventivo por km/fecha (due + service-done) · E) promesa de entrega automática al salir a ruta.
 
+**Cierre de vacíos de auditoría (plan A–G):** A ✅ 8/8 · B ✅ 19/19 (migr. 0024) · C ✅ 9/9 (migr. 0025) · D ✅ 10/10 (migr. 0026) · E ✅ 9/9 (optimización de paradas, sin migración). **F 2FA — POSPUESTO por decisión del comerciante [2026-07-08].** **G DIAN — PENDIENTE: falta elegir proveedor** (Factus/Alegra/Siigo/directo); es fase aparte con contrato + credenciales. Con A–E el plan queda completo en todo lo accionable sin decisiones externas.
+
 ### ✅ [2026-07-05]: Sistema Operativo Logístico — flota, rutas y rentabilidad (4 fases, E2E 11/11)
 
 Objetivo: convertir el módulo fleet en un sistema logístico empresarial (ferretería multi-sede). Detalle: [[modules/ferreteria/ferreteria]] + `memory/changelog.md`.

@@ -12,7 +12,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import {
   Package, CheckCircle2, Truck, Clock, MapPin, Store, Phone,
-  RefreshCw, PackageX, ClipboardList, Boxes,
+  RefreshCw, PackageX, ClipboardList, Boxes, Star, Loader2,
 } from 'lucide-react'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'
@@ -150,6 +150,9 @@ export default function TrackingPage() {
           </div>
         )}
 
+        {/* Calificación (satisfacción post-entrega) */}
+        {delivered && <RatingBlock token={token!} existing={data.rating} onRated={load} />}
+
         {/* Línea de tiempo */}
         {data.stages?.length > 0 && (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
@@ -200,6 +203,74 @@ export default function TrackingPage() {
           </a>
         )}
       </div>
+    </div>
+  )
+}
+
+function RatingBlock({ token, existing, onRated }: { token: string; existing: { stars: number; comment: string | null } | null; onRated: () => void }) {
+  const [stars, setStars] = useState(0)
+  const [hover, setHover] = useState(0)
+  const [comment, setComment] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [done, setDone] = useState(false)
+
+  // Ya calificado (por este cliente antes) → mostrar agradecimiento
+  if (existing || done) {
+    const s = existing?.stars ?? stars
+    return (
+      <div id="calificar" className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 text-center">
+        <p className="text-sm font-semibold text-gray-800 mb-1">¡Gracias por tu calificación! 🙏</p>
+        <div className="flex justify-center gap-1 my-2">
+          {[1, 2, 3, 4, 5].map(i => (
+            <Star key={i} className={`h-6 w-6 ${i <= s ? 'text-amber-400 fill-amber-400' : 'text-gray-200'}`} />
+          ))}
+        </div>
+        {existing?.comment && <p className="text-xs text-gray-500 italic">"{existing.comment}"</p>}
+      </div>
+    )
+  }
+
+  const submit = async () => {
+    if (stars < 1) return
+    setSaving(true)
+    try {
+      const res = await fetch(`${API_URL}/storefront/tracking/${token}/rating`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stars, comment: comment.trim() || undefined }),
+      })
+      const json = await res.json()
+      if (json.success) { setDone(true); onRated() }
+    } catch { /* red caída: el cliente puede reintentar */ }
+    setSaving(false)
+  }
+
+  return (
+    <div id="calificar" className="bg-white rounded-2xl shadow-sm border border-indigo-100 p-4 text-center">
+      <p className="text-sm font-semibold text-gray-800">¿Cómo estuvo tu entrega?</p>
+      <p className="text-xs text-gray-500 mb-2">Tu opinión nos ayuda a mejorar</p>
+      <div className="flex justify-center gap-1 my-2">
+        {[1, 2, 3, 4, 5].map(i => (
+          <button key={i} onClick={() => setStars(i)} onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(0)} className="p-1">
+            <Star className={`h-8 w-8 transition-colors ${i <= (hover || stars) ? 'text-amber-400 fill-amber-400' : 'text-gray-200'}`} />
+          </button>
+        ))}
+      </div>
+      {stars > 0 && (
+        <>
+          <textarea
+            value={comment} onChange={e => setComment(e.target.value)}
+            placeholder="Cuéntanos más (opcional)…" rows={2} maxLength={500}
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mt-1 resize-none"
+          />
+          <button
+            onClick={submit} disabled={saving}
+            className="mt-2 w-full py-2.5 bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Star className="h-4 w-4" />} Enviar calificación
+          </button>
+        </>
+      )}
     </div>
   )
 }
