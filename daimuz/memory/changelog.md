@@ -5,6 +5,62 @@
 ---
 
 
+## [2026-07-08] — Cierre de vacíos, Bloque E: optimización de secuencia de paradas (vecino más cercano + 2-opt)
+
+Quinto bloque — de agrupar por zona (ya existía) a ORDENAR en qué orden visitar las paradas para minimizar km. Verificado E2E 9/9. Sin migración.
+
+- **Backend** (`logistics.routes.ts`): helpers `haversineKm` / `pathKm` / `nearestNeighbor` / `twoOpt`. Endpoint `POST /fleet/routes/:id/optimize` — toma las paradas pendientes (no entregadas) con coordenadas, origen = `store_info` lat/lng (fallback: primera parada), calcula vecino más cercano + mejora 2-opt (guard 50 iter), reescribe `route_sequence` (paradas con coords en orden óptimo, las sin coords al final conservando orden). Devuelve `kmBefore/kmAfter/savedKm`. <2 paradas ubicadas → `{ optimized: false }`. Emite `route-optimized` por socket.
+- **Frontend** (`logistics-board.tsx`): botón **"Optimizar"** en cada ruta planificada/cargando con ≥2 paradas; toast con km ahorrados ("15.5 → 8.8 km, ahorras 6.7 km") o "ya estaba en el orden óptimo"; refresca. `api.optimizeRoute`.
+- `tsc` back (0 — base bajó de 6 a 0) y front (8 base) sin errores nuevos. E2E 9/9: 4 paradas colineales en orden malo → optimize responde optimized, kmAfter ≤ kmBefore, kmBefore coincide con cálculo independiente, secuencia resultante 0→3 (cerca a lejos), route_sequence reescrito, ruta con <2 paradas ubicadas no optimiza. (El test fija store_info como depósito determinista y lo restaura.)
+- **Siguiente**: F (2FA, requiere decidir método TOTP vs WhatsApp) · G (DIAN, requiere elegir proveedor). Son los 2 últimos y ambos bloqueados por decisión del comerciante.
+
+
+## [2026-07-08] — Cierre de vacíos, Bloque D: satisfacción post-entrega (calificación del cliente)
+
+Cuarto bloque — cierra el círculo con el cliente y completa el KPI de satisfacción del marco. Verificado E2E 10/10.
+
+- **DB (migración 0026 `loving_rawhide_kid`)**: `storefront_orders.rating` (tinyint 1-5) + `rating_comment` + `rating_at`.
+- **Backend**: `POST /storefront/tracking/:token/rating` PÚBLICO (sin login, token = llave) — valida 1-5, solo permite calificar pedidos entregados (400 si no), 404 si token inválido; re-calificar actualiza. El GET del tracking ahora devuelve `rating` existente. El WhatsApp de "entregado" (en los 2 flujos: cascada de ruta y entrega por parada) ahora incluye `…/seguimiento/:token#calificar`. Dashboard de Gerencia: `operation.satisfaction` (promedio de estrellas + conteo, 30 días).
+- **Frontend**: bloque **RatingBlock** en el portal público `/seguimiento/[token]` — estrellas 1-5 interactivas + comentario opcional, solo cuando el pedido está entregado; agradecimiento tras enviar; si ya estaba calificado muestra las estrellas y el comentario. Tarjeta **"Satisfacción"** (★ promedio con semáforo ≥4 verde) en la sección Ventas del dashboard.
+- `tsc` back (6 base) y front (8 base) sin errores nuevos. E2E 10/10: calificar entregado (guarda estrellas+comentario+fecha), rechazo si no entregado, 404 token inválido, rango 1-5 validado, GET devuelve el rating, re-calificar actualiza, promedio en el dashboard.
+- **Siguiente**: E (optimización de paradas) · F (2FA, requiere decidir método) · G (DIAN, requiere proveedor).
+
+
+## [2026-07-08] — Cierre de vacíos, Bloque C: modo offline del conductor (cola local + endpoints idempotentes)
+
+Tercer bloque del plan — resiliencia: que una zona sin señal no haga perder ni duplicar entregas. Verificado E2E 9/9.
+
+- **DB (migración 0025 `flawless_shard`)**: `idempotency_keys` (id = clientActionId PK, tenant, action, user). El dispositivo genera un clientActionId por acción; el backend la aplica UNA sola vez aunque llegue repetida.
+- **Backend** (`delivery.routes.ts` PUT /delivery/status/:orderId): patrón **claim-first** — INSERT de la llave ANTES de aplicar; si duplicado (ER_DUP_ENTRY) responde `{ duplicate: true }` sin re-aplicar; si el trabajo posterior falla, libera la llave en el catch para permitir un reintento legítimo. Cubre el caso crítico de campo (marcar entregado + POD) evitando doble logStage 'entregado', doble WhatsApp y doble cierre de ruta.
+- **Frontend**: nueva utilidad `lib/offline-queue.ts` — `enqueueOrRun` ejecuta la acción con clientActionId si hay red; si falla por red o está offline, la ENCOLA en localStorage; auto-flush al evento `online` y cada 30s; `subscribe` para el contador de pendientes. Integrada en `driver-panel.tsx`: la entrega pasa por la cola (toast "sin señal: se subirá al reconectar"), indicador **"N sin subir"** en el header, runner registrado + startAutoFlush en el montaje.
+- `tsc` back (6 base) y front (8 base) sin errores nuevos. E2E 9/9: 1er envío aplica (entregado + POD + etapa 1 vez), 2do envío del mismo clientActionId responde `duplicate` sin sobreescribir POD ni duplicar la etapa, un clientActionId distinto es acción nueva, ambas llaves quedan registradas.
+- **Nota de alcance:** picking ocurre dentro de la bodega (con wifi) y sus endpoints ya son atómicos/guardados, así que el offline se enfocó en el conductor (el que sí entra en zonas muertas). PWA instalable con service worker quedó declarada como mejora futura (la resiliencia crítica —no perder/duplicar acciones— ya está cubierta por la cola + idempotencia).
+- **Siguiente**: D (satisfacción post-entrega) · E (optimización de paradas) · F (2FA, decisión) · G (DIAN, proveedor).
+
+
+## [2026-07-08] — Cierre de vacíos, Bloque B: exactitud de inventario (conteo cíclico con ajuste auditado)
+
+Segundo bloque del plan de cierre de vacíos — el criterio "99% físico vs. sistema" de la auditoría. Verificado E2E 19/19.
+
+- **DB (migración 0024 `rainy_wilson_fisk`)**: `inventory_counts` (número, sede, estado abierto/cerrado/cancelado, accuracy_pct, contadores, created_by/closed_by) + `inventory_count_items` (esperado congelado, contado, ubicación; unique count+producto).
+- **Backend** (nuevo módulo `inventory-counts`, montado en `/api/inventory-counts`): **abrir** conteo por sede congela el esperado (snapshot de `sede_stock`; sin sede usa `products.stock`); **capturar** contado por ítem (recalcula contadores en vivo); **cerrar** en transacción aplica el ajuste AUDITADO por cada ítem con diferencia — lleva `products.stock` (por la diferencia) y `sede_stock` de la sede (al valor físico contado) al conteo real, genera `stock_movements` tipo `ajuste` con referencia al conteo, y calcula la **exactitud** (% de ítems sin diferencia). Conteo cerrado es inmutable. `GET /accuracy` (promedio de conteos cerrados 90d). La **exactitud** entra a `inventory.accuracy` del dashboard de Gerencia.
+- **Frontend**: nuevo módulo **"Conteo Inventario"** (`inventory-count-panel.tsx`) — lista con % de exactitud (semáforo ≥99 verde), crear conteo (elige bodega + filtro de línea), captura tipo planilla (sistema vs. físico vs. diferencia con colores faltante/sobrante), cerrar con confirmación. KPI de exactitud en la tarjeta de Inventario del dashboard. Wiring completo (sidebar special-case inventory, modules.ts + preset ferretería, merchant-panel, section-renderer, shell Tema 2). `api.ts`: 7 métodos.
+- `tsc` back (6 base) y front (8 base) sin errores nuevos. E2E 19/19: esperado congelado (incl. ubicación), captura con faltante vs. exacto, cierre → exactitud 50%, ajuste de total + sede al físico, movimiento `ajuste` auditado (qty y ref correctas), producto exacto sin cambio, conteo cerrado inmutable, exactitud en `/accuracy` y en Gerencia.
+- **Siguiente**: Bloque C (offline conductor) · D (satisfacción) · E (optimización paradas) · F (2FA, requiere decisión) · G (DIAN, requiere proveedor).
+
+
+## [2026-07-08] — Cierre de vacíos de auditoría, Bloque A: KPIs gerenciales OTIF + utilización de flota + rotación
+
+Primer bloque del plan para cerrar los vacíos detectados al auditar el sistema real contra el marco de auditoría del comerciante. Completa el tablero de Gerencia con 3 métricas que faltaban, sobre datos ya existentes (sin migración). Verificado E2E 8/8.
+
+- **OTIF (On-Time In Full)**: % de pedidos entregados a tiempo (`delivery_delivered_at ≤ promised_at`) sobre los que tenían promesa, últimos 30 días. En `operation.otif` (rate/onTime/withPromise/delivered). Badge en el header de "Operación en vivo" con semáforo (≥90 verde, ≥75 ámbar, <75 rojo).
+- **Utilización de flota**: minutos de ruta activa (`started_at→closed_at`, 7 días) sobre la capacidad de la flota (vehículos activos × 7 días × 10h hábiles). En `logistics.utilizationPct`. KPI en la sección Logística (ámbar si <30%).
+- **Rotación de inventario**: costo de ventas 30d (`stock_movements` venta × `purchase_price`) / valor de inventario → `inventory.rotationMonthly` (veces/mes) + `daysOfInventory` (30/rotación). KPI en la sección Inventario.
+- Todo en `executive.service.dashboard()` (3 queries en paralelo tras el bloque principal) + `executive-dashboard.tsx`. Sin migración.
+- `tsc` back (6 base) y front (8 base) sin errores nuevos. E2E 8/8: los 3 KPIs presentes; OTIF cuenta a tiempo vs tarde; utilización sube con ruta cerrada; rotación y días derivados de consumo conocido.
+- **Siguiente**: Bloque B (exactitud de inventario / conteo cíclico), luego C (offline conductor), D (satisfacción post-entrega), E (optimización de paradas), F (2FA), G (DIAN).
+
+
 ## [2026-07-08] — Pendientes ferretería cerrados: sede en pedidos/compras, alerta min por sede, mantenimiento preventivo, promesa auto
 
 Cierre de los 5 pendientes menores declarados tras completar las 6 fases. Verificado E2E 15/15.

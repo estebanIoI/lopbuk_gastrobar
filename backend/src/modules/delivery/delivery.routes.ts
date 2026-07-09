@@ -194,13 +194,29 @@ router.put(
     body('deliveryStatus').isIn(['recogido', 'en_camino', 'entregado']).withMessage('Estado de entrega inválido'),
     body('podPhotoUrl').optional({ nullable: true }).isString().isLength({ max: 500 }),
     body('podReceivedBy').optional({ nullable: true }).isString().isLength({ max: 120 }),
+    body('clientActionId').optional({ nullable: true }).isString().isLength({ max: 64 }),
     validateRequest,
   ],
   async (req: AuthRequest, res: Response) => {
+    const tenantId = req.user!.tenantId!;
+    const cid: string | undefined = req.body.clientActionId || undefined;
     try {
       const driverId = req.user!.userId;
       const { orderId } = req.params;
       const { deliveryStatus } = req.body;
+
+      // Idempotencia (offline): reclamar la llave ANTES de aplicar. Duplicado → no re-aplica.
+      if (cid) {
+        try {
+          await pool.query(
+            'INSERT INTO idempotency_keys (id, tenant_id, action, user_id) VALUES (?, ?, ?, ?)',
+            [cid, tenantId, `delivery:${deliveryStatus}`, driverId]
+          );
+        } catch (e: any) {
+          if (e?.code === 'ER_DUP_ENTRY') { res.json({ success: true, message: 'Acción ya registrada', data: { duplicate: true } }); return; }
+          throw e;
+        }
+      }
 
       const [orderRows] = await pool.query(
         `SELECT id, status FROM storefront_orders WHERE id = ? AND delivery_driver_id = ?`,
@@ -272,6 +288,8 @@ router.put(
 
       res.json({ success: true, message: `Estado actualizado a: ${deliveryStatus}` });
     } catch (error) {
+      // Liberar la llave de idempotencia para permitir un reintento legítimo
+      if (cid) await pool.query('DELETE FROM idempotency_keys WHERE id = ?', [cid]).catch(() => {});
       console.error('Update delivery status error:', error);
       res.status(500).json({ success: false, error: 'Error al actualizar estado' });
     }

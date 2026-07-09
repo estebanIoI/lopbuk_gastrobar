@@ -407,6 +407,31 @@ class ApiService {
     return this.request<any[]>(`/sedes/low-stock${sedeId ? `?sedeId=${sedeId}` : ''}`)
   }
 
+  // Conteo cíclico de inventario
+  async getInventoryCounts() {
+    return this.request<any[]>('/inventory-counts')
+  }
+
+  async getInventoryCount(id: string) {
+    return this.request<any>(`/inventory-counts/${id}`)
+  }
+
+  async createInventoryCount(data: { sedeId?: string | null; search?: string; notes?: string }) {
+    return this.request<any>('/inventory-counts', { method: 'POST', body: JSON.stringify(data) })
+  }
+
+  async setInventoryCountItem(countId: string, itemId: string, countedQty: number | null) {
+    return this.request<any>(`/inventory-counts/${countId}/items/${itemId}`, { method: 'PATCH', body: JSON.stringify({ countedQty }) })
+  }
+
+  async closeInventoryCount(countId: string) {
+    return this.request<any>(`/inventory-counts/${countId}/close`, { method: 'POST' })
+  }
+
+  async cancelInventoryCount(countId: string) {
+    return this.request<any>(`/inventory-counts/${countId}/cancel`, { method: 'POST' })
+  }
+
   async getSedeTransfers(status?: string) {
     return this.request<any[]>(`/sedes/transfers${status ? `?status=${status}` : ''}`)
   }
@@ -2017,10 +2042,10 @@ class ApiService {
     })
   }
 
-  async updateDeliveryStatus(orderId: string, deliveryStatus: string, pod?: { podPhotoUrl?: string; podReceivedBy?: string }) {
+  async updateDeliveryStatus(orderId: string, deliveryStatus: string, pod?: { podPhotoUrl?: string; podReceivedBy?: string }, clientActionId?: string) {
     return this.request<any>(`/delivery/status/${orderId}`, {
       method: 'PUT',
-      body: JSON.stringify({ deliveryStatus, ...(pod || {}) }),
+      body: JSON.stringify({ deliveryStatus, ...(pod || {}), ...(clientActionId ? { clientActionId } : {}) }),
     })
   }
 
@@ -3167,6 +3192,10 @@ class ApiService {
 
   async markStopDelivered(routeId: string, orderId: string) {
     return this.request<any>(`/fleet/routes/${routeId}/stops/${orderId}/delivered`, { method: 'PATCH' });
+  }
+
+  async optimizeRoute(routeId: string) {
+    return this.request<any>(`/fleet/routes/${routeId}/optimize`, { method: 'POST' });
   }
 
   async getOpsBoard() {

@@ -9,6 +9,8 @@ import {
   Map as MapIcon, Store, X,
 } from 'lucide-react';
 import { CloudinaryUpload } from '@/components/ui/cloudinary-upload';
+import { toast } from 'sonner';
+import { enqueueOrRun, registerRunner, startAutoFlush, subscribe } from '@/lib/offline-queue';
 
 const formatCOP = (v: number) =>
   new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(v);
@@ -72,6 +74,18 @@ export function DriverPanel() {
   const [podOrderId, setPodOrderId] = useState<string | null>(null);
   const [podPhoto, setPodPhoto] = useState('');
   const [podReceiver, setPodReceiver] = useState('');
+  // Cola offline (C): acciones pendientes de subir cuando vuelva la señal
+  const [pendingSync, setPendingSync] = useState(0);
+
+  useEffect(() => {
+    // El runner que reintenta las entregas encoladas (idempotente en el backend)
+    registerRunner('delivery-status', (payload, cid) =>
+      api.updateDeliveryStatus(payload.orderId, payload.newStatus, payload.pod || undefined, cid) as Promise<{ success: boolean }>
+    );
+    startAutoFlush();
+    const unsub = subscribe(list => setPendingSync(list.length));
+    return unsub;
+  }, []);
 
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
@@ -252,14 +266,26 @@ export function DriverPanel() {
       return;
     }
     setActionLoading(orderId);
-    const res = await api.updateDeliveryStatus(orderId, newStatus, pod);
-    if (res.success) {
+    const order = myOrders.find(o => o.id === orderId);
+    // Cola offline (C): si no hay señal, se encola y sincroniza al reconectar (idempotente)
+    const result = await enqueueOrRun(
+      'delivery-status',
+      `${order?.orderNumber || 'Pedido'} → ${newStatus}`,
+      { orderId, newStatus, pod: pod || null },
+      (payload, cid) => api.updateDeliveryStatus(payload.orderId, payload.newStatus, payload.pod || undefined, cid),
+    );
+    if (result.ok) {
       if (newStatus === 'entregado') {
         setMyOrders(p => p.filter(o => o.id !== orderId));
         setPodOrderId(null);
       } else {
         setMyOrders(p => p.map(o => o.id === orderId ? { ...o, deliveryStatus: newStatus } : o));
       }
+      if (result.queued) {
+        toast.info('Sin señal: la entrega se guardó y se subirá al reconectar.');
+      }
+    } else {
+      toast.error('No se pudo actualizar el estado.');
     }
     setActionLoading(null);
   };
@@ -424,6 +450,11 @@ export function DriverPanel() {
           </div>
         </div>
         <div className="flex items-center gap-1">
+          {pendingSync > 0 && (
+            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-2 py-1 mr-1" title="Acciones sin subir — se sincronizan al reconectar">
+              <RefreshCw className="h-3 w-3 animate-spin" /> {pendingSync} sin subir
+            </span>
+          )}
           <button onClick={() => loadOrders(sideTab)} disabled={loading} className="p-2 text-gray-400 hover:text-indigo-600 transition-colors" title="Actualizar">
             <RefreshCw className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} />
           </button>

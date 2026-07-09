@@ -20,8 +20,9 @@ import {
 } from '@/components/ui/dialog'
 import {
   Truck, Users, Route as RouteIcon, RefreshCw, Loader2, Zap, PackageCheck,
-  Fuel, FileWarning, TrendingUp, Play, CheckCircle2, XCircle, Plus,
+  Fuel, FileWarning, TrendingUp, Play, CheckCircle2, XCircle, Plus, Wand2,
 } from 'lucide-react'
+import { toast } from 'sonner'
 
 const fmtCOP = (v: number) =>
   new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(v)
@@ -53,6 +54,7 @@ export function LogisticsOps() {
   const [routes, setRoutes] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState<any | null>(null) // sugerencia elegida para crear ruta
+  const [optimizingId, setOptimizingId] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
     const [b, s, r] = await Promise.all([
@@ -83,6 +85,23 @@ export function LogisticsOps() {
     if (!to) return
     await api.setRouteStatus(route.id, to)
     refresh()
+  }
+
+  const optimize = async (route: any) => {
+    setOptimizingId(route.id)
+    try {
+      const res = await api.optimizeRoute(route.id)
+      if (res.success && (res.data as any)?.optimized) {
+        const d = res.data as any
+        toast.success(d.savedKm > 0
+          ? `Ruta optimizada: ${d.kmBefore} → ${d.kmAfter} km (ahorras ${d.savedKm} km)`
+          : `Ruta ya estaba en el orden óptimo (${d.kmAfter} km)`)
+        refresh()
+      } else {
+        toast.info((res.data as any)?.reason || 'No se pudo optimizar (faltan ubicaciones)')
+      }
+    } catch { toast.error('No se pudo optimizar la ruta') }
+    finally { setOptimizingId(null) }
   }
 
   if (loading) return <p className="text-sm text-muted-foreground text-center py-10">Cargando centro de operaciones…</p>
@@ -188,6 +207,13 @@ export function LogisticsOps() {
                 <div className="flex gap-1.5">
                   {r.status !== 'cerrada' && r.status !== 'cancelada' && (
                     <>
+                      {(r.status === 'planificada' || r.status === 'cargando') && (r.stopsCount || 0) >= 2 && (
+                        <Button size="sm" variant="outline" disabled={optimizingId === r.id}
+                          onClick={() => optimize(r)}>
+                          {optimizingId === r.id ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Wand2 className="h-3 w-3 mr-1" />}
+                          Optimizar
+                        </Button>
+                      )}
                       <Button size="sm" onClick={() => advanceRoute(r)}>
                         <Play className="h-3 w-3 mr-1" />
                         {r.status === 'planificada' ? 'Iniciar cargue' : r.status === 'cargando' ? 'Despachar' : r.status === 'en_ruta' ? 'Retornando' : 'Cerrar'}

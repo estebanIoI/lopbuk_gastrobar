@@ -26,6 +26,7 @@ import { VendedoresPanel } from '@/components/vendedores-panel'
 import { OrgChart } from '@/components/org-chart'
 import { QuotesPanel } from '@/components/quotes-panel'
 import { PickingBoard } from '@/components/picking-board'
+import { InventoryCountPanel } from '@/components/inventory-count-panel'
 import { OpsTimelinePanel } from '@/components/ops-timeline-panel'
 import { ExecutiveDashboard } from '@/components/executive-dashboard'
 import { ReviewsPanel } from '@/components/reviews-panel'
@@ -132,6 +133,8 @@ export function SectionRenderer() {
       return <QuotesPanel />
     case 'picking':
       return <PickingBoard />
+    case 'conteo':
+      return <InventoryCountPanel />
     case 'tiempos':
       return <OpsTimelinePanel />
     case 'gerencia':

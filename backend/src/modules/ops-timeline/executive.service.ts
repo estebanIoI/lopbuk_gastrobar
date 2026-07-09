@@ -112,6 +112,54 @@ class ExecutiveService {
     const quotesTotal = Number(quotesMonth[0]?.total) || 0;
     const quotesConverted = Number(quotesMonth[0]?.converted) || 0;
 
+    // ── KPIs añadidos (Bloque A) ────────────────────────────────────────────
+    const HORAS_HABILES_DIA = 10; // ventana operativa para utilización de flota
+    const [[otif], [util], [rotation]] = await Promise.all([
+      // OTIF: entregados a tiempo (delivery ≤ promesa) sobre los que TENÍAN promesa (30d)
+      pool.query<RowDataPacket[]>(
+        `SELECT COUNT(*) AS delivered,
+                SUM(promised_at IS NOT NULL) AS withPromise,
+                SUM(CASE WHEN promised_at IS NOT NULL AND delivery_delivered_at <= promised_at THEN 1 ELSE 0 END) AS onTime
+           FROM storefront_orders
+          WHERE tenant_id = ? AND dispatch_status = 'entregado'
+            AND delivery_delivered_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)`, [tenantId]),
+      // Utilización de flota: minutos de ruta activa (7d) vs capacidad de la flota
+      pool.query<RowDataPacket[]>(
+        `SELECT COALESCE(SUM(TIMESTAMPDIFF(MINUTE, started_at, COALESCE(closed_at, NOW()))), 0) AS activeMin
+           FROM dispatch_routes
+          WHERE tenant_id = ? AND started_at IS NOT NULL
+            AND started_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)`, [tenantId]),
+      // Rotación de inventario: costo de ventas 30d / valor de inventario
+      pool.query<RowDataPacket[]>(
+        `SELECT COALESCE(SUM(m.quantity * p.purchase_price), 0) AS cogs30
+           FROM stock_movements m JOIN products p ON p.id = m.product_id
+          WHERE m.tenant_id = ? AND m.type = 'venta'
+            AND m.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)`, [tenantId]),
+    ]) as any[];
+
+    const withPromise = Number(otif[0]?.withPromise) || 0;
+    const onTime = Number(otif[0]?.onTime) || 0;
+    const fleetSize = (vehiclesByStatus['disponible'] || 0) + (vehiclesByStatus['en_ruta'] || 0) + (vehiclesByStatus['mantenimiento'] || 0);
+    const capacityMin = fleetSize * 7 * HORAS_HABILES_DIA * 60;
+    const activeMin = Number(util[0]?.activeMin) || 0;
+    const invValue = Number(inventory[0].inventoryValue) || 0;
+    const cogs30 = Number(rotation[0]?.cogs30) || 0;
+    const rotationMonthly = invValue > 0 ? Math.round((cogs30 / invValue) * 100) / 100 : null;
+    // Exactitud de inventario: promedio de conteos cerrados (90 días)
+    const [[acc]] = await pool.query<RowDataPacket[]>(
+      `SELECT ROUND(AVG(accuracy_pct), 1) AS avgAccuracy FROM inventory_counts
+        WHERE tenant_id = ? AND status = 'cerrado' AND closed_at >= DATE_SUB(NOW(), INTERVAL 90 DAY)`,
+      [tenantId]
+    ) as any;
+    const inventoryAccuracy = acc?.avgAccuracy != null ? Number(acc.avgAccuracy) : null;
+    // Satisfacción del cliente: promedio de calificaciones (30 días)
+    const [[sat]] = await pool.query<RowDataPacket[]>(
+      `SELECT ROUND(AVG(rating), 2) AS avgRating, COUNT(rating) AS ratings
+         FROM storefront_orders
+        WHERE tenant_id = ? AND rating IS NOT NULL AND rating_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)`,
+      [tenantId]
+    ) as any;
+
     return {
       sales: {
         today: { count: Number(salesToday[0].count), amount: Number(salesToday[0].amount), avgTicket: Math.round(Number(salesToday[0].avgTicket)) },
@@ -133,6 +181,16 @@ class ExecutiveService {
         entregadosHoy: Number(funnel[0].entregadosHoy) || 0,
         enRiesgo: Number(atRiskCount[0].n) || 0,
         avgCycleMin: stageAvg[0]?.avgCycleMin != null ? Number(stageAvg[0].avgCycleMin) : null,
+        // OTIF (On-Time In Full): % entregado a tiempo sobre los que tenían promesa (30d)
+        otif: {
+          rate: withPromise > 0 ? Math.round((onTime / withPromise) * 100) : null,
+          onTime, withPromise, delivered: Number(otif[0]?.delivered) || 0,
+        },
+        // Satisfacción del cliente: promedio de estrellas (30d)
+        satisfaction: {
+          avg: sat?.avgRating != null ? Number(sat.avgRating) : null,
+          count: Number(sat?.ratings) || 0,
+        },
       },
       logistics: {
         vehicles: {
@@ -147,6 +205,8 @@ class ExecutiveService {
         costPerDelivery: deliveriesMonth > 0 ? Math.round(expensesMonth / deliveriesMonth) : null,
         valorEnCalle: Number(funnel[0].valorEnCalle) || 0,
         valorEntregadoHoy: Number(funnel[0].valorEntregadoHoy) || 0,
+        // Utilización de flota: % de la capacidad (vehículos × 7d × 10h) usada en ruta
+        utilizationPct: capacityMin > 0 ? Math.min(100, Math.round((activeMin / capacityMin) * 100)) : null,
       },
       staff: {
         drivers: Number(staff[0].drivers) || 0,
@@ -160,6 +220,11 @@ class ExecutiveService {
         inventoryValue: Number(inventory[0].inventoryValue) || 0,
         reservedUnits: Number(inventory[0].reservedUnits) || 0,
         sedeLowStock: Number(sedeLowStock[0]?.n) || 0,
+        // Rotación de inventario (mensual) = costo de ventas 30d / valor de inventario
+        rotationMonthly,
+        daysOfInventory: rotationMonthly && rotationMonthly > 0 ? Math.round(30 / rotationMonthly) : null,
+        // Exactitud físico vs. sistema (promedio de conteos cerrados 90d)
+        accuracy: inventoryAccuracy,
       },
     };
   }

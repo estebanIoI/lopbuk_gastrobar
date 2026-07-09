@@ -3494,6 +3494,70 @@ export const sedeStock = mysqlTable("sede_stock", {
 	}
 });
 
+// Idempotencia para acciones encoladas offline (app del conductor/auxiliar).
+// El dispositivo genera un clientActionId al ejecutar una acción; si la sube dos
+// veces (respuesta perdida / reintento al reconectar), el backend la aplica UNA vez.
+export const idempotencyKeys = mysqlTable("idempotency_keys", {
+	id: varchar({ length: 64 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+	action: varchar({ length: 60 }),
+	userId: varchar("user_id", { length: 36 }),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+},
+(table) => {
+	return {
+		idxIdempTenant: index("idx_idemp_tenant").on(table.tenantId),
+		idempotencyKeysId: primaryKey({ columns: [table.id], name: "idempotency_keys_id"}),
+	}
+});
+
+// Conteo cíclico de inventario (ferretería, exactitud físico vs. sistema).
+// Se abre un conteo por sede que CONGELA el esperado; el auxiliar captura lo
+// contado; al cerrar se aplica el ajuste auditado (sede_stock + products.stock +
+// stock_movements 'ajuste') y se calcula la exactitud (% de ítems sin diferencia).
+export const inventoryCounts = mysqlTable("inventory_counts", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" } ),
+	countNumber: varchar("count_number", { length: 20 }).notNull(),
+	sedeId: varchar("sede_id", { length: 36 }),
+	status: mysqlEnum(['abierto','cerrado','cancelado']).default('abierto').notNull(),
+	accuracyPct: decimal("accuracy_pct", { precision: 5, scale: 2 }),
+	itemsTotal: int("items_total").default(0).notNull(),
+	itemsCounted: int("items_counted").default(0).notNull(),
+	itemsDiff: int("items_diff").default(0).notNull(),
+	notes: varchar({ length: 500 }),
+	createdBy: varchar("created_by", { length: 36 }),
+	closedBy: varchar("closed_by", { length: 36 }),
+	closedAt: timestamp("closed_at", { mode: 'string' }),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
+},
+(table) => {
+	return {
+		idxInvCountsTenantStatus: index("idx_inv_counts_tenant_status").on(table.tenantId, table.status),
+		inventoryCountsId: primaryKey({ columns: [table.id], name: "inventory_counts_id"}),
+	}
+});
+
+export const inventoryCountItems = mysqlTable("inventory_count_items", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+	countId: varchar("count_id", { length: 36 }).notNull(),
+	productId: varchar("product_id", { length: 36 }).notNull(),
+	productName: varchar("product_name", { length: 255 }).notNull(),
+	warehouseLocation: varchar("warehouse_location", { length: 50 }),
+	expectedQty: decimal("expected_qty", { precision: 12, scale: 3 }).default('0.000').notNull(),
+	countedQty: decimal("counted_qty", { precision: 12, scale: 3 }),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+},
+(table) => {
+	return {
+		idxInvCountItemsCount: index("idx_inv_count_items_count").on(table.countId),
+		inventoryCountItemsId: primaryKey({ columns: [table.id], name: "inventory_count_items_id"}),
+		uqInvCountItem: unique("uq_inv_count_item").on(table.countId, table.productId),
+	}
+});
+
 // Picking (ferretería F3): cola de preparación de pedidos en bodega.
 // El auxiliar toma la tarea, recorre la bodega guiado por ubicaciones y la marca
 // preparada ANTES de que llegue el vehículo. pendiente → en_preparacion → preparada.
@@ -4062,6 +4126,10 @@ export const storefrontOrders = mysqlTable("storefront_orders", {
 	trackingToken: varchar("tracking_token", { length: 48 }),
 	podPhotoUrl: varchar("pod_photo_url", { length: 500 }),
 	podReceivedBy: varchar("pod_received_by", { length: 120 }),
+	// Satisfacción post-entrega: el cliente califica desde el portal de seguimiento
+	rating: tinyint(),
+	ratingComment: varchar("rating_comment", { length: 500 }),
+	ratingAt: timestamp("rating_at", { mode: 'string' }),
 },
 (table) => {
 	return {
