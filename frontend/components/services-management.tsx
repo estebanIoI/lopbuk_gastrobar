@@ -25,7 +25,7 @@ import {
 import {
   Scissors, Calendar, MessageSquare, Plus, Edit, Trash2, Eye, Clock,
   CalendarOff, ToggleLeft, ToggleRight, CheckCircle, XCircle, ChevronLeft, ChevronRight,
-  Image, X,
+  Image, X, Sparkles, ClipboardList, PlusCircle,
 } from 'lucide-react'
 
 // ─── Constants ────────────────────────────────────────────────────
@@ -57,7 +57,8 @@ const emptyServiceForm = () => ({
   name: '', description: '', category: '', serviceType: 'cita' as ServiceType,
   price: 0, priceType: 'fijo', durationMinutes: 60,
   requiresPayment: false, maxAdvanceDays: 30, cancellationHours: 24,
-  imageUrl: '',
+  imageUrl: '', benefits: [] as string[], preparation: '',
+  addonServiceIds: [] as string[],
 })
 
 // ─── Main Component ───────────────────────────────────────────────
@@ -137,6 +138,9 @@ export function ServicesManagement() {
       maxAdvanceDays: svc.maxAdvanceDays,
       cancellationHours: svc.cancellationHours,
       imageUrl: svc.imageUrl || '',
+      benefits: svc.benefits || [],
+      preparation: svc.preparation || '',
+      addonServiceIds: svc.addonServiceIds || [],
     })
     setFormError(null)
     setShowServiceForm(true)
@@ -154,6 +158,9 @@ export function ServicesManagement() {
         description: serviceForm.description || undefined,
         category: serviceForm.category || undefined,
         imageUrl: serviceForm.imageUrl || undefined,
+        benefits: serviceForm.benefits.map((b) => b.trim()).filter(Boolean),
+        preparation: serviceForm.preparation.trim() || undefined,
+        addonServiceIds: serviceForm.addonServiceIds,
       }
       const res = editingService
         ? await api.updateService(editingService.id, payload)
@@ -612,6 +619,104 @@ export function ServicesManagement() {
                   onChange={(e) => setServiceForm((p) => ({ ...p, description: e.target.value }))} />
               </div>
 
+              {/* Qué incluye (beneficios) — vende la experiencia */}
+              <div className="col-span-2 space-y-1.5">
+                <Label className="flex items-center gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5 text-primary" /> ¿Qué incluye?
+                </Label>
+                <p className="text-xs text-muted-foreground -mt-0.5">
+                  Lista los beneficios de la experiencia. Aparecen destacados al reservar.
+                </p>
+                <div className="space-y-2">
+                  {serviceForm.benefits.map((b, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4 text-primary/60 shrink-0" />
+                      <Input
+                        placeholder="Ej: Incluye masaje de cortesía"
+                        value={b}
+                        onChange={(e) => setServiceForm((p) => ({
+                          ...p, benefits: p.benefits.map((x, j) => j === i ? e.target.value : x),
+                        }))}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            setServiceForm((p) => ({ ...p, benefits: [...p.benefits, ''] }))
+                          }
+                        }}
+                      />
+                      <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-destructive shrink-0"
+                        onClick={() => setServiceForm((p) => ({ ...p, benefits: p.benefits.filter((_, j) => j !== i) }))}
+                        title="Quitar">
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                  <Button type="button" variant="outline" size="sm"
+                    onClick={() => setServiceForm((p) => ({ ...p, benefits: [...p.benefits, ''] }))}>
+                    <Plus className="mr-1 h-3.5 w-3.5" /> Agregar beneficio
+                  </Button>
+                </div>
+              </div>
+
+              {/* Preparación / recomendaciones (solo citas) */}
+              {serviceForm.serviceType === 'cita' && (
+                <div className="col-span-2 space-y-1.5">
+                  <Label className="flex items-center gap-1.5">
+                    <ClipboardList className="h-3.5 w-3.5 text-primary" /> Cómo prepararte (opcional)
+                  </Label>
+                  <Textarea rows={2}
+                    placeholder="Ej: Llega 10 min antes. Evita cafeína 2 horas antes de la cita."
+                    value={serviceForm.preparation}
+                    onChange={(e) => setServiceForm((p) => ({ ...p, preparation: e.target.value }))} />
+                </div>
+              )}
+
+              {/* Complementos sugeridos (cross-sell / order bump) — solo citas */}
+              {serviceForm.serviceType === 'cita' && (() => {
+                const candidates = services.filter(
+                  (s) => s.id !== editingService?.id && s.priceType !== 'cotizacion'
+                )
+                return (
+                  <div className="col-span-2 space-y-1.5">
+                    <Label className="flex items-center gap-1.5">
+                      <PlusCircle className="h-3.5 w-3.5 text-primary" /> Complementos sugeridos
+                    </Label>
+                    <p className="text-xs text-muted-foreground -mt-0.5">
+                      Otros servicios que se ofrecerán como agregado al reservar este. Suben el ticket.
+                    </p>
+                    {candidates.length === 0 ? (
+                      <p className="text-xs text-muted-foreground italic">
+                        Crea más servicios (con precio) para ofrecerlos como complemento.
+                      </p>
+                    ) : (
+                      <div className="max-h-44 space-y-1 overflow-y-auto rounded-md border p-2">
+                        {candidates.map((s) => {
+                          const checked = serviceForm.addonServiceIds.includes(s.id)
+                          return (
+                            <label key={s.id}
+                              className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-accent">
+                              <input type="checkbox" className="h-4 w-4 accent-[hsl(var(--primary))]"
+                                checked={checked}
+                                onChange={() => setServiceForm((p) => ({
+                                  ...p,
+                                  addonServiceIds: checked
+                                    ? p.addonServiceIds.filter((x) => x !== s.id)
+                                    : [...p.addonServiceIds, s.id],
+                                }))} />
+                              <span className="flex-1 truncate">{s.name}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {s.priceType === 'gratis' ? 'Gratis'
+                                  : `${s.priceType === 'desde' ? 'Desde ' : ''}${formatCOP(s.price)}`}
+                              </span>
+                            </label>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
+
               {/* Image URL */}
               <div className="col-span-2 space-y-1.5">
                 <Label className="flex items-center gap-1.5">
@@ -798,6 +903,27 @@ export function ServicesManagement() {
                 )}
                 <div><p className="text-muted-foreground text-xs">Estado</p>{STATUS_BADGE[selectedBooking.status]}</div>
               </div>
+
+              {/* Complementos agregados + total (cross-sell) */}
+              {selectedBooking.addons && selectedBooking.addons.length > 0 && (
+                <div className="rounded-md border bg-muted/40 p-3 space-y-1.5">
+                  <p className="flex items-center gap-1.5 text-xs font-semibold">
+                    <PlusCircle className="h-3.5 w-3.5 text-primary" /> Complementos
+                  </p>
+                  {selectedBooking.addons.map((a) => (
+                    <div key={a.id} className="flex justify-between text-xs">
+                      <span className="text-muted-foreground">{a.name}</span>
+                      <span className="font-medium">{formatCOP(a.price)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {!!selectedBooking.totalAmount && selectedBooking.totalAmount > 0 && (
+                <div className="flex items-center justify-between rounded-md bg-primary/10 px-3 py-2">
+                  <span className="text-sm font-semibold text-primary">Total</span>
+                  <span className="text-sm font-bold text-primary">{formatCOP(selectedBooking.totalAmount)}</span>
+                </div>
+              )}
 
               <div className="space-y-1.5">
                 <Label>Notas internas</Label>

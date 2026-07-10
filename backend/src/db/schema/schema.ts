@@ -3694,6 +3694,28 @@ export const serviceBlockedPeriods = mysqlTable("service_blocked_periods", {
 	}
 });
 
+// Reserva temporal de un cupo mientras el cliente completa sus datos (F2 UX).
+// Cuenta como ocupante en la disponibilidad hasta expires_at; se limpia al vencer.
+export const serviceSlotHolds = mysqlTable("service_slot_holds", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" } ),
+	serviceId: varchar("service_id", { length: 50 }).notNull(),
+	holdToken: varchar("hold_token", { length: 48 }).notNull(),
+	bookingDate: date("booking_date", { mode: 'string' }).notNull(),
+	startTime: time("start_time").notNull(),
+	endTime: time("end_time").notNull(),
+	expiresAt: timestamp("expires_at", { mode: 'string' }).notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+},
+(table) => {
+	return {
+		idxSlotHoldsLookup: index("idx_slot_holds_lookup").on(table.serviceId, table.bookingDate),
+		idxSlotHoldsExpires: index("idx_slot_holds_expires").on(table.expiresAt),
+		serviceSlotHoldsId: primaryKey({ columns: [table.id], name: "service_slot_holds_id"}),
+		holdToken: unique("uq_slot_hold_token").on(table.holdToken),
+	}
+});
+
 export const serviceBookings = mysqlTable("service_bookings", {
 	id: varchar({ length: 50 }).notNull(),
 	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" } ),
@@ -3714,6 +3736,8 @@ export const serviceBookings = mysqlTable("service_bookings", {
 	status: mysqlEnum(['pendiente','confirmada','cancelada','completada','no_asistio']).default('pendiente').notNull(),
 	paymentStatus: mysqlEnum("payment_status", ['sin_pago','pendiente','pagado']).default('sin_pago').notNull(),
 	amountPaid: decimal("amount_paid", { precision: 12, scale: 2 }).default('0.00').notNull(),
+	addons: json("addons"),
+	totalAmount: decimal("total_amount", { precision: 12, scale: 2 }).default('0.00').notNull(),
 	merchantNotes: text("merchant_notes"),
 	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
@@ -3740,6 +3764,9 @@ export const services = mysqlTable("services", {
 	priceType: mysqlEnum("price_type", ['fijo','desde','gratis','cotizacion']).default('fijo').notNull(),
 	durationMinutes: int("duration_minutes"),
 	imageUrl: varchar("image_url", { length: 500 }),
+	benefits: json("benefits"),
+	preparation: text("preparation"),
+	addonServiceIds: json("addon_service_ids"),
 	requiresPayment: tinyint("requires_payment").default(0).notNull(),
 	maxAdvanceDays: int("max_advance_days").default(30).notNull(),
 	cancellationHours: int("cancellation_hours").default(24).notNull(),

@@ -39,11 +39,24 @@ interface BookingRow extends RowDataPacket {
 interface CountRow extends RowDataPacket { total: number; }
 
 // ─── Mappers ─────────────────────────────────────────────────────
+// benefits es JSON: mysql2 puede devolverlo ya parseado (array) o como string
+const parseBenefits = (raw: unknown): string[] => {
+  if (Array.isArray(raw)) return raw.filter((x) => typeof x === 'string');
+  if (typeof raw === 'string' && raw.trim()) {
+    try { const p = JSON.parse(raw); return Array.isArray(p) ? p.filter((x) => typeof x === 'string') : []; }
+    catch { return []; }
+  }
+  return [];
+};
+
 const mapService = (r: ServiceRow) => ({
   id: r.id, tenantId: r.tenant_id, name: r.name, description: r.description,
   category: r.category, serviceType: r.service_type, price: Number(r.price),
   priceType: r.price_type, durationMinutes: r.duration_minutes,
-  imageUrl: r.image_url, requiresPayment: Boolean(r.requires_payment),
+  imageUrl: r.image_url, benefits: parseBenefits((r as any).benefits),
+  preparation: (r as any).preparation ?? null,
+  addonServiceIds: parseBenefits((r as any).addon_service_ids),
+  requiresPayment: Boolean(r.requires_payment),
   maxAdvanceDays: r.max_advance_days, cancellationHours: r.cancellation_hours,
   isActive: Boolean(r.is_active), isPublished: Boolean(r.is_published),
   sortOrder: r.sort_order, createdAt: r.created_at, updatedAt: r.updated_at,
@@ -72,8 +85,20 @@ const mapBooking = (r: BookingRow) => ({
   projectDescription: r.project_description, budgetRange: r.budget_range,
   status: r.status, paymentStatus: r.payment_status,
   amountPaid: Number(r.amount_paid), merchantNotes: r.merchant_notes,
+  addons: parseAddons((r as any).addons),
+  totalAmount: Number((r as any).total_amount ?? 0),
   createdAt: r.created_at, updatedAt: r.updated_at,
 });
+
+// addons de una reserva: array de { id, name, price } (snapshot al reservar)
+const parseAddons = (raw: unknown): Array<{ id: string; name: string; price: number }> => {
+  let arr: any = raw;
+  if (typeof raw === 'string' && raw.trim()) { try { arr = JSON.parse(raw); } catch { return []; } }
+  if (!Array.isArray(arr)) return [];
+  return arr
+    .filter((a) => a && typeof a === 'object')
+    .map((a) => ({ id: String(a.id), name: String(a.name), price: Number(a.price) || 0 }));
+};
 
 // ─── Service class ────────────────────────────────────────────────
 export class ServicesService {
@@ -100,19 +125,26 @@ export class ServicesService {
     name: string; description?: string; category?: string;
     serviceType: 'cita' | 'asesoria' | 'contacto'; price?: number;
     priceType?: string; durationMinutes?: number; imageUrl?: string;
+    benefits?: string[]; preparation?: string; addonServiceIds?: string[];
     requiresPayment?: boolean; maxAdvanceDays?: number;
     cancellationHours?: number; sortOrder?: number;
   }) {
     const id = uuidv4();
+    const benefits = Array.isArray(data.benefits)
+      ? data.benefits.map((b) => String(b).trim()).filter(Boolean) : [];
+    const addonIds = Array.isArray(data.addonServiceIds)
+      ? [...new Set(data.addonServiceIds.map((x) => String(x).trim()).filter(Boolean))] : [];
     await db.execute<ResultSetHeader>(
       `INSERT INTO services
         (id, tenant_id, name, description, category, service_type, price, price_type,
-         duration_minutes, image_url, requires_payment, max_advance_days, cancellation_hours, sort_order)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         duration_minutes, image_url, benefits, preparation, addon_service_ids, requires_payment, max_advance_days, cancellation_hours, sort_order)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id, tenantId, data.name, data.description || null, data.category || null,
         data.serviceType, data.price || 0, data.priceType || 'fijo',
         data.durationMinutes || null, data.imageUrl || null,
+        benefits.length ? JSON.stringify(benefits) : null, data.preparation?.trim() || null,
+        addonIds.length ? JSON.stringify(addonIds) : null,
         data.requiresPayment ? 1 : 0, data.maxAdvanceDays || 30,
         data.cancellationHours || 24, data.sortOrder || 0,
       ]
@@ -123,11 +155,30 @@ export class ServicesService {
   async update(id: string, tenantId: string, data: Partial<{
     name: string; description: string; category: string; serviceType: string;
     price: number; priceType: string; durationMinutes: number; imageUrl: string;
+    benefits: string[]; preparation: string; addonServiceIds: string[];
     requiresPayment: boolean; maxAdvanceDays: number; cancellationHours: number;
     isActive: boolean; isPublished: boolean; sortOrder: number;
   }>) {
     const fields: string[] = [];
     const values: unknown[] = [];
+
+    // benefits/addons (JSON) y preparation se manejan aparte por su normalización
+    if ('benefits' in data) {
+      const benefits = Array.isArray(data.benefits)
+        ? data.benefits.map((b) => String(b).trim()).filter(Boolean) : [];
+      fields.push('benefits = ?');
+      values.push(benefits.length ? JSON.stringify(benefits) : null);
+    }
+    if ('preparation' in data) {
+      fields.push('preparation = ?');
+      values.push(data.preparation?.trim() || null);
+    }
+    if ('addonServiceIds' in data) {
+      const addonIds = Array.isArray(data.addonServiceIds)
+        ? [...new Set(data.addonServiceIds.map((x) => String(x).trim()).filter(Boolean))] : [];
+      fields.push('addon_service_ids = ?');
+      values.push(addonIds.length ? JSON.stringify(addonIds) : null);
+    }
 
     const map: Record<string, string> = {
       name: 'name', description: 'description', category: 'category',
@@ -270,13 +321,18 @@ export class ServicesService {
       [tenantId, dateStr, serviceId]
     );
 
-    // 4. Get existing bookings for this date (pending + confirmed)
-    const [bookings] = await db.execute<RowDataPacket[]>(
+    // 4. Get existing bookings (pending + confirmed) + reservas temporales activas (holds)
+    const [bookingRows] = await db.execute<RowDataPacket[]>(
       `SELECT start_time, end_time FROM service_bookings
-       WHERE service_id = ? AND booking_date = ?
-         AND status IN ('pendiente', 'confirmada')`,
+       WHERE service_id = ? AND booking_date = ? AND status IN ('pendiente', 'confirmada')`,
       [serviceId, dateStr]
     );
+    const [holdRows] = await db.execute<RowDataPacket[]>(
+      `SELECT start_time, end_time FROM service_slot_holds
+       WHERE service_id = ? AND booking_date = ? AND expires_at > NOW()`,
+      [serviceId, dateStr]
+    );
+    const bookings = [...(bookingRows as any[]), ...(holdRows as any[])];
 
     const availableSlots: string[] = [];
 
@@ -329,7 +385,182 @@ export class ServicesService {
     return availableSlots;
   }
 
+  // ── SLOTS CON ESTADO (Fase 1 UX premium) ──────────────────────
+  // Devuelve TODOS los slots del día con su estado, no solo los disponibles,
+  // para que la UI muestre ocupado/bloqueado/últimos cupos y no todo igual.
+  private buildDaySlots(
+    availRows: AvailabilityRow[],
+    partialBlocks: BlockedPeriodRow[],
+    bookings: RowDataPacket[],
+    nowMinutes: number | null, // minutos del día si es hoy; null si es fecha futura
+  ): Array<{ time: string; endTime: string; status: string; spotsLeft: number }> {
+    const out: Array<{ time: string; endTime: string; status: string; spotsLeft: number }> = [];
+    const toMin = (hhmm: string) => { const [h, m] = hhmm.split(':').map(Number); return h * 60 + m; };
+    const fmt = (min: number) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+
+    for (const avail of availRows) {
+      const slotMin = avail.slot_duration_minutes;
+      const maxSim = avail.max_simultaneous;
+      const startMinutes = toMin(avail.start_time);
+      const endMinutes = toMin(avail.end_time);
+
+      for (let t = startMinutes; t + slotMin <= endMinutes; t += slotMin) {
+        const slotEndMin = t + slotMin;
+        const time = fmt(t);
+        const endTime = fmt(slotEndMin);
+
+        const blocked = partialBlocks.some((b) => {
+          if (!b.start_time || !b.end_time) return false;
+          return t < toMin(b.end_time as string) && slotEndMin > toMin(b.start_time as string);
+        });
+        const concurrent = bookings.filter((b) => {
+          if (!b.start_time) return false;
+          return t < toMin(b.end_time as string) && slotEndMin > toMin(b.start_time as string);
+        }).length;
+        const spotsLeft = Math.max(0, maxSim - concurrent);
+
+        let status: string;
+        if (nowMinutes != null && t <= nowMinutes) status = 'pasado';
+        else if (blocked) status = 'bloqueado';
+        else if (concurrent >= maxSim) status = 'ocupado';
+        else status = 'disponible';
+
+        out.push({ time, endTime, status, spotsLeft });
+      }
+    }
+
+    // Escasez: si quedan pocos disponibles en el día, marcarlos "últimos cupos".
+    const availableIdx = out.map((s, i) => (s.status === 'disponible' ? i : -1)).filter(i => i >= 0);
+    for (const i of availableIdx) {
+      if (out[i].spotsLeft === 1 || availableIdx.length <= 3) out[i].status = 'ultimos_cupos';
+    }
+    return out;
+  }
+
+  /** Slots del día con estado (para el modal de reserva premium). */
+  async getSlotsWithStatus(serviceId: string, tenantId: string, dateStr: string) {
+    const date = new Date(dateStr + 'T00:00:00');
+    const dayOfWeek = date.getDay();
+
+    const [availRows] = await db.execute<AvailabilityRow[]>(
+      `SELECT * FROM service_availability WHERE service_id = ? AND day_of_week = ? AND is_active = TRUE`,
+      [serviceId, dayOfWeek]
+    );
+    if (!availRows.length) return { closed: true, slots: [] as any[] };
+
+    const [fullBlocks] = await db.execute<RowDataPacket[]>(
+      `SELECT id FROM service_blocked_periods
+       WHERE tenant_id = ? AND blocked_date = ? AND start_time IS NULL AND (service_id = ? OR service_id IS NULL)`,
+      [tenantId, dateStr, serviceId]
+    );
+    if (fullBlocks.length) return { closed: true, blocked: true, slots: [] as any[] };
+
+    const [partialBlocks] = await db.execute<BlockedPeriodRow[]>(
+      `SELECT start_time, end_time FROM service_blocked_periods
+       WHERE tenant_id = ? AND blocked_date = ? AND start_time IS NOT NULL AND (service_id = ? OR service_id IS NULL)`,
+      [tenantId, dateStr, serviceId]
+    );
+    const [bookingRows] = await db.execute<RowDataPacket[]>(
+      `SELECT start_time, end_time FROM service_bookings
+       WHERE service_id = ? AND booking_date = ? AND status IN ('pendiente','confirmada')`,
+      [serviceId, dateStr]
+    );
+    const [holdRows] = await db.execute<RowDataPacket[]>(
+      `SELECT start_time, end_time FROM service_slot_holds
+       WHERE service_id = ? AND booking_date = ? AND expires_at > NOW()`,
+      [serviceId, dateStr]
+    );
+    const bookings = [...(bookingRows as any[]), ...(holdRows as any[])];
+
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const nowMinutes = dateStr === todayStr ? (new Date().getHours() * 60 + new Date().getMinutes()) : null;
+
+    return { closed: false, slots: this.buildDaySlots(availRows, partialBlocks, bookings, nowMinutes) };
+  }
+
+  /** Disponibilidad por día del mes (para pintar cupos/estado bajo cada número). */
+  async getMonthAvailability(serviceId: string, tenantId: string, year: number, month: number) {
+    const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
+    const lastDay = new Date(year, month, 0).getDate();
+    const monthEnd = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
+    const [availRows] = await db.execute<AvailabilityRow[]>(
+      `SELECT * FROM service_availability WHERE service_id = ? AND is_active = TRUE`, [serviceId]
+    );
+    const availByDow = new Map<number, AvailabilityRow[]>();
+    for (const a of availRows) { const k = (a as any).day_of_week; (availByDow.get(k) || availByDow.set(k, []).get(k))!.push(a); }
+
+    const [blocks] = await db.execute<RowDataPacket[]>(
+      `SELECT blocked_date, start_time, end_time FROM service_blocked_periods
+       WHERE tenant_id = ? AND blocked_date BETWEEN ? AND ? AND (service_id = ? OR service_id IS NULL)`,
+      [tenantId, monthStart, monthEnd, serviceId]
+    );
+    const [bookingRows] = await db.execute<RowDataPacket[]>(
+      `SELECT booking_date, start_time, end_time FROM service_bookings
+       WHERE service_id = ? AND booking_date BETWEEN ? AND ? AND status IN ('pendiente','confirmada')`,
+      [serviceId, monthStart, monthEnd]
+    );
+    const [holdRows] = await db.execute<RowDataPacket[]>(
+      `SELECT booking_date, start_time, end_time FROM service_slot_holds
+       WHERE service_id = ? AND booking_date BETWEEN ? AND ? AND expires_at > NOW()`,
+      [serviceId, monthStart, monthEnd]
+    );
+    const bookings = [...(bookingRows as any[]), ...(holdRows as any[])];
+
+    const dateKey = (d: any) => (d instanceof Date ? d.toISOString().slice(0, 10) : String(d).slice(0, 10));
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const result: Record<string, { available: number; status: 'libre' | 'pocos' | 'lleno' | 'cerrado' }> = {};
+
+    for (let day = 1; day <= lastDay; day++) {
+      const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      if (dateStr < todayStr) continue;
+      const dow = new Date(dateStr + 'T00:00:00').getDay();
+      const dayAvail = availByDow.get(dow) || [];
+      if (!dayAvail.length) { result[dateStr] = { available: 0, status: 'cerrado' }; continue; }
+
+      const dayBlocks = (blocks as any[]).filter(b => dateKey(b.blocked_date) === dateStr);
+      if (dayBlocks.some(b => !b.start_time)) { result[dateStr] = { available: 0, status: 'cerrado' }; continue; }
+      const partial = dayBlocks.filter(b => b.start_time);
+      const dayBookings = (bookings as any[]).filter(b => dateKey(b.booking_date) === dateStr);
+      const nowMinutes = dateStr === todayStr ? (new Date().getHours() * 60 + new Date().getMinutes()) : null;
+
+      const slots = this.buildDaySlots(dayAvail, partial as any, dayBookings as any, nowMinutes);
+      const available = slots.filter(s => s.status === 'disponible' || s.status === 'ultimos_cupos').length;
+      const status = available === 0 ? 'lleno' : available <= 3 ? 'pocos' : 'libre';
+      result[dateStr] = { available, status };
+    }
+    return result;
+  }
+
   // ── PUBLIC: list published services by tenant slug ─────────────
+  // Complementos (cross-sell) publicados de un servicio, en el orden configurado
+  async getPublicAddons(serviceId: string, tenantId: string) {
+    const [svcRows] = await db.execute<ServiceRow[]>(
+      'SELECT addon_service_ids FROM services WHERE id = ? AND tenant_id = ? AND is_active = TRUE AND is_published = TRUE',
+      [serviceId, tenantId]
+    );
+    if (!svcRows.length) return [];
+    const ids = parseBenefits((svcRows[0] as any).addon_service_ids)
+      .filter((x) => x !== serviceId); // nunca ofrecerse a sí mismo
+    if (!ids.length) return [];
+    const placeholders = ids.map(() => '?').join(',');
+    const [rows] = await db.execute<ServiceRow[]>(
+      `SELECT * FROM services
+       WHERE tenant_id = ? AND is_active = TRUE AND is_published = TRUE AND id IN (${placeholders})`,
+      [tenantId, ...ids]
+    );
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    // Respetar el orden configurado por el comerciante
+    return ids
+      .map((id) => byId.get(id))
+      .filter((r): r is ServiceRow => !!r)
+      .map((r) => ({
+        id: r.id, name: r.name, price: Number(r.price), priceType: r.price_type,
+        durationMinutes: r.duration_minutes, imageUrl: r.image_url,
+        description: r.description,
+      }));
+  }
+
   async findPublicBySlug(slug: string) {
     const [tenants] = await db.execute<RowDataPacket[]>(
       "SELECT id FROM tenants WHERE slug = ? AND status = 'activo' LIMIT 1",
@@ -375,10 +606,43 @@ export class ServicesService {
     };
   }
 
+  // ── RESERVA TEMPORAL (hold) — anti doble reserva (F2) ─────────
+  /** Aparta un cupo por 5 min mientras el cliente completa sus datos. */
+  async createHold(serviceId: string, tenantId: string, dateStr: string, startTime: string) {
+    // Limpiar holds vencidos (mantenimiento oportunista)
+    await db.execute('DELETE FROM service_slot_holds WHERE expires_at < NOW()');
+
+    // El slot debe existir y estar disponible (getAvailableSlots ya cuenta holds activos)
+    const available = await this.getAvailableSlots(serviceId, tenantId, dateStr);
+    const match = available.find((s) => s.startsWith(startTime));
+    if (!match) throw new AppError('Ese horario ya no está disponible', 409);
+    const endTime = match.split('-')[1];
+
+    const { randomBytes } = await import('crypto');
+    const holdToken = randomBytes(18).toString('base64url');
+    const id = uuidv4();
+    await db.execute(
+      `INSERT INTO service_slot_holds (id, tenant_id, service_id, hold_token, booking_date, start_time, end_time, expires_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL 5 MINUTE))`,
+      [id, tenantId, serviceId, holdToken, dateStr, startTime, endTime]
+    );
+    // Devolver el momento de expiración calculado por la BD (consistente con NOW())
+    const [rows] = await db.execute<RowDataPacket[]>(
+      'SELECT expires_at AS expiresAt FROM service_slot_holds WHERE id = ?', [id]
+    );
+    return { holdToken, expiresAt: (rows as any[])[0]?.expiresAt };
+  }
+
+  async releaseHold(holdToken: string) {
+    await db.execute('DELETE FROM service_slot_holds WHERE hold_token = ?', [holdToken]);
+    return { released: true };
+  }
+
   async createBooking(tenantId: string, data: {
     serviceId: string; clientName: string; clientPhone: string;
     clientEmail?: string; clientNotes?: string;
-    bookingDate?: string; startTime?: string;
+    bookingDate?: string; startTime?: string; holdToken?: string;
+    addonIds?: string[];
     preferredDateRange?: string; projectDescription?: string; budgetRange?: string;
   }) {
     // Validate service belongs to tenant and is active
@@ -389,10 +653,35 @@ export class ServicesService {
     if (!svcRows.length) throw new AppError('Servicio no disponible', 404);
     const svc = svcRows[0];
 
+    // ── Cross-sell: resolver complementos SIEMPRE en el servidor (nunca confiar
+    // en el precio del cliente). Solo se aceptan add-ons que el servicio realmente
+    // ofrece, que existen, están activos y publicados.
+    const allowedAddonIds = parseBenefits((svc as any).addon_service_ids);
+    const requestedAddonIds = Array.isArray(data.addonIds)
+      ? [...new Set(data.addonIds.map((x) => String(x).trim()).filter(Boolean))] : [];
+    const validAddonIds = requestedAddonIds.filter((x) => allowedAddonIds.includes(x));
+    let addons: Array<{ id: string; name: string; price: number }> = [];
+    if (validAddonIds.length) {
+      const placeholders = validAddonIds.map(() => '?').join(',');
+      const [addonRows] = await db.execute<ServiceRow[]>(
+        `SELECT id, name, price FROM services
+         WHERE tenant_id = ? AND is_active = TRUE AND is_published = TRUE AND id IN (${placeholders})`,
+        [tenantId, ...validAddonIds]
+      );
+      addons = addonRows.map((a) => ({ id: a.id, name: a.name, price: Number(a.price) }));
+    }
+    const basePrice = ['fijo', 'desde'].includes(svc.price_type) ? Number(svc.price) : 0;
+    const totalAmount = basePrice + addons.reduce((s, a) => s + a.price, 0);
+
     let endTime: string | null = null;
 
     // For cita type: validate slot is available
     if (svc.service_type === 'cita' && data.bookingDate && data.startTime) {
+      // Consumir el hold del cliente ANTES de re-validar: así su propia reserva
+      // temporal no cuenta como ocupante (pero sí las de otros / las citas reales).
+      if (data.holdToken) {
+        await db.execute('DELETE FROM service_slot_holds WHERE hold_token = ?', [data.holdToken]);
+      }
       const available = await this.getAvailableSlots(data.serviceId, tenantId, data.bookingDate);
       const matchingSlot = available.find((s) => s.startsWith(data.startTime!));
       if (!matchingSlot) throw new AppError('El horario seleccionado no está disponible', 400);
@@ -404,8 +693,8 @@ export class ServicesService {
       `INSERT INTO service_bookings
         (id, tenant_id, service_id, service_name, booking_type, client_name, client_phone,
          client_email, client_notes, booking_date, start_time, end_time,
-         preferred_date_range, project_description, budget_range)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         preferred_date_range, project_description, budget_range, addons, total_amount)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id, tenantId, data.serviceId, svc.name, svc.service_type,
         data.clientName, data.clientPhone, data.clientEmail || null,
@@ -413,6 +702,7 @@ export class ServicesService {
         data.bookingDate || null, data.startTime || null, endTime,
         data.preferredDateRange || null, data.projectDescription || null,
         data.budgetRange || null,
+        addons.length ? JSON.stringify(addons) : null, totalAmount,
       ]
     );
 

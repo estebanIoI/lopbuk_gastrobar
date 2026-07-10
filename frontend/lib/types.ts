@@ -501,6 +501,9 @@ export interface Service {
   priceType: ServicePriceType
   durationMinutes?: number | null
   imageUrl?: string | null
+  benefits?: string[] | null
+  preparation?: string | null
+  addonServiceIds?: string[] | null
   requiresPayment: boolean
   maxAdvanceDays: number
   cancellationHours: number
@@ -551,9 +554,21 @@ export interface ServiceBooking {
   status: BookingStatus
   paymentStatus: BookingPaymentStatus
   amountPaid: number
+  addons?: Array<{ id: string; name: string; price: number }> | null
+  totalAmount?: number
   merchantNotes?: string | null
   createdAt: string
   updatedAt: string
+}
+
+export interface ServiceAddon {
+  id: string
+  name: string
+  price: number
+  priceType: ServicePriceType
+  durationMinutes?: number | null
+  imageUrl?: string | null
+  description?: string | null
 }
 
 // Auth Types

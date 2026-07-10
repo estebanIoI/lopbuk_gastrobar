@@ -16,6 +16,36 @@ router.get('/:id/slots',
   servicesController.getSlots.bind(servicesController)
 );
 
+// GET /api/services/:id/slots-detailed?date=YYYY-MM-DD&store=slug — slots con estado
+router.get('/:id/slots-detailed',
+  [query('date').notEmpty().isISO8601(), query('store').notEmpty(), validateRequest],
+  servicesController.getSlotsDetailed.bind(servicesController)
+);
+
+// GET /api/services/:id/month-availability?year=&month=&store=slug — cupos por día
+router.get('/:id/month-availability',
+  [query('year').notEmpty().isInt(), query('month').notEmpty().isInt({ min: 1, max: 12 }), query('store').notEmpty(), validateRequest],
+  servicesController.getMonthAvailability.bind(servicesController)
+);
+
+// GET /api/services/:id/addons?store=slug — complementos publicados (cross-sell)
+router.get('/:id/addons',
+  [query('store').notEmpty(), validateRequest],
+  servicesController.getAddons.bind(servicesController)
+);
+
+// POST /api/services/:id/hold?store=slug — aparta el cupo 5 min (anti doble reserva)
+router.post('/:id/hold',
+  [query('store').notEmpty(), body('date').notEmpty().isISO8601(), body('startTime').notEmpty(), validateRequest],
+  servicesController.createHold.bind(servicesController)
+);
+
+// POST /api/services/hold/release — libera un hold (al cancelar/cerrar)
+router.post('/hold/release',
+  [body('holdToken').notEmpty(), validateRequest],
+  servicesController.releaseHold.bind(servicesController)
+);
+
 // POST /api/services/bookings?store=slug  (public booking)
 router.post('/bookings',
   [

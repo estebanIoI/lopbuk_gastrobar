@@ -2164,6 +2164,7 @@ class ApiService {
     name: string; serviceType: 'cita' | 'asesoria' | 'contacto'
     description?: string; category?: string; price?: number
     priceType?: string; durationMinutes?: number; imageUrl?: string
+    benefits?: string[]; preparation?: string
     requiresPayment?: boolean; maxAdvanceDays?: number
     cancellationHours?: number; sortOrder?: number
   }) {
@@ -2246,15 +2247,44 @@ class ApiService {
   async getPublicServices(store: string) {
     return this.request<any[]>(`/services/public?store=${encodeURIComponent(store)}`)
   }
+  async getPublicSlotsDetailed(serviceId: string, store: string, date: string) {
+    return this.request<{ closed: boolean; blocked?: boolean; slots: Array<{ time: string; endTime: string; status: string; spotsLeft: number }> }>(
+      `/services/${serviceId}/slots-detailed?store=${encodeURIComponent(store)}&date=${date}`
+    )
+  }
+
+  async holdServiceSlot(serviceId: string, store: string, date: string, startTime: string) {
+    return this.request<{ holdToken: string; expiresAt: string }>(
+      `/services/${serviceId}/hold?store=${encodeURIComponent(store)}`,
+      { method: 'POST', body: JSON.stringify({ date, startTime }) }
+    )
+  }
+
+  async releaseServiceHold(holdToken: string) {
+    return this.request<any>('/services/hold/release', { method: 'POST', body: JSON.stringify({ holdToken }) })
+  }
+
+  async getServiceMonthAvailability(serviceId: string, store: string, year: number, month: number) {
+    return this.request<Record<string, { available: number; status: 'libre' | 'pocos' | 'lleno' | 'cerrado' }>>(
+      `/services/${serviceId}/month-availability?store=${encodeURIComponent(store)}&year=${year}&month=${month}`
+    )
+  }
+
   async getPublicSlots(serviceId: string, store: string, date: string) {
     return this.request<string[]>(
       `/services/${serviceId}/slots?store=${encodeURIComponent(store)}&date=${date}`
     )
   }
+  async getServiceAddons(serviceId: string, store: string) {
+    return this.request<Array<{ id: string; name: string; price: number; priceType: string; durationMinutes?: number | null; imageUrl?: string | null; description?: string | null }>>(
+      `/services/${serviceId}/addons?store=${encodeURIComponent(store)}`
+    )
+  }
   async createPublicBooking(store: string, data: {
     serviceId: string; clientName: string; clientPhone: string
     clientEmail?: string; clientNotes?: string
-    bookingDate?: string; startTime?: string
+    bookingDate?: string; startTime?: string; holdToken?: string
+    addonIds?: string[]
     preferredDateRange?: string; projectDescription?: string; budgetRange?: string
   }) {
     return this.request<any>(`/services/bookings?store=${encodeURIComponent(store)}`, {

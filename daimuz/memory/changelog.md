@@ -5,6 +5,51 @@
 ---
 
 
+## [2026-07-10] — Calendario de reservas Fase 4: cross-sell / order bump para servicios (sube el ticket)
+
+Cuarta fase del rediseño UX. Al reservar un servicio, se ofrecen **complementos** (otros servicios) como agregado opcional que suben el valor de la reserva — order bump aplicado a citas. Verificado E2E 18/18. Migración 0029.
+
+- **DB** (`schema.ts` → migración 0029 `shallow_boomer`): `services.addon_service_ids` (JSON, IDs de servicios ofrecidos como complemento) + `service_bookings.addons` (JSON, snapshot `{id,name,price}` al reservar) + `service_bookings.total_amount` (decimal, base + complementos).
+- **Backend** (`services.service.ts`): `mapService` expone `addonServiceIds`; `create`/`update` los normalizan (dedup, trim, NULL si vacío). Nuevo `getPublicAddons` — resuelve los complementos **solo publicados+activos**, en el orden configurado, sin auto-referencia. `createBooking` acepta `addonIds` y **resuelve precios SIEMPRE en el servidor** (nunca del cliente): filtra a los que el servicio realmente ofrece + existen + publicados, snapshotea `{id,name,price}` reales y calcula `total_amount = base (si fijo/desde) + Σ complementos`. `mapBooking` expone `addons` + `totalAmount`. Endpoint público `GET /services/:id/addons`.
+- **Editor panel** (`services-management.tsx`): en el form de servicio (citas), selector **"Complementos sugeridos"** (checkboxes de otros servicios con precio, excluye el actual y las cotizaciones). El detalle de reserva del comerciante muestra los **complementos agregados + Total**.
+- **Modal** (`service-booking-modal.tsx`): carga los complementos al abrir; en el paso de datos, tarjeta **"Agrega a tu experiencia"** con toggles (+precio); el resumen fijo muestra **desglose base + complementos = Total** en vivo; la confirmación lista los complementos y el total. `addonIds` viaja a `createPublicBooking`.
+- `types.ts` (Service.addonServiceIds, ServiceBooking.addons/totalAmount, ServiceAddon) + `api.getServiceAddons` + `createService`/`createPublicBooking` aceptan los campos. `tsc` back (6 base, 0 nuevos) y front (8 base, 0 nuevos). E2E 18/18: endpoint público solo publicados/en orden/sin auto-ref; booking ignora add-ons no permitidos (OTHER), no publicados (A3) y falsos (bogus); total 100k+20k+30k=150k con precios reales del servidor; persistencia JSON + total_amount en BD; reserva sin add-ons → total = base.
+- **Siguiente**: Fase 5 (especialista por cita — `service_bookings` aún no asigna profesional) · 6 (lista de espera/promos por horario/fidelidad/métricas/reprogramar).
+
+
+## [2026-07-10] — Calendario de reservas Fase 3: vender la experiencia (resumen fijo + "qué incluye" + confirmación emocional)
+
+Tercera fase del rediseño UX. El modal pasa de un formulario funcional a una **landing de venta premium**: layout de 2 columnas con resumen fijo, tarjeta de beneficios y una confirmación que emociona. Verificado E2E 17/17. Migración 0028 (2 columnas nuevas en `services`).
+
+- **DB** (`schema.ts` → migración 0028 `easy_ronan`): `services.benefits` (JSON, array de strings "qué incluye") + `services.preparation` (text, "cómo prepararte"). Ambos nullable → servicios viejos siguen igual.
+- **Backend** (`services.service.ts`): `mapService` parsea benefits (defensivo: array o string JSON) y expone preparation; `create`/`update` normalizan benefits (trim + filtra vacíos → NULL si queda vacío) y preparation. Los endpoints públicos y autenticados ya los devuelven sin más cambios (el controller pasa `req.body`).
+- **Editor panel** (`services-management.tsx`): en el form de servicio, editor de lista **"¿Qué incluye?"** (agregar/quitar beneficios, Enter agrega otro) + textarea **"Cómo prepararte"** (solo citas). `emptyServiceForm`/`openEdit`/`submitService` cablean ambos.
+- **Modal** (`service-booking-modal.tsx`, reescrito): **layout 2 columnas** (`max-w-3xl`) — izquierda el flujo (calendario/formulario), derecha un **resumen fijo** (imagen, nombre, precio, duración, lista "Incluye" con checks, la cita elegida resaltada + countdown del hold, "Cómo prepararte", política de cancelación con ✓). En móvil el resumen va arriba. **Confirmación emocional** a pantalla completa: check animado, "¡Tu cita está reservada! 🎉", saludo por nombre, tarjeta con servicio/fecha/hora/valor, bloque "¿Qué sigue?", botón **"Añadir a Google Calendar"** (link TEMPLATE con `America/Bogota`), política de cancelación. Toda la lógica de F1 (estados de slot) y F2 (hold + countdown) intacta.
+- `types.ts` Service + `api.createService` aceptan benefits/preparation. `tsc` back (6 base, 0 nuevos) y front (8 base, 0 nuevos). E2E 17/17: create devuelve/persiste benefits[3] en orden + preparation; guardado como JSON en BD; GET autenticado los trae; update reemplaza ambos; strings vacíos filtrados; endpoint público expone la experiencia; vaciar → NULL.
+- **Siguiente**: Fase 4 (cross-sell + paquetes / order bump para servicios) · 5 (especialista por cita) · 6 (lista de espera/promos/fidelidad/métricas).
+
+
+## [2026-07-10] — Calendario de reservas Fase 2: reserva temporal (hold 5 min, anti doble-reserva)
+
+Segunda fase del rediseño UX del calendario. Cuando el cliente elige un slot y pasa al formulario, el cupo queda **apartado 5 minutos** para que nadie más lo tome mientras llena sus datos (patrón boletería). Verificado E2E 12/12. Migración 0027 `service_slot_holds`.
+
+- **DB** (`schema.ts` → migración 0027 `rare_hulk`): tabla `service_slot_holds` (id, tenant_id, service_id, hold_token único, booking_date, start_time/end_time, expires_at NOT NULL, created_at; índices por (service_id, booking_date) y expires_at).
+- **Backend** (`services.service.ts`): los 3 métodos de disponibilidad (`getAvailableSlots`, `getSlotsWithStatus`, `getMonthAvailability`) ahora **cuentan los holds activos** (`expires_at > NOW()`) junto con las reservas reales → un slot apartado sale ocupado para los demás. Nuevo `createHold` (limpia vencidos, valida el slot vía getAvailableSlots, inserta con `expires_at = NOW()+5min`, devuelve `holdToken` + `expiresAt`); `releaseHold` (borra por token). `createBooking` acepta `holdToken` y **borra el hold ANTES de re-validar** (así el propio hold del cliente no le bloquea su reserva). Endpoints públicos `POST /services/:id/hold` y `POST /services/hold/release`.
+- **Frontend** (`service-booking-modal.tsx`): al pulsar "Continuar" se crea el hold (`handleContinue`, label "Apartando…"); si el slot ya se ocupó → 409 → recarga slots y avisa. Cuenta regresiva de 5 min (banner "Apartado M:SS", rojo cuando ≤60s); al llegar a 0 vuelve al calendario, recarga y avisa. Botones "Cambiar hora" y "Cancelar" liberan el hold; también se libera al desmontar el modal. `holdToken` viaja en `createPublicBooking` y se limpia al confirmar. `api.holdServiceSlot` + `releaseServiceHold`.
+- `tsc` back (6 base, 0 nuevos) y front (8 base, 0 nuevos). E2E 12/12: hold ocupa el slot para otros, 2º hold del mismo slot → 409, reserva con token creada + hold consumido + slot sigue ocupado por la reserva real, hold vencido libera el slot, crear hold limpia los vencidos.
+- **Siguiente**: Fase 3 (vender la experiencia + resumen fijo + confirmación emocional) · 4 (cross-sell/paquetes) · 5 (especialista por cita) · 6 (lista de espera/promos/fidelidad/métricas).
+
+
+## [2026-07-10] — Calendario de reservas Fase 1: disponibilidad rica (estados de slot + cupos por día)
+
+Primera fase del rediseño UX del calendario de reservas (spa/salón premium). El motor de disponibilidad ya existía y calculaba bien, pero la API solo devolvía los slots DISPONIBLES como strings → la UI mostraba todo igual. Ahora expone los estados. Verificado E2E 11/11. Sin migración (reutiliza el motor).
+
+- **Backend** (`services.service.ts`): helper `buildDaySlots` (genera TODOS los slots del bloque con estado: disponible/ocupado/bloqueado/pasado + spotsLeft; marca **últimos_cupos** cuando quedan ≤3 disponibles en el día o spotsLeft===1). Métodos `getSlotsWithStatus(serviceId, tenantId, date)` (día con estados) y `getMonthAvailability(serviceId, tenantId, year, month)` (por día: available + status libre/pocos/lleno/cerrado, con queries batcheadas por mes). Endpoints públicos `GET /services/:id/slots-detailed` y `GET /services/:id/month-availability`.
+- **Frontend** (`service-booking-modal.tsx`): slots ahora pintan estado — disponible normal, **últimos cupos** ámbar con etiqueta, ocupado gris tachado con 🔒 (clicable solo para mostrar el motivo "ya están reservadas"), bloqueado opaco ("no hay atención en esta franja"), pasado atenuado. Leyenda de estados. Calendario con **punto de color bajo cada día** (verde=libre, ámbar=pocos, rojo=lleno) + tooltip con nº de cupos; días llenos deshabilitados/tachados. `api.getPublicSlotsDetailed` + `getServiceMonthAvailability`.
+- `tsc` back (6 base) y front (8 base) sin errores nuevos. E2E 11/11: 08:30 ocupado (reserva), 09:00 bloqueado (bloqueo), 08:00/09:30 últimos cupos por escasez, month-availability con "pocos"/2 disponibles, día sin disponibilidad "cerrado".
+- **Siguiente**: Fase 2 (reserva temporal/hold 5 min anti doble-reserva) · 3 (vender experiencia + resumen fijo + confirmación emocional) · 4 (cross-sell/paquetes) · 5 (especialista) · 6 (lista de espera/promos/fidelidad/métricas).
+
+
 ## [2026-07-09] — Chatbot de tienda: robustez del contexto + persistencia de últimos 10 mensajes
 
 Reporte del comerciante: el chatbot "ya no trae productos de la tienda en la que estoy" ni la info del comercio. La tienda vive en producción (no reproducible en dev; todas las queries del contexto pasan contra la BD de dev). Se atacaron las causas de código y se agregó la persistencia pedida.

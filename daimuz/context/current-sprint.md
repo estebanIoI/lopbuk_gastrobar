@@ -4,6 +4,20 @@
 
 ## Sprint activo: Julio 2026
 
+### 🔜 [2026-07-10] PENDIENTE DE DECISIÓN — Rediseño UX del calendario de reservas (spa/salón premium)
+Auditado el modal real `frontend/components/service-booking-modal.tsx` + motor `services.service.ts::getAvailableSlots` (ya calcula disponibilidad real: bloques service_availability, duración, max_simultaneous, service_blocked_periods, descuenta service_bookings pendiente/confirmada — pero la API solo devuelve los slots DISPONIBLES como strings, por eso la UI no muestra estados). Existe fidelización (loyalty_*), cupones (discount_coupons), order bump (solo productos), multi-sede.
+**Plan propuesto (6 fases, esperando que el comerciante elija por dónde empezar):**
+1. Disponibilidad rica: exponer TODOS los slots con estado + ocupación por día. ✅ **HECHO E2E 11/11** [2026-07-10] (slots-detailed + month-availability, sin migración).
+2. Reserva temporal (hold 5 min) anti doble-reserva. ✅ **HECHO E2E 12/12** [2026-07-10] (migración 0027 `service_slot_holds`; disponibilidad cuenta holds activos; createHold/releaseHold; createBooking consume el token; UI con countdown de 5 min).
+3. Vender la experiencia: tarjeta beneficios/"incluye", resumen fijo, confirmación emocional, estética premium. ✅ **HECHO E2E 17/17** [2026-07-10] (migración 0028: `services.benefits` JSON + `preparation`; editor en panel; modal 2 columnas con resumen fijo + confirmación emocional + Google Calendar).
+4. Cross-sell + paquetes (order bump para servicios) → sube ticket. ✅ **HECHO E2E 18/18** [2026-07-10] (migración 0029: `services.addon_service_ids` + `service_bookings.addons/total_amount`; endpoint público de complementos; total resuelto server-side; selector en panel + "Agrega a tu experiencia" en el modal). **← siguiente: Fase 5.**
+5. Especialista por cita (service_bookings NO asigna profesional hoy).
+6. Retención: lista de espera, promos por horario, puntos de fidelidad al confirmar, métricas, reprogramar.
+
+### ✅ [2026-07-10] Fix chatbot tienda: robustez contexto + persistencia 10 mensajes
+buildDynamicContext (agent.rag.ts) ahora cada query con catch propio (antes 1 catch mataba todo el contexto → "sin productos/sin info comercio"); errores logueados; ChatWidget guarda últimos 10 msgs por tienda (localStorage `dz_chat_{slug}`). Fixes UI previos: hero1 sin franjas negras, botón Contacto visible en header claro, ThemeSwitch minimalista.
+
+
 ### 🔄 [2026-07-07]: Plan Ferretería (auditoría 60 empleados / 6 ubicaciones) — Fase 1 de 6 ✅
 
 Objetivo: sistema integral para ferretería multi-sede según auditoría de operaciones del usuario. Roadmap acordado: F1 multibodega → F2 cotizaciones con promesa de entrega → F3 picking+ubicaciones → F4 tiempos por etapa+recepción → F5 GPS+portal cliente → F6 dashboard gerencial. Detalle: `memory/changelog.md` [2026-07-07].

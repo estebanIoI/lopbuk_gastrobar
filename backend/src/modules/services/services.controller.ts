@@ -100,6 +100,75 @@ export class ServicesController {
     } catch (e) { next(e); }
   }
 
+  // ── SLOTS con estado (public, Fase 1 UX) ─────────────────────
+  async getSlotsDetailed(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const { date, store } = req.query as { date: string; store: string };
+      const pool = (await import('../../config')).db;
+      const [tenants] = await pool.execute<any[]>(
+        "SELECT id FROM tenants WHERE slug = ? AND status = 'activo' LIMIT 1", [store]
+      );
+      if (!tenants.length) { res.status(404).json({ success: false, error: 'Tienda no encontrada' }); return; }
+      const data = await servicesService.getSlotsWithStatus(id, tenants[0].id, date);
+      res.json({ success: true, data });
+    } catch (e) { next(e); }
+  }
+
+  // ── Reserva temporal / hold (public, Fase 2 UX) ─────────────
+  async createHold(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const { store } = req.query as { store: string };
+      const { date, startTime } = req.body as { date: string; startTime: string };
+      const pool = (await import('../../config')).db;
+      const [tenants] = await pool.execute<any[]>(
+        "SELECT id FROM tenants WHERE slug = ? AND status = 'activo' LIMIT 1", [store]
+      );
+      if (!tenants.length) { res.status(404).json({ success: false, error: 'Tienda no encontrada' }); return; }
+      const data = await servicesService.createHold(id, tenants[0].id, date, startTime);
+      res.json({ success: true, data });
+    } catch (e) { next(e); }
+  }
+
+  async releaseHold(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { holdToken } = req.body as { holdToken: string };
+      if (holdToken) await servicesService.releaseHold(holdToken);
+      res.json({ success: true, data: { released: true } });
+    } catch (e) { next(e); }
+  }
+
+  // ── Complementos / cross-sell (public, Fase 4 UX) ────────────
+  async getAddons(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const { store } = req.query as { store: string };
+      const pool = (await import('../../config')).db;
+      const [tenants] = await pool.execute<any[]>(
+        "SELECT id FROM tenants WHERE slug = ? AND status = 'activo' LIMIT 1", [store]
+      );
+      if (!tenants.length) { res.status(404).json({ success: false, error: 'Tienda no encontrada' }); return; }
+      const data = await servicesService.getPublicAddons(id, tenants[0].id);
+      res.json({ success: true, data });
+    } catch (e) { next(e); }
+  }
+
+  // ── Disponibilidad por día del mes (public, Fase 1 UX) ───────
+  async getMonthAvailability(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const { year, month, store } = req.query as { year: string; month: string; store: string };
+      const pool = (await import('../../config')).db;
+      const [tenants] = await pool.execute<any[]>(
+        "SELECT id FROM tenants WHERE slug = ? AND status = 'activo' LIMIT 1", [store]
+      );
+      if (!tenants.length) { res.status(404).json({ success: false, error: 'Tienda no encontrada' }); return; }
+      const data = await servicesService.getMonthAvailability(id, tenants[0].id, Number(year), Number(month));
+      res.json({ success: true, data });
+    } catch (e) { next(e); }
+  }
+
   // ── PUBLIC services ──────────────────────────────────────────
   async findPublic(req: Request, res: Response, next: NextFunction) {
     try {
