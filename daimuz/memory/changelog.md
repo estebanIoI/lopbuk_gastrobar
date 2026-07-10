@@ -5,6 +5,16 @@
 ---
 
 
+## [2026-07-09] — Chatbot de tienda: robustez del contexto + persistencia de últimos 10 mensajes
+
+Reporte del comerciante: el chatbot "ya no trae productos de la tienda en la que estoy" ni la info del comercio. La tienda vive en producción (no reproducible en dev; todas las queries del contexto pasan contra la BD de dev). Se atacaron las causas de código y se agregó la persistencia pedida.
+
+- **Fragilidad corregida (raíz probable)**: `buildDynamicContext` (agent.rag.ts) corría sus 8 queries en un `Promise.all` con **un solo catch** → si UNA fallaba (config faltante, diferencia de columna en prod), el bot perdía TODO el contexto de golpe (nombre, productos, ofertas). Ahora cada query lleva su propio `.catch(() => [[]])` → una falla degrada solo su parte, el resto del contexto sigue llegando.
+- **Errores ya no se tragan en silencio**: `searchProductsForChatbot` y `buildDynamicContext` en agent.service ahora hacen `console.error` en su catch → si hay un fallo SQL real en prod, aparece en logs (antes devolvían vacío sin rastro).
+- **Persistencia (ChatWidget.tsx)**: guarda los **últimos 10 mensajes por tienda** (clave `dz_chat_{slug}` en localStorage) + el sessionToken; al reabrir el chat (o cambiar de tienda) restaura esa conversación. Queda atada a la tienda actual — cada comercio tiene su propio historial.
+- `tsc` back (6 base, 0 nuevos) y front (8 base, 0 nuevos). Requiere redeploy. **Nota para el comerciante**: si una tienda sigue sin mostrar productos, verificar que estén `published_in_store = 1` (un producto no publicado nunca aparece en el chatbot) y que el chatbot esté habilitado para ese tenant.
+
+
 ## [2026-07-08] — Cierre de vacíos, Bloque E: optimización de secuencia de paradas (vecino más cercano + 2-opt)
 
 Quinto bloque — de agrupar por zona (ya existía) a ORDENAR en qué orden visitar las paradas para minimizar km. Verificado E2E 9/9. Sin migración.
