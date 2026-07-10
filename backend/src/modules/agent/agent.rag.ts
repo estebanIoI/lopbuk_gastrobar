@@ -89,30 +89,30 @@ export async function buildDynamicContext(tenantId: string): Promise<DynamicCont
               cart_delivery_fee, cart_min_purchase, allow_contraentrega
        FROM store_info WHERE tenant_id = ? LIMIT 1`,
       [tenantId]
-    ) as Promise<any>,
+    ).catch(() => [[]] as any) as Promise<any>,
     pool.query(
       `SELECT slug, reservations_enabled, reservations_open_time, reservations_close_time,
               reservations_slot_minutes, reservations_occasions
        FROM tenants WHERE id = ? LIMIT 1`,
       [tenantId]
-    ) as Promise<any>,
+    ).catch(() => [[]] as any) as Promise<any>,
     pool.query(
       `SELECT name FROM categories WHERE tenant_id = ? AND hidden_in_store = 0 ORDER BY name LIMIT 20`,
       [tenantId]
-    ) as Promise<any>,
+    ).catch(() => [[]] as any) as Promise<any>,
     pool.query(
       `SELECT name, price, price_type, duration_minutes, service_type
        FROM services WHERE tenant_id = ? AND is_published = 1 AND is_active = 1
        ORDER BY sort_order ASC LIMIT 10`,
       [tenantId]
-    ) as Promise<any>,
+    ).catch(() => [[]] as any) as Promise<any>,
     pool.query(
       `SELECT id, name, sale_price AS salePrice, category, image_url AS imageUrl
        FROM products
        WHERE tenant_id = ? AND published_in_store = 1 AND stock > 0
        ORDER BY created_at DESC LIMIT 20`,
       [tenantId]
-    ) as Promise<any>,
+    ).catch(() => [[]] as any) as Promise<any>,
     // Ofertas activas: palanca de cierre honesta (precio tachado real)
     pool.query(
       `SELECT name, sale_price AS salePrice, offer_price AS offerPrice, offer_label AS offerLabel
@@ -122,7 +122,7 @@ export async function buildDynamicContext(tenantId: string): Promise<DynamicCont
               WHERE v.product_id = products.id AND v.is_active = 1 AND (v.stock - v.reserved_stock) > 0))
        ORDER BY updated_at DESC LIMIT 5`,
       [tenantId]
-    ) as Promise<any>,
+    ).catch(() => [[]] as any) as Promise<any>,
     // Cupones vigentes que el agente puede ofrecer para cerrar
     pool.query(
       `SELECT code, discount_type AS discountType, discount_value AS discountValue,
@@ -133,13 +133,13 @@ export async function buildDynamicContext(tenantId: string): Promise<DynamicCont
          AND (max_uses IS NULL OR times_used < max_uses)
        ORDER BY created_at DESC LIMIT 5`,
       [tenantId]
-    ) as Promise<any>,
+    ).catch(() => [[]] as any) as Promise<any>,
     // Order bump del comercio → complementos para upsell
     pool.query(
       `SELECT is_enabled AS isEnabled, mode, title, max_items AS maxItems, product_ids AS productIds
        FROM store_order_bump WHERE tenant_id = ? LIMIT 1`,
       [tenantId]
-    ) as Promise<any>,
+    ).catch(() => [[]] as any) as Promise<any>,
   ]);
 
   const store = (storeRows as any[])?.[0] || {};

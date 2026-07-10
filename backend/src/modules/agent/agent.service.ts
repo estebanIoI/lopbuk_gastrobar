@@ -885,9 +885,15 @@ export async function processAgentMessage(
 
   const [matchedProducts, dynamicCtx, returningCustomer] = await Promise.all([
     productQuery
-      ? searchProductsForChatbot(tenantId, message).catch(() => [] as ProductMatch[])
+      ? searchProductsForChatbot(tenantId, message).catch((e) => {
+          console.error('[chatbot] searchProducts falló:', e?.message || e);
+          return [] as ProductMatch[];
+        })
       : Promise.resolve([] as ProductMatch[]),
-    buildDynamicContext(tenantId).catch(() => EMPTY_CONTEXT),
+    buildDynamicContext(tenantId).catch((e) => {
+      console.error('[chatbot] buildDynamicContext falló:', e?.message || e);
+      return EMPTY_CONTEXT;
+    }),
     getReturningCustomer(tenantId, sessionId),
   ]);
 

@@ -2,6 +2,7 @@
 
 import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 import { MessageCircle, Mail, MapPin, Clock, ArrowRight, Headphones } from 'lucide-react'
 
 // ── Inline SVG icons for brands not in Lucide ────────────────────────────────
@@ -85,14 +86,14 @@ const commitments = [
 ]
 
 // ── Component ─────────────────────────────────────────────────────────────────
-export function ContactModal() {
+export function ContactModal({ className }: { className?: string }) {
   return (
     <Dialog>
       <DialogTrigger asChild>
         <Button
           variant="ghost"
           size="sm"
-          className="gap-1.5 text-muted-foreground hover:text-primary text-xs px-2"
+          className={cn('gap-1.5 text-muted-foreground hover:text-primary text-xs px-2', className)}
         >
           <MessageCircle className="h-3.5 w-3.5 shrink-0" />
           <span>Contacto</span>

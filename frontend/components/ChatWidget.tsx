@@ -164,9 +164,17 @@ export function ChatWidget({ storeSlug, botName, botAvatarUrl, accentColor = '#f
   const textMutedColor = isLight ? 'text-gray-600' : 'text-white/80'
   const iconColor = isLight ? 'text-gray-900' : 'text-white'
 
-  const [messages, setMessages] = useState<Message[]>([
-    { role: 'assistant', content: `¡Hola! Soy ${botName} 👋 Cuéntame qué estás buscando y te ayudo a encontrar justo lo que necesitas.` },
-  ])
+  // Persistencia por TIENDA: la clave incluye el slug para que cada comercio
+  // guarde su propia conversación (queda atada a la tienda en la que estás).
+  const STORAGE_KEY = `dz_chat_${storeSlug}`
+  const MAX_SAVED = 10 // máximo de mensajes que se conservan si cierras el chat
+
+  const greeting: Message = {
+    role: 'assistant',
+    content: `¡Hola! Soy ${botName} 👋 Cuéntame qué estás buscando y te ayudo a encontrar justo lo que necesitas.`,
+  }
+
+  const [messages, setMessages] = useState<Message[]>([greeting])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [sessionToken, setSessionToken] = useState<string | undefined>()
@@ -176,8 +184,42 @@ export function ChatWidget({ storeSlug, botName, botAvatarUrl, accentColor = '#f
   const lastMessageIdRef = useRef(0)
   const bottomRef = useRef<HTMLDivElement>(null)
   const sessionTokenRef = useRef<string | undefined>(undefined)
+  const hydratedRef = useRef(false)
 
   useEffect(() => { sessionTokenRef.current = sessionToken }, [sessionToken])
+
+  // Al abrir (o cambiar de tienda): restaurar los últimos mensajes guardados de ESA tienda.
+  useEffect(() => {
+    hydratedRef.current = false
+    try {
+      const raw = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null
+      if (raw) {
+        const saved = JSON.parse(raw) as { messages?: Message[]; sessionToken?: string }
+        if (Array.isArray(saved.messages) && saved.messages.length > 0) {
+          setMessages(saved.messages)
+          if (saved.sessionToken) setSessionToken(saved.sessionToken)
+        } else {
+          setMessages([greeting])
+        }
+      } else {
+        setMessages([greeting])
+      }
+    } catch {
+      setMessages([greeting])
+    }
+    hydratedRef.current = true
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeSlug])
+
+  // Guardar los últimos MAX_SAVED mensajes + el token de sesión de esta tienda.
+  useEffect(() => {
+    if (!hydratedRef.current || typeof window === 'undefined') return
+    try {
+      const toSave = messages.slice(-MAX_SAVED)
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ messages: toSave, sessionToken }))
+    } catch { /* almacenamiento lleno o no disponible: no bloquea el chat */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, sessionToken])
 
   // Polling ligero mientras un asesor humano atiende la conversación
   useEffect(() => {

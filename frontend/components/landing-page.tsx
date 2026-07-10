@@ -3223,8 +3223,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 </button>
               </>
             ) : null}
-            <div className="hidden md:flex [&_button]:text-white/70 [&_button:hover]:text-white">
-              <ContactModal />
+            <div className="hidden md:flex">
+              <ContactModal className="text-white/70 hover:text-white" />
             </div>
             <button
               onClick={() => { setShowDesktopSearch(s => !s); setTimeout(() => desktopSearchInputRef.current?.focus(), 50) }}
@@ -6292,10 +6292,12 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         className={`relative w-full${isMobile ? '' : ' px-4 py-3'}`}
         style={{
           marginTop: storeConfig?.announcementBar?.isActive ? '104px' : '64px',
-          height: isMobile ? 'auto' : storeConfig?.announcementBar?.isActive ? 'calc(100vh - 104px)' : 'calc(100vh - 64px)',
+          // La altura la define la proporción real del banner (no fuerza pantalla
+          // completa) → sin franjas negras arriba/abajo con banners anchos.
+          height: 'auto',
         }}
       >
-        <div className={`relative w-full overflow-hidden bg-black${isMobile ? '' : ' h-full rounded-xl'}`}>
+        <div className={`relative w-full overflow-hidden bg-black${isMobile ? '' : ' rounded-xl'}`}>
           {(storeConfig?.banners?.find(b => b.position === 'hero1')?.imageUrl || platformHeroUrl) && (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -6303,7 +6305,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               alt={storeConfig?.banners?.find(b => b.position === 'hero1')?.title || platformHeroTitle || 'Banner principal'}
               loading="eager"
               fetchPriority="high"
-              className={isMobile ? 'w-full h-auto block object-contain' : 'absolute inset-0 w-full h-full object-contain object-center'}
+              className={isMobile ? 'w-full h-auto block object-contain' : 'w-full h-auto block object-contain object-center max-h-[calc(100vh-64px)]'}
             />
           )}
           <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/10 to-black/70 pointer-events-none" />
