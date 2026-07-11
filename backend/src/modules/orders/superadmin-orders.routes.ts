@@ -27,7 +27,7 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
 router.get('/orders/tenants', async (_req: Request, res: Response) => {
   try {
     const [rows] = await pool.query(
-      "SELECT id, name, business_type AS businessType FROM tenants WHERE status = 'activo' ORDER BY name"
+      "SELECT id, name, slug, business_type AS businessType FROM tenants WHERE status = 'activo' ORDER BY name"
     ) as any
     res.json({ success: true, data: rows })
   } catch (err) {

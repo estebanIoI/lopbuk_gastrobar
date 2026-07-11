@@ -278,6 +278,11 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     return true
   })
   const [businessTypeFilter, setBusinessTypeFilter] = useState<string>('all')
+  // Link de campaña de colección: ?collection=<code> → solo muestra esos comercios
+  const [collectionCode] = useState<string>(() => {
+    try { return new URLSearchParams(window.location.search).get('collection') || '' } catch { return '' }
+  })
+  const [collectionTitle, setCollectionTitle] = useState<string | null>(null)
   const [allProducts, setAllProducts] = useState<StorefrontProduct[]>([])
   const [loadingAllProducts, setLoadingAllProducts] = useState(false)
   const [storesWithServices, setStoresWithServices] = useState<Set<string>>(new Set())
@@ -1154,7 +1159,25 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         const json = await res.json()
         if (cancelled) return
         if (json.success && json.data) {
-          setStores(json.data)
+          let list = json.data as typeof stores
+          // Colección de campaña: mostrar SOLO los comercios del rubro/lista compartida
+          if (collectionCode) {
+            try {
+              const share = await fetch(`${API_URL}/storefront/share/${collectionCode}`).then(r => r.json())
+              if (share?.success && share.data?.type === 'collection') {
+                const cfg = share.data.config || {}
+                const bts = (cfg.businessTypes || []).map((x: string) => String(x).toLowerCase())
+                const tids = new Set(cfg.tenantIds || [])
+                list = list.filter(s =>
+                  tids.has(s.id) ||
+                  (bts.length > 0 && !!s.businessType && bts.includes(String(s.businessType).toLowerCase()))
+                )
+                setCollectionTitle(share.data.title || null)
+              }
+            } catch { /* si el link falla, se muestran todos */ }
+          }
+          if (cancelled) return
+          setStores(list)
           // Only auto-select when there's truly a single store on the entire platform
           if (json.data.length === 1) {
             setSelectedStore(json.data[0].slug)
@@ -10433,6 +10456,13 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ========== BANNER DE COLECCIÓN (link de campaña) ========== */}
+      {collectionCode && collectionTitle && showStoresView && selectedStore === 'all' && (
+        <div className="fixed bottom-4 left-1/2 z-[60] -translate-x-1/2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-lg">
+          {collectionTitle}
         </div>
       )}
 

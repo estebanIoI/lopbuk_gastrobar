@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { api } from '@/lib/api'
 import { toast } from 'sonner'
-import { X, Plus, Trash2, GripVertical, RefreshCw, Save } from 'lucide-react'
+import { X, Plus, Trash2, GripVertical, RefreshCw, Save, Bookmark, Layers, Check } from 'lucide-react'
 import { CloudinaryUpload } from '@/components/ui/cloudinary-upload'
 
 interface EditOption { name: string; priceDelta: number; imageUrl: string; isActive: boolean }
@@ -55,11 +55,12 @@ export function ProductModifiersManager({ productId, productName, onClose }: { p
   const patchOption = (gi: number, oi: number, patch: Partial<EditOption>) =>
     setGroups(prev => prev.map((g, i) => i === gi ? { ...g, options: g.options.map((o, j) => j === oi ? { ...o, ...patch } : o) } : g))
 
+  const cleanGroups = () => groups
+    .map(g => ({ ...g, options: g.options.filter(o => o.name.trim()) }))
+    .filter(g => g.name.trim() && g.options.length > 0)
+
   const save = async () => {
-    // Limpia grupos/opciones sin nombre
-    const clean = groups
-      .map(g => ({ ...g, options: g.options.filter(o => o.name.trim()) }))
-      .filter(g => g.name.trim() && g.options.length > 0)
+    const clean = cleanGroups()
     setSaving(true)
     try {
       const res = await api.saveProductModifiers(productId, clean)
@@ -67,6 +68,44 @@ export function ProductModifiersManager({ productId, productName, onClose }: { p
       else toast.error(res.error || 'No se pudo guardar')
     } catch { toast.error('Error al guardar') }
     setSaving(false)
+  }
+
+  // ── Plantillas + aplicación masiva ──
+  const [showApply, setShowApply] = useState(false)
+  const [templates, setTemplates] = useState<{ id: string; name: string }[]>([])
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([])
+  const [applySource, setApplySource] = useState<string>('current') // 'current' | templateId
+  const [applyCats, setApplyCats] = useState<Set<string>>(new Set())
+  const [applying, setApplying] = useState(false)
+  const [applyResult, setApplyResult] = useState<string | null>(null)
+
+  const saveAsTemplate = async () => {
+    const clean = cleanGroups()
+    if (!clean.length) { toast.error('Agrega al menos un grupo con opciones'); return }
+    const name = window.prompt('Nombre de la plantilla:', `${productName} — modificadores`)
+    if (!name || !name.trim()) return
+    const res = await api.createModifierTemplate({ name: name.trim(), groups: clean })
+    if (res.success) toast.success('Plantilla guardada'); else toast.error(res.error || 'No se pudo guardar la plantilla')
+  }
+
+  const openApply = async () => {
+    setApplyResult(null); setApplyCats(new Set()); setApplySource('current'); setShowApply(true)
+    const [t, c] = await Promise.all([api.getModifierTemplates(), api.getCategories()])
+    if (t.success) setTemplates((t.data || []).map((x: any) => ({ id: x.id, name: x.name })))
+    if (c.success) setCategories((c.data || []).map((x: any) => ({ id: x.id, name: x.name })))
+  }
+
+  const applyBulk = async () => {
+    if (applyCats.size === 0) { toast.error('Elige al menos una categoría'); return }
+    setApplying(true); setApplyResult(null)
+    const payload: any = { categoryIds: [...applyCats] }
+    if (applySource === 'current') payload.groups = cleanGroups()
+    else payload.templateId = applySource
+    const res = await api.applyModifiersBulk(payload)
+    setApplying(false)
+    if (res.success && res.data) {
+      setApplyResult(`✅ Agregados a ${res.data.productsAffected} producto(s) · ${res.data.groupsAdded} grupo(s). (${res.data.productsScanned} revisados)`)
+    } else toast.error(res.error || 'No se pudo aplicar')
   }
 
   return (
@@ -161,13 +200,72 @@ export function ProductModifiersManager({ productId, productName, onClose }: { p
           </div>
         )}
 
-        <div className="p-4 border-t border-border flex justify-end gap-2">
-          <button onClick={onClose} className="px-4 py-2 rounded-md text-sm text-muted-foreground hover:bg-muted">Cancelar</button>
-          <button onClick={save} disabled={saving} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium bg-primary text-primary-foreground disabled:opacity-50">
-            {saving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Guardar
-          </button>
+        <div className="p-4 border-t border-border flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap gap-2">
+            <button onClick={saveAsTemplate} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-sm text-muted-foreground border border-border hover:bg-muted" title="Guardar estos modificadores como plantilla reutilizable">
+              <Bookmark className="h-4 w-4" /> Guardar como plantilla
+            </button>
+            <button onClick={openApply} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-sm text-muted-foreground border border-border hover:bg-muted" title="Aplicar estos modificadores (o una plantilla) a categorías completas">
+              <Layers className="h-4 w-4" /> Aplicar a categorías
+            </button>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={onClose} className="px-4 py-2 rounded-md text-sm text-muted-foreground hover:bg-muted">Cancelar</button>
+            <button onClick={save} disabled={saving} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium bg-primary text-primary-foreground disabled:opacity-50">
+              {saving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Guardar
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* ── Aplicar a categorías (masivo) ─────────────────────────── */}
+      {showApply && (
+        <div className="fixed inset-0 z-[90] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={(e) => { e.stopPropagation(); setShowApply(false) }}>
+          <div className="w-full max-w-md max-h-[85vh] rounded-2xl bg-card border border-border flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="flex items-start justify-between p-5 border-b border-border">
+              <div>
+                <h3 className="text-lg font-bold">Aplicar a categorías</h3>
+                <p className="text-xs text-muted-foreground">Agrega los modificadores a todos los productos de las categorías elegidas. No borra ni duplica los que ya tengan.</p>
+              </div>
+              <button onClick={() => setShowApply(false)} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5 space-y-4">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">Qué aplicar</label>
+                <select value={applySource} onChange={e => setApplySource(e.target.value)} className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm">
+                  <option value="current">Los modificadores de este ítem ({cleanGroups().length} grupo/s)</option>
+                  {templates.map(t => <option key={t.id} value={t.id}>Plantilla: {t.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">Categorías ({applyCats.size} elegidas)</label>
+                <div className="mt-1 max-h-56 space-y-1 overflow-y-auto rounded-md border border-border p-1.5">
+                  {categories.length === 0 && <p className="py-4 text-center text-xs text-muted-foreground">Sin categorías</p>}
+                  {categories.map(c => {
+                    const on = applyCats.has(c.id)
+                    return (
+                      <button key={c.id} type="button" onClick={() => setApplyCats(prev => { const n = new Set(prev); n.has(c.id) ? n.delete(c.id) : n.add(c.id); return n })}
+                        className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm transition-colors ${on ? 'bg-primary/10' : 'hover:bg-muted'}`}>
+                        <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${on ? 'border-primary bg-primary text-primary-foreground' : 'border-muted-foreground/40'}`}>
+                          {on && <Check className="h-3 w-3" />}
+                        </span>
+                        <span className="flex-1 truncate">{c.name}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+              {applyResult && <p className="rounded-md bg-emerald-500/10 px-3 py-2 text-sm text-emerald-600">{applyResult}</p>}
+            </div>
+            <div className="p-4 border-t border-border flex justify-end gap-2">
+              <button onClick={() => setShowApply(false)} className="px-4 py-2 rounded-md text-sm text-muted-foreground hover:bg-muted">Cerrar</button>
+              <button onClick={applyBulk} disabled={applying || applyCats.size === 0} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium bg-primary text-primary-foreground disabled:opacity-50">
+                {applying ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Layers className="h-4 w-4" />} Aplicar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

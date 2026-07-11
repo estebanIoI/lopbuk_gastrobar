@@ -1458,6 +1458,20 @@ class ApiService {
     })
   }
 
+  // ── Plantillas de modificadores + aplicación masiva ──
+  async getModifierTemplates() {
+    return this.request<Array<{ id: string; name: string; groups: any[]; createdAt: string }>>('/modifiers/templates')
+  }
+  async createModifierTemplate(data: { name: string; fromProductId?: string; groups?: any[] }) {
+    return this.request<{ id: string; name: string; groups: any[] }>('/modifiers/templates', { method: 'POST', body: JSON.stringify(data) })
+  }
+  async deleteModifierTemplate(id: string) {
+    return this.request<any>(`/modifiers/templates/${id}`, { method: 'DELETE' })
+  }
+  async applyModifiersBulk(data: { templateId?: string; fromProductId?: string; groups?: any[]; categoryIds: string[] }) {
+    return this.request<{ productsScanned: number; productsAffected: number; groupsAdded: number }>('/modifiers/apply-bulk', { method: 'POST', body: JSON.stringify(data) })
+  }
+
   // ── Tarjetas del marketplace (página principal, superadmin) ──
   async getMarketplaceCards() {
     return this.request<any[]>('/tenants/marketplace-cards')
@@ -3840,7 +3854,21 @@ class ApiService {
   }
 
   async getSuperadminTenantsList() {
-    return this.request<{ id: string; name: string; businessType?: string | null }[]>('/superadmin/orders/tenants')
+    return this.request<{ id: string; name: string; slug?: string; businessType?: string | null }[]>('/superadmin/orders/tenants')
+  }
+
+  // ── Links de campaña (share links, superadmin) ──
+  async getShareLinks() {
+    return this.request<Array<{ id: string; code: string; type: 'product' | 'store' | 'collection'; config: any; title: string | null; clicks: number; isActive: number; createdAt: string }>>('/superadmin/share-links')
+  }
+  async createShareLink(data: { type: 'product' | 'store' | 'collection'; config: any; title?: string }) {
+    return this.request<{ id: string; code: string; type: string; config: any; title: string | null }>('/superadmin/share-links', { method: 'POST', body: JSON.stringify(data) })
+  }
+  async patchShareLink(id: string, data: { isActive?: boolean; title?: string }) {
+    return this.request<any>(`/superadmin/share-links/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
+  }
+  async deleteShareLink(id: string) {
+    return this.request<any>(`/superadmin/share-links/${id}`, { method: 'DELETE' })
   }
 
   // ── Repartidores de plataforma (superadmin) ──
