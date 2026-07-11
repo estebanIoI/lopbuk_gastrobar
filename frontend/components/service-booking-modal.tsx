@@ -279,7 +279,7 @@ export function ServiceBookingModal({ service, storeSlug, onClose }: Props) {
 
   // ── Resumen fijo lateral (vende la experiencia) ─────────────────
   const Summary = (
-    <aside className="md:order-2 md:w-[290px] shrink-0 border-b md:border-b-0 md:border-l bg-muted/30 flex flex-col md:overflow-y-auto">
+    <aside className="md:order-2 md:w-[300px] shrink-0 border-t md:border-t-0 md:border-l bg-muted/30 flex flex-col md:overflow-y-auto">
       {service.imageUrl && (
         <div className="relative h-28 w-full overflow-hidden">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -382,7 +382,7 @@ export function ServiceBookingModal({ service, storeSlug, onClose }: Props) {
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl p-0 gap-0 overflow-hidden max-h-[92vh]">
+      <DialogContent className="max-w-[56rem] w-[95vw] p-0 gap-0 overflow-hidden max-h-[92vh]">
         {/* ── Step: Success (pantalla completa, confirmación emocional) ── */}
         {step === 'success' ? (
           <div className="flex flex-col items-center justify-center px-6 py-10 text-center">
@@ -438,10 +438,8 @@ export function ServiceBookingModal({ service, storeSlug, onClose }: Props) {
           </div>
         ) : (
           <div className="flex max-h-[92vh] flex-col md:flex-row">
-            {Summary}
-
-            {/* ── Columna principal: flujo ──────────────────────── */}
-            <div className="md:order-1 flex-1 space-y-4 overflow-y-auto p-5 sm:p-6">
+            {/* ── Columna principal: flujo (en móvil va primero) ── */}
+            <div className="md:order-1 flex-1 min-w-0 space-y-4 overflow-y-auto p-5 sm:p-6">
               <DialogHeader>
                 <DialogTitle>
                   {step === 'calendar' ? 'Elige fecha y hora' : isCita ? 'Confirma tus datos' : service.name}
@@ -747,6 +745,8 @@ export function ServiceBookingModal({ service, storeSlug, onClose }: Props) {
                 </div>
               )}
             </div>
+
+            {Summary}
           </div>
         )}
       </DialogContent>

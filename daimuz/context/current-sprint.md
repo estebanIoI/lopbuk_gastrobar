@@ -4,6 +4,9 @@
 
 ## Sprint activo: Julio 2026
 
+### 🔄 [2026-07-11] Links de campaña (share links) — Fase 1 ✅
+Migración 0034: `share_links` (code único, type product/store/collection, config JSON, title, clicks). Backend superadmin CRUD + público `GET /storefront/share/:code` (resuelve + suma clic, inactivo→404). Producto y tienda reusan deep-links existentes (`?product=`, `/t/<slug>`); lo nuevo es la colección filtrada por rubro+comercios. E2E 14/14, tsc back 6 (0 nuevos). **Falta: Fase 2 ruta /l/<code> + vista colección; Fase 3 generador panel (QR/clics/título). Pendiente commit + redeploy.**
+
 ### 🔄 [2026-07-11] Seguimiento en vivo del pedido — Fase 1 ✅
 Mapa Leaflet+OSM (gratis) embebido en `/seguimiento/[token]`: el cliente ve al repartidor moverse; cierra solo al entregar. Endpoint ya daba `vehicle` (solo en tránsito); añadido `destinationCoords`. Conductor: GPS 15s con entregas activas (antes 3 min). Cliente: polling 12s en tránsito. E2E 10/10, tsc back 6 / front 8 (0 nuevos). **Fase 2 ✅** ETA siempre (Haversine gratis) + API de mapas configurable en superadmin (Google/Mapbox key cifrada, ruta server-side cacheada 60s, key nunca al cliente); ETA + polyline en la página del cliente. E2E 11/11. **🎉 Seguimiento en vivo completo. Pendiente commit + redeploy.**
 

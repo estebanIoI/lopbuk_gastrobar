@@ -168,6 +168,99 @@ router.put('/maps-config', async (req: Request, res: Response) => {
   }
 })
 
+// ═══════════════════════════════════════════════════════════════════════════
+// LINKS DE CAMPAÑA (share links) — para historias IG/TikTok
+// El superadmin genera links que redirigen a un producto, una tienda o una
+// colección filtrada (solo restaurantes / comercios elegidos).
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Normaliza y valida la config según el tipo
+function normalizeShareConfig(type: string, config: any): any | null {
+  if (type === 'product') {
+    if (!config?.slug || !config?.productId) return null
+    return { slug: String(config.slug).trim(), productId: String(config.productId).trim() }
+  }
+  if (type === 'store') {
+    if (!config?.slug) return null
+    return { slug: String(config.slug).trim() }
+  }
+  if (type === 'collection') {
+    const businessTypes = Array.isArray(config?.businessTypes) ? [...new Set(config.businessTypes.map((x: any) => String(x).trim()).filter(Boolean))] : []
+    const tenantIds = Array.isArray(config?.tenantIds) ? [...new Set(config.tenantIds.map((x: any) => String(x).trim()).filter(Boolean))] : []
+    if (!businessTypes.length && !tenantIds.length) return null
+    return { businessTypes, tenantIds }
+  }
+  return null
+}
+
+// GET /api/superadmin/share-links — lista con clics
+router.get('/share-links', async (_req: Request, res: Response) => {
+  try {
+    const [rows] = await pool.query(
+      'SELECT id, code, type, config, title, clicks, is_active AS isActive, created_at AS createdAt FROM share_links ORDER BY created_at DESC'
+    ) as any
+    const data = rows.map((r: any) => ({ ...r, config: typeof r.config === 'string' ? JSON.parse(r.config) : r.config }))
+    res.json({ success: true, data })
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'Error al listar links' })
+  }
+})
+
+// POST /api/superadmin/share-links — crear
+router.post('/share-links', async (req: AuthRequest, res: Response) => {
+  try {
+    const { type, title } = req.body as { type?: string; title?: string }
+    if (!['product', 'store', 'collection'].includes(type || '')) { res.status(400).json({ success: false, error: 'Tipo inválido' }); return }
+    const config = normalizeShareConfig(type!, req.body?.config)
+    if (!config) { res.status(400).json({ success: false, error: 'Configuración incompleta para ese tipo' }); return }
+
+    // Código corto único (8 chars base36)
+    let code = ''
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const c = Math.random().toString(36).slice(2, 10)
+      const [dup] = await pool.query('SELECT id FROM share_links WHERE code = ? LIMIT 1', [c]) as any
+      if (!dup.length) { code = c; break }
+    }
+    if (!code) { res.status(500).json({ success: false, error: 'No se pudo generar el código' }); return }
+
+    const id = uuidv4()
+    await pool.query(
+      'INSERT INTO share_links (id, code, type, config, title, created_by) VALUES (?, ?, ?, ?, ?, ?)',
+      [id, code, type, JSON.stringify(config), title?.trim() || null, req.user!.userId]
+    )
+    res.status(201).json({ success: true, data: { id, code, type, config, title: title?.trim() || null, clicks: 0, isActive: 1 } })
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'Error al crear el link' })
+  }
+})
+
+// PATCH /api/superadmin/share-links/:id — activar/desactivar o actualizar título
+router.patch('/share-links/:id', async (req: Request, res: Response) => {
+  try {
+    const sets: string[] = []; const vals: any[] = []
+    if ('isActive' in (req.body || {})) { sets.push('is_active = ?'); vals.push(req.body.isActive ? 1 : 0) }
+    if ('title' in (req.body || {})) { sets.push('title = ?'); vals.push(String(req.body.title || '').trim() || null) }
+    if (!sets.length) { res.status(400).json({ success: false, error: 'Sin cambios' }); return }
+    vals.push(req.params.id)
+    const [r] = await pool.query(`UPDATE share_links SET ${sets.join(', ')} WHERE id = ?`, vals) as any
+    if (!r.affectedRows) { res.status(404).json({ success: false, error: 'Link no encontrado' }); return }
+    res.json({ success: true })
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'Error al actualizar el link' })
+  }
+})
+
+// DELETE /api/superadmin/share-links/:id
+router.delete('/share-links/:id', async (req: Request, res: Response) => {
+  try {
+    const [r] = await pool.query('DELETE FROM share_links WHERE id = ?', [req.params.id]) as any
+    if (!r.affectedRows) { res.status(404).json({ success: false, error: 'Link no encontrado' }); return }
+    res.json({ success: true })
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'Error al eliminar el link' })
+  }
+})
+
 // PATCH /api/superadmin/couriers/:id — activar/desactivar repartidor
 router.patch('/couriers/:id', async (req: Request, res: Response) => {
   try {
