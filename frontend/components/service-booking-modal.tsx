@@ -382,7 +382,7 @@ export function ServiceBookingModal({ service, storeSlug, onClose }: Props) {
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-[56rem] w-[95vw] p-0 gap-0 overflow-hidden max-h-[92vh]">
+      <DialogContent className="w-[95vw] sm:max-w-4xl p-0 gap-0 overflow-hidden max-h-[92vh]">
         {/* ── Step: Success (pantalla completa, confirmación emocional) ── */}
         {step === 'success' ? (
           <div className="flex flex-col items-center justify-center px-6 py-10 text-center">

@@ -2373,6 +2373,23 @@ export const productModifierOptions = mysqlTable("product_modifier_options", {
 	}
 });
 
+// Plantilla de modificadores reutilizable: un set de grupos+opciones que el
+// comerciante guarda (desde un ítem) y aplica en bloque a categorías completas.
+export const modifierTemplates = mysqlTable("modifier_templates", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" } ),
+	name: varchar({ length: 150 }).notNull(),
+	groups: json().notNull(),   // [{ name, selectionType, isRequired, minSelect, maxSelect, options:[{name,imageUrl,priceDelta,isActive}] }]
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
+},
+(table) => {
+	return {
+		idxModTplTenant: index("idx_mod_tpl_tenant").on(table.tenantId),
+		modifierTemplatesId: primaryKey({ columns: [table.id], name: "modifier_templates_id"}),
+	}
+});
+
 export const productRecipes = mysqlTable("product_recipes", {
 	id: varchar({ length: 36 }).notNull(),
 	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" } ),

@@ -4,6 +4,58 @@
 
 ---
 
+## [2026-07-11] — Plantillas de modificadores — Fase 2: UI en el gestor del ítem (inventario) · ROADMAP COMPLETO
+
+El comerciante guarda y aplica plantillas desde el mismo gestor de modificadores del producto. `tsc` front 8 base (0 nuevos).
+
+- **Gestor de modificadores** (`product-modifiers-manager.tsx`): en el footer, dos acciones nuevas — **"Guardar como plantilla"** (pide nombre y guarda los grupos actuales del ítem vía `createModifierTemplate`), y **"Aplicar a categorías"** → sub-diálogo con: selector de **qué aplicar** (los modificadores de este ítem, o una plantilla guardada) + **checklist de categorías** (de `getCategories`) + botón Aplicar → `applyModifiersBulk`, mostrando el resultado ("Agregados a N producto(s) · M grupo(s)").
+- Helper `cleanGroups()` reutilizado por guardar/plantilla/aplicar.
+- **api.ts**: getModifierTemplates, createModifierTemplate, deleteModifierTemplate, applyModifiersBulk.
+- Endpoints ya E2E 14/14 (F1); la UI es presentacional sobre ellos. (Chequeo visual pendiente.)
+
+### 🎉 ROADMAP PLANTILLAS DE MODIFICADORES COMPLETO (2/2)
+F1 DB + backend (CRUD + apply-bulk agrega sin borrar) · F2 UI en el gestor (guardar/aplicar). Migración 0035. **Caso de uso listo**: pones los modificadores en un ítem → "Guardar como plantilla" → "Aplicar a categorías" (ej. todas las hamburguesas) → se agregan a todos de una, sin duplicar. Pendiente commit + redeploy.
+
+
+## [2026-07-11] — Plantillas de modificadores + aplicación masiva por categoría — Fase 1: DB + backend
+
+El comerciante guarda los modificadores de un ítem como plantilla y los aplica en bloque a categorías completas, sin agregarlos ítem por ítem. Verificado E2E 14/14. Migración 0035.
+
+- **DB** (`schema.ts` → migración 0035 `nasty_fallen_one`): tabla `modifier_templates` (tenant, name, `groups` JSON — misma estructura de grupos+opciones que ya usa un ítem).
+- **Backend** (`modifiers.routes.ts`): `normalizeGroups` (sanea la estructura), `insertGroup` (grupo+opciones en un producto), `resolveGroups` (desde templateId / fromProductId / groups). Endpoints:
+  - CRUD plantillas: `GET/POST/PATCH/DELETE /modifiers/templates` — crear principalmente con `fromProductId` (copia los modificadores del ítem).
+  - **`POST /modifiers/apply-bulk`** `{ templateId | fromProductId, categoryIds }` → para cada producto de esas categorías, **agrega los grupos cuyo nombre NO exista ya** (dedup case-insensitive, no borra nada), con sort_order tras los existentes. Devuelve `{ productsScanned, productsAffected, groupsAdded }`.
+- **Nota**: `groups` es palabra reservada en MySQL → todas las queries la usan con backticks (`` `groups` ``).
+- `tsc` back 6 base (0 nuevos). E2E 14/14: guardar plantilla desde ítem (copia 2 grupos con opciones); aplicar a categoría de 3 productos → la fuente ya los tenía (0), T1 tenía "Salsas" propio → solo se agrega "Tamaño" (no duplica "Salsas", conserva su opción Mostaza), T2 sin nada → +2; conteos correctos; reaplicar es idempotente (0 afectados).
+- **Siguiente**: Fase 2 (frontend inventario: "Guardar como plantilla" + "Aplicar a categorías" + gestión). Pendiente commit + redeploy.
+
+## [2026-07-11] — Links de campaña (share links) — Fase 3: generador en el panel superadmin (QR + clics) · ROADMAP COMPLETO
+
+El superadmin crea los links visualmente, con QR y métricas. `tsc` back 6 / front 8 base (0 nuevos).
+
+- **Tab nuevo** `ShareLinksTab.tsx` (superadmin, entre Repartidores y Usuarios; icono Link2): lista de links (título, tipo, URL con **copiar**, **QR**, clics, activar/desactivar, borrar) + **"Nuevo link"** con:
+  - **colección** → chips de rubro (businessTypes de los tenants) + checklist de comercios + título. (el caso "solo restaurantes")
+  - **tienda** → selector de comercio (usa su `slug`).
+  - **producto** → comercio + selector de producto (carga los publicados vía `/storefront/products?store=slug`; fallback a ID manual).
+- **QR** con `qrcode.react` (`QRCodeCanvas`) en diálogo, **descargable como PNG** (canvas→dataURL). URL completa `${origin}/l/<code>`, copiar al portapapeles.
+- **Backend**: `/superadmin/orders/tenants` ahora incluye `slug` (para armar links de tienda/producto). `api.ts`: getShareLinks/createShareLink/patchShareLink/deleteShareLink.
+- **Wiring** (`SuperadminLayout.tsx`): tab "Links". Los endpoints ya E2E 14/14 (F1); el tab es presentacional sobre ellos. (Chequeo visual del panel pendiente.)
+
+### 🎉 ROADMAP LINKS DE CAMPAÑA COMPLETO (3/3)
+F1 DB + backend (CRUD + resolve público + clics) · F2 ruta `/l/<code>` + vista de colección filtrada · F3 generador panel (QR/clics/título). Migración 0034. **Caso de uso listo**: pegar `/l/<code>` en una historia → el cliente abre y ve SOLO restaurantes (o la tienda/producto), sin distraerse con otras categorías. Pendiente commit + redeploy.
+
+
+## [2026-07-11] — Links de campaña (share links) — Fase 2: ruta pública /l/<code> + vista de colección filtrada
+
+El link ya redirige/abre la app filtrada a lo compartido. Verificado E2E 7/7. Sin migración.
+
+- **Ruta** (`app/l/[code]/page.tsx`): resuelve `GET /storefront/share/:code` y redirige — **producto** → `/t/<slug>?product=<id>` (abre el modal del item), **tienda** → `/t/<slug>`, **colección** → `/?collection=<code>`. Link inválido/expirado → mensaje "Enlace no disponible".
+- **Vista de colección** (`landing-page.tsx`): al detectar `?collection=<code>` resuelve la config y **filtra el array `stores` a solo los comercios de la colección** (por `tenantIds` y/o `businessTypes`) — como toda la cuadrícula lee de `stores`, se muestran solo esos (p. ej. solo restaurantes), sin tocar el JSX de render. Banner fijo con el **título** de la colección. Si el link falla, se muestran todos (degradación grácil).
+- `tsc` front 8 base (0 nuevos). E2E 7/7: el link de colección resuelve con config+título; aplicando el filtro del frontend sobre `/storefront/stores` reales, el resultado **incluye** el comercio objetivo, **todos** son del rubro o el elegido, **excluye** comercios de otro rubro, y reduce el total.
+- **Nota**: chequeo visual del marketplace filtrado pendiente (requiere levantar la tienda con varios comercios).
+- **Siguiente**: Fase 3 (generador en panel superadmin: crear link + QR + copiar URL + clics + título). Pendiente commit + redeploy.
+
+
 ## [2026-07-11] — Links de campaña (share links) — Fase 1: DB + backend
 
 Base para links compartibles (historias IG/TikTok) que abren la app filtrada a lo que se comparte, sin distraer con otras categorías. Verificado E2E 14/14. Migración 0034. Solo superadmin.
