@@ -51,6 +51,8 @@ export interface RawVariant {
   presaleLimit?: number | null
   presaleSold?: number
   presaleDepositPct?: number
+  /** Atributos con nombre (ferretería/genérico): Diámetro, Ángulo, Presión… */
+  attributes?: Array<{ name: string; value: string }> | null
 }
 
 // ── Variante seleccionada que se reporta al padre ──
@@ -78,6 +80,18 @@ interface NormVariant {
   image: string | null
   weightGrams?: number | null
   composition?: string | null
+  /** Atributos con nombre: mapa name→value + lista ordenada (para la ficha técnica) */
+  attrs: Record<string, string>
+  attrList: { name: string; value: string }[]
+}
+
+// Eje de selección: legacy (color/size/material/horma) o atributo con nombre (attr:<Name>)
+type Axis = { key: string; label: string; values: string[]; attr?: string; isColor?: boolean }
+
+// Valor de un eje en una variante (funciona para legacy y para atributos con nombre)
+function valueForKey(v: NormVariant, key: string): string | undefined {
+  if (key.startsWith('attr:')) return v.attrs[key.slice(5)]
+  return (v as any)[key]
 }
 
 // "horma" va primero a propósito: es la elección más amplia (ej. "Oversize Fit" vs
@@ -103,6 +117,14 @@ function normalize(v: RawVariant): NormVariant {
   const tiers = Array.isArray(v.priceTiers)
     ? v.priceTiers.map(t => ({ minQty: Number(t.minQty), price: Number(t.price) })).sort((a, b) => a.minQty - b.minQty)
     : []
+  const attrList = Array.isArray(v.attributes)
+    ? v.attributes
+        .filter(a => a && a.name != null && a.value != null)
+        .map(a => ({ name: String(a.name).trim(), value: String(a.value).trim() }))
+        .filter(a => a.name && a.value)
+    : []
+  const attrs: Record<string, string> = {}
+  for (const a of attrList) if (!(a.name in attrs)) attrs[a.name] = a.value
   return {
     id: String(v.id),
     sku: v.sku,
@@ -118,6 +140,8 @@ function normalize(v: RawVariant): NormVariant {
     image: images[0] || null,
     weightGrams: v.hormaWeightGrams ?? null,
     composition: v.hormaComposition ?? null,
+    attrs,
+    attrList,
   }
 }
 
@@ -164,17 +188,28 @@ export function VariantSelector({
 
   const [sel, setSel] = useState<Record<string, string>>({})
 
-  // Ejes presentes — color y talla filtrados por la horma activa
-  const axes = useMemo(() => {
+  // Ejes presentes — color y talla filtrados por la horma activa + ejes de atributos con nombre
+  const axes = useMemo<Axis[]>(() => {
     const activeHorma = sel['horma']
-    return AXES.map(a => {
+    // Ejes legacy (horma/color/talla/material)
+    const legacy: Axis[] = AXES.map(a => {
       const scopedNorm = (a.key === 'color' || a.key === 'size') && activeHorma
         ? norm.filter(v => v.horma === activeHorma)
         : norm
       const values = Array.from(new Set(scopedNorm.map(v => v[a.key]).filter(Boolean) as string[]))
       const label = a.key === 'size' ? sizeAxisLabel(values) : a.defaultLabel
-      return { ...a, values, label }
+      return { key: a.key, label, values, isColor: a.key === 'color' }
     }).filter(a => a.values.length > 0)
+
+    // Ejes de atributos con nombre (ferretería/genérico) — orden de primera aparición
+    const attrNames: string[] = []
+    for (const v of norm) for (const a of v.attrList) if (!attrNames.includes(a.name)) attrNames.push(a.name)
+    const attrAxes: Axis[] = attrNames.map(name => {
+      const values = Array.from(new Set(norm.map(v => v.attrs[name]).filter(Boolean) as string[]))
+      return { key: `attr:${name}`, label: name, values, attr: name }
+    }).filter(a => a.values.length > 0)
+
+    return [...legacy, ...attrAxes]
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [norm, sel['horma']])
 
@@ -201,15 +236,25 @@ export function VariantSelector({
     [norm]
   )
 
-  // Reinicia selección cuando cambian variantes, auto-seleccionando la primera horma + color + talla
+  // Reinicia selección cuando cambian variantes, auto-seleccionando la primera opción de cada eje
   useEffect(() => {
     if (norm.length === 0) { setSel({}); return }
+    const next: Record<string, string> = {}
     const firstHorma = allHormas[0]
-    if (!firstHorma) { setSel({}); return }
-    const scoped = norm.filter(v => v.horma === firstHorma)
+    if (firstHorma) next.horma = firstHorma
+    const scoped = firstHorma ? norm.filter(v => v.horma === firstHorma) : norm
     const firstColor = Array.from(new Set(scoped.map(v => v.color).filter(Boolean) as string[]))[0]
     const firstSize = Array.from(new Set(scoped.map(v => v.size).filter(Boolean) as string[]))[0]
-    setSel({ horma: firstHorma, ...(firstColor ? { color: firstColor } : {}), ...(firstSize ? { size: firstSize } : {}) })
+    if (firstColor) next.color = firstColor
+    if (firstSize) next.size = firstSize
+    // Sembrar ejes de atributos con nombre (ferretería/genérico)
+    const attrNames: string[] = []
+    for (const v of norm) for (const a of v.attrList) if (!attrNames.includes(a.name)) attrNames.push(a.name)
+    for (const name of attrNames) {
+      const firstVal = Array.from(new Set(norm.map(v => v.attrs[name]).filter(Boolean) as string[]))[0]
+      if (firstVal) next[`attr:${name}`] = firstVal
+    }
+    setSel(next)
   }, [variants]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // La composición activa se deriva de la horma seleccionada (sin estado propio).
@@ -228,15 +273,15 @@ export function VariantSelector({
     })
   }
 
-  // ¿Existe alguna variante en stock consistente con `partial`?
+  // ¿Existe alguna variante en stock consistente con `partial`? (claves = axis.key)
   const hasStockFor = (partial: Record<string, string>): boolean =>
-    norm.some(v => v.available > 0 && Object.entries(partial).every(([k, val]) => (v as any)[k] === val))
+    norm.some(v => v.available > 0 && Object.entries(partial).every(([k, val]) => valueForKey(v, k) === val))
 
   // Variante resuelta: todos los ejes elegidos y coincide exactamente
   const selectedVariant = useMemo(() => {
     if (axes.length === 0) return null
     if (!axes.every(a => sel[a.key])) return null
-    return norm.find(v => axes.every(a => (v as any)[a.key] === sel[a.key])) || null
+    return norm.find(v => axes.every(a => valueForKey(v, a.key) === sel[a.key])) || null
   }, [norm, axes, sel])
 
   // Reporta al padre
@@ -244,7 +289,7 @@ export function VariantSelector({
     if (!onChange) return
     if (!selectedVariant) { onChange(null); return }
     const price = variantUnitPrice(selectedVariant, basePrice)
-    const labelParts = axes.map(a => (selectedVariant as any)[a.key]).filter(Boolean)
+    const labelParts = axes.map(a => valueForKey(selectedVariant, a.key)).filter(Boolean)
     onChange({
       id: selectedVariant.id,
       label: labelParts.join(' / '),
@@ -291,8 +336,8 @@ export function VariantSelector({
         const firstSize = Array.from(new Set(scoped.map(v => v.size).filter(Boolean) as string[]))[0]
         return { horma: value, ...(firstColor ? { color: firstColor } : {}), ...(firstSize ? { size: firstSize } : {}) }
       }
-      // Color y talla son obligatorios — no se pueden desmarcar, solo cambiar
-      if ((key === 'color' || key === 'size') && prev[key] === value) return prev
+      // Color, talla y atributos con nombre son obligatorios — no se desmarcan, solo cambian
+      if ((key === 'color' || key === 'size' || key.startsWith('attr:')) && prev[key] === value) return prev
       return prev[key] === value
         ? (() => { const c = { ...prev }; delete c[key]; return c })()
         : { ...prev, [key]: value }
@@ -452,6 +497,31 @@ export function VariantSelector({
                 </div>
               </div>
             )}
+
+            {/* Ficha técnica — atributos de la variante elegida (ferretería/genérico) */}
+            {(() => {
+              const specRows = [
+                ...selectedVariant.attrList,
+                ...(selectedVariant.color ? [{ name: 'Color', value: selectedVariant.color }] : []),
+                ...(selectedVariant.size ? [{ name: 'Talla', value: selectedVariant.size }] : []),
+                ...(selectedVariant.material ? [{ name: 'Material', value: selectedVariant.material }] : []),
+                ...(selectedVariant.sku ? [{ name: 'SKU', value: selectedVariant.sku }] : []),
+              ]
+              if (specRows.length === 0) return null
+              return (
+                <div className={`rounded-lg border ${isLightBg ? 'border-black/10' : 'border-white/15'} overflow-hidden text-xs`}>
+                  <p className={`px-3 py-1.5 ${isLightBg ? 'bg-black/[0.03]' : 'bg-white/[0.05]'} ${strong} font-medium`}>Ficha técnica</p>
+                  <div className={`divide-y ${isLightBg ? 'divide-black/5' : 'divide-white/10'}`}>
+                    {specRows.map((s, i) => (
+                      <div key={i} className="flex items-center justify-between gap-3 px-3 py-1.5">
+                        <span className={muted}>{s.name}</span>
+                        <span className={`font-medium text-right ${strong}`}>{s.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            })()}
           </div>
         ) : (
           <p className="text-sm">

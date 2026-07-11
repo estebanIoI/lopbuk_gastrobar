@@ -2164,7 +2164,7 @@ class ApiService {
     name: string; serviceType: 'cita' | 'asesoria' | 'contacto'
     description?: string; category?: string; price?: number
     priceType?: string; durationMinutes?: number; imageUrl?: string
-    benefits?: string[]; preparation?: string
+    benefits?: string[]; preparation?: string; addonServiceIds?: string[]; specialistIds?: string[]
     requiresPayment?: boolean; maxAdvanceDays?: number
     cancellationHours?: number; sortOrder?: number
   }) {
@@ -2175,6 +2175,20 @@ class ApiService {
   }
   async deleteService(id: string) {
     return this.request<any>(`/services/${id}`, { method: 'DELETE' })
+  }
+
+  // Merchant - specialists (Fase 5)
+  async getSpecialists() {
+    return this.request<any[]>('/services/specialists')
+  }
+  async createSpecialist(data: { name: string; title?: string; photoUrl?: string; sortOrder?: number }) {
+    return this.request<any>('/services/specialists', { method: 'POST', body: JSON.stringify(data) })
+  }
+  async updateSpecialist(id: string, data: Record<string, unknown>) {
+    return this.request<any>(`/services/specialists/${id}`, { method: 'PUT', body: JSON.stringify(data) })
+  }
+  async deleteSpecialist(id: string) {
+    return this.request<any>(`/services/specialists/${id}`, { method: 'DELETE' })
   }
 
   // Merchant - availability
@@ -2223,6 +2237,39 @@ class ApiService {
   async updateBookingStatus(id: string, data: { status?: string; merchantNotes?: string }) {
     return this.request<any>(`/services/bookings/${id}`, {
       method: 'PUT', body: JSON.stringify(data),
+    })
+  }
+
+  // Merchant - reservas Fase 6 (reprogramar, métricas, lista de espera)
+  async rescheduleBooking(id: string, data: { bookingDate: string; startTime: string }) {
+    return this.request<any>(`/services/bookings/${id}/reschedule`, {
+      method: 'PUT', body: JSON.stringify(data),
+    })
+  }
+  async getBookingStats(days = 30) {
+    return this.request<{
+      days: number; total: number; byStatus: Record<string, number>; completed: number
+      noShowRate: number; revenue: number; pendingWaitlist: number
+      topServices: Array<{ name: string; count: number }>
+      topSpecialists: Array<{ name: string; count: number }>
+    }>(`/services/bookings/stats?days=${days}`)
+  }
+  async getWaitlist(params?: { status?: string; serviceId?: string }) {
+    const q = new URLSearchParams()
+    if (params?.status) q.set('status', params.status)
+    if (params?.serviceId) q.set('serviceId', params.serviceId)
+    const qs = q.toString()
+    return this.request<any[]>(`/services/waitlist${qs ? `?${qs}` : ''}`)
+  }
+  async updateWaitlist(id: string, status: string) {
+    return this.request<any>(`/services/waitlist/${id}`, {
+      method: 'PUT', body: JSON.stringify({ status }),
+    })
+  }
+  // Público: unirse a la lista de espera
+  async joinWaitlist(serviceId: string, store: string, data: { clientName: string; clientPhone: string; desiredDate?: string; note?: string }) {
+    return this.request<any>(`/services/${serviceId}/waitlist?store=${encodeURIComponent(store)}`, {
+      method: 'POST', body: JSON.stringify(data),
     })
   }
 
@@ -2280,11 +2327,16 @@ class ApiService {
       `/services/${serviceId}/addons?store=${encodeURIComponent(store)}`
     )
   }
+  async getPublicServiceSpecialists(serviceId: string, store: string) {
+    return this.request<Array<{ id: string; name: string; title?: string | null; photoUrl?: string | null }>>(
+      `/services/${serviceId}/specialists?store=${encodeURIComponent(store)}`
+    )
+  }
   async createPublicBooking(store: string, data: {
     serviceId: string; clientName: string; clientPhone: string
     clientEmail?: string; clientNotes?: string
     bookingDate?: string; startTime?: string; holdToken?: string
-    addonIds?: string[]
+    addonIds?: string[]; specialistId?: string
     preferredDateRange?: string; projectDescription?: string; budgetRange?: string
   }) {
     return this.request<any>(`/services/bookings?store=${encodeURIComponent(store)}`, {
@@ -3788,7 +3840,31 @@ class ApiService {
   }
 
   async getSuperadminTenantsList() {
-    return this.request<{ id: string; name: string }[]>('/superadmin/orders/tenants')
+    return this.request<{ id: string; name: string; businessType?: string | null }[]>('/superadmin/orders/tenants')
+  }
+
+  // ── Repartidores de plataforma (superadmin) ──
+  async getPlatformCouriers() {
+    return this.request<Array<{ id: string; name: string; email: string; phone?: string | null; isActive: number; tenantsCount: number }>>('/superadmin/couriers')
+  }
+  async createPlatformCourier(data: { name: string; email: string; password: string; phone?: string }) {
+    return this.request<{ id: string; name: string; email: string }>('/superadmin/couriers', { method: 'POST', body: JSON.stringify(data) })
+  }
+  async getCourierTenants(courierId: string) {
+    return this.request<Array<{ id: string; name: string; businessType?: string | null }>>(`/superadmin/couriers/${courierId}/tenants`)
+  }
+  async setCourierTenants(courierId: string, tenantIds: string[]) {
+    return this.request<{ assigned: number }>(`/superadmin/couriers/${courierId}/tenants`, { method: 'PUT', body: JSON.stringify({ tenantIds }) })
+  }
+  async setCourierActive(courierId: string, isActive: boolean) {
+    return this.request<{ isActive: boolean }>(`/superadmin/couriers/${courierId}`, { method: 'PATCH', body: JSON.stringify({ isActive }) })
+  }
+  // ── Config de mapas para el seguimiento en vivo (superadmin) ──
+  async getMapsConfig() {
+    return this.request<{ provider: 'none' | 'google' | 'mapbox'; hasKey: boolean }>('/superadmin/maps-config')
+  }
+  async setMapsConfig(data: { provider: 'none' | 'google' | 'mapbox'; apiKey?: string }) {
+    return this.request<{ provider: string; hasKey: boolean }>('/superadmin/maps-config', { method: 'PUT', body: JSON.stringify(data) })
   }
 
   async getPlatformAnalytics(days = 30) {

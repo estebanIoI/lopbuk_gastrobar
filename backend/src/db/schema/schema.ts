@@ -2441,6 +2441,7 @@ export const productVariants = mysqlTable("product_variants", {
 	preorderCount: int("preorder_count").default(0).notNull(),
 	colorHex: varchar("color_hex", { length: 9 }),
 	hormaId: varchar("horma_id", { length: 36 }),
+	attributes: json(),
 },
 (table) => {
 	return {
@@ -3738,6 +3739,9 @@ export const serviceBookings = mysqlTable("service_bookings", {
 	amountPaid: decimal("amount_paid", { precision: 12, scale: 2 }).default('0.00').notNull(),
 	addons: json("addons"),
 	totalAmount: decimal("total_amount", { precision: 12, scale: 2 }).default('0.00').notNull(),
+	specialistId: varchar("specialist_id", { length: 36 }),
+	specialistName: varchar("specialist_name", { length: 200 }),
+	loyaltyAwarded: tinyint("loyalty_awarded").default(0).notNull(),
 	merchantNotes: text("merchant_notes"),
 	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
@@ -3750,6 +3754,45 @@ export const serviceBookings = mysqlTable("service_bookings", {
 		idxBookingsTenant: index("idx_bookings_tenant").on(table.tenantId),
 		idxBookingsTenantDate: index("idx_bookings_tenant_date").on(table.tenantId, table.bookingDate),
 		serviceBookingsId: primaryKey({ columns: [table.id], name: "service_bookings_id"}),
+	}
+});
+
+export const serviceWaitlist = mysqlTable("service_waitlist", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" } ),
+	serviceId: varchar("service_id", { length: 50 }).notNull(),
+	serviceName: varchar("service_name", { length: 200 }).notNull(),
+	clientName: varchar("client_name", { length: 200 }).notNull(),
+	clientPhone: varchar("client_phone", { length: 50 }).notNull(),
+	desiredDate: date("desired_date", { mode: 'string' }),
+	note: text(),
+	status: mysqlEnum(['pendiente','notificado','convertido','cancelado']).default('pendiente').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
+},
+(table) => {
+	return {
+		idxWaitlistTenant: index("idx_waitlist_tenant").on(table.tenantId, table.status),
+		idxWaitlistService: index("idx_waitlist_service").on(table.serviceId, table.desiredDate),
+		serviceWaitlistId: primaryKey({ columns: [table.id], name: "service_waitlist_id"}),
+	}
+});
+
+export const serviceSpecialists = mysqlTable("service_specialists", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" } ),
+	name: varchar({ length: 200 }).notNull(),
+	title: varchar({ length: 150 }),
+	photoUrl: varchar("photo_url", { length: 500 }),
+	isActive: tinyint("is_active").default(1).notNull(),
+	sortOrder: int("sort_order").default(0).notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
+},
+(table) => {
+	return {
+		idxSpecialistsTenant: index("idx_specialists_tenant").on(table.tenantId, table.isActive),
+		serviceSpecialistsId: primaryKey({ columns: [table.id], name: "service_specialists_id"}),
 	}
 });
 
@@ -3767,6 +3810,7 @@ export const services = mysqlTable("services", {
 	benefits: json("benefits"),
 	preparation: text("preparation"),
 	addonServiceIds: json("addon_service_ids"),
+	specialistIds: json("specialist_ids"),
 	requiresPayment: tinyint("requires_payment").default(0).notNull(),
 	maxAdvanceDays: int("max_advance_days").default(30).notNull(),
 	cancellationHours: int("cancellation_hours").default(24).notNull(),
@@ -5035,6 +5079,24 @@ export const courierAvailability = mysqlTable("courier_availability", {
 	return {
 		idxAvailTenant: index("idx_avail_tenant").on(table.tenantId, table.isOnline),
 		courierAvailabilityUserId: primaryKey({ columns: [table.userId], name: "courier_availability_user_id"}),
+	}
+});
+
+// Repartidor de plataforma ↔ comercios que puede atender (asignados por superadmin).
+// Un repartidor con tenant_id NULL solo ve pedidos de los comercios listados aquí.
+export const courierTenants = mysqlTable("courier_tenants", {
+	id: varchar({ length: 36 }).notNull(),
+	courierUserId: varchar("courier_user_id", { length: 36 }).notNull().references(() => users.id, { onDelete: "cascade" } ),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" } ),
+	assignedBy: varchar("assigned_by", { length: 36 }),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+},
+(table) => {
+	return {
+		idxCourierTenantsCourier: index("idx_courier_tenants_courier").on(table.courierUserId),
+		idxCourierTenantsTenant: index("idx_courier_tenants_tenant").on(table.tenantId),
+		ukCourierTenant: unique("uk_courier_tenant").on(table.courierUserId, table.tenantId),
+		courierTenantsId: primaryKey({ columns: [table.id], name: "courier_tenants_id"}),
 	}
 });
 

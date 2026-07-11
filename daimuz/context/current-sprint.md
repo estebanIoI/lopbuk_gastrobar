@@ -4,15 +4,26 @@
 
 ## Sprint activo: Julio 2026
 
-### 🔜 [2026-07-10] PENDIENTE DE DECISIÓN — Rediseño UX del calendario de reservas (spa/salón premium)
+### 🔄 [2026-07-11] Seguimiento en vivo del pedido — Fase 1 ✅
+Mapa Leaflet+OSM (gratis) embebido en `/seguimiento/[token]`: el cliente ve al repartidor moverse; cierra solo al entregar. Endpoint ya daba `vehicle` (solo en tránsito); añadido `destinationCoords`. Conductor: GPS 15s con entregas activas (antes 3 min). Cliente: polling 12s en tránsito. E2E 10/10, tsc back 6 / front 8 (0 nuevos). **Fase 2 ✅** ETA siempre (Haversine gratis) + API de mapas configurable en superadmin (Google/Mapbox key cifrada, ruta server-side cacheada 60s, key nunca al cliente); ETA + polyline en la página del cliente. E2E 11/11. **🎉 Seguimiento en vivo completo. Pendiente commit + redeploy.**
+
+### 🔄 [2026-07-11] Repartidor de plataforma multi-comercio — Fase 1 ✅
+Migración 0033: `courier_tenants` (repartidor↔comercios). Repartidor con `tenant_id=NULL` = de plataforma; `delivery.routes.ts` lo scopea a su grupo asignado (sin asignaciones→nada; **cierra hueco** donde veía todos los tenants). Endpoints superadmin: crear courier + asignar/quitar comercios + listar. E2E 15/15, tsc back 6 (0 nuevos). **Fase 2 ✅** UI superadmin: tab "Repartidores" (CouriersTab) — crear + gestionar comercios con buscador/filtro por rubro. **Fase 3 ✅** panel repartidor: comercio por pedido (ya estaba) + notificación en vivo (join-courier socket une solo a salas ops de sus comercios; toast al llegar pedido; poll 30s fallback). E2E socket 5/5, tsc back 6 / front 8 (0 nuevos). **🎉 ROADMAP COURIER COMPLETO (3/3). Pendiente commit + redeploy.**
+
+### ✅ [2026-07-10] Variantes de ferretería — atributos con nombre (genéricos)
+`product_variants.attributes` JSON (migración 0032). Selector cliente generalizado a N ejes con nombre (chips que envuelven) + ficha técnica; manager con ejes propios sugeridos (Diámetro/Ángulo/Presión…); attributes en storefront payload + RAG. Retrocompat total con color/size/material/horma. E2E 14/14, tsc back 6 / front 8 (0 nuevos). **Pendiente de commit + redeploy.**
+
+### ✅ [2026-07-10] COMPLETO — Rediseño UX del calendario de reservas (spa/salón premium) · 6/6 fases
 Auditado el modal real `frontend/components/service-booking-modal.tsx` + motor `services.service.ts::getAvailableSlots` (ya calcula disponibilidad real: bloques service_availability, duración, max_simultaneous, service_blocked_periods, descuenta service_bookings pendiente/confirmada — pero la API solo devuelve los slots DISPONIBLES como strings, por eso la UI no muestra estados). Existe fidelización (loyalty_*), cupones (discount_coupons), order bump (solo productos), multi-sede.
 **Plan propuesto (6 fases, esperando que el comerciante elija por dónde empezar):**
 1. Disponibilidad rica: exponer TODOS los slots con estado + ocupación por día. ✅ **HECHO E2E 11/11** [2026-07-10] (slots-detailed + month-availability, sin migración).
 2. Reserva temporal (hold 5 min) anti doble-reserva. ✅ **HECHO E2E 12/12** [2026-07-10] (migración 0027 `service_slot_holds`; disponibilidad cuenta holds activos; createHold/releaseHold; createBooking consume el token; UI con countdown de 5 min).
 3. Vender la experiencia: tarjeta beneficios/"incluye", resumen fijo, confirmación emocional, estética premium. ✅ **HECHO E2E 17/17** [2026-07-10] (migración 0028: `services.benefits` JSON + `preparation`; editor en panel; modal 2 columnas con resumen fijo + confirmación emocional + Google Calendar).
-4. Cross-sell + paquetes (order bump para servicios) → sube ticket. ✅ **HECHO E2E 18/18** [2026-07-10] (migración 0029: `services.addon_service_ids` + `service_bookings.addons/total_amount`; endpoint público de complementos; total resuelto server-side; selector en panel + "Agrega a tu experiencia" en el modal). **← siguiente: Fase 5.**
-5. Especialista por cita (service_bookings NO asigna profesional hoy).
-6. Retención: lista de espera, promos por horario, puntos de fidelidad al confirmar, métricas, reprogramar.
+4. Cross-sell + paquetes (order bump para servicios) → sube ticket. ✅ **HECHO E2E 18/18** [2026-07-10] (migración 0029: `services.addon_service_ids` + `service_bookings.addons/total_amount`; endpoint público de complementos; total resuelto server-side; selector en panel + "Agrega a tu experiencia" en el modal).
+5. Especialista por cita. ✅ **HECHO E2E 19/19** [2026-07-10] (migración 0030: `service_specialists` + `services.specialist_ids` + `service_bookings.specialist_id/name`; CRUD + pestaña panel; selección en modal; guard anti doble-booking del mismo profesional 409).
+6. Retención. ✅ **HECHO E2E 19/19** [2026-07-10] (migración 0031: `service_waitlist` + `service_bookings.loyalty_awarded`; lista de espera join público + gestión; reprogramar con revalidación; fidelidad idempotente al completar vía earnPoints; métricas de reservas). **Promos por horario → feature de pricing aparte, fuera de alcance.**
+
+**🎉 ROADMAP DE RESERVAS COMPLETO (6/6).** Migraciones 0027–0031 aplicadas en dev. Pendiente solo de commit + redeploy.
 
 ### ✅ [2026-07-10] Fix chatbot tienda: robustez contexto + persistencia 10 mensajes
 buildDynamicContext (agent.rag.ts) ahora cada query con catch propio (antes 1 catch mataba todo el contexto → "sin productos/sin info comercio"); errores logueados; ChatWidget guarda últimos 10 msgs por tienda (localStorage `dz_chat_{slug}`). Fixes UI previos: hero1 sin franjas negras, botón Contacto visible en header claro, ThemeSwitch minimalista.

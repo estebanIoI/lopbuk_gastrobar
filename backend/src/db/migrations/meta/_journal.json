@@ -211,6 +211,34 @@
       "when": 1783693724303,
       "tag": "0029_shallow_boomer",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "5",
+      "when": 1783709526708,
+      "tag": "0030_blushing_ricochet",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "5",
+      "when": 1783711509478,
+      "tag": "0031_dashing_tag",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "5",
+      "when": 1783714132655,
+      "tag": "0032_married_power_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "5",
+      "when": 1783741238776,
+      "tag": "0033_dapper_blink",
+      "breakpoints": true
     }
   ]
 }

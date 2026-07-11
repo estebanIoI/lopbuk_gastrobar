@@ -38,6 +38,7 @@ const EMPTY_VARIANT = {
   sku: '', color: '', colorHex: '', size: '', material: '', stock: 0, minStock: 0, costPrice: '', priceOverride: '',
   images: ['', '', '', ''] as string[], hormaId: '',
   presale: false, presaleDate: '', presaleLimit: '', presaleDepositPct: '50',
+  attributes: [] as { name: string; value: string }[],
 }
 const EMPTY_TIER    = { minQty: 1, price: '', tenantMarginPct: 0 }
 
@@ -76,6 +77,8 @@ export function VariantManager({ productId, productName, hormaId, open, onClose 
   const [axisColor, setAxisColor]         = useState('')
   const [axisSize, setAxisSize]           = useState('')
   const [axisMaterial, setAxisMaterial]   = useState('')
+  // Ejes con nombre (ferretería / técnico): [{ name:"Diámetro", values:"1/2\", 3/4\", 1\"" }]
+  const [namedAxes, setNamedAxes]         = useState<{ name: string; values: string }[]>([])
   const [gStock, setGStock]               = useState(10)
   const [gPrice, setGPrice]               = useState('')
   const [skuPrefix, setSkuPrefix]         = useState('')
@@ -159,20 +162,31 @@ export function VariantManager({ productId, productName, hormaId, open, onClose 
   }
 
   // ── Modo guiado: matriz de combinaciones ────────────────────────────────────
-  const combos = useMemo(() => {
+  type Combo = { color?: string; size?: string; material?: string; attributes?: { name: string; value: string }[] }
+  const combos = useMemo<Combo[]>(() => {
     const colors = parseVals(axisColor)
     const sizes  = parseVals(axisSize)
     const mats   = parseVals(axisMaterial)
     const cAxis = colors.length ? colors : [undefined]
     const sAxis = sizes.length ? sizes : [undefined]
     const mAxis = mats.length ? mats : [undefined]
-    const out: { color?: string; size?: string; material?: string }[] = []
-    for (const c of cAxis) for (const s of sAxis) for (const m of mAxis) {
-      if (!c && !s && !m) continue
-      out.push({ color: c, size: s, material: m })
+    // Base: color × talla × material (incluye la combinación vacía; se filtra al final)
+    let out: Combo[] = []
+    for (const c of cAxis) for (const s of sAxis) for (const m of mAxis) out.push({ color: c, size: s, material: m })
+    // Multiplica por cada eje con nombre (ferretería): Diámetro, Ángulo, Presión…
+    const named = namedAxes
+      .map(a => ({ name: a.name.trim(), values: parseVals(a.values) }))
+      .filter(a => a.name && a.values.length)
+    for (const ax of named) {
+      const next: Combo[] = []
+      for (const combo of out) for (const val of ax.values) {
+        next.push({ ...combo, attributes: [...(combo.attributes || []), { name: ax.name, value: val }] })
+      }
+      out = next
     }
-    return out
-  }, [axisColor, axisSize, axisMaterial])
+    // Descarta combos totalmente vacíos (sin color/talla/material ni atributos)
+    return out.filter(x => x.color || x.size || x.material || (x.attributes && x.attributes.length))
+  }, [axisColor, axisSize, axisMaterial, namedAxes])
 
   const existingSkus = useMemo(() => new Set(variants.map(v => v.sku)), [variants])
 
@@ -180,8 +194,9 @@ export function VariantManager({ productId, productName, hormaId, open, onClose 
   const skuTrimmed = variantForm.sku.trim()
   const skuDuplicate = !!skuTrimmed && variants.some(v => v.sku === skuTrimmed && v.id !== editingVariant?.id)
 
-  const buildSku = (combo: { color?: string; size?: string; material?: string }) => {
-    const parts = [combo.color, combo.size, combo.material].filter(Boolean).map(v => slug(v as string))
+  const buildSku = (combo: Combo) => {
+    const parts = [combo.color, combo.size, combo.material, ...(combo.attributes || []).map(a => a.value)]
+      .filter(Boolean).map(v => slug(v as string))
     return [skuPrefix || 'VAR', ...parts].filter(Boolean).join('-')
   }
 
@@ -242,6 +257,7 @@ export function VariantManager({ productId, productName, hormaId, open, onClose 
             color: combo.color || undefined,
             size: combo.size || undefined,
             material: combo.material || undefined,
+            attributes: combo.attributes && combo.attributes.length ? combo.attributes : undefined,
             stock: Number(gStock) || 0,
             minStock: 0,
             priceOverride: gPrice ? Number(gPrice) : undefined,
@@ -256,7 +272,7 @@ export function VariantManager({ productId, productName, hormaId, open, onClose 
     if (created) toast.success(`${created} variante(s) creada(s)${skipped ? ` · ${skipped} ya existían` : ''}`)
     else if (skipped) toast.info('Todas esas combinaciones ya existían')
     if (failed) toast.warning(`${failed} no se pudieron crear`)
-    setAxisColor(''); setAxisSize(''); setAxisMaterial('')
+    setAxisColor(''); setAxisSize(''); setAxisMaterial(''); setNamedAxes([])
     setSelectedHormaIds([]); setHormaMatrix({})
     await load()
     setGuided(false)
@@ -281,6 +297,7 @@ export function VariantManager({ productId, productName, hormaId, open, onClose 
       presaleDate: v.presaleDate ?? '',
       presaleLimit: v.presaleLimit != null ? String(v.presaleLimit) : '',
       presaleDepositPct: v.presaleDepositPct != null ? String(v.presaleDepositPct) : '50',
+      attributes: (v.attributes || []).map(a => ({ name: a.name, value: a.value })),
     })
     setEditingVariant(v)
     setShowAddVariant(true)
@@ -306,6 +323,7 @@ export function VariantManager({ productId, productName, hormaId, open, onClose 
         presaleDate: variantForm.presaleDate || null,
         presaleLimit: variantForm.presaleLimit !== '' ? Number(variantForm.presaleLimit) : null,
         presaleDepositPct: variantForm.presaleDepositPct !== '' ? Number(variantForm.presaleDepositPct) : 50,
+        attributes: variantForm.attributes.map(a => ({ name: a.name.trim(), value: a.value.trim() })).filter(a => a.name && a.value),
       }
       const result = editingVariant
         ? await api.updateVariant(editingVariant.id, payload)
@@ -550,6 +568,61 @@ export function VariantManager({ productId, productName, hormaId, open, onClose 
                     )
                   })}
 
+                  {/* Ejes con nombre (ferretería / técnico) — Diámetro, Ángulo, Presión… */}
+                  <div className="rounded-md border border-dashed p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-medium flex items-center gap-1.5">
+                        <Layers className="w-3.5 h-3.5 text-primary" /> Ejes con nombre (ferretería / técnico)
+                      </Label>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground -mt-1">
+                      Para catálogos técnicos: define tus propios ejes (ej. Diámetro, Ángulo, Presión). Se combinan con los de arriba.
+                    </p>
+                    {namedAxes.length > 0 && namedAxes.map((ax, i) => {
+                      const chips = parseVals(ax.values)
+                      return (
+                        <div key={i} className="rounded border bg-background p-2 space-y-1.5">
+                          <div className="flex items-center gap-2">
+                            <Input
+                              placeholder="Nombre del eje (ej. Diámetro)"
+                              value={ax.name}
+                              onChange={e => setNamedAxes(prev => prev.map((a, j) => j === i ? { ...a, name: e.target.value } : a))}
+                              className="h-8 text-sm"
+                            />
+                            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-destructive"
+                              onClick={() => setNamedAxes(prev => prev.filter((_, j) => j !== i))}>
+                              <X className="w-4 h-4" />
+                            </Button>
+                          </div>
+                          <Input
+                            placeholder={'Valores separados por coma (ej. 1/2", 3/4", 1")'}
+                            value={ax.values}
+                            onChange={e => setNamedAxes(prev => prev.map((a, j) => j === i ? { ...a, values: e.target.value } : a))}
+                            className="h-8 text-sm"
+                          />
+                          {chips.length > 0 && (
+                            <div className="flex flex-wrap gap-1">
+                              {chips.map(c => <Badge key={c} variant="secondary" className="text-[10px]">{c}</Badge>)}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <Button variant="outline" size="sm" className="h-7 gap-1"
+                        onClick={() => setNamedAxes(prev => [...prev, { name: '', values: '' }])}>
+                        <Plus className="w-3.5 h-3.5" /> Agregar eje
+                      </Button>
+                      {['Diámetro', 'Ángulo', 'Presión', 'Tipo de conexión', 'Rosca', 'Uso', 'Calibre', 'Acabado'].map(sug => (
+                        <button key={sug} type="button"
+                          onClick={() => setNamedAxes(prev => prev.some(a => a.name.trim().toLowerCase() === sug.toLowerCase()) ? prev : [...prev, { name: sug, values: '' }])}
+                          className="rounded-full border px-2 py-0.5 text-[11px] text-muted-foreground hover:border-primary hover:text-primary">
+                          + {sug}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     <div>
                       <Label className="text-xs">Stock por variante</Label>
@@ -603,7 +676,7 @@ export function VariantManager({ productId, productName, hormaId, open, onClose 
                       {combos.map((c, i) => {
                         const sku = buildSku(c)
                         const dup = existingSkus.has(sku)
-                        const label = [c.color, c.size, c.material].filter(Boolean).join(' / ')
+                        const label = [c.color, c.size, c.material, ...(c.attributes || []).map(a => a.value)].filter(Boolean).join(' / ')
                         return (
                           <div key={i} className="flex items-center gap-3 px-4 py-2 text-sm">
                             <span className="flex-1">{label || '—'}</span>
@@ -815,6 +888,33 @@ export function VariantManager({ productId, productName, hormaId, open, onClose 
                 <Input placeholder="Algodón" value={variantForm.material}
                   onChange={e => setVariantForm(p => ({ ...p, material: e.target.value }))} />
               </div>
+
+              {/* Atributos con nombre (ferretería): Diámetro, Ángulo, Presión… */}
+              <div className="col-span-2 rounded-md border border-dashed p-2.5 space-y-2">
+                <div className="flex items-center gap-1.5">
+                  <Layers className="w-3.5 h-3.5 text-primary" />
+                  <Label className="text-xs font-medium">Atributos (Diámetro, Ángulo, Presión…)</Label>
+                </div>
+                {variantForm.attributes.length > 0 && variantForm.attributes.map((a, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <Input placeholder="Nombre (ej. Diámetro)" value={a.name}
+                      onChange={e => setVariantForm(p => ({ ...p, attributes: p.attributes.map((x, j) => j === i ? { ...x, name: e.target.value } : x) }))}
+                      className="h-8 text-sm" />
+                    <Input placeholder={'Valor (ej. 1/2")'} value={a.value}
+                      onChange={e => setVariantForm(p => ({ ...p, attributes: p.attributes.map((x, j) => j === i ? { ...x, value: e.target.value } : x) }))}
+                      className="h-8 text-sm" />
+                    <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-destructive"
+                      onClick={() => setVariantForm(p => ({ ...p, attributes: p.attributes.filter((_, j) => j !== i) }))}>
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ))}
+                <Button variant="outline" size="sm" className="h-7 gap-1"
+                  onClick={() => setVariantForm(p => ({ ...p, attributes: [...p.attributes, { name: '', value: '' }] }))}>
+                  <Plus className="w-3.5 h-3.5" /> Agregar atributo
+                </Button>
+              </div>
+
               {!editingVariant && (
                 <div>
                   <Label className="text-xs">Stock inicial</Label>

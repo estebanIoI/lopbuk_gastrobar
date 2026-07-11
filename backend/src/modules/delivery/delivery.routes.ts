@@ -8,6 +8,22 @@ const router: ReturnType<typeof Router> = Router();
 
 router.use(authenticate);
 
+/**
+ * Alcance de comercios de un repartidor para filtrar pedidos.
+ * - Repartidor de UN comercio (tenantId presente): solo ese comercio (como siempre).
+ * - Repartidor de plataforma (tenantId NULL): solo los comercios que el superadmin le
+ *   asignó en `courier_tenants`. Sin asignaciones → el IN (…) no matchea nada → no ve
+ *   nada. Esto evita que un repartidor sin comercio vea pedidos de TODOS los tenants.
+ */
+function courierTenantScope(alias: string, tenantId: string | null | undefined, driverId: string): { clause: string; params: any[] } {
+  const col = alias ? `${alias}.tenant_id` : 'tenant_id';
+  if (tenantId) return { clause: `AND ${col} = ?`, params: [tenantId] };
+  return {
+    clause: `AND ${col} IN (SELECT ct.tenant_id FROM courier_tenants ct WHERE ct.courier_user_id = ?)`,
+    params: [driverId],
+  };
+}
+
 // =============================================
 // REPARTIDOR endpoints
 // =============================================
@@ -35,12 +51,12 @@ router.get(
         LEFT JOIN tenants t ON t.id = o.tenant_id
         LEFT JOIN fleet_vehicles fv ON fv.id = o.vehicle_id
         WHERE o.delivery_driver_id = ?
-          ${tenantId ? 'AND o.tenant_id = ?' : ''}
+          ${courierTenantScope('o', tenantId, driverId).clause}
           AND o.status NOT IN ('cancelado')
           AND o.delivery_status != 'entregado'
         ORDER BY o.created_at DESC`;
 
-      const params: any[] = tenantId ? [driverId, tenantId] : [driverId];
+      const params: any[] = [driverId, ...courierTenantScope('o', tenantId, driverId).params];
 
       const [orders] = await pool.query(sql, params) as any;
 
@@ -78,12 +94,12 @@ router.get(
         FROM storefront_orders o
         LEFT JOIN tenants t ON t.id = o.tenant_id
         WHERE o.delivery_driver_id = ?
-          ${tenantId ? 'AND o.tenant_id = ?' : ''}
+          ${courierTenantScope('o', tenantId, driverId).clause}
           AND o.delivery_status = 'entregado'
         ORDER BY o.delivery_delivered_at DESC
         LIMIT 50`;
 
-      const params: any[] = tenantId ? [driverId, tenantId] : [driverId];
+      const params: any[] = [driverId, ...courierTenantScope('o', tenantId, driverId).params];
 
       const [orders] = await pool.query(sql, params) as any;
 
@@ -102,6 +118,8 @@ router.get(
   async (req: AuthRequest, res: Response) => {
     try {
       const tenantId = req.user!.tenantId;
+      const driverId = req.user!.userId;
+      const scope = courierTenantScope('o', tenantId, driverId);
 
       const sql = `
         SELECT o.id, o.order_number as orderNumber, o.customer_name as customerName,
@@ -116,13 +134,13 @@ router.get(
         FROM storefront_orders o
         LEFT JOIN tenants t ON t.id = o.tenant_id
         LEFT JOIN fleet_vehicles fv ON fv.id = o.vehicle_id
-        WHERE ${tenantId ? 'o.tenant_id = ? AND' : ''}
-              o.delivery_driver_id IS NULL
+        WHERE o.delivery_driver_id IS NULL
+          ${scope.clause}
           AND o.delivery_status = 'sin_asignar'
           AND o.status IN ('pendiente', 'confirmado', 'preparando', 'enviado')
         ORDER BY o.created_at ASC`;
 
-      const params: any[] = tenantId ? [tenantId] : [];
+      const params: any[] = [...scope.params];
 
       const [orders] = await pool.query(sql, params) as any;
 
@@ -154,14 +172,15 @@ router.put(
       const tenantId = req.user!.tenantId;
       const { orderId } = req.params;
 
+      const scope = courierTenantScope('', tenantId, driverId);
       const checkSql = `
         SELECT id FROM storefront_orders
         WHERE id = ?
-          ${tenantId ? 'AND tenant_id = ?' : ''}
+          ${scope.clause}
           AND delivery_driver_id IS NULL
           AND delivery_status = 'sin_asignar'`;
 
-      const checkParams: any[] = tenantId ? [orderId, tenantId] : [orderId];
+      const checkParams: any[] = [orderId, ...scope.params];
 
       const [orderRows] = await pool.query(checkSql, checkParams) as any;
 

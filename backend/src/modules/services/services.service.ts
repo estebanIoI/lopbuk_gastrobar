@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { db } from '../../config';
 import { AppError } from '../../common/middleware';
 import { RowDataPacket, ResultSetHeader } from 'mysql2';
+import { earnPoints, getLoyaltyConfig } from '../loyalty/loyalty.routes';
 
 // ─── Row interfaces ───────────────────────────────────────────────
 interface ServiceRow extends RowDataPacket {
@@ -56,6 +57,7 @@ const mapService = (r: ServiceRow) => ({
   imageUrl: r.image_url, benefits: parseBenefits((r as any).benefits),
   preparation: (r as any).preparation ?? null,
   addonServiceIds: parseBenefits((r as any).addon_service_ids),
+  specialistIds: parseBenefits((r as any).specialist_ids),
   requiresPayment: Boolean(r.requires_payment),
   maxAdvanceDays: r.max_advance_days, cancellationHours: r.cancellation_hours,
   isActive: Boolean(r.is_active), isPublished: Boolean(r.is_published),
@@ -87,6 +89,21 @@ const mapBooking = (r: BookingRow) => ({
   amountPaid: Number(r.amount_paid), merchantNotes: r.merchant_notes,
   addons: parseAddons((r as any).addons),
   totalAmount: Number((r as any).total_amount ?? 0),
+  specialistId: (r as any).specialist_id ?? null,
+  specialistName: (r as any).specialist_name ?? null,
+  loyaltyAwarded: Boolean((r as any).loyalty_awarded),
+  createdAt: r.created_at, updatedAt: r.updated_at,
+});
+
+const mapWaitlist = (r: any) => ({
+  id: r.id, tenantId: r.tenant_id, serviceId: r.service_id, serviceName: r.service_name,
+  clientName: r.client_name, clientPhone: r.client_phone, desiredDate: r.desired_date,
+  note: r.note, status: r.status, createdAt: r.created_at, updatedAt: r.updated_at,
+});
+
+const mapSpecialist = (r: any) => ({
+  id: r.id, tenantId: r.tenant_id, name: r.name, title: r.title,
+  photoUrl: r.photo_url, isActive: Boolean(r.is_active), sortOrder: r.sort_order,
   createdAt: r.created_at, updatedAt: r.updated_at,
 });
 
@@ -125,7 +142,7 @@ export class ServicesService {
     name: string; description?: string; category?: string;
     serviceType: 'cita' | 'asesoria' | 'contacto'; price?: number;
     priceType?: string; durationMinutes?: number; imageUrl?: string;
-    benefits?: string[]; preparation?: string; addonServiceIds?: string[];
+    benefits?: string[]; preparation?: string; addonServiceIds?: string[]; specialistIds?: string[];
     requiresPayment?: boolean; maxAdvanceDays?: number;
     cancellationHours?: number; sortOrder?: number;
   }) {
@@ -134,17 +151,20 @@ export class ServicesService {
       ? data.benefits.map((b) => String(b).trim()).filter(Boolean) : [];
     const addonIds = Array.isArray(data.addonServiceIds)
       ? [...new Set(data.addonServiceIds.map((x) => String(x).trim()).filter(Boolean))] : [];
+    const specialistIds = Array.isArray(data.specialistIds)
+      ? [...new Set(data.specialistIds.map((x) => String(x).trim()).filter(Boolean))] : [];
     await db.execute<ResultSetHeader>(
       `INSERT INTO services
         (id, tenant_id, name, description, category, service_type, price, price_type,
-         duration_minutes, image_url, benefits, preparation, addon_service_ids, requires_payment, max_advance_days, cancellation_hours, sort_order)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         duration_minutes, image_url, benefits, preparation, addon_service_ids, specialist_ids, requires_payment, max_advance_days, cancellation_hours, sort_order)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id, tenantId, data.name, data.description || null, data.category || null,
         data.serviceType, data.price || 0, data.priceType || 'fijo',
         data.durationMinutes || null, data.imageUrl || null,
         benefits.length ? JSON.stringify(benefits) : null, data.preparation?.trim() || null,
         addonIds.length ? JSON.stringify(addonIds) : null,
+        specialistIds.length ? JSON.stringify(specialistIds) : null,
         data.requiresPayment ? 1 : 0, data.maxAdvanceDays || 30,
         data.cancellationHours || 24, data.sortOrder || 0,
       ]
@@ -155,7 +175,7 @@ export class ServicesService {
   async update(id: string, tenantId: string, data: Partial<{
     name: string; description: string; category: string; serviceType: string;
     price: number; priceType: string; durationMinutes: number; imageUrl: string;
-    benefits: string[]; preparation: string; addonServiceIds: string[];
+    benefits: string[]; preparation: string; addonServiceIds: string[]; specialistIds: string[];
     requiresPayment: boolean; maxAdvanceDays: number; cancellationHours: number;
     isActive: boolean; isPublished: boolean; sortOrder: number;
   }>) {
@@ -178,6 +198,12 @@ export class ServicesService {
         ? [...new Set(data.addonServiceIds.map((x) => String(x).trim()).filter(Boolean))] : [];
       fields.push('addon_service_ids = ?');
       values.push(addonIds.length ? JSON.stringify(addonIds) : null);
+    }
+    if ('specialistIds' in data) {
+      const specialistIds = Array.isArray(data.specialistIds)
+        ? [...new Set(data.specialistIds.map((x) => String(x).trim()).filter(Boolean))] : [];
+      fields.push('specialist_ids = ?');
+      values.push(specialistIds.length ? JSON.stringify(specialistIds) : null);
     }
 
     const map: Record<string, string> = {
@@ -533,6 +559,76 @@ export class ServicesService {
   }
 
   // ── PUBLIC: list published services by tenant slug ─────────────
+  // ── SPECIALISTS (Fase 5) ──────────────────────────────────────
+  async listSpecialists(tenantId: string) {
+    const [rows] = await db.execute<RowDataPacket[]>(
+      'SELECT * FROM service_specialists WHERE tenant_id = ? AND is_active = TRUE ORDER BY sort_order, name',
+      [tenantId]
+    );
+    return rows.map(mapSpecialist);
+  }
+
+  async createSpecialist(tenantId: string, data: { name: string; title?: string; photoUrl?: string; sortOrder?: number }) {
+    if (!data.name?.trim()) throw new AppError('Nombre requerido', 400);
+    const id = uuidv4();
+    await db.execute<ResultSetHeader>(
+      `INSERT INTO service_specialists (id, tenant_id, name, title, photo_url, sort_order)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [id, tenantId, data.name.trim(), data.title?.trim() || null, data.photoUrl?.trim() || null, data.sortOrder || 0]
+    );
+    const [rows] = await db.execute<RowDataPacket[]>('SELECT * FROM service_specialists WHERE id = ?', [id]);
+    return mapSpecialist(rows[0]);
+  }
+
+  async updateSpecialist(id: string, tenantId: string, data: Partial<{ name: string; title: string; photoUrl: string; isActive: boolean; sortOrder: number }>) {
+    const fields: string[] = [];
+    const values: unknown[] = [];
+    const map: Record<string, string> = { name: 'name', title: 'title', photoUrl: 'photo_url', isActive: 'is_active', sortOrder: 'sort_order' };
+    for (const [key, col] of Object.entries(map)) {
+      if (key in data) {
+        fields.push(`${col} = ?`);
+        const v = (data as Record<string, unknown>)[key];
+        values.push(key === 'isActive' ? (v ? 1 : 0) : (typeof v === 'string' ? v.trim() || null : v));
+      }
+    }
+    if (!fields.length) throw new AppError('Sin cambios', 400);
+    values.push(id, tenantId);
+    const [result] = await db.execute<ResultSetHeader>(
+      `UPDATE service_specialists SET ${fields.join(', ')} WHERE id = ? AND tenant_id = ?`, values
+    );
+    if (!result.affectedRows) throw new AppError('Especialista no encontrado', 404);
+    const [rows] = await db.execute<RowDataPacket[]>('SELECT * FROM service_specialists WHERE id = ?', [id]);
+    return mapSpecialist(rows[0]);
+  }
+
+  // Soft delete: se preserva el nombre ya snapshoteado en reservas existentes
+  async removeSpecialist(id: string, tenantId: string) {
+    const [result] = await db.execute<ResultSetHeader>(
+      'UPDATE service_specialists SET is_active = 0 WHERE id = ? AND tenant_id = ?', [id, tenantId]
+    );
+    if (!result.affectedRows) throw new AppError('Especialista no encontrado', 404);
+  }
+
+  // Especialistas activos que realizan un servicio publicado, en el orden configurado
+  async getPublicSpecialists(serviceId: string, tenantId: string) {
+    const [svcRows] = await db.execute<ServiceRow[]>(
+      'SELECT specialist_ids FROM services WHERE id = ? AND tenant_id = ? AND is_active = TRUE AND is_published = TRUE',
+      [serviceId, tenantId]
+    );
+    if (!svcRows.length) return [];
+    const ids = parseBenefits((svcRows[0] as any).specialist_ids);
+    if (!ids.length) return [];
+    const placeholders = ids.map(() => '?').join(',');
+    const [rows] = await db.execute<RowDataPacket[]>(
+      `SELECT * FROM service_specialists WHERE tenant_id = ? AND is_active = TRUE AND id IN (${placeholders})`,
+      [tenantId, ...ids]
+    );
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    return ids.map((id) => byId.get(id)).filter(Boolean).map((r: any) => ({
+      id: r.id, name: r.name, title: r.title, photoUrl: r.photo_url,
+    }));
+  }
+
   // Complementos (cross-sell) publicados de un servicio, en el orden configurado
   async getPublicAddons(serviceId: string, tenantId: string) {
     const [svcRows] = await db.execute<ServiceRow[]>(
@@ -642,7 +738,7 @@ export class ServicesService {
     serviceId: string; clientName: string; clientPhone: string;
     clientEmail?: string; clientNotes?: string;
     bookingDate?: string; startTime?: string; holdToken?: string;
-    addonIds?: string[];
+    addonIds?: string[]; specialistId?: string;
     preferredDateRange?: string; projectDescription?: string; budgetRange?: string;
   }) {
     // Validate service belongs to tenant and is active
@@ -652,6 +748,24 @@ export class ServicesService {
     );
     if (!svcRows.length) throw new AppError('Servicio no disponible', 404);
     const svc = svcRows[0];
+
+    // ── Especialista (Fase 5): solo se acepta si el servicio lo ofrece y está
+    // activo. Se snapshotea el nombre (sobrevive a bajas/renombres posteriores).
+    let specialistId: string | null = null;
+    let specialistName: string | null = null;
+    if (data.specialistId) {
+      const allowedSpecialists = parseBenefits((svc as any).specialist_ids);
+      if (!allowedSpecialists.includes(data.specialistId)) {
+        throw new AppError('El especialista seleccionado no atiende este servicio', 400);
+      }
+      const [spRows] = await db.execute<RowDataPacket[]>(
+        'SELECT id, name FROM service_specialists WHERE id = ? AND tenant_id = ? AND is_active = TRUE',
+        [data.specialistId, tenantId]
+      );
+      if (!spRows.length) throw new AppError('El especialista seleccionado no está disponible', 400);
+      specialistId = spRows[0].id;
+      specialistName = spRows[0].name;
+    }
 
     // ── Cross-sell: resolver complementos SIEMPRE en el servidor (nunca confiar
     // en el precio del cliente). Solo se aceptan add-ons que el servicio realmente
@@ -686,6 +800,20 @@ export class ServicesService {
       const matchingSlot = available.find((s) => s.startsWith(data.startTime!));
       if (!matchingSlot) throw new AppError('El horario seleccionado no está disponible', 400);
       endTime = matchingSlot.split('-')[1];
+
+      // Guard: un mismo especialista no puede tener dos citas solapadas
+      if (specialistId) {
+        const [clash] = await db.execute<CountRow[]>(
+          `SELECT COUNT(*) AS total FROM service_bookings
+           WHERE tenant_id = ? AND specialist_id = ? AND booking_date = ?
+             AND status IN ('pendiente','confirmada')
+             AND start_time < ? AND end_time > ?`,
+          [tenantId, specialistId, data.bookingDate, endTime, data.startTime]
+        );
+        if (clash[0].total > 0) {
+          throw new AppError('Ese especialista ya tiene una cita en ese horario. Elige otro especialista u otra hora.', 409);
+        }
+      }
     }
 
     const id = uuidv4();
@@ -693,8 +821,9 @@ export class ServicesService {
       `INSERT INTO service_bookings
         (id, tenant_id, service_id, service_name, booking_type, client_name, client_phone,
          client_email, client_notes, booking_date, start_time, end_time,
-         preferred_date_range, project_description, budget_range, addons, total_amount)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         preferred_date_range, project_description, budget_range, addons, total_amount,
+         specialist_id, specialist_name)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id, tenantId, data.serviceId, svc.name, svc.service_type,
         data.clientName, data.clientPhone, data.clientEmail || null,
@@ -703,6 +832,7 @@ export class ServicesService {
         data.preferredDateRange || null, data.projectDescription || null,
         data.budgetRange || null,
         addons.length ? JSON.stringify(addons) : null, totalAmount,
+        specialistId, specialistName,
       ]
     );
 
@@ -726,10 +856,168 @@ export class ServicesService {
       values
     );
     if (!result.affectedRows) throw new AppError('Reserva no encontrada', 404);
+
+    // Fidelidad al completar: acredita puntos UNA vez (idempotente) según el total
+    if (data.status === 'completada') {
+      await this.awardLoyaltyForBooking(id, tenantId).catch(() => {});
+    }
+
     const [rows] = await db.execute<BookingRow[]>(
       'SELECT * FROM service_bookings WHERE id = ?', [id]
     );
     return mapBooking(rows[0]);
+  }
+
+  // Acredita puntos de fidelidad por una reserva completada (una sola vez)
+  private async awardLoyaltyForBooking(bookingId: string, tenantId: string) {
+    const cfg = await getLoyaltyConfig(tenantId);
+    if (!cfg.enabled) return;
+    const [rows] = await db.execute<BookingRow[]>(
+      'SELECT * FROM service_bookings WHERE id = ? AND tenant_id = ?', [bookingId, tenantId]
+    );
+    if (!rows.length) return;
+    const b = rows[0] as any;
+    if (b.loyalty_awarded) return; // ya acreditado
+    const amount = Number(b.total_amount) || 0;
+    // Marcar primero (evita doble acreditación por condiciones de carrera)
+    const [upd] = await db.execute<ResultSetHeader>(
+      'UPDATE service_bookings SET loyalty_awarded = 1 WHERE id = ? AND loyalty_awarded = 0', [bookingId]
+    );
+    if (!upd.affectedRows) return;
+    if (amount > 0) {
+      await earnPoints(tenantId, b.client_phone, b.client_name, amount, bookingId).catch(() => {});
+    }
+  }
+
+  // Reprogramar una cita: revalida disponibilidad y respeta el guard de especialista
+  async rescheduleBooking(id: string, tenantId: string, data: { bookingDate: string; startTime: string }) {
+    const [rows] = await db.execute<BookingRow[]>(
+      'SELECT * FROM service_bookings WHERE id = ? AND tenant_id = ?', [id, tenantId]
+    );
+    if (!rows.length) throw new AppError('Reserva no encontrada', 404);
+    const bk = rows[0] as any;
+    if (bk.booking_type !== 'cita') throw new AppError('Solo se reprograman citas', 400);
+    if (['cancelada', 'completada', 'no_asistio'].includes(bk.status)) {
+      throw new AppError('No se puede reprogramar una reserva cerrada', 400);
+    }
+    if (!data.bookingDate || !data.startTime) throw new AppError('Fecha y hora requeridas', 400);
+
+    const available = await this.getAvailableSlots(bk.service_id, tenantId, data.bookingDate);
+    const match = available.find((s) => s.startsWith(data.startTime));
+    if (!match) throw new AppError('El nuevo horario no está disponible', 409);
+    const endTime = match.split('-')[1];
+
+    // Guard de solape del especialista (excluyendo esta misma reserva)
+    if (bk.specialist_id) {
+      const [clash] = await db.execute<CountRow[]>(
+        `SELECT COUNT(*) AS total FROM service_bookings
+         WHERE tenant_id = ? AND specialist_id = ? AND booking_date = ? AND id <> ?
+           AND status IN ('pendiente','confirmada')
+           AND start_time < ? AND end_time > ?`,
+        [tenantId, bk.specialist_id, data.bookingDate, id, endTime, data.startTime]
+      );
+      if (clash[0].total > 0) throw new AppError('Ese especialista ya tiene una cita en ese horario.', 409);
+    }
+
+    await db.execute(
+      'UPDATE service_bookings SET booking_date = ?, start_time = ?, end_time = ? WHERE id = ? AND tenant_id = ?',
+      [data.bookingDate, data.startTime, endTime, id, tenantId]
+    );
+    const [out] = await db.execute<BookingRow[]>('SELECT * FROM service_bookings WHERE id = ?', [id]);
+    return mapBooking(out[0]);
+  }
+
+  // ── WAITLIST (Fase 6) ──────────────────────────────────────────
+  async joinWaitlist(tenantId: string, data: {
+    serviceId: string; clientName: string; clientPhone: string; desiredDate?: string; note?: string;
+  }) {
+    const [svcRows] = await db.execute<ServiceRow[]>(
+      'SELECT name FROM services WHERE id = ? AND tenant_id = ? AND is_active = TRUE AND is_published = TRUE',
+      [data.serviceId, tenantId]
+    );
+    if (!svcRows.length) throw new AppError('Servicio no disponible', 404);
+    if (!data.clientName?.trim() || !data.clientPhone?.trim()) throw new AppError('Nombre y teléfono requeridos', 400);
+    const id = uuidv4();
+    await db.execute<ResultSetHeader>(
+      `INSERT INTO service_waitlist (id, tenant_id, service_id, service_name, client_name, client_phone, desired_date, note)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, tenantId, data.serviceId, svcRows[0].name, data.clientName.trim(), data.clientPhone.trim(),
+       data.desiredDate || null, data.note?.trim() || null]
+    );
+    return { id };
+  }
+
+  async listWaitlist(tenantId: string, filters?: { status?: string; serviceId?: string }) {
+    const conditions = ['tenant_id = ?'];
+    const values: unknown[] = [tenantId];
+    if (filters?.status) { conditions.push('status = ?'); values.push(filters.status); }
+    if (filters?.serviceId) { conditions.push('service_id = ?'); values.push(filters.serviceId); }
+    const [rows] = await db.execute<RowDataPacket[]>(
+      `SELECT * FROM service_waitlist WHERE ${conditions.join(' AND ')} ORDER BY created_at DESC`,
+      values
+    );
+    return rows.map(mapWaitlist);
+  }
+
+  async updateWaitlistStatus(id: string, tenantId: string, status: string) {
+    if (!['pendiente', 'notificado', 'convertido', 'cancelado'].includes(status)) {
+      throw new AppError('Estado inválido', 400);
+    }
+    const [result] = await db.execute<ResultSetHeader>(
+      'UPDATE service_waitlist SET status = ? WHERE id = ? AND tenant_id = ?', [status, id, tenantId]
+    );
+    if (!result.affectedRows) throw new AppError('Entrada no encontrada', 404);
+    const [rows] = await db.execute<RowDataPacket[]>('SELECT * FROM service_waitlist WHERE id = ?', [id]);
+    return mapWaitlist(rows[0]);
+  }
+
+  // ── STATS de reservas (Fase 6) ─────────────────────────────────
+  async getBookingStats(tenantId: string, days = 30) {
+    const [statusRows] = await db.execute<RowDataPacket[]>(
+      `SELECT status, COUNT(*) AS n FROM service_bookings
+       WHERE tenant_id = ? AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
+       GROUP BY status`,
+      [tenantId, days]
+    );
+    const byStatus: Record<string, number> = {};
+    let total = 0;
+    for (const r of statusRows) { byStatus[r.status] = Number(r.n); total += Number(r.n); }
+
+    const completed = byStatus['completada'] || 0;
+    const noShow = byStatus['no_asistio'] || 0;
+    const attended = completed + noShow;
+    const noShowRate = attended > 0 ? Math.round((noShow / attended) * 100) : 0;
+
+    const [revRows] = await db.execute<RowDataPacket[]>(
+      `SELECT COALESCE(SUM(total_amount), 0) AS revenue FROM service_bookings
+       WHERE tenant_id = ? AND status = 'completada' AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)`,
+      [tenantId, days]
+    );
+    const revenue = Number(revRows[0].revenue) || 0;
+
+    const [topSvc] = await db.execute<RowDataPacket[]>(
+      `SELECT service_name AS name, COUNT(*) AS n FROM service_bookings
+       WHERE tenant_id = ? AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
+       GROUP BY service_name ORDER BY n DESC LIMIT 5`,
+      [tenantId, days]
+    );
+    const [topSpec] = await db.execute<RowDataPacket[]>(
+      `SELECT specialist_name AS name, COUNT(*) AS n FROM service_bookings
+       WHERE tenant_id = ? AND specialist_name IS NOT NULL AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
+       GROUP BY specialist_name ORDER BY n DESC LIMIT 5`,
+      [tenantId, days]
+    );
+    const [waitRows] = await db.execute<CountRow[]>(
+      "SELECT COUNT(*) AS total FROM service_waitlist WHERE tenant_id = ? AND status = 'pendiente'",
+      [tenantId]
+    );
+
+    return {
+      days, total, byStatus, completed, noShowRate, revenue,
+      pendingWaitlist: Number((waitRows[0] as any).total) || 0,
+      topServices: topSvc.map((r) => ({ name: r.name, count: Number(r.n) })),
+      topSpecialists: topSpec.map((r) => ({ name: r.name, count: Number(r.n) })),
+    };
   }
 }
 

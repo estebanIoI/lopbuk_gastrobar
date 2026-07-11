@@ -54,5 +54,35 @@ export function initDeliveryChatSocket(io: SocketIOServer): void {
       if (!tenantId) return;
       socket.join(`ops:${tenantId}`);
     });
+
+    // ── Join como repartidor: se une SOLO a las salas ops de sus comercios ──
+    // Repartidor de un comercio → su tenant. Repartidor de plataforma (tenant NULL)
+    // → los comercios asignados en courier_tenants. La resolución es server-side
+    // (no confía en una lista enviada por el cliente).
+    socket.on('join-courier', async ({ userId }: { userId: string }) => {
+      if (!userId) { socket.emit('courier-joined', { tenantIds: [] }); return; }
+      try {
+        const pool = (await import('../../config/database')).default;
+        const [uRows] = await pool.query(
+          "SELECT tenant_id FROM users WHERE id = ? AND role = 'repartidor' AND is_active = 1",
+          [userId]
+        ) as any;
+        if (!uRows.length) { socket.emit('courier-joined', { tenantIds: [] }); return; }
+        let tenantIds: string[];
+        if (uRows[0].tenant_id) {
+          tenantIds = [uRows[0].tenant_id];
+        } else {
+          const [ctRows] = await pool.query(
+            'SELECT tenant_id FROM courier_tenants WHERE courier_user_id = ?',
+            [userId]
+          ) as any;
+          tenantIds = (ctRows as any[]).map((r) => r.tenant_id);
+        }
+        for (const tid of tenantIds) socket.join(`ops:${tid}`);
+        socket.emit('courier-joined', { tenantIds });
+      } catch {
+        socket.emit('courier-joined', { tenantIds: [] });
+      }
+    });
   });
 }

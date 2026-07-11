@@ -8,7 +8,7 @@
  * Sin login: el token aleatorio del pedido es la llave.
  */
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 import {
   Package, CheckCircle2, Truck, Clock, MapPin, Store, Phone,
@@ -49,11 +49,90 @@ export default function TrackingPage() {
     setLoading(false)
   }, [token])
 
+  // En tránsito refresca cada 12s (mapa en vivo); si no, cada 60s.
+  const inTransit = !!data?.vehicle
   useEffect(() => {
     load()
-    const t = setInterval(load, 60000) // refresco cada minuto mientras la página está abierta
+    const t = setInterval(load, inTransit ? 12000 : 60000)
     return () => clearInterval(t)
-  }, [load])
+  }, [load, inTransit])
+
+  // ── Mapa en vivo (Leaflet + OpenStreetMap, gratis) ────────────────────────
+  const mapContainerRef = useRef<HTMLDivElement>(null)
+  const mapRef = useRef<any>(null)
+  const Lref = useRef<any>(null)
+  const courierMarkerRef = useRef<any>(null)
+  const destMarkerRef = useRef<any>(null)
+  const routeLineRef = useRef<any>(null)
+
+  const vehicle = data?.vehicle as { lat: number; lng: number } | null | undefined
+  const destCoords = data?.destinationCoords as { lat: number; lng: number } | null | undefined
+  const routeGeometry = data?.routeGeometry as [number, number][] | null | undefined
+  const eta = data?.eta as { minutes: number; source: string } | null | undefined
+
+  // Inicializa el mapa una vez que hay posición del vehículo y el contenedor existe
+  useEffect(() => {
+    let cancelled = false
+    if (!vehicle || mapRef.current) return
+    ;(async () => {
+      if (typeof window === 'undefined' || !mapContainerRef.current) return
+      try {
+        await new Promise<void>((resolve) => {
+          if (document.querySelector('link[href*="leaflet"]')) { resolve(); return }
+          const link = document.createElement('link')
+          link.rel = 'stylesheet'; link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
+          link.onload = () => resolve(); link.onerror = () => resolve()
+          document.head.appendChild(link)
+        })
+        if (cancelled || !mapContainerRef.current) return
+        const L = (await import('leaflet')).default
+        if (cancelled || !mapContainerRef.current || (mapContainerRef.current as any)._leaflet_id) return
+        Lref.current = L
+        const map = L.map(mapContainerRef.current, { center: [vehicle.lat, vehicle.lng], zoom: 14, zoomControl: false })
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap', maxZoom: 19 }).addTo(map)
+        // Destino
+        if (destCoords) {
+          destMarkerRef.current = L.circleMarker([destCoords.lat, destCoords.lng], {
+            radius: 8, color: '#059669', fillColor: '#10b981', fillOpacity: 0.9, weight: 2,
+          }).addTo(map).bindTooltip('Destino')
+        }
+        // Repartidor
+        courierMarkerRef.current = L.circleMarker([vehicle.lat, vehicle.lng], {
+          radius: 9, color: '#4f46e5', fillColor: '#6366f1', fillOpacity: 1, weight: 3,
+        }).addTo(map).bindTooltip('Repartidor')
+        mapRef.current = map
+        setTimeout(() => map.invalidateSize(), 250)
+      } catch { /* mapa opcional: si falla, queda el link a Google Maps */ }
+    })()
+    return () => { cancelled = true }
+  }, [vehicle, destCoords])
+
+  // Mueve el marcador del repartidor, dibuja la ruta (si hay proveedor) y reencuadra
+  useEffect(() => {
+    const L = Lref.current; const map = mapRef.current
+    if (!L || !map || !vehicle) return
+    if (courierMarkerRef.current) courierMarkerRef.current.setLatLng([vehicle.lat, vehicle.lng])
+    // Línea de ruta (solo si el proveedor la devuelve)
+    if (routeGeometry && routeGeometry.length > 1) {
+      if (routeLineRef.current) routeLineRef.current.setLatLngs(routeGeometry)
+      else routeLineRef.current = L.polyline(routeGeometry, { color: '#6366f1', weight: 4, opacity: 0.7 }).addTo(map)
+    } else if (routeLineRef.current) {
+      routeLineRef.current.remove(); routeLineRef.current = null
+    }
+    const pts: [number, number][] = routeGeometry && routeGeometry.length > 1
+      ? routeGeometry.slice()
+      : [[vehicle.lat, vehicle.lng]]
+    if (destCoords) pts.push([destCoords.lat, destCoords.lng])
+    try { map.fitBounds(L.latLngBounds(pts).pad(0.25), { maxZoom: 16 }) } catch {}
+  }, [vehicle?.lat, vehicle?.lng, destCoords, routeGeometry])
+
+  // Cierra el mapa cuando termina la entrega (deja de venir vehicle)
+  useEffect(() => {
+    if (!vehicle && mapRef.current) {
+      try { mapRef.current.remove() } catch {}
+      mapRef.current = null; courierMarkerRef.current = null; destMarkerRef.current = null
+    }
+  }, [vehicle])
 
   if (loading) {
     return (
@@ -117,22 +196,39 @@ export default function TrackingPage() {
           )}
         </div>
 
-        {/* Vehículo en vivo */}
+        {/* Mapa en vivo del repartidor (solo mientras va en ruta) */}
         {data.vehicle && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-            <p className="text-sm font-semibold text-gray-800 flex items-center gap-2 mb-1">
-              <Truck className="h-4 w-4 text-indigo-600 animate-pulse" /> Vehículo en ruta
-            </p>
-            <p className="text-xs text-gray-500 mb-2">
-              Última posición reportada {data.vehicle.lastPingAt ? `· ${new Date(data.vehicle.lastPingAt).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}` : ''}
-            </p>
-            <a
-              href={`https://www.google.com/maps?q=${data.vehicle.lat},${data.vehicle.lng}`}
-              target="_blank" rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 text-sm text-indigo-600 font-medium border border-indigo-200 rounded-xl px-3 py-2 hover:bg-indigo-50"
-            >
-              <MapPin className="h-4 w-4" /> Ver en el mapa
-            </a>
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="flex items-center justify-between px-4 pt-4 pb-2">
+              <div>
+                <p className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+                  <Truck className="h-4 w-4 text-indigo-600 animate-pulse" /> Tu pedido va en camino
+                </p>
+                {data.eta && (
+                  <p className="text-xs text-indigo-600 font-medium mt-0.5 flex items-center gap-1">
+                    <Clock className="h-3 w-3" /> Llega en ~{data.eta.minutes} min
+                    {data.eta.source === 'directo' && <span className="text-gray-400 font-normal">(aprox.)</span>}
+                  </p>
+                )}
+              </div>
+              <span className="text-[11px] text-gray-400">
+                {data.vehicle.lastPingAt ? `Actualizado ${new Date(data.vehicle.lastPingAt).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}` : ''}
+              </span>
+            </div>
+            <div ref={mapContainerRef} className="h-56 w-full bg-gray-100" />
+            <div className="flex items-center justify-between px-4 py-2.5 text-xs">
+              <span className="flex items-center gap-3 text-gray-500">
+                <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-full bg-indigo-500" /> Repartidor</span>
+                {data.destinationCoords && <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-full bg-emerald-500" /> Destino</span>}
+              </span>
+              <a
+                href={`https://www.google.com/maps?q=${data.vehicle.lat},${data.vehicle.lng}`}
+                target="_blank" rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-indigo-600 font-medium hover:underline"
+              >
+                <MapPin className="h-3.5 w-3.5" /> Abrir en Maps
+              </a>
+            </div>
           </div>
         )}
 

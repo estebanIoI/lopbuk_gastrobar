@@ -28,6 +28,7 @@ export interface ProductVariant {
   preorderLimit?: number | null;  // cupo máximo de preventa (null = ilimitado)
   preorderCount?: number;         // unidades vendidas/reservadas en preventa
   hormaId?: string | null;        // horma (silueta) de ESTA variante — un producto puede tener variantes en distintas hormas
+  attributes?: Array<{ name: string; value: string }>; // ejes con nombre (ferretería/genérico): Diámetro, Ángulo, Presión…
   createdAt: Date;
   updatedAt: Date;
   // Eager-loaded

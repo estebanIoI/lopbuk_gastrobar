@@ -1,6 +1,9 @@
 import { Router, Request, Response } from 'express'
 import pool from '../../config/database'
-import { authenticate, authorize } from '../../common/middleware'
+import { authenticate, authorize, AuthRequest } from '../../common/middleware'
+import { v4 as uuidv4 } from 'uuid'
+import bcrypt from 'bcryptjs'
+import { encrypt, decrypt } from '../../utils/crypto'
 
 const router: ReturnType<typeof Router> = Router()
 router.use(authenticate)
@@ -24,11 +27,159 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
 router.get('/orders/tenants', async (_req: Request, res: Response) => {
   try {
     const [rows] = await pool.query(
-      "SELECT id, name FROM tenants WHERE status = 'activo' ORDER BY name"
+      "SELECT id, name, business_type AS businessType FROM tenants WHERE status = 'activo' ORDER BY name"
     ) as any
     res.json({ success: true, data: rows })
   } catch (err) {
     res.status(500).json({ success: false, error: 'Error al obtener comercios' })
+  }
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+// REPARTIDORES DE PLATAFORMA (courier) — un repartidor sin comercio fijo que
+// atiende un grupo de comercios asignados por el superadmin (courier_tenants).
+// ═══════════════════════════════════════════════════════════════════════════
+
+// GET /api/superadmin/couriers — repartidores de plataforma + nº de comercios
+router.get('/couriers', async (_req: Request, res: Response) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT u.id, u.name, u.email, u.phone, u.is_active AS isActive,
+              (SELECT COUNT(*) FROM courier_tenants ct WHERE ct.courier_user_id = u.id) AS tenantsCount
+       FROM users u
+       WHERE u.role = 'repartidor' AND u.tenant_id IS NULL
+       ORDER BY u.name`
+    ) as any
+    res.json({ success: true, data: rows })
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'Error al obtener repartidores' })
+  }
+})
+
+// POST /api/superadmin/couriers — crear repartidor de plataforma (tenant_id NULL)
+router.post('/couriers', async (req: Request, res: Response) => {
+  try {
+    const { name, email, password, phone } = req.body as { name?: string; email?: string; password?: string; phone?: string }
+    if (!name?.trim() || !email?.trim() || !password || password.length < 6) {
+      res.status(400).json({ success: false, error: 'Nombre, email y contraseña (mín. 6) requeridos' })
+      return
+    }
+    const [dup] = await pool.query('SELECT id FROM users WHERE email = ? LIMIT 1', [email.trim().toLowerCase()]) as any
+    if (dup.length) { res.status(400).json({ success: false, error: 'Ese email ya está registrado' }); return }
+    const id = uuidv4()
+    const hashed = await bcrypt.hash(password, 10)
+    await pool.query(
+      `INSERT INTO users (id, tenant_id, email, password, name, role, phone, can_login, is_active)
+       VALUES (?, NULL, ?, ?, ?, 'repartidor', ?, 1, 1)`,
+      [id, email.trim().toLowerCase(), hashed, name.trim(), phone?.trim() || null]
+    )
+    res.status(201).json({ success: true, data: { id, name: name.trim(), email: email.trim().toLowerCase() } })
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'Error al crear repartidor' })
+  }
+})
+
+// GET /api/superadmin/couriers/:id/tenants — comercios asignados a un repartidor
+router.get('/couriers/:id/tenants', async (req: Request, res: Response) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT t.id, t.name, t.business_type AS businessType
+       FROM courier_tenants ct JOIN tenants t ON t.id = ct.tenant_id
+       WHERE ct.courier_user_id = ?
+       ORDER BY t.name`,
+      [req.params.id]
+    ) as any
+    res.json({ success: true, data: rows })
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'Error al obtener comercios del repartidor' })
+  }
+})
+
+// PUT /api/superadmin/couriers/:id/tenants — reemplaza la lista de comercios asignados
+router.put('/couriers/:id/tenants', async (req: AuthRequest, res: Response) => {
+  const conn = await pool.getConnection()
+  try {
+    const courierId = req.params.id
+    const tenantIds: string[] = Array.isArray(req.body?.tenantIds)
+      ? [...new Set(req.body.tenantIds.map((x: any) => String(x).trim()).filter(Boolean) as string[])] : []
+
+    // Validar que sea un repartidor de plataforma
+    const [uRows] = await conn.query("SELECT id FROM users WHERE id = ? AND role = 'repartidor' AND tenant_id IS NULL", [courierId]) as any
+    if (!uRows.length) { res.status(404).json({ success: false, error: 'Repartidor no encontrado' }); return }
+
+    await conn.beginTransaction()
+    await conn.query('DELETE FROM courier_tenants WHERE courier_user_id = ?', [courierId])
+    for (const tid of tenantIds) {
+      await conn.query(
+        'INSERT INTO courier_tenants (id, courier_user_id, tenant_id, assigned_by) VALUES (?, ?, ?, ?)',
+        [uuidv4(), courierId, tid, req.user!.userId]
+      )
+    }
+    await conn.commit()
+    res.json({ success: true, data: { assigned: tenantIds.length } })
+  } catch (err) {
+    await conn.rollback().catch(() => {})
+    res.status(500).json({ success: false, error: 'Error al asignar comercios' })
+  } finally {
+    conn.release()
+  }
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CONFIG DE MAPAS (seguimiento en vivo) — proveedor + API key (opcional)
+// La key se guarda CIFRADA en platform_settings y NUNCA se expone al cliente.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// GET /api/superadmin/maps-config — provider + si hay key (sin exponerla)
+router.get('/maps-config', async (_req: Request, res: Response) => {
+  try {
+    const [rows] = await pool.query(
+      "SELECT setting_key, setting_value FROM platform_settings WHERE setting_key IN ('maps_provider','maps_api_key')"
+    ) as any
+    const map: Record<string, string> = {}
+    for (const r of rows) map[r.setting_key] = r.setting_value
+    res.json({ success: true, data: { provider: map['maps_provider'] || 'none', hasKey: !!map['maps_api_key'] } })
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'Error al leer la config de mapas' })
+  }
+})
+
+// PUT /api/superadmin/maps-config — { provider, apiKey? }
+router.put('/maps-config', async (req: Request, res: Response) => {
+  try {
+    const provider = ['none', 'google', 'mapbox'].includes(req.body?.provider) ? req.body.provider : 'none'
+    const apiKey: string | undefined = typeof req.body?.apiKey === 'string' ? req.body.apiKey.trim() : undefined
+    await pool.query(
+      "INSERT INTO platform_settings (setting_key, setting_value) VALUES ('maps_provider', ?) ON DUPLICATE KEY UPDATE setting_value = ?",
+      [provider, provider]
+    )
+    if (provider === 'none') {
+      await pool.query("DELETE FROM platform_settings WHERE setting_key = 'maps_api_key'")
+    } else if (apiKey) {
+      const enc = encrypt(apiKey)
+      await pool.query(
+        "INSERT INTO platform_settings (setting_key, setting_value) VALUES ('maps_api_key', ?) ON DUPLICATE KEY UPDATE setting_value = ?",
+        [enc, enc]
+      )
+    }
+    res.json({ success: true, data: { provider, hasKey: provider !== 'none' && (!!apiKey || undefined) } })
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'Error al guardar la config de mapas' })
+  }
+})
+
+// PATCH /api/superadmin/couriers/:id — activar/desactivar repartidor
+router.patch('/couriers/:id', async (req: Request, res: Response) => {
+  try {
+    const isActive = req.body?.isActive ? 1 : 0
+    const [r] = await pool.query(
+      "UPDATE users SET is_active = ?, can_login = ? WHERE id = ? AND role = 'repartidor' AND tenant_id IS NULL",
+      [isActive, isActive, req.params.id]
+    ) as any
+    if (!r.affectedRows) { res.status(404).json({ success: false, error: 'Repartidor no encontrado' }); return }
+    res.json({ success: true, data: { isActive: !!isActive } })
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'Error al actualizar repartidor' })
   }
 })
 

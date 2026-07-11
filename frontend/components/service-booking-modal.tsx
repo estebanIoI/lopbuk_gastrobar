@@ -17,10 +17,11 @@ import {
 } from '@/components/ui/select'
 import {
   Calendar, Clock, CheckCircle, ChevronLeft, ChevronRight, Lock,
-  Sparkles, ClipboardList, CalendarPlus, ShieldCheck, Plus, Check,
+  Sparkles, ClipboardList, CalendarPlus, ShieldCheck, Plus, Check, UserRound, Users,
 } from 'lucide-react'
 
 type Addon = { id: string; name: string; price: number; priceType: string; durationMinutes?: number | null; description?: string | null }
+type Specialist = { id: string; name: string; title?: string | null; photoUrl?: string | null }
 
 interface Props {
   service: Service
@@ -68,6 +69,16 @@ export function ServiceBookingModal({ service, storeSlug, onClose }: Props) {
   const [addons, setAddons] = useState<Addon[]>([])
   const [selectedAddonIds, setSelectedAddonIds] = useState<string[]>([])
 
+  // Especialista (F5): elegir profesional (o "sin preferencia")
+  const [specialists, setSpecialists] = useState<Specialist[]>([])
+  const [selectedSpecialistId, setSelectedSpecialistId] = useState<string>('') // '' = sin preferencia
+
+  // Lista de espera (F6): cuando un día no tiene cupos
+  const [waitlistOpen, setWaitlistOpen] = useState(false)
+  const [waitlistForm, setWaitlistForm] = useState({ name: '', phone: '' })
+  const [waitlistDone, setWaitlistDone] = useState(false)
+  const [waitlistSending, setWaitlistSending] = useState(false)
+
   const isCita = service.serviceType === 'cita'
   const isAsesoria = service.serviceType === 'asesoria'
   const benefits = (service.benefits || []).filter(Boolean)
@@ -79,6 +90,7 @@ export function ServiceBookingModal({ service, storeSlug, onClose }: Props) {
   const total = basePrice + addonsTotal
   const toggleAddon = (id: string) =>
     setSelectedAddonIds((p) => p.includes(id) ? p.filter((x) => x !== id) : [...p, id])
+  const selectedSpecialist = specialists.find((s) => s.id === selectedSpecialistId) || null
 
   // For contact/asesoria types, skip to form directly
   useEffect(() => {
@@ -93,6 +105,14 @@ export function ServiceBookingModal({ service, storeSlug, onClose }: Props) {
       .catch(() => {})
   }, [service.id, storeSlug, isCita])
 
+  // Cargar especialistas del servicio
+  useEffect(() => {
+    if (!isCita) return
+    api.getPublicServiceSpecialists(service.id, storeSlug)
+      .then((res) => { if (res.success && res.data) setSpecialists(res.data as Specialist[]) })
+      .catch(() => {})
+  }, [service.id, storeSlug, isCita])
+
   // Load slots (con estado) when date is selected
   useEffect(() => {
     if (!selectedDate || !isCita) return
@@ -100,6 +120,8 @@ export function ServiceBookingModal({ service, storeSlug, onClose }: Props) {
     setSlots([])
     setSelectedSlot('')
     setSlotNotice(null)
+    setWaitlistOpen(false)
+    setWaitlistDone(false)
     api.getPublicSlotsDetailed(service.id, storeSlug, selectedDate).then((res) => {
       if (res.success && res.data) setSlots(res.data.slots || [])
     }).finally(() => setLoadingSlots(false))
@@ -157,6 +179,20 @@ export function ServiceBookingModal({ service, storeSlug, onClose }: Props) {
     } finally { setHolding(false) }
   }
 
+  // Unirse a la lista de espera para el día seleccionado
+  const submitWaitlist = async () => {
+    if (!waitlistForm.name.trim() || !waitlistForm.phone.trim()) return
+    setWaitlistSending(true)
+    try {
+      const res = await api.joinWaitlist(service.id, storeSlug, {
+        clientName: waitlistForm.name.trim(),
+        clientPhone: waitlistForm.phone.trim(),
+        desiredDate: selectedDate || undefined,
+      })
+      if (res.success) { setWaitlistDone(true); setWaitlistOpen(false) }
+    } finally { setWaitlistSending(false) }
+  }
+
   // Cuenta regresiva del hold; al llegar a 0 lo suelta y vuelve al calendario
   useEffect(() => {
     if (!holdToken || step !== 'form') return
@@ -194,6 +230,7 @@ export function ServiceBookingModal({ service, storeSlug, onClose }: Props) {
           startTime: selectedSlot.split('-')[0],
           holdToken: holdToken || undefined,
           addonIds: selectedAddonIds.length ? selectedAddonIds : undefined,
+          specialistId: selectedSpecialistId || undefined,
         } : {}),
         ...(isAsesoria ? {
           preferredDateRange: form.preferredDateRange || undefined,
@@ -285,6 +322,11 @@ export function ServiceBookingModal({ service, storeSlug, onClose }: Props) {
                 <p className="text-[10px] uppercase tracking-wide text-primary/70 font-semibold">Tu cita</p>
                 <p className="text-sm font-semibold capitalize text-primary">{longDate(selectedDate)}</p>
                 <p className="text-sm font-semibold text-primary">{selectedSlot.split('-')[0]}</p>
+                {selectedSpecialist && (
+                  <p className="mt-0.5 flex items-center gap-1 text-xs font-medium text-primary/90">
+                    <UserRound className="h-3 w-3" /> {selectedSpecialist.name}
+                  </p>
+                )}
                 {holdToken && holdSecondsLeft > 0 && (
                   <p className={`mt-1 flex items-center gap-1 text-[11px] font-medium tabular-nums ${holdSecondsLeft <= 60 ? 'text-red-600' : 'text-primary/80'}`}>
                     <Clock className="h-3 w-3" /> Apartado {Math.floor(holdSecondsLeft / 60)}:{String(holdSecondsLeft % 60).padStart(2, '0')}
@@ -363,6 +405,9 @@ export function ServiceBookingModal({ service, storeSlug, onClose }: Props) {
                 <div className="flex justify-between gap-2"><span className="text-muted-foreground">Servicio</span><span className="font-medium text-right">{service.name}</span></div>
                 <div className="flex justify-between gap-2"><span className="text-muted-foreground">Fecha</span><span className="font-medium capitalize text-right">{longDate(selectedDate)}</span></div>
                 <div className="flex justify-between gap-2"><span className="text-muted-foreground">Hora</span><span className="font-medium">{selectedSlot.split('-')[0]}</span></div>
+                {selectedSpecialist && (
+                  <div className="flex justify-between gap-2"><span className="text-muted-foreground">Especialista</span><span className="font-medium">{selectedSpecialist.name}</span></div>
+                )}
                 {selectedAddons.map((a) => (
                   <div key={a.id} className="flex justify-between gap-2 text-xs"><span className="flex items-center gap-1 text-muted-foreground"><Plus className="h-3 w-3" />{a.name}</span><span>{formatCOP(a.price)}</span></div>
                 ))}
@@ -473,9 +518,29 @@ export function ServiceBookingModal({ service, storeSlug, onClose }: Props) {
                           <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
                         </div>
                       ) : slots.length === 0 ? (
-                        <p className="text-sm text-muted-foreground text-center py-3">
-                          No hay horarios disponibles para este día
-                        </p>
+                        <div className="rounded-lg border bg-muted/30 p-4 text-center">
+                          <p className="text-sm text-muted-foreground">No hay cupos disponibles para este día.</p>
+                          {waitlistDone ? (
+                            <p className="mt-2 flex items-center justify-center gap-1.5 text-sm font-medium text-emerald-600">
+                              <CheckCircle className="h-4 w-4" /> ¡Listo! Te avisaremos si se libera un cupo.
+                            </p>
+                          ) : waitlistOpen ? (
+                            <div className="mt-3 space-y-2 text-left">
+                              <Input placeholder="Tu nombre" value={waitlistForm.name}
+                                onChange={(e) => setWaitlistForm((p) => ({ ...p, name: e.target.value }))} />
+                              <Input placeholder="Tu teléfono / WhatsApp" value={waitlistForm.phone}
+                                onChange={(e) => setWaitlistForm((p) => ({ ...p, phone: e.target.value }))} />
+                              <Button className="w-full" size="sm" disabled={waitlistSending || !waitlistForm.name.trim() || !waitlistForm.phone.trim()}
+                                onClick={submitWaitlist}>
+                                {waitlistSending ? 'Enviando…' : 'Avísame cuando haya cupo'}
+                              </Button>
+                            </div>
+                          ) : (
+                            <Button variant="outline" size="sm" className="mt-3" onClick={() => setWaitlistOpen(true)}>
+                              🔔 Avísame si se libera un cupo
+                            </Button>
+                          )}
+                        </div>
                       ) : (
                         <>
                           <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
@@ -523,6 +588,45 @@ export function ServiceBookingModal({ service, storeSlug, onClose }: Props) {
                   )}
 
                   {slotNotice && !selectedDate && <p className="text-xs text-amber-600">{slotNotice}</p>}
+
+                  {/* Elegir especialista (F5) — aparece al tener un horario */}
+                  {specialists.length > 0 && selectedSlot && (
+                    <div className="space-y-2">
+                      <p className="flex items-center gap-1.5 text-sm font-medium">
+                        <Users className="h-4 w-4 text-primary" /> ¿Con quién quieres tu cita?
+                      </p>
+                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                        {/* Sin preferencia */}
+                        <button type="button" onClick={() => setSelectedSpecialistId('')}
+                          className={`flex items-center gap-2 rounded-lg border p-2 text-left transition-colors ${selectedSpecialistId === '' ? 'border-primary bg-primary/10' : 'border-border hover:bg-accent'}`}>
+                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted">
+                            <Users className="h-4 w-4 text-muted-foreground" />
+                          </span>
+                          <span className="min-w-0 text-xs font-medium">Sin preferencia</span>
+                        </button>
+                        {specialists.map((sp) => {
+                          const active = selectedSpecialistId === sp.id
+                          return (
+                            <button key={sp.id} type="button" onClick={() => setSelectedSpecialistId(sp.id)}
+                              className={`flex items-center gap-2 rounded-lg border p-2 text-left transition-colors ${active ? 'border-primary bg-primary/10' : 'border-border hover:bg-accent'}`}>
+                              {sp.photoUrl ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={sp.photoUrl} alt={sp.name} className="h-9 w-9 shrink-0 rounded-full object-cover" />
+                              ) : (
+                                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                                  <UserRound className="h-4 w-4 text-primary" />
+                                </span>
+                              )}
+                              <span className="min-w-0">
+                                <span className="block truncate text-xs font-medium">{sp.name}</span>
+                                {sp.title && <span className="block truncate text-[10px] text-muted-foreground">{sp.title}</span>}
+                              </span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
 
                   <DialogFooter>
                     <Button variant="outline" onClick={onClose}>Cancelar</Button>

@@ -38,6 +38,7 @@ export interface ProductVariant {
   preorderLimit?: number | null
   preorderCount?: number
   hormaId?: string | null         // horma (silueta) de ESTA variante — un producto puede tener variantes en distintas hormas
+  attributes?: Array<{ name: string; value: string }>  // ejes con nombre (ferretería/genérico): Diámetro, Ángulo…
   priceTiers?: VariantPriceTier[]
   productName?: string
   basePrice?: number
@@ -504,6 +505,7 @@ export interface Service {
   benefits?: string[] | null
   preparation?: string | null
   addonServiceIds?: string[] | null
+  specialistIds?: string[] | null
   requiresPayment: boolean
   maxAdvanceDays: number
   cancellationHours: number
@@ -556,7 +558,36 @@ export interface ServiceBooking {
   amountPaid: number
   addons?: Array<{ id: string; name: string; price: number }> | null
   totalAmount?: number
+  specialistId?: string | null
+  specialistName?: string | null
+  loyaltyAwarded?: boolean
   merchantNotes?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ServiceWaitlistEntry {
+  id: string
+  tenantId: string
+  serviceId: string
+  serviceName: string
+  clientName: string
+  clientPhone: string
+  desiredDate?: string | null
+  note?: string | null
+  status: 'pendiente' | 'notificado' | 'convertido' | 'cancelado'
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ServiceSpecialist {
+  id: string
+  tenantId: string
+  name: string
+  title?: string | null
+  photoUrl?: string | null
+  isActive: boolean
+  sortOrder: number
   createdAt: string
   updatedAt: string
 }
