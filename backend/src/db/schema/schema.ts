@@ -5100,6 +5100,29 @@ export const courierTenants = mysqlTable("courier_tenants", {
 	}
 });
 
+// Links de campaña compartibles (historias IG/TikTok). El superadmin crea un link
+// que redirige a un producto, a una tienda, o a una "colección" filtrada por rubro
+// y/o comercios (solo restaurantes, etc.) para no distraer con otras categorías.
+export const shareLinks = mysqlTable("share_links", {
+	id: varchar({ length: 36 }).notNull(),
+	code: varchar({ length: 32 }).notNull(),
+	type: mysqlEnum(['product','store','collection']).notNull(),
+	config: json().notNull(),   // producto:{slug,productId} · tienda:{slug} · colección:{businessTypes:[],tenantIds:[]}
+	title: varchar({ length: 200 }),
+	clicks: int().default(0).notNull(),
+	isActive: tinyint("is_active").default(1).notNull(),
+	createdBy: varchar("created_by", { length: 36 }),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
+},
+(table) => {
+	return {
+		ukShareLinkCode: unique("uk_share_link_code").on(table.code),
+		idxShareLinkActive: index("idx_share_link_active").on(table.isActive),
+		shareLinksId: primaryKey({ columns: [table.id], name: "share_links_id"}),
+	}
+});
+
 export const vCustomerBalances = mysqlView("v_customer_balances", {
 	customerId: varchar("customer_id", { length: 36 }).notNull(),
 	tenantId: varchar("tenant_id", { length: 36 }).notNull(),

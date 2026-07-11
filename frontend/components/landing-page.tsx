@@ -10,7 +10,6 @@ import { WholesalePriceBar, resolveActiveTier } from '@/components/wholesale-pri
 import { ProductDetailML, type MLProduct } from '@/components/theme-ml/product-detail-ml'
 import { CheckoutWizardML } from '@/components/theme-ml/checkout-wizard-ml'
 import { parseQtyPromo } from '@/lib/qty-promo'
-import { FloatingMarketplaceSticker } from '@/components/floating-marketplace-sticker'
 import { HomeHeroCarousel, HomeCategoryRail, MarketplaceHomeGovCo, type HeroSlide, type PromoCardConfig } from '@/components/home-theme2'
 import { WhatsAppFloatingWidget } from '@/components/whatsapp-floating-widget'
 import { BoxLoader } from '@/components/box-loader'
@@ -10435,19 +10434,6 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
             </div>
           </div>
         </div>
-      )}
-
-      {/* ========== STICKER FLOTANTE "VER TODAS LAS TIENDAS" ==========
-          Usa el logo del comercio activo; izquierda, se expande al interactuar. */}
-      {selectedStore !== 'all' && stores.length > 1 && !showProductModal && !(storeConfig as any)?.isHidden && (
-        <FloatingMarketplaceSticker
-          storeName={storeConfig?.storeInfo?.name || 'Tienda'}
-          logo={storeConfig?.storeInfo?.logoUrl || null}
-          primaryColor={(activeThemeColors as any)?.primary || '#3483fa'}
-          secondaryColor={(activeThemeColors as any)?.secondary || '#ffffff'}
-          position="left"
-          onNavigate={() => { setSelectedStore('all'); setShowStoresView(true); setShowCatalog(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
-        />
       )}
 
       {/* ========== LOCATION CHANGE BUTTON (bottom of header) ========== */}

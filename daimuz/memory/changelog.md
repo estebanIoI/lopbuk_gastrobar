@@ -4,6 +4,19 @@
 
 ---
 
+## [2026-07-11] — Links de campaña (share links) — Fase 1: DB + backend
+
+Base para links compartibles (historias IG/TikTok) que abren la app filtrada a lo que se comparte, sin distraer con otras categorías. Verificado E2E 14/14. Migración 0034. Solo superadmin.
+
+- **DB** (`schema.ts` → migración 0034 `wonderful_chimera`): tabla `share_links` (`code` único, `type` product/store/collection, `config` JSON, `title`, `clicks`, `is_active`, `created_by`).
+  - producto → `{ slug, productId }` (abre el modal del item — deep-link `?product=` ya existe)
+  - tienda → `{ slug }` (`/t/<slug>` ya existe)
+  - colección → `{ businessTypes: [], tenantIds: [] }` (rubro y/o comercios elegidos)
+- **Backend superadmin** (`superadmin-orders.routes.ts`): `GET/POST/PATCH/DELETE /superadmin/share-links` — crear genera **code corto único** (8 chars base36, hasta 6 intentos) + valida config por tipo; activar/desactivar; borrar.
+- **Backend público** (`storefront.routes.ts`): `GET /storefront/share/:code` → resuelve `{ type, config, title }` **solo si activo** + **suma 1 clic** (fire-and-forget). Inexistente/inactivo → 404.
+- `tsc` back 6 base (0 nuevos). E2E 14/14: crea los 3 tipos con code; valida config incompleta (400) + tipo inválido; público resuelve config+title e incrementa clicks; code inexistente/inactivo → 404; borrar quita de la lista.
+- **Siguiente**: Fase 2 (ruta `/l/<code>` + vista de colección filtrada), Fase 3 (generador en panel superadmin con QR/clics/título). Pendiente commit + redeploy.
+
 ## [2026-07-11] — Seguimiento en vivo (Fase 2) — ETA + API de mapas configurable (Google/Mapbox) desde superadmin
 
 Al mapa en vivo se le suma **ETA** ("Llega en ~N min") siempre gratis, y opcionalmente **ruta trazada + ETA por tráfico** si el superadmin configura una API de mapas. La key se guarda cifrada y **nunca** se expone al cliente. Verificado E2E 11/11. Sin migración.

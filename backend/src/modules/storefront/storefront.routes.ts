@@ -3402,6 +3402,27 @@ router.post('/resolve-prices', async (req: Request, res: Response) => {
 // El cliente ve el estado de su pedido sin llamar: etapa actual, línea de tiempo,
 // posición aproximada del vehículo si va en ruta, y prueba de entrega al final.
 // Solo expone datos mínimos del propio pedido (token aleatorio ≥20 chars, indexado).
+// GET /api/storefront/share/:code — resuelve un link de campaña + suma 1 clic (público)
+router.get('/share/:code', async (req: Request, res: Response) => {
+  try {
+    const code = String(req.params.code || '').trim();
+    if (!code) { res.status(404).json({ success: false, error: 'Link no encontrado' }); return; }
+    const [[row]] = await pool.query(
+      'SELECT id, type, config, title FROM share_links WHERE code = ? AND is_active = 1 LIMIT 1',
+      [code]
+    ) as any;
+    if (!row) { res.status(404).json({ success: false, error: 'Link no encontrado o inactivo' }); return; }
+    // Contar el clic (no bloquea la respuesta)
+    pool.query('UPDATE share_links SET clicks = clicks + 1 WHERE id = ?', [row.id]).catch(() => {});
+    res.json({
+      success: true,
+      data: { type: row.type, config: typeof row.config === 'string' ? JSON.parse(row.config) : row.config, title: row.title || null },
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'Error al resolver el link' });
+  }
+});
+
 router.get('/tracking/:token', async (req: Request, res: Response) => {
   try {
     const token = String(req.params.token || '');
