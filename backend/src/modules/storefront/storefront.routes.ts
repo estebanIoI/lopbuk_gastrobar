@@ -4,6 +4,7 @@ import { validateRequest } from '../../utils/validators';
 import pool from '../../config/database';
 import { authenticate, requirePlan } from '../../common/middleware';
 import { computeOpenState, computeNextOpen } from '../../utils/store-hours';
+import { decrypt } from '../../utils/crypto';
 import { themePaletteService } from './theme-palette.service';
 import { verifyStoreGrant } from '../hidden-access/hidden-access.service';
 
@@ -82,6 +83,77 @@ function stockVisibleSql(alias: string = 'p'): string {
       ))`;
 }
 
+// ── Seguimiento en vivo: ETA + ruta ────────────────────────────────────────
+function haversineKm(aLat: number, aLng: number, bLat: number, bLng: number): number {
+  const R = 6371, toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(bLat - aLat), dLng = toRad(bLng - aLng);
+  const s = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s));
+}
+
+// Config de mapas (proveedor + key). La key se guarda cifrada en platform_settings.
+async function getMapsConfig(): Promise<{ provider: string; apiKey: string | null }> {
+  try {
+    const [rows] = await pool.query(
+      "SELECT setting_key, setting_value FROM platform_settings WHERE setting_key IN ('maps_provider','maps_api_key')"
+    ) as any;
+    const m: Record<string, string> = {};
+    for (const r of rows) m[r.setting_key] = r.setting_value;
+    const provider = m['maps_provider'] || 'none';
+    let apiKey: string | null = null;
+    if (m['maps_api_key']) { try { apiKey = decrypt(m['maps_api_key']); } catch { apiKey = m['maps_api_key']; } }
+    return { provider, apiKey };
+  } catch { return { provider: 'none', apiKey: null }; }
+}
+
+// Ruta + ETA con el proveedor configurado (server-side; la key nunca sale al cliente).
+async function fetchProviderRoute(
+  provider: string, apiKey: string, from: { lat: number; lng: number }, to: { lat: number; lng: number }
+): Promise<{ geometry: [number, number][]; minutes: number } | null> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 4000);
+  try {
+    if (provider === 'mapbox') {
+      const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${from.lng},${from.lat};${to.lng},${to.lat}?geometries=geojson&overview=full&access_token=${encodeURIComponent(apiKey)}`;
+      const r = await fetch(url, { signal: ctrl.signal });
+      const j: any = await r.json();
+      const route = j?.routes?.[0];
+      if (!route) return null;
+      const geometry = (route.geometry?.coordinates || []).map((c: number[]) => [c[1], c[0]] as [number, number]);
+      return { geometry, minutes: Math.max(1, Math.round((route.duration || 0) / 60)) };
+    }
+    if (provider === 'google') {
+      const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${from.lat},${from.lng}&destination=${to.lat},${to.lng}&mode=driving&key=${encodeURIComponent(apiKey)}`;
+      const r = await fetch(url, { signal: ctrl.signal });
+      const j: any = await r.json();
+      const route = j?.routes?.[0];
+      if (!route) return null;
+      const leg = route.legs?.[0];
+      const geometry = decodePolyline(route.overview_polyline?.points || '');
+      return { geometry, minutes: Math.max(1, Math.round((leg?.duration?.value || 0) / 60)) };
+    }
+  } catch { /* degradar a ETA recta */ } finally { clearTimeout(timer); }
+  return null;
+}
+
+// Decodifica el polyline codificado de Google → [[lat,lng],…]
+function decodePolyline(str: string): [number, number][] {
+  const pts: [number, number][] = []; let index = 0, lat = 0, lng = 0;
+  while (index < str.length) {
+    let b, shift = 0, result = 0;
+    do { b = str.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+    lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+    shift = 0; result = 0;
+    do { b = str.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+    lng += (result & 1) ? ~(result >> 1) : (result >> 1);
+    pts.push([lat / 1e5, lng / 1e5]);
+  }
+  return pts;
+}
+
+// Caché de ruta por pedido (evita llamar al proveedor en cada poll de 12s)
+const routeCache = new Map<string, { at: number; vLat: number; vLng: number; geometry: [number, number][]; minutes: number }>();
+
 async function readThemeColors(tenantId: string): Promise<any | null> {
   try {
     const [rows] = await pool.query(
@@ -140,6 +212,7 @@ async function attachVariants<T extends { id: any }>(
               COALESCE(pv.presale_sold, 0) AS presaleSold,
               COALESCE(pv.presale_deposit_pct, 50) AS presaleDepositPct,
               pv.horma_id AS hormaId, h.name AS hormaName,
+              pv.attributes AS attributes,
               h.base_price AS hormaBasePrice,
               h.weight_grams AS hormaWeightGrams, h.composition AS hormaComposition,
               (SELECT MIN(vpt.price) FROM variant_price_tiers vpt
@@ -162,6 +235,7 @@ async function attachVariants<T extends { id: any }>(
         ...vr,
         images: vr.images ? (typeof vr.images === 'string' ? JSON.parse(vr.images) : vr.images) : null,
         priceTiers: vr.price_tiers ? (typeof vr.price_tiers === 'string' ? JSON.parse(vr.price_tiers) : vr.price_tiers) : [],
+        attributes: vr.attributes ? (typeof vr.attributes === 'string' ? JSON.parse(vr.attributes) : vr.attributes) : [],
       });
     }
   } catch { /* la tabla puede no existir aún */ }
@@ -3341,6 +3415,7 @@ router.get('/tracking/:token', async (req: Request, res: Response) => {
               o.pod_photo_url AS podPhotoUrl, o.pod_received_by AS podReceivedBy,
               o.rating, o.rating_comment AS ratingComment,
               o.delivery_delivered_at AS deliveredAt,
+              o.delivery_latitude AS destLat, o.delivery_longitude AS destLng,
               r.status AS routeStatus, r.last_lat AS lastLat, r.last_lng AS lastLng,
               r.last_ping_at AS lastPingAt,
               si.name AS storeName, si.phone AS storePhone
@@ -3365,6 +3440,29 @@ router.get('/tracking/:token', async (req: Request, res: Response) => {
     // Posición del vehículo solo mientras la ruta está activa (privacidad del conductor)
     const inTransit = ['en_ruta', 'retornando'].includes(order.routeStatus || '');
 
+    // ── ETA + ruta (seguimiento en vivo) ──
+    let eta: { minutes: number; source: 'directo' | 'ruta' } | null = null;
+    let routeGeometry: [number, number][] | null = null;
+    if (inTransit && order.lastLat != null && order.destLat != null && order.destLng != null) {
+      const from = { lat: Number(order.lastLat), lng: Number(order.lastLng) };
+      const to = { lat: Number(order.destLat), lng: Number(order.destLng) };
+      // ETA recta (gratis, siempre): distancia / ~22 km/h urbano
+      const km = haversineKm(from.lat, from.lng, to.lat, to.lng);
+      eta = { minutes: Math.max(1, Math.round((km / 22) * 60)), source: 'directo' };
+      // Ruta real por proveedor (opcional, cacheada 60s / si el repartidor no se movió >150m)
+      const cfg = await getMapsConfig();
+      if (cfg.provider !== 'none' && cfg.apiKey) {
+        const cached = routeCache.get(order.id);
+        const fresh = cached && (Date.now() - cached.at < 60000) && haversineKm(cached.vLat, cached.vLng, from.lat, from.lng) < 0.15;
+        const rt = fresh ? cached! : (await fetchProviderRoute(cfg.provider, cfg.apiKey, from, to).then(r => r && ({ ...r, at: Date.now(), vLat: from.lat, vLng: from.lng })));
+        if (rt) {
+          routeCache.set(order.id, rt as any);
+          routeGeometry = rt.geometry;
+          eta = { minutes: rt.minutes, source: 'ruta' };
+        }
+      }
+    }
+
     res.json({
       success: true,
       data: {
@@ -3379,11 +3477,17 @@ router.get('/tracking/:token', async (req: Request, res: Response) => {
         createdAt: order.createdAt,
         deliveredAt: order.deliveredAt,
         destination: [order.neighborhood, order.municipality].filter(Boolean).join(', ') || null,
+        // Coords del punto de entrega (para el mapa en vivo del cliente)
+        destinationCoords: order.destLat != null && order.destLng != null
+          ? { lat: Number(order.destLat), lng: Number(order.destLng) }
+          : null,
         items: (items as any[]).map(i => ({ productName: i.productName, quantity: i.quantity })),
         stages: (stages as any[]).map(s => ({ stage: s.stage, at: s.at })),
         vehicle: inTransit && order.lastLat != null
           ? { lat: Number(order.lastLat), lng: Number(order.lastLng), lastPingAt: order.lastPingAt }
           : null,
+        eta,
+        routeGeometry,
         pod: order.podPhotoUrl || order.podReceivedBy
           ? { photoUrl: order.podPhotoUrl, receivedBy: order.podReceivedBy }
           : null,

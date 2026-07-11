@@ -11,6 +11,7 @@ import {
 import { CloudinaryUpload } from '@/components/ui/cloudinary-upload';
 import { toast } from 'sonner';
 import { enqueueOrRun, registerRunner, startAutoFlush, subscribe } from '@/lib/offline-queue';
+import { getDeliverySocket, disconnectDeliverySocket } from '@/lib/socket';
 
 const formatCOP = (v: number) =>
   new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(v);
@@ -96,6 +97,9 @@ export function DriverPanel() {
 
   // GPS: posición local + ping al backend cada 3 min (tracking F5 — el Centro de
   // Comando y el portal del cliente ven la posición mientras la ruta está activa)
+  // Con entregas activas reporta cada 15s (seguimiento en vivo del cliente);
+  // sin entregas, cada 3 min (ahorra batería). my-orders ya excluye entregados/cancelados.
+  const hasActiveDelivery = myOrders.length > 0;
   useEffect(() => {
     if (!navigator.geolocation) return;
     const report = () => {
@@ -109,9 +113,9 @@ export function DriverPanel() {
       );
     };
     report();
-    const t = setInterval(report, 180000);
+    const t = setInterval(report, hasActiveDelivery ? 15000 : 180000);
     return () => clearInterval(t);
-  }, []);
+  }, [hasActiveDelivery]);
 
   // Load orders
   const loadOrders = useCallback(async (tab: SideTab = sideTab) => {
@@ -133,6 +137,40 @@ export function DriverPanel() {
   }, [sideTab]);
 
   useEffect(() => { loadOrders(sideTab); }, [sideTab]); // eslint-disable-line
+
+  // Refresca solo la lista de disponibles (sin tocar el tab activo)
+  const refreshAvailable = useCallback(async () => {
+    try {
+      const r = await api.getAvailableOrders();
+      if (r.success && r.data) setAvailableOrders(Array.isArray(r.data) ? r.data : []);
+    } catch {}
+  }, []);
+
+  // Tiempo real: se une a las salas ops de SUS comercios y escucha pedidos nuevos.
+  // + poll de respaldo cada 30s por si el socket se cae.
+  useEffect(() => {
+    const uid = user?.id;
+    if (!uid) return;
+    const socket = getDeliverySocket();
+    const join = () => socket.emit('join-courier', { userId: uid });
+    if (socket.connected) join();
+    socket.on('connect', join);
+    const onDispatch = (payload: any) => {
+      if (payload?.kind === 'order-created') {
+        refreshAvailable();
+        toast.info('📦 Nuevo pedido disponible', { description: 'Toca “Disponibles” para tomarlo.' });
+      }
+    };
+    socket.on('dispatch-changed', onDispatch);
+
+    const poll = setInterval(refreshAvailable, 30000);
+    return () => {
+      clearInterval(poll);
+      socket.off('connect', join);
+      socket.off('dispatch-changed', onDispatch);
+      disconnectDeliverySocket();
+    };
+  }, [user?.id, refreshAvailable]);
 
   // Sort available by distance
   const sortedAvailable = useMemo(() => {

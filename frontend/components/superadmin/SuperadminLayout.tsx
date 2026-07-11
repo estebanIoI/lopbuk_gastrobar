@@ -4,7 +4,7 @@ import { useState } from 'react'
 import dynamic from 'next/dynamic'
 import {
   Briefcase, CreditCard, LayoutTemplate, MessageSquarePlus,
-  Plug, Star, Store, TrendingUp, ShoppingBag, Sparkles, Wallet, Crown, Dumbbell, KeyRound, Flame, Target, UserCog, Cloud, Rocket,
+  Plug, Star, Store, TrendingUp, ShoppingBag, Sparkles, Wallet, Crown, Dumbbell, KeyRound, Flame, Target, UserCog, Cloud, Rocket, Truck,
 } from 'lucide-react'
 import { RefreshCw } from 'lucide-react'
 
@@ -29,14 +29,16 @@ const DropsTab          = dynamic(() => import('./tabs/DropsTab').then(m => ({ d
 const ChallengesTab     = dynamic(() => import('./tabs/ChallengesTab').then(m => ({ default: m.ChallengesTab })), { loading: () => <TabLoader /> })
 const UsersRolesTab      = dynamic(() => import('./tabs/UsersRolesTab').then(m => ({ default: m.UsersRolesTab })), { loading: () => <TabLoader /> })
 const CloudinaryImportTab = dynamic(() => import('./tabs/CloudinaryImportTab').then(m => ({ default: m.CloudinaryImportTab })), { loading: () => <TabLoader /> })
+const CouriersTab       = dynamic(() => import('./tabs/CouriersTab').then(m => ({ default: m.CouriersTab })), { loading: () => <TabLoader /> })
 
 // ── Tab definitions ───────────────────────────────────────────────────────────
 
-type TabId = 'pedidos' | 'pagina' | 'comercios' | 'timeline' | 'destacados' | 'integraciones' | 'pagos' | 'pasarela' | 'portafolio' | 'solicitudes' | 'comunidad' | 'legend' | 'coaches' | 'vault' | 'drops' | 'retos' | 'usuarios' | 'cloudinary' | 'lopbuk'
+type TabId = 'pedidos' | 'pagina' | 'comercios' | 'timeline' | 'destacados' | 'integraciones' | 'pagos' | 'pasarela' | 'portafolio' | 'solicitudes' | 'comunidad' | 'legend' | 'coaches' | 'vault' | 'drops' | 'retos' | 'usuarios' | 'cloudinary' | 'lopbuk' | 'repartidores'
 
 const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
   { id: 'pedidos',       label: 'Pedidos',          icon: ShoppingBag },
   { id: 'comercios',     label: 'Comercios',        icon: Store },
+  { id: 'repartidores',  label: 'Repartidores',     icon: Truck },
   { id: 'usuarios',      label: 'Usuarios',         icon: UserCog },
   { id: 'pagina',        label: 'Página',           icon: LayoutTemplate },
   { id: 'timeline',      label: 'Ventas',           icon: TrendingUp },
@@ -109,6 +111,7 @@ export function SuperadminLayout() {
       {activeTab === 'pedidos'       && <OrdersCenterTab />}
       {activeTab === 'pagina'        && <LandingConfigTab />}
       {activeTab === 'comercios'     && <CommercesTab />}
+      {activeTab === 'repartidores'  && <CouriersTab />}
       {activeTab === 'usuarios'      && <UsersRolesTab />}
       {activeTab === 'timeline'      && <AnalyticsTab />}
       {activeTab === 'destacados'    && <FeaturedTab />}

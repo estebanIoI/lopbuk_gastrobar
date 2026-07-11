@@ -5,6 +5,7 @@ import { api } from '@/lib/api'
 import { formatCOP } from '@/lib/utils'
 import type {
   Service, ServiceType, ServiceAvailability, ServiceBlockedPeriod, ServiceBooking, BookingStatus,
+  ServiceSpecialist, ServiceWaitlistEntry,
 } from '@/lib/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -25,7 +26,8 @@ import {
 import {
   Scissors, Calendar, MessageSquare, Plus, Edit, Trash2, Eye, Clock,
   CalendarOff, ToggleLeft, ToggleRight, CheckCircle, XCircle, ChevronLeft, ChevronRight,
-  Image, X,
+  Image, X, Sparkles, ClipboardList, PlusCircle, Users, UserRound,
+  CalendarClock, Hourglass, TrendingUp, Bell, DollarSign, BarChart3,
 } from 'lucide-react'
 
 // ─── Constants ────────────────────────────────────────────────────
@@ -57,7 +59,8 @@ const emptyServiceForm = () => ({
   name: '', description: '', category: '', serviceType: 'cita' as ServiceType,
   price: 0, priceType: 'fijo', durationMinutes: 60,
   requiresPayment: false, maxAdvanceDays: 30, cancellationHours: 24,
-  imageUrl: '',
+  imageUrl: '', benefits: [] as string[], preparation: '',
+  addonServiceIds: [] as string[], specialistIds: [] as string[],
 })
 
 // ─── Main Component ───────────────────────────────────────────────
@@ -65,6 +68,7 @@ export function ServicesManagement() {
   const [services, setServices] = useState<Service[]>([])
   const [bookings, setBookings] = useState<ServiceBooking[]>([])
   const [blocked, setBlocked] = useState<ServiceBlockedPeriod[]>([])
+  const [specialists, setSpecialists] = useState<ServiceSpecialist[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('catalogo')
 
@@ -93,6 +97,18 @@ export function ServicesManagement() {
   const [selectedBooking, setSelectedBooking] = useState<ServiceBooking | null>(null)
   const [bookingNote, setBookingNote] = useState('')
 
+  // Specialists (Fase 5)
+  const [showSpecialistForm, setShowSpecialistForm] = useState(false)
+  const [editingSpecialist, setEditingSpecialist] = useState<ServiceSpecialist | null>(null)
+  const [specialistForm, setSpecialistForm] = useState({ name: '', title: '', photoUrl: '' })
+
+  // Retención (Fase 6): métricas, reprogramar, lista de espera
+  const [stats, setStats] = useState<Awaited<ReturnType<typeof api.getBookingStats>>['data'] | null>(null)
+  const [waitlist, setWaitlist] = useState<ServiceWaitlistEntry[]>([])
+  const [rescheduleFor, setRescheduleFor] = useState<ServiceBooking | null>(null)
+  const [rescheduleForm, setRescheduleForm] = useState({ date: '', time: '' })
+  const [rescheduleError, setRescheduleError] = useState<string | null>(null)
+
   // Calendar navigation
   const [calendarDate, setCalendarDate] = useState(new Date())
   const [bookingFilter, setBookingFilter] = useState('')
@@ -100,14 +116,20 @@ export function ServicesManagement() {
   const loadAll = useCallback(async () => {
     setLoading(true)
     try {
-      const [svcRes, bkgRes, blkRes] = await Promise.all([
+      const [svcRes, bkgRes, blkRes, spRes, statsRes, wlRes] = await Promise.all([
         api.getServices(),
         api.getServiceBookings({ limit: 50 }),
         api.getBlockedPeriods(),
+        api.getSpecialists(),
+        api.getBookingStats(30),
+        api.getWaitlist(),
       ])
       if (svcRes.success) setServices(svcRes.data || [])
       if (bkgRes.success) setBookings(bkgRes.data || [])
       if (blkRes.success) setBlocked(blkRes.data || [])
+      if (spRes.success) setSpecialists(spRes.data || [])
+      if (statsRes.success) setStats(statsRes.data || null)
+      if (wlRes.success) setWaitlist(wlRes.data || [])
     } finally {
       setLoading(false)
     }
@@ -137,6 +159,10 @@ export function ServicesManagement() {
       maxAdvanceDays: svc.maxAdvanceDays,
       cancellationHours: svc.cancellationHours,
       imageUrl: svc.imageUrl || '',
+      benefits: svc.benefits || [],
+      preparation: svc.preparation || '',
+      addonServiceIds: svc.addonServiceIds || [],
+      specialistIds: svc.specialistIds || [],
     })
     setFormError(null)
     setShowServiceForm(true)
@@ -154,6 +180,10 @@ export function ServicesManagement() {
         description: serviceForm.description || undefined,
         category: serviceForm.category || undefined,
         imageUrl: serviceForm.imageUrl || undefined,
+        benefits: serviceForm.benefits.map((b) => b.trim()).filter(Boolean),
+        preparation: serviceForm.preparation.trim() || undefined,
+        addonServiceIds: serviceForm.addonServiceIds,
+        specialistIds: serviceForm.specialistIds,
       }
       const res = editingService
         ? await api.updateService(editingService.id, payload)
@@ -177,6 +207,65 @@ export function ServicesManagement() {
   const deleteService = async (svc: Service) => {
     if (!confirm(`¿Eliminar "${svc.name}"? Esta acción no se puede deshacer.`)) return
     await api.deleteService(svc.id)
+    await loadAll()
+  }
+
+  // ── Specialists (Fase 5) ─────────────────────────────────────
+  const openCreateSpecialist = () => {
+    setEditingSpecialist(null)
+    setSpecialistForm({ name: '', title: '', photoUrl: '' })
+    setShowSpecialistForm(true)
+  }
+  const openEditSpecialist = (sp: ServiceSpecialist) => {
+    setEditingSpecialist(sp)
+    setSpecialistForm({ name: sp.name, title: sp.title || '', photoUrl: sp.photoUrl || '' })
+    setShowSpecialistForm(true)
+  }
+  const submitSpecialist = async () => {
+    if (!specialistForm.name.trim()) return
+    const payload = {
+      name: specialistForm.name.trim(),
+      title: specialistForm.title.trim() || undefined,
+      photoUrl: specialistForm.photoUrl.trim() || undefined,
+    }
+    const res = editingSpecialist
+      ? await api.updateSpecialist(editingSpecialist.id, payload)
+      : await api.createSpecialist(payload)
+    if (res.success) { setShowSpecialistForm(false); await loadAll() }
+  }
+  const deleteSpecialist = async (sp: ServiceSpecialist) => {
+    if (!confirm(`¿Eliminar a "${sp.name}"? Ya no aparecerá para nuevas reservas.`)) return
+    await api.deleteSpecialist(sp.id)
+    await loadAll()
+  }
+
+  // ── Retención (Fase 6) ───────────────────────────────────────
+  const openReschedule = (b: ServiceBooking) => {
+    setRescheduleFor(b)
+    setRescheduleError(null)
+    setRescheduleForm({
+      date: b.bookingDate ? String(b.bookingDate).slice(0, 10) : '',
+      time: b.startTime ? String(b.startTime).slice(0, 5) : '',
+    })
+  }
+  const submitReschedule = async () => {
+    if (!rescheduleFor || !rescheduleForm.date || !rescheduleForm.time) return
+    setRescheduleError(null)
+    const res = await api.rescheduleBooking(rescheduleFor.id, {
+      bookingDate: rescheduleForm.date, startTime: rescheduleForm.time,
+    })
+    if (res.success) { setRescheduleFor(null); setSelectedBooking(null); await loadAll() }
+    else setRescheduleError(res.error || 'No se pudo reprogramar')
+  }
+  const notifyWaitlist = async (w: ServiceWaitlistEntry) => {
+    const phone = w.clientPhone.replace(/\D/g, '')
+    const msg = encodeURIComponent(`¡Hola ${w.clientName}! Se liberó un cupo para "${w.serviceName}". ¿Quieres agendar?`)
+    window.open(`https://wa.me/${phone.length <= 10 ? '57' + phone : phone}?text=${msg}`, '_blank')
+    await api.updateWaitlist(w.id, 'notificado')
+    await loadAll()
+  }
+  const setWaitlistStatus = async (id: string, status: string) => {
+    await api.updateWaitlist(id, status)
     await loadAll()
   }
 
@@ -268,7 +357,7 @@ export function ServicesManagement() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="catalogo">Catálogo</TabsTrigger>
           <TabsTrigger value="reservas">
             Reservas
@@ -279,6 +368,15 @@ export function ServicesManagement() {
             )}
           </TabsTrigger>
           <TabsTrigger value="calendario">Calendario</TabsTrigger>
+          <TabsTrigger value="especialistas">Especialistas</TabsTrigger>
+          <TabsTrigger value="espera">
+            Lista de espera
+            {waitlist.filter((w) => w.status === 'pendiente').length > 0 && (
+              <Badge className="ml-2 h-5 w-5 p-0 justify-center bg-amber-500 text-white text-xs">
+                {waitlist.filter((w) => w.status === 'pendiente').length}
+              </Badge>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="bloqueos">Bloqueos</TabsTrigger>
         </TabsList>
 
@@ -365,6 +463,32 @@ export function ServicesManagement() {
 
         {/* ── TAB: Reservas ─────────────────────────────────────── */}
         <TabsContent value="reservas" className="mt-4 space-y-4">
+          {/* Métricas (Fase 6) — últimos 30 días */}
+          {stats && (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <Card><CardContent className="p-3">
+                <p className="flex items-center gap-1 text-xs text-muted-foreground"><BarChart3 className="h-3.5 w-3.5" /> Reservas (30d)</p>
+                <p className="text-2xl font-bold">{stats.total}</p>
+                <p className="text-xs text-muted-foreground">{stats.completed} completadas</p>
+              </CardContent></Card>
+              <Card><CardContent className="p-3">
+                <p className="flex items-center gap-1 text-xs text-muted-foreground"><DollarSign className="h-3.5 w-3.5" /> Ingresos</p>
+                <p className="text-2xl font-bold">{formatCOP(stats.revenue)}</p>
+                <p className="text-xs text-muted-foreground">citas completadas</p>
+              </CardContent></Card>
+              <Card><CardContent className="p-3">
+                <p className="flex items-center gap-1 text-xs text-muted-foreground"><TrendingUp className="h-3.5 w-3.5" /> No-show</p>
+                <p className={`text-2xl font-bold ${stats.noShowRate > 20 ? 'text-red-600' : ''}`}>{stats.noShowRate}%</p>
+                <p className="text-xs text-muted-foreground">inasistencias</p>
+              </CardContent></Card>
+              <Card><CardContent className="p-3">
+                <p className="flex items-center gap-1 text-xs text-muted-foreground"><Hourglass className="h-3.5 w-3.5" /> En espera</p>
+                <p className="text-2xl font-bold">{stats.pendingWaitlist}</p>
+                <p className="truncate text-xs text-muted-foreground">{stats.topServices[0]?.name ? `Top: ${stats.topServices[0].name}` : 'sin datos'}</p>
+              </CardContent></Card>
+            </div>
+          )}
+
           <Input
             placeholder="Buscar por nombre, teléfono o servicio..."
             value={bookingFilter}
@@ -472,6 +596,124 @@ export function ServicesManagement() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* ── TAB: Especialistas ────────────────────────────────── */}
+        <TabsContent value="especialistas" className="mt-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">
+              Tu equipo de profesionales. Asígnalos a cada servicio para que el cliente elija con quién agendar.
+            </p>
+            <Button onClick={openCreateSpecialist}>
+              <Plus className="mr-2 h-4 w-4" /> Nuevo especialista
+            </Button>
+          </div>
+
+          {specialists.length === 0 ? (
+            <Card>
+              <CardContent className="flex flex-col items-center py-12 text-center">
+                <Users className="h-10 w-10 text-muted-foreground/40 mb-3" />
+                <p className="font-medium text-muted-foreground">Sin especialistas aún</p>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Agrega a tu equipo para ofrecer reservas por profesional
+                </p>
+                <Button onClick={openCreateSpecialist}><Plus className="mr-2 h-4 w-4" /> Agregar especialista</Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {specialists.map((sp) => (
+                <Card key={sp.id}>
+                  <CardContent className="flex items-center gap-3 pt-5">
+                    {sp.photoUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={sp.photoUrl} alt={sp.name} className="h-12 w-12 rounded-full object-cover border" />
+                    ) : (
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+                        <UserRound className="h-6 w-6 text-primary" />
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-semibold text-sm">{sp.name}</p>
+                      {sp.title && <p className="truncate text-xs text-muted-foreground">{sp.title}</p>}
+                      <p className="text-xs text-muted-foreground">
+                        {services.filter((s) => (s.specialistIds || []).includes(sp.id)).length} servicio(s)
+                      </p>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditSpecialist(sp)}>
+                        <Edit className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => deleteSpecialist(sp)}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* ── TAB: Lista de espera ──────────────────────────────── */}
+        <TabsContent value="espera" className="mt-4 space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Clientes que quieren cupo cuando un día está lleno. Cuando se libere un espacio, notifícalos por WhatsApp.
+          </p>
+          {waitlist.filter((w) => ['pendiente', 'notificado'].includes(w.status)).length === 0 ? (
+            <Card>
+              <CardContent className="flex flex-col items-center py-12 text-center">
+                <Hourglass className="h-10 w-10 text-muted-foreground/40 mb-3" />
+                <p className="text-muted-foreground">Nadie en lista de espera</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="overflow-x-auto rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Cliente</TableHead>
+                    <TableHead>Servicio</TableHead>
+                    <TableHead>Fecha deseada</TableHead>
+                    <TableHead>Estado</TableHead>
+                    <TableHead />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {waitlist.filter((w) => ['pendiente', 'notificado'].includes(w.status)).map((w) => (
+                    <TableRow key={w.id}>
+                      <TableCell>
+                        <p className="font-medium text-sm">{w.clientName}</p>
+                        <p className="text-xs text-muted-foreground">{w.clientPhone}</p>
+                      </TableCell>
+                      <TableCell className="text-sm">{w.serviceName}</TableCell>
+                      <TableCell className="text-sm">
+                        {w.desiredDate ? new Date(String(w.desiredDate)).toLocaleDateString('es-CO') : <span className="text-muted-foreground text-xs">Cualquiera</span>}
+                      </TableCell>
+                      <TableCell>
+                        {w.status === 'notificado'
+                          ? <Badge className="bg-blue-100 text-blue-700">Notificado</Badge>
+                          : <Badge className="bg-amber-100 text-amber-700">Pendiente</Badge>}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex justify-end gap-1">
+                          <Button variant="outline" size="sm" onClick={() => notifyWaitlist(w)}>
+                            <Bell className="mr-1 h-3.5 w-3.5" /> Notificar
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => setWaitlistStatus(w.id, 'convertido')}>
+                            <CheckCircle className="h-4 w-4 text-green-600" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setWaitlistStatus(w.id, 'cancelado')}>
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </TabsContent>
 
         {/* ── TAB: Bloqueos ─────────────────────────────────────── */}
@@ -612,6 +854,142 @@ export function ServicesManagement() {
                   onChange={(e) => setServiceForm((p) => ({ ...p, description: e.target.value }))} />
               </div>
 
+              {/* Qué incluye (beneficios) — vende la experiencia */}
+              <div className="col-span-2 space-y-1.5">
+                <Label className="flex items-center gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5 text-primary" /> ¿Qué incluye?
+                </Label>
+                <p className="text-xs text-muted-foreground -mt-0.5">
+                  Lista los beneficios de la experiencia. Aparecen destacados al reservar.
+                </p>
+                <div className="space-y-2">
+                  {serviceForm.benefits.map((b, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4 text-primary/60 shrink-0" />
+                      <Input
+                        placeholder="Ej: Incluye masaje de cortesía"
+                        value={b}
+                        onChange={(e) => setServiceForm((p) => ({
+                          ...p, benefits: p.benefits.map((x, j) => j === i ? e.target.value : x),
+                        }))}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            setServiceForm((p) => ({ ...p, benefits: [...p.benefits, ''] }))
+                          }
+                        }}
+                      />
+                      <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-destructive shrink-0"
+                        onClick={() => setServiceForm((p) => ({ ...p, benefits: p.benefits.filter((_, j) => j !== i) }))}
+                        title="Quitar">
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                  <Button type="button" variant="outline" size="sm"
+                    onClick={() => setServiceForm((p) => ({ ...p, benefits: [...p.benefits, ''] }))}>
+                    <Plus className="mr-1 h-3.5 w-3.5" /> Agregar beneficio
+                  </Button>
+                </div>
+              </div>
+
+              {/* Preparación / recomendaciones (solo citas) */}
+              {serviceForm.serviceType === 'cita' && (
+                <div className="col-span-2 space-y-1.5">
+                  <Label className="flex items-center gap-1.5">
+                    <ClipboardList className="h-3.5 w-3.5 text-primary" /> Cómo prepararte (opcional)
+                  </Label>
+                  <Textarea rows={2}
+                    placeholder="Ej: Llega 10 min antes. Evita cafeína 2 horas antes de la cita."
+                    value={serviceForm.preparation}
+                    onChange={(e) => setServiceForm((p) => ({ ...p, preparation: e.target.value }))} />
+                </div>
+              )}
+
+              {/* Complementos sugeridos (cross-sell / order bump) — solo citas */}
+              {serviceForm.serviceType === 'cita' && (() => {
+                const candidates = services.filter(
+                  (s) => s.id !== editingService?.id && s.priceType !== 'cotizacion'
+                )
+                return (
+                  <div className="col-span-2 space-y-1.5">
+                    <Label className="flex items-center gap-1.5">
+                      <PlusCircle className="h-3.5 w-3.5 text-primary" /> Complementos sugeridos
+                    </Label>
+                    <p className="text-xs text-muted-foreground -mt-0.5">
+                      Otros servicios que se ofrecerán como agregado al reservar este. Suben el ticket.
+                    </p>
+                    {candidates.length === 0 ? (
+                      <p className="text-xs text-muted-foreground italic">
+                        Crea más servicios (con precio) para ofrecerlos como complemento.
+                      </p>
+                    ) : (
+                      <div className="max-h-44 space-y-1 overflow-y-auto rounded-md border p-2">
+                        {candidates.map((s) => {
+                          const checked = serviceForm.addonServiceIds.includes(s.id)
+                          return (
+                            <label key={s.id}
+                              className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-accent">
+                              <input type="checkbox" className="h-4 w-4 accent-[hsl(var(--primary))]"
+                                checked={checked}
+                                onChange={() => setServiceForm((p) => ({
+                                  ...p,
+                                  addonServiceIds: checked
+                                    ? p.addonServiceIds.filter((x) => x !== s.id)
+                                    : [...p.addonServiceIds, s.id],
+                                }))} />
+                              <span className="flex-1 truncate">{s.name}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {s.priceType === 'gratis' ? 'Gratis'
+                                  : `${s.priceType === 'desde' ? 'Desde ' : ''}${formatCOP(s.price)}`}
+                              </span>
+                            </label>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
+
+              {/* Especialistas que realizan el servicio (Fase 5) — solo citas */}
+              {serviceForm.serviceType === 'cita' && (
+                <div className="col-span-2 space-y-1.5">
+                  <Label className="flex items-center gap-1.5">
+                    <Users className="h-3.5 w-3.5 text-primary" /> Especialistas que lo realizan
+                  </Label>
+                  <p className="text-xs text-muted-foreground -mt-0.5">
+                    El cliente podrá elegir con quién agendar. Sin selección: se atiende sin preferencia.
+                  </p>
+                  {specialists.length === 0 ? (
+                    <p className="text-xs italic text-muted-foreground">
+                      Crea especialistas en la pestaña “Especialistas” para asignarlos aquí.
+                    </p>
+                  ) : (
+                    <div className="max-h-44 space-y-1 overflow-y-auto rounded-md border p-2">
+                      {specialists.map((sp) => {
+                        const checked = serviceForm.specialistIds.includes(sp.id)
+                        return (
+                          <label key={sp.id}
+                            className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-accent">
+                            <input type="checkbox" className="h-4 w-4 accent-[hsl(var(--primary))]"
+                              checked={checked}
+                              onChange={() => setServiceForm((p) => ({
+                                ...p,
+                                specialistIds: checked
+                                  ? p.specialistIds.filter((x) => x !== sp.id)
+                                  : [...p.specialistIds, sp.id],
+                              }))} />
+                            <span className="flex-1 truncate">{sp.name}</span>
+                            {sp.title && <span className="truncate text-xs text-muted-foreground">{sp.title}</span>}
+                          </label>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Image URL */}
               <div className="col-span-2 space-y-1.5">
                 <Label className="flex items-center gap-1.5">
@@ -654,6 +1032,77 @@ export function ServicesManagement() {
             <Button variant="outline" onClick={() => setShowServiceForm(false)} disabled={submitting}>Cancelar</Button>
             <Button onClick={submitService} disabled={submitting}>
               {submitting ? 'Guardando...' : editingService ? 'Actualizar' : 'Crear servicio'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Reschedule Dialog (Fase 6) ───────────────────────────── */}
+      <Dialog open={!!rescheduleFor} onOpenChange={(o) => { if (!o) setRescheduleFor(null) }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Reprogramar — {rescheduleFor?.serviceName}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">
+              Elige la nueva fecha y hora. Se valida la disponibilidad del servicio{rescheduleFor?.specialistName ? ` y de ${rescheduleFor.specialistName}` : ''}.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Fecha</Label>
+                <Input type="date" value={rescheduleForm.date}
+                  onChange={(e) => setRescheduleForm((p) => ({ ...p, date: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Hora</Label>
+                <Input type="time" value={rescheduleForm.time}
+                  onChange={(e) => setRescheduleForm((p) => ({ ...p, time: e.target.value }))} />
+              </div>
+            </div>
+            {rescheduleError && <p className="text-sm text-destructive bg-destructive/10 rounded px-3 py-2">{rescheduleError}</p>}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRescheduleFor(null)}>Cancelar</Button>
+            <Button onClick={submitReschedule} disabled={!rescheduleForm.date || !rescheduleForm.time}>Reprogramar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Specialist Form Dialog ───────────────────────────────── */}
+      <Dialog open={showSpecialistForm} onOpenChange={setShowSpecialistForm}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{editingSpecialist ? 'Editar especialista' : 'Nuevo especialista'}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label>Nombre <span className="text-destructive">*</span></Label>
+              <Input placeholder="Ej: María Gómez" value={specialistForm.name}
+                onChange={(e) => setSpecialistForm((p) => ({ ...p, name: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Cargo / especialidad</Label>
+              <Input placeholder="Ej: Estilista senior" value={specialistForm.title}
+                onChange={(e) => setSpecialistForm((p) => ({ ...p, title: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="flex items-center gap-1.5"><Image className="h-3.5 w-3.5" /> Foto (URL)</Label>
+              <Input placeholder="https://... URL de la foto" value={specialistForm.photoUrl}
+                onChange={(e) => setSpecialistForm((p) => ({ ...p, photoUrl: e.target.value }))} />
+              {specialistForm.photoUrl && (
+                <div className="mt-1 flex justify-center">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={specialistForm.photoUrl} alt="Preview"
+                    className="h-20 w-20 rounded-full object-cover border"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                </div>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowSpecialistForm(false)}>Cancelar</Button>
+            <Button onClick={submitSpecialist} disabled={!specialistForm.name.trim()}>
+              {editingSpecialist ? 'Actualizar' : 'Crear'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -790,6 +1239,9 @@ export function ServicesManagement() {
                 {selectedBooking.startTime && (
                   <div><p className="text-muted-foreground text-xs">Hora</p><p className="font-semibold">{selectedBooking.startTime}</p></div>
                 )}
+                {selectedBooking.specialistName && (
+                  <div><p className="text-muted-foreground text-xs">Especialista</p><p className="font-semibold flex items-center gap-1"><UserRound className="h-3.5 w-3.5 text-primary" />{selectedBooking.specialistName}</p></div>
+                )}
                 {selectedBooking.projectDescription && (
                   <div className="col-span-2"><p className="text-muted-foreground text-xs">Descripción</p><p>{selectedBooking.projectDescription}</p></div>
                 )}
@@ -798,6 +1250,27 @@ export function ServicesManagement() {
                 )}
                 <div><p className="text-muted-foreground text-xs">Estado</p>{STATUS_BADGE[selectedBooking.status]}</div>
               </div>
+
+              {/* Complementos agregados + total (cross-sell) */}
+              {selectedBooking.addons && selectedBooking.addons.length > 0 && (
+                <div className="rounded-md border bg-muted/40 p-3 space-y-1.5">
+                  <p className="flex items-center gap-1.5 text-xs font-semibold">
+                    <PlusCircle className="h-3.5 w-3.5 text-primary" /> Complementos
+                  </p>
+                  {selectedBooking.addons.map((a) => (
+                    <div key={a.id} className="flex justify-between text-xs">
+                      <span className="text-muted-foreground">{a.name}</span>
+                      <span className="font-medium">{formatCOP(a.price)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {!!selectedBooking.totalAmount && selectedBooking.totalAmount > 0 && (
+                <div className="flex items-center justify-between rounded-md bg-primary/10 px-3 py-2">
+                  <span className="text-sm font-semibold text-primary">Total</span>
+                  <span className="text-sm font-bold text-primary">{formatCOP(selectedBooking.totalAmount)}</span>
+                </div>
+              )}
 
               <div className="space-y-1.5">
                 <Label>Notas internas</Label>
@@ -828,6 +1301,12 @@ export function ServicesManagement() {
                     No asistió
                   </Button>
                 </div>
+              )}
+              {/* Reprogramar — solo citas abiertas (Fase 6) */}
+              {selectedBooking.bookingType === 'cita' && ['pendiente', 'confirmada'].includes(selectedBooking.status) && (
+                <Button variant="outline" size="sm" className="w-full" onClick={() => openReschedule(selectedBooking)}>
+                  <CalendarClock className="mr-1.5 h-4 w-4" /> Reprogramar cita
+                </Button>
               )}
               {!['pendiente', 'confirmada'].includes(selectedBooking.status) && bookingNote !== (selectedBooking.merchantNotes || '') && (
                 <Button size="sm" onClick={() => updateStatus(selectedBooking.id, selectedBooking.status)}>

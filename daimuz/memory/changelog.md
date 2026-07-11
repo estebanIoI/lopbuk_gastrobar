@@ -4,6 +4,149 @@
 
 ---
 
+## [2026-07-11] — Seguimiento en vivo (Fase 2) — ETA + API de mapas configurable (Google/Mapbox) desde superadmin
+
+Al mapa en vivo se le suma **ETA** ("Llega en ~N min") siempre gratis, y opcionalmente **ruta trazada + ETA por tráfico** si el superadmin configura una API de mapas. La key se guarda cifrada y **nunca** se expone al cliente. Verificado E2E 11/11. Sin migración.
+
+- **Config superadmin** (`superadmin-orders.routes.ts`): `GET/PUT /superadmin/maps-config` — proveedor (`none`/`google`/`mapbox`) + API key. La key se guarda **cifrada** en `platform_settings` (`encrypt`); el GET solo devuelve `{ provider, hasKey }`, nunca la key. Poner `none` borra la key.
+- **ETA + ruta** (`storefront.routes.ts` tracking): mientras va en tránsito y hay destino, calcula **ETA recta** (Haversine / ~22 km/h, gratis, `source:'directo'`) **siempre**. Si hay proveedor + key, hace la llamada **server-side** a Directions (Google/Mapbox) con timeout 4s, **caché por pedido 60s** (o si el repartidor no se movió >150m) → devuelve `routeGeometry` (polyline) + ETA real (`source:'ruta'`); si falla, degrada a la ETA recta. Decode de polyline de Google incluido. La key nunca sale al cliente.
+- **UI superadmin** (`CouriersTab.tsx`): tarjeta "Seguimiento en vivo — API de mapas" (proveedor + campo de key tipo password que no re-muestra la guardada). `api.getMapsConfig`/`setMapsConfig`.
+- **Página cliente** (`app/seguimiento/[token]`): muestra **"Llega en ~N min"** (con "(aprox.)" si es recta) y **dibuja la línea de ruta** en el mapa Leaflet cuando `routeGeometry` viene; reencuadra a la ruta.
+- `tsc` back 6 base / front 8 base (0 nuevos). E2E 11/11: config guarda/lee sin exponer la key + key cifrada en BD; `none` borra la key; tracking en tránsito trae `eta` (source directo, minutos razonables) + `routeGeometry` null sin proveedor.
+- **🎉 Seguimiento en vivo COMPLETO (F1 gratis + F2 API configurable).** Pendiente commit + redeploy.
+
+
+## [2026-07-11] — Seguimiento en vivo del pedido (Fase 1) — mapa embebido para el cliente (Leaflet + OSM, gratis)
+
+El cliente ve al repartidor **moverse en un mapa** en la página pública de seguimiento mientras el pedido va en camino; el mapa **se cierra solo al entregar**. Sin API de pago. Verificado E2E 10/10. Sin migración.
+
+- **Ya existía** (F5): el endpoint público `/storefront/tracking/:token` devuelve la posición del repartidor (`vehicle.lat/lng` desde `dispatch_routes.last_lat/lng`, atada al pedido vía `route_id`) **solo mientras la ruta está `en_ruta`/`retornando`** (privacidad → se cierra al terminar). El GPS del repartidor ya se capturaba.
+- **Backend** (`storefront.routes.ts` tracking): añadido `destinationCoords` (del pedido `delivery_latitude/longitude`) para pintar el punto de entrega.
+- **Conductor** (`driver-panel.tsx`): ping GPS a **15s cuando tiene entregas activas** (my-orders > 0), 3 min sin entregas (batería) — antes era siempre 3 min, muy lento para "tiempo real".
+- **Página del cliente** (`app/seguimiento/[token]/page.tsx`): **mapa Leaflet + OpenStreetMap** embebido con marcador del repartidor (índigo) + destino (verde), reencuadre automático; **polling cada 12s en tránsito** (60s si no); al entregar (`vehicle` deja de venir) el mapa se desmonta y queda la línea de tiempo + POD. Link "Abrir en Maps" como acción secundaria.
+- `tsc` back 6 base / front 8 base (0 nuevos). E2E 10/10: en tránsito devuelve vehicle (pos del repartidor) + destinationCoords + lastPingAt; token <20 chars → 404; ruta cerrada/entregado → vehicle null (mapa se cierra) pero destino sigue; ruta planificada (no salió) → vehicle null.
+- **Siguiente (opcional)**: Fase 2 — API de mapas configurable en superadmin (Google/Mapbox key para ETA + línea de ruta + tráfico + tiles premium); el core en vivo ya funciona gratis. Pendiente commit + redeploy.
+
+## [2026-07-11] — Repartidor de plataforma (Fase 3) — panel del repartidor + notificación en vivo · ROADMAP COURIER COMPLETO
+
+El repartidor ve el **comercio** en cada pedido y recibe **aviso en tiempo real** cuando entra un pedido en uno de sus comercios (sin recargar). Verificado E2E socket 5/5. Sin migración.
+
+- **Comercio por pedido**: ya se mostraba — `delivery.routes.ts` devuelve `t.name AS storeName` y `driver-panel.tsx` lo pinta (badge con ícono Store) en disponibles y asignados. Sin cambios.
+- **Tiempo real** — reutiliza infra existente (`ops:<tenantId>` + `emitOps`): el checkout ya emite `dispatch-changed`/`order-created` a `ops:<tenantId>` (orders.routes.ts:412). Nuevo handler socket **`join-courier`** (`delivery-chat.socket.ts`): resuelve **server-side** los comercios del repartidor (su tenant si está atado a uno, o `courier_tenants` si es de plataforma) y lo une **solo** a esas salas `ops:` — no confía en una lista del cliente. Devuelve ack `courier-joined` con `tenantIds`.
+- **Panel** (`driver-panel.tsx` + `lib/socket.ts`): `getDeliverySocket()` (namespace raíz); al montar emite `join-courier` con el `userId`, escucha `dispatch-changed` → si `kind==='order-created'` refresca la lista de disponibles + toast "📦 Nuevo pedido disponible". **Poll de respaldo cada 30s** por si el socket se cae.
+- `tsc` back 6 base / front 8 base (0 nuevos). E2E socket 5/5: repartidor de plataforma se une **solo** a A y B (asignados); sin asignaciones → `[]` (ninguna sala); repartidor de un comercio → solo su tenant; userId inexistente → `[]`.
+
+### 🎉 ROADMAP REPARTIDOR MULTI-COMERCIO COMPLETO (3/3 fases)
+F1 DB + scoping + endpoints superadmin (fix aislamiento) · F2 UI superadmin "Repartidores" · F3 panel repartidor + notificación en vivo. Migración 0033. **Fuera de alcance (declarado):** asignación directa desde el comercio, zonas geográficas, disponibilidad/online del courier, liquidación de pagos. Pendiente commit + redeploy.
+
+
+## [2026-07-11] — Repartidor de plataforma (Fase 2) — UI superadmin "Repartidores"
+
+Pantalla para que el superadmin cree repartidores de plataforma y arme su grupo de comercios sin tocar SQL. Consume los endpoints ya verificados en Fase 1. `tsc` front 8 base (0 nuevos).
+
+- **Tab nuevo** `CouriersTab.tsx` (`components/superadmin/tabs/`): lista de repartidores (nombre, email, teléfono, nº comercios, activar/desactivar); **"Nuevo repartidor"** (nombre/email/contraseña/teléfono → `POST /superadmin/couriers`); **"Gestionar comercios"** — modal con **buscador + filtro por rubro** (`businessType`) y checklist de comercios (preseleccionados los asignados), atajos "seleccionar/quitar visibles", guardar → `PUT /couriers/:id/tenants`.
+- **Wiring** (`SuperadminLayout.tsx`): tab "Repartidores" (icono Truck) entre Comercios y Usuarios; import dinámico + render.
+- **api.ts**: `getPlatformCouriers`, `createPlatformCourier`, `getCourierTenants`, `setCourierTenants`, `setCourierActive`; `getSuperadminTenantsList` ahora tipa `businessType`.
+- **Verificación**: endpoints ya E2E 15/15 (Fase 1); UI es presentacional sobre ellos. `tsc` front sin errores nuevos. (Chequeo visual del panel pendiente — requiere levantar el panel superadmin con sesión.)
+- **Siguiente**: Fase 3 (panel del repartidor: nombre del comercio por pedido + notificación socket). Pendiente commit + redeploy.
+
+
+## [2026-07-11] — Repartidor de plataforma multi-comercio (Fase 1) — grupo de comercios + fix de aislamiento
+
+Un repartidor (Carlos) que NO pertenece a un comercio fijo y atiende un **grupo de comercios** que el superadmin le asigna (ej. solo restaurantes) — ve/toma pedidos solo de ese grupo, nunca de comercios ajenos (ferreterías). Verificado E2E 15/15. Migración 0033. **Tapa además un hueco de seguridad.**
+
+- **El hueco corregido**: en `delivery.routes.ts`, un repartidor **sin `tenantId`** caía en `${tenantId ? 'AND o.tenant_id = ?' : ''}` → el filtro por comercio desaparecía y en `available` veía pedidos de **todos** los tenants. Ahora un repartidor sin comercio se scopea por su grupo asignado.
+- **DB** (`schema.ts` → migración 0033 `dapper_blink`): tabla `courier_tenants` (courier_user_id, tenant_id, assigned_by; único por par) — el grupo de comercios de cada repartidor de plataforma. `users.tenant_id` ya era nullable → el repartidor de plataforma es un usuario `role='repartidor'` con `tenant_id = NULL`.
+- **Backend** (`delivery.routes.ts`): helper `courierTenantScope(alias, tenantId, driverId)` — si el repartidor tiene comercio, filtra por ese (como siempre); si es de plataforma (tenantId NULL), filtra por `tenant_id IN (SELECT tenant_id FROM courier_tenants WHERE courier_user_id = ?)`. **Sin asignaciones → no ve nada** (default seguro). Aplicado a `my-orders`, `my-history`, `available` y `accept` (claim).
+- **Superadmin** (`superadmin-orders.routes.ts`): `GET /superadmin/couriers` (repartidores de plataforma + nº comercios), `POST /couriers` (crea con tenant_id NULL + bcrypt), `GET/PUT /couriers/:id/tenants` (ver/reemplazar el grupo), `PATCH /couriers/:id` (activar/desactivar). `/orders/tenants` ahora incluye `businessType` para filtrar por rubro en la UI.
+- `tsc` back 6 base (0 nuevos). E2E 15/15: superadmin crea a Carlos (tenant NULL), le asigna 2 comercios; Carlos ve los pedidos de A y B pero **NO** el de C (no asignado); toma el de A (200) y **no** puede tomar el de C (400, sigue sin repartidor); `my-orders` trae el que tomó; al quitar todas las asignaciones, `available` queda vacío.
+- **Siguiente (según plan)**: Fase 2 (UI superadmin "Repartidores" — crear + multi-select de comercios con filtro por rubro), Fase 3 (panel del repartidor: nombre del comercio por pedido + notificación socket), Fase 4 (verificación UI). Pendiente de commit + redeploy.
+
+## [2026-07-10] — Variantes de ferretería: atributos con nombre (Diámetro, Ángulo, Presión…) genéricos y retrocompatibles
+
+El modelo de variantes estaba cableado a 3 ejes fijos (color/size/material + horma para calzado), inservible para catálogos técnicos (codos PVC: ángulo × diámetro × presión × conexión × uso). Se añadió una capa de **atributos con nombre**, genérica, aditiva y sin romper color/size/material/horma. Verificado E2E 14/14 (+ tsc back 6 base, front 8 base, 0 nuevos). Migración 0032.
+
+- **DB** (`schema.ts` → migración 0032 `married_power_man`): `product_variants.attributes` (JSON, array ordenado `[{name,value}]`). Se descartó `products.variant_axes` porque chocaba con 3 vistas que espejean `products` y no hace falta: el orden de ejes se deriva de la aparición de los atributos y el swatch se auto-detecta.
+- **Backend** (`variants.service.ts`): helpers `parseAttributes`/`normalizeAttributes` (dedup por nombre case-insensitive, trim); `mapVariant` expone `attributes` y el `label` cae a los valores de atributos si no hay color/talla; `create`/`bulkCreate`/`update` persisten attributes (JSON). `ProductVariant` type + attributes. **Storefront** (`storefront.routes.ts`): `attachVariants` selecciona y parsea `pv.attributes` → viaja en el payload público. **RAG** (`agent.service.ts`): el label de variante para el chatbot usa los atributos con nombre ("Diámetro 1/2\" · Ángulo 90°"), con fallback a talla/color → el bot entiende consultas técnicas.
+- **Selector cliente** (`variant-selector.tsx`): generalizado a **N ejes con nombre** (además de color/talla/material/horma). Ejes de atributos = unión de nombres en orden de aparición; **chips que envuelven** (swatch solo para el eje color legacy); resolución por `valueForKey` (legacy o `attrs[name]`); auto-selección de la primera opción de cada eje; **ficha técnica** (tabla de specs) de la variante elegida con sus atributos + color/talla/material + SKU.
+- **Manager panel** (`variant-manager.tsx`): modo de **ejes con nombre** universal en el asistente guiado — agregar/quitar ejes propios con chips de sugerencia (Diámetro, Ángulo, Presión, Tipo de conexión, Rosca, Uso, Calibre, Acabado); combinatoria cartesiana con los ejes fijos, SKU desde los valores, `attributes` en cada variante generada; vista previa con los valores de atributos.
+- **Verificación E2E 14/14**: create/bulk/update persisten attributes en orden; guardado como JSON en BD; dedup case-insensitive; `attachVariants` (SELECT replicado) trae attributes en el payload; variante resolvible por atributo; producto legacy color/talla sigue OK sin romper. (Nota: el listado público `/storefront/products?store=goti` no sirvió el producto de prueba por una peculiaridad del **resolver de slug público** de dev — ajeno a esta feature; se verificó el payload replicando el SELECT de `attachVariants`, que es lo que arma la respuesta.)
+- **Edición por variante** (`variant-manager.tsx`): el form individual (crear/editar variante) ahora muestra y **edita los atributos** (agregar/quitar nombre+valor) — clave en ferretería porque el precio cambia por combinación (½" ≠ 4"): al ajustar precio/stock de un SKU se ve exactamente qué codo es. Usa el mismo `PUT /variants/:id` ya verificado. `ProductVariant` type (front) + attributes.
+- **Pendiente**: commit + redeploy.
+
+
+## [2026-07-10] — Calendario de reservas Fase 6: retención (lista de espera + reprogramar + fidelidad + métricas) — ROADMAP COMPLETO
+
+Sexta y última fase del rediseño UX de reservas. Cierra el ciclo de retención. Verificado E2E 19/19. Migración 0031.
+
+- **DB** (`schema.ts` → migración 0031 `dashing_tag`): tabla `service_waitlist` (tenant, service, cliente, desired_date, note, status pendiente/notificado/convertido/cancelado) + `service_bookings.loyalty_awarded` (evita doble acreditación de puntos).
+- **Backend** (`services.service.ts`): (1) **Lista de espera** — `joinWaitlist` (público, valida servicio publicado), `listWaitlist`, `updateWaitlistStatus`. (2) **Reprogramar** — `rescheduleBooking` revalida disponibilidad (409 si no hay cupo) y respeta el guard de solape del especialista (excluyendo la propia reserva); rechaza reservas cerradas. (3) **Fidelidad al completar** — `updateBookingStatus('completada')` llama `awardLoyaltyForBooking`, que usa `earnPoints` del módulo loyalty sobre `total_amount`, **una sola vez** (marca `loyalty_awarded=1` antes de acreditar → idempotente, respeta config del tenant). (4) **Métricas** — `getBookingStats` (total 30d, por estado, completadas, % no-show, ingresos de completadas, lista de espera pendiente, top servicios/especialistas). Endpoints: público `POST /services/:id/waitlist`; autenticados `GET/PUT /services/waitlist`, `PUT /services/bookings/:id/reschedule`, `GET /services/bookings/stats`.
+- **Editor panel** (`services-management.tsx`): **KPIs** en la pestaña Reservas (reservas/ingresos/no-show/en espera + top servicio); **pestaña "Lista de espera"** (tabla con Notificar→WhatsApp+marca notificado, Convertido, Cancelar); **diálogo Reprogramar** (fecha+hora, valida en backend, muestra 409).
+- **Modal** (`service-booking-modal.tsx`): cuando un día no tiene cupos, CTA **"🔔 Avísame si se libera un cupo"** → mini-form (nombre+teléfono) → `joinWaitlist`, con confirmación inline.
+- `types.ts` (ServiceWaitlistEntry, ServiceBooking.loyaltyAwarded) + `api` (rescheduleBooking, getBookingStats, getWaitlist, updateWaitlist, joinWaitlist). `tsc` back (6 base, 0 nuevos) y front (8 base, 0 nuevos). E2E 19/19: join+gestión de espera, join a servicio inexistente→404, reschedule a slot libre / a slot no disponible→409 / el slot viejo se libera, fidelidad suma 80 pts por reserva de 80k y NO duplica al re-completar, stats con completadas/ingresos/top servicio.
+- **Fuera de alcance (declarado)**: "promos por horario" (happy-hour / precio dinámico por franja) queda como feature de pricing aparte; disponibilidad por-especialista en el calendario (ver F5).
+
+### 🎉 ROADMAP DE RESERVAS COMPLETO (6/6 fases)
+F1 disponibilidad rica ✅ · F2 hold anti doble-reserva ✅ · F3 vender la experiencia ✅ · F4 cross-sell/order bump ✅ · F5 especialista por cita ✅ · F6 retención ✅. Migraciones 0027–0031. Pendiente solo de commit + redeploy a producción.
+
+
+## [2026-07-10] — Calendario de reservas Fase 5: especialista por cita (elige profesional + anti doble-booking del mismo)
+
+Quinta fase del rediseño UX. El cliente puede elegir **con qué profesional** agendar (o "sin preferencia"), y un mismo especialista no puede quedar con dos citas solapadas. Verificado E2E 19/19. Migración 0030.
+
+- **DB** (`schema.ts` → migración 0030 `blushing_ricochet`): tabla `service_specialists` (id, tenant_id, name, title, photo_url, is_active, sort_order) + `services.specialist_ids` (JSON, quiénes realizan el servicio) + `service_bookings.specialist_id`/`specialist_name` (snapshot al reservar).
+- **Backend** (`services.service.ts`): CRUD de especialistas (`list/create/update/removeSpecialist` — remove es **soft delete** is_active=0 para preservar el nombre ya snapshoteado en reservas). `mapService` expone `specialistIds`; create/update los normalizan. `getPublicSpecialists` resuelve solo activos, en el orden configurado. `createBooking` acepta `specialistId`: valida que el servicio lo ofrezca **y** que esté activo (si no → 400), snapshotea el nombre, y ejecuta un **guard de solape** (`start_time < ? AND end_time > ?` sobre pendiente/confirmada del mismo `specialist_id`) → **409** si el profesional ya está ocupado. `mapBooking` expone specialistId/specialistName. Endpoints: CRUD autenticado `/services/specialists` + público `GET /services/:id/specialists`.
+- **Editor panel** (`services-management.tsx`): nueva pestaña **"Especialistas"** (tarjetas con foto/cargo, # servicios, crear/editar/eliminar) + selector **"Especialistas que lo realizan"** en el form del servicio (citas) + **especialista** en el detalle de reserva del comerciante.
+- **Modal** (`service-booking-modal.tsx`): tras elegir el horario, **"¿Con quién quieres tu cita?"** con tarjetas (foto/nombre/cargo) + opción **"Sin preferencia"**; el especialista elegido se muestra en el resumen fijo y en la confirmación. `specialistId` viaja a `createPublicBooking`.
+- `types.ts` (Service.specialistIds, ServiceBooking.specialistId/Name, ServiceSpecialist) + `api` (getPublicServiceSpecialists, getSpecialists/create/update/deleteSpecialist, createService/createPublicBooking con los campos). `tsc` back (6 base, 0 nuevos) y front (8 base, 0 nuevos). E2E 19/19: CRUD; público solo activos/en orden/excluye no asignados; snapshot de nombre; guard 409 del mismo especialista mientras otro sí cabe (max_simultaneous=2); no permitido → 400; inactivo (soft delete) excluido + 400; reserva sin especialista → nulos.
+- **Nota de alcance**: la disponibilidad del calendario sigue siendo a nivel servicio (max_simultaneous); el conflicto por especialista se garantiza en el momento de reservar (guard). Disponibilidad por-especialista en el calendario queda para una iteración futura.
+- **Siguiente**: Fase 6 (retención — lista de espera, promos por horario, puntos de fidelidad al confirmar, métricas, reprogramar). **Última del roadmap de reservas.**
+
+
+## [2026-07-10] — Calendario de reservas Fase 4: cross-sell / order bump para servicios (sube el ticket)
+
+Cuarta fase del rediseño UX. Al reservar un servicio, se ofrecen **complementos** (otros servicios) como agregado opcional que suben el valor de la reserva — order bump aplicado a citas. Verificado E2E 18/18. Migración 0029.
+
+- **DB** (`schema.ts` → migración 0029 `shallow_boomer`): `services.addon_service_ids` (JSON, IDs de servicios ofrecidos como complemento) + `service_bookings.addons` (JSON, snapshot `{id,name,price}` al reservar) + `service_bookings.total_amount` (decimal, base + complementos).
+- **Backend** (`services.service.ts`): `mapService` expone `addonServiceIds`; `create`/`update` los normalizan (dedup, trim, NULL si vacío). Nuevo `getPublicAddons` — resuelve los complementos **solo publicados+activos**, en el orden configurado, sin auto-referencia. `createBooking` acepta `addonIds` y **resuelve precios SIEMPRE en el servidor** (nunca del cliente): filtra a los que el servicio realmente ofrece + existen + publicados, snapshotea `{id,name,price}` reales y calcula `total_amount = base (si fijo/desde) + Σ complementos`. `mapBooking` expone `addons` + `totalAmount`. Endpoint público `GET /services/:id/addons`.
+- **Editor panel** (`services-management.tsx`): en el form de servicio (citas), selector **"Complementos sugeridos"** (checkboxes de otros servicios con precio, excluye el actual y las cotizaciones). El detalle de reserva del comerciante muestra los **complementos agregados + Total**.
+- **Modal** (`service-booking-modal.tsx`): carga los complementos al abrir; en el paso de datos, tarjeta **"Agrega a tu experiencia"** con toggles (+precio); el resumen fijo muestra **desglose base + complementos = Total** en vivo; la confirmación lista los complementos y el total. `addonIds` viaja a `createPublicBooking`.
+- `types.ts` (Service.addonServiceIds, ServiceBooking.addons/totalAmount, ServiceAddon) + `api.getServiceAddons` + `createService`/`createPublicBooking` aceptan los campos. `tsc` back (6 base, 0 nuevos) y front (8 base, 0 nuevos). E2E 18/18: endpoint público solo publicados/en orden/sin auto-ref; booking ignora add-ons no permitidos (OTHER), no publicados (A3) y falsos (bogus); total 100k+20k+30k=150k con precios reales del servidor; persistencia JSON + total_amount en BD; reserva sin add-ons → total = base.
+- **Siguiente**: Fase 5 (especialista por cita — `service_bookings` aún no asigna profesional) · 6 (lista de espera/promos por horario/fidelidad/métricas/reprogramar).
+
+
+## [2026-07-10] — Calendario de reservas Fase 3: vender la experiencia (resumen fijo + "qué incluye" + confirmación emocional)
+
+Tercera fase del rediseño UX. El modal pasa de un formulario funcional a una **landing de venta premium**: layout de 2 columnas con resumen fijo, tarjeta de beneficios y una confirmación que emociona. Verificado E2E 17/17. Migración 0028 (2 columnas nuevas en `services`).
+
+- **DB** (`schema.ts` → migración 0028 `easy_ronan`): `services.benefits` (JSON, array de strings "qué incluye") + `services.preparation` (text, "cómo prepararte"). Ambos nullable → servicios viejos siguen igual.
+- **Backend** (`services.service.ts`): `mapService` parsea benefits (defensivo: array o string JSON) y expone preparation; `create`/`update` normalizan benefits (trim + filtra vacíos → NULL si queda vacío) y preparation. Los endpoints públicos y autenticados ya los devuelven sin más cambios (el controller pasa `req.body`).
+- **Editor panel** (`services-management.tsx`): en el form de servicio, editor de lista **"¿Qué incluye?"** (agregar/quitar beneficios, Enter agrega otro) + textarea **"Cómo prepararte"** (solo citas). `emptyServiceForm`/`openEdit`/`submitService` cablean ambos.
+- **Modal** (`service-booking-modal.tsx`, reescrito): **layout 2 columnas** (`max-w-3xl`) — izquierda el flujo (calendario/formulario), derecha un **resumen fijo** (imagen, nombre, precio, duración, lista "Incluye" con checks, la cita elegida resaltada + countdown del hold, "Cómo prepararte", política de cancelación con ✓). En móvil el resumen va arriba. **Confirmación emocional** a pantalla completa: check animado, "¡Tu cita está reservada! 🎉", saludo por nombre, tarjeta con servicio/fecha/hora/valor, bloque "¿Qué sigue?", botón **"Añadir a Google Calendar"** (link TEMPLATE con `America/Bogota`), política de cancelación. Toda la lógica de F1 (estados de slot) y F2 (hold + countdown) intacta.
+- `types.ts` Service + `api.createService` aceptan benefits/preparation. `tsc` back (6 base, 0 nuevos) y front (8 base, 0 nuevos). E2E 17/17: create devuelve/persiste benefits[3] en orden + preparation; guardado como JSON en BD; GET autenticado los trae; update reemplaza ambos; strings vacíos filtrados; endpoint público expone la experiencia; vaciar → NULL.
+- **Siguiente**: Fase 4 (cross-sell + paquetes / order bump para servicios) · 5 (especialista por cita) · 6 (lista de espera/promos/fidelidad/métricas).
+
+
+## [2026-07-10] — Calendario de reservas Fase 2: reserva temporal (hold 5 min, anti doble-reserva)
+
+Segunda fase del rediseño UX del calendario. Cuando el cliente elige un slot y pasa al formulario, el cupo queda **apartado 5 minutos** para que nadie más lo tome mientras llena sus datos (patrón boletería). Verificado E2E 12/12. Migración 0027 `service_slot_holds`.
+
+- **DB** (`schema.ts` → migración 0027 `rare_hulk`): tabla `service_slot_holds` (id, tenant_id, service_id, hold_token único, booking_date, start_time/end_time, expires_at NOT NULL, created_at; índices por (service_id, booking_date) y expires_at).
+- **Backend** (`services.service.ts`): los 3 métodos de disponibilidad (`getAvailableSlots`, `getSlotsWithStatus`, `getMonthAvailability`) ahora **cuentan los holds activos** (`expires_at > NOW()`) junto con las reservas reales → un slot apartado sale ocupado para los demás. Nuevo `createHold` (limpia vencidos, valida el slot vía getAvailableSlots, inserta con `expires_at = NOW()+5min`, devuelve `holdToken` + `expiresAt`); `releaseHold` (borra por token). `createBooking` acepta `holdToken` y **borra el hold ANTES de re-validar** (así el propio hold del cliente no le bloquea su reserva). Endpoints públicos `POST /services/:id/hold` y `POST /services/hold/release`.
+- **Frontend** (`service-booking-modal.tsx`): al pulsar "Continuar" se crea el hold (`handleContinue`, label "Apartando…"); si el slot ya se ocupó → 409 → recarga slots y avisa. Cuenta regresiva de 5 min (banner "Apartado M:SS", rojo cuando ≤60s); al llegar a 0 vuelve al calendario, recarga y avisa. Botones "Cambiar hora" y "Cancelar" liberan el hold; también se libera al desmontar el modal. `holdToken` viaja en `createPublicBooking` y se limpia al confirmar. `api.holdServiceSlot` + `releaseServiceHold`.
+- `tsc` back (6 base, 0 nuevos) y front (8 base, 0 nuevos). E2E 12/12: hold ocupa el slot para otros, 2º hold del mismo slot → 409, reserva con token creada + hold consumido + slot sigue ocupado por la reserva real, hold vencido libera el slot, crear hold limpia los vencidos.
+- **Siguiente**: Fase 3 (vender la experiencia + resumen fijo + confirmación emocional) · 4 (cross-sell/paquetes) · 5 (especialista por cita) · 6 (lista de espera/promos/fidelidad/métricas).
+
+
+## [2026-07-10] — Calendario de reservas Fase 1: disponibilidad rica (estados de slot + cupos por día)
+
+Primera fase del rediseño UX del calendario de reservas (spa/salón premium). El motor de disponibilidad ya existía y calculaba bien, pero la API solo devolvía los slots DISPONIBLES como strings → la UI mostraba todo igual. Ahora expone los estados. Verificado E2E 11/11. Sin migración (reutiliza el motor).
+
+- **Backend** (`services.service.ts`): helper `buildDaySlots` (genera TODOS los slots del bloque con estado: disponible/ocupado/bloqueado/pasado + spotsLeft; marca **últimos_cupos** cuando quedan ≤3 disponibles en el día o spotsLeft===1). Métodos `getSlotsWithStatus(serviceId, tenantId, date)` (día con estados) y `getMonthAvailability(serviceId, tenantId, year, month)` (por día: available + status libre/pocos/lleno/cerrado, con queries batcheadas por mes). Endpoints públicos `GET /services/:id/slots-detailed` y `GET /services/:id/month-availability`.
+- **Frontend** (`service-booking-modal.tsx`): slots ahora pintan estado — disponible normal, **últimos cupos** ámbar con etiqueta, ocupado gris tachado con 🔒 (clicable solo para mostrar el motivo "ya están reservadas"), bloqueado opaco ("no hay atención en esta franja"), pasado atenuado. Leyenda de estados. Calendario con **punto de color bajo cada día** (verde=libre, ámbar=pocos, rojo=lleno) + tooltip con nº de cupos; días llenos deshabilitados/tachados. `api.getPublicSlotsDetailed` + `getServiceMonthAvailability`.
+- `tsc` back (6 base) y front (8 base) sin errores nuevos. E2E 11/11: 08:30 ocupado (reserva), 09:00 bloqueado (bloqueo), 08:00/09:30 últimos cupos por escasez, month-availability con "pocos"/2 disponibles, día sin disponibilidad "cerrado".
+- **Siguiente**: Fase 2 (reserva temporal/hold 5 min anti doble-reserva) · 3 (vender experiencia + resumen fijo + confirmación emocional) · 4 (cross-sell/paquetes) · 5 (especialista) · 6 (lista de espera/promos/fidelidad/métricas).
+
 
 ## [2026-07-09] — Chatbot de tienda: robustez del contexto + persistencia de últimos 10 mensajes
 

@@ -22,6 +22,26 @@ export function disconnectScannerSocket() {
   }
 }
 
+// ── Delivery / ops (repartidor de plataforma): namespace raíz ──
+let deliverySocket: Socket | null = null
+
+export function getDeliverySocket(): Socket {
+  if (!deliverySocket) {
+    deliverySocket = io(SOCKET_URL, {
+      autoConnect: true,
+      transports: ['websocket', 'polling'],
+    })
+  }
+  return deliverySocket
+}
+
+export function disconnectDeliverySocket() {
+  if (deliverySocket) {
+    deliverySocket.disconnect()
+    deliverySocket = null
+  }
+}
+
 // ── Vault / Drops (V2): contador de cupos en vivo ──
 let vaultSocket: Socket | null = null
 

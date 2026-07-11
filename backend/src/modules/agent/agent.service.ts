@@ -414,7 +414,7 @@ export async function searchProductsForChatbot(
   if (allResults.length > 0) {
     const ids = allResults.map(p => p.id);
     const [vrows] = await pool.query(
-      `SELECT id, product_id AS productId, color, size,
+      `SELECT id, product_id AS productId, color, size, attributes,
               COALESCE(price_override, NULL) AS priceOverride,
               (stock - reserved_stock) AS available
        FROM product_variants
@@ -425,7 +425,15 @@ export async function searchProductsForChatbot(
     ) as any;
     const byProduct = new Map<string, VariantOption[]>();
     for (const v of (vrows as any[])) {
-      const parts = [v.size ? `Talla ${v.size}` : null, v.color || null].filter(Boolean);
+      // Ejes con nombre (ferretería): "Diámetro 1/2\" · Ángulo 90°". Fallback a talla/color.
+      let attrs: Array<{ name: string; value: string }> = [];
+      try { attrs = typeof v.attributes === 'string' ? JSON.parse(v.attributes) : (Array.isArray(v.attributes) ? v.attributes : []); } catch { attrs = []; }
+      const attrParts = Array.isArray(attrs)
+        ? attrs.filter(a => a && a.name && a.value).map(a => `${a.name} ${a.value}`)
+        : [];
+      const parts = attrParts.length
+        ? attrParts
+        : [v.size ? `Talla ${v.size}` : null, v.color || null].filter(Boolean);
       const list = byProduct.get(String(v.productId)) || [];
       const base = allResults.find(p => p.id === String(v.productId));
       list.push({

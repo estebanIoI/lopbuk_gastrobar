@@ -24,9 +24,35 @@ interface VariantRow extends RowDataPacket {
   presale_sold: number;             // unidades ya vendidas como precompra
   presale_deposit_pct: number;      // % de anticipo (default 50)
   horma_id: string | null;
+  attributes: string | null;        // JSON [{name,value}] — ejes con nombre (ferretería/genérico)
   created_at: Date; updated_at: Date;
   // joined
   product_name: string | null; base_price: number | null; horma_name: string | null;
+}
+
+// Parsea attributes (JSON) de forma defensiva: mysql2 puede devolverlo parseado o como string
+function parseAttributes(raw: unknown): Array<{ name: string; value: string }> {
+  let arr: any = raw;
+  if (typeof raw === 'string' && raw.trim()) { try { arr = JSON.parse(raw); } catch { return []; } }
+  if (!Array.isArray(arr)) return [];
+  return arr
+    .filter((a) => a && typeof a === 'object' && a.name != null && a.value != null)
+    .map((a) => ({ name: String(a.name).trim(), value: String(a.value).trim() }))
+    .filter((a) => a.name && a.value);
+}
+
+// Normaliza attributes de entrada → array limpio (dedup por nombre, conserva orden)
+function normalizeAttributes(input: unknown): Array<{ name: string; value: string }> {
+  const parsed = parseAttributes(input);
+  const seen = new Set<string>();
+  const out: Array<{ name: string; value: string }> = [];
+  for (const a of parsed) {
+    const key = a.name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(a);
+  }
+  return out;
 }
 
 interface TierRow extends RowDataPacket {
@@ -47,7 +73,11 @@ interface MovRow extends RowDataPacket {
 function mapVariant(row: VariantRow): ProductVariant {
   const color = row.color ?? undefined;
   const size  = row.size  ?? undefined;
-  const label = [color, size].filter(Boolean).join(' / ') || undefined;
+  const attrs = parseAttributes(row.attributes);
+  // label legible: color/talla si existen; si no, valores de los atributos con nombre
+  const label = [color, size].filter(Boolean).join(' / ')
+    || attrs.map((a) => a.value).join(' · ')
+    || undefined;
   return {
     id: row.id,
     tenantId: row.tenant_id,
@@ -78,6 +108,7 @@ function mapVariant(row: VariantRow): ProductVariant {
     preorderLimit: row.presale_limit != null ? Number(row.presale_limit) : null,
     preorderCount: Number(row.presale_sold ?? 0),
     hormaId: row.horma_id ?? null,
+    attributes: parseAttributes(row.attributes),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     productName: row.product_name ?? undefined,
@@ -391,6 +422,7 @@ export class VariantsService {
     presale?: boolean; presaleDate?: string | null; presaleLimit?: number | null; presaleDepositPct?: number;
     /** @deprecated usa presaleLimit */ preorderLimit?: number | null;
     hormaId?: string | null;
+    attributes?: Array<{ name: string; value: string }>;
   }): Promise<ProductVariant> {
     await this.ensureTables();
     await this.ensureColorHex();
@@ -411,14 +443,15 @@ export class VariantsService {
       if (!allowed) throw new AppError(`El color "${data.color}" no está en la paleta de esta horma`, 400);
     }
 
+    const attrs = normalizeAttributes(data.attributes);
     const id = uuidv4();
     await db.execute(
       `INSERT INTO product_variants
          (id, tenant_id, product_id, sku, barcode, color, color_hex, size, material,
           stock, reserved_stock, min_stock, cost_price, price_override,
           supplier_id, images, sort_order,
-          presale, presale_date, presale_limit, presale_deposit_pct, horma_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          presale, presale_date, presale_limit, presale_deposit_pct, horma_id, attributes)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id, tenantId, productId,
         data.sku, data.barcode ?? null, data.color ?? null, data.colorHex ?? null, data.size ?? null, data.material ?? null,
@@ -432,6 +465,7 @@ export class VariantsService {
         data.presaleLimit ?? data.preorderLimit ?? null,
         data.presaleDepositPct ?? 50,
         data.hormaId ?? null,
+        attrs.length ? JSON.stringify(attrs) : null,
       ]
     );
 
@@ -452,6 +486,7 @@ export class VariantsService {
     sku: string; color?: string; colorHex?: string; size?: string; material?: string;
     stock?: number; minStock?: number; costPrice?: number; priceOverride?: number;
     hormaId?: string | null; sortOrder?: number;
+    attributes?: Array<{ name: string; value: string }>;
   }>): Promise<{ created: number; skipped: number; errors: string[] }> {
     await this.ensureTables();
     await this.ensureColorHex();
@@ -470,12 +505,13 @@ export class VariantsService {
     if (toInsert.length === 0) return { created: 0, skipped, errors };
 
     // INSERT multi-row en una sola query
-    const placeholders = toInsert.map(() => '(?,?,?,?,?,?,?,?,?,0,?,?,?,?,?)').join(',')
+    const placeholders = toInsert.map(() => '(?,?,?,?,?,?,?,?,?,0,?,?,?,?,?,?)').join(',')
     const values: any[] = []
     const movements: { variantId: string; stock: number }[] = []
 
     for (const v of toInsert) {
       const id = uuidv4()
+      const attrs = normalizeAttributes(v.attributes)
       values.push(
         id, tenantId, productId,
         v.sku, v.color ?? null, v.colorHex ?? null, v.size ?? null, v.material ?? null,
@@ -484,6 +520,7 @@ export class VariantsService {
         v.costPrice ?? null, v.priceOverride ?? null,
         v.sortOrder ?? 0,
         v.hormaId ?? null,
+        attrs.length ? JSON.stringify(attrs) : null,
       )
       if (v.stock && v.stock > 0) movements.push({ variantId: id, stock: v.stock })
     }
@@ -491,7 +528,7 @@ export class VariantsService {
     await db.execute(
       `INSERT INTO product_variants
          (id, tenant_id, product_id, sku, color, color_hex, size, material,
-          stock, reserved_stock, min_stock, cost_price, price_override, sort_order, horma_id)
+          stock, reserved_stock, min_stock, cost_price, price_override, sort_order, horma_id, attributes)
        VALUES ${placeholders}`,
       values
     );
@@ -515,6 +552,7 @@ export class VariantsService {
     presale: boolean; presaleDate: string | null; presaleLimit: number | null; presaleDepositPct: number;
     /** @deprecated usa presaleLimit */ preorderLimit: number | null;
     hormaId: string | null;
+    attributes: Array<{ name: string; value: string }>;
   }>): Promise<ProductVariant> {
     await this.ensureColorHex();
     await this.findById(id, tenantId);
@@ -545,6 +583,10 @@ export class VariantsService {
     for (const [k, v] of Object.entries(data)) {
       if (v === undefined) continue;
       if (k === 'images') { sets.push('images = ?'); vals.push(JSON.stringify(v)); continue; }
+      if (k === 'attributes') {
+        const attrs = normalizeAttributes(v);
+        sets.push('attributes = ?'); vals.push(attrs.length ? JSON.stringify(attrs) : null); continue;
+      }
       const col = fieldMap[k];
       if (!col) continue;
       sets.push(`${col} = ?`);
