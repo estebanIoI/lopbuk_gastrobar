@@ -242,6 +242,14 @@ STOREFRONT (público, sin auth)
   GET   /storefront/:slug/products  productos públicos
   POST  /storefront/:slug/order  crea pedido externo
 
+COMBOS
+  GET   /combos/public?store=    público: combos activos hoy (día semana Colombia)
+  GET   /combos                  comerciante: lista combos + ítems
+  POST  /combos                  comerciante: crea combo
+  PUT   /combos/:id              comerciante: actualiza combo + ítems
+  PATCH /combos/:id              comerciante: activar/desactivar
+  DELETE /combos/:id             comerciante: eliminar
+
 SUBSCRIPTIONS
   GET   /subscriptions/plans
   GET   /subscriptions/current

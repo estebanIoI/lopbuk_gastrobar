@@ -14,7 +14,7 @@ import {
   Search, Bell, LogOut, ChevronDown, AlertTriangle, ShoppingBag,
   FlaskConical, Truck, Receipt, History, CalendarDays, Ticket, Star,
   Scissors, CreditCard, UserCheck, Printer, ArrowRight, Boxes, PieChart,
-  HelpCircle, UtensilsCrossed, Trash2, Wine, ClipboardList, Network, FileSpreadsheet, Gauge,
+  HelpCircle, UtensilsCrossed, Trash2, Wine, ClipboardList, Network, FileSpreadsheet, Gauge, Layers,
 } from 'lucide-react'
 
 // ──────────────────────────────────────────────────────────────
@@ -46,6 +46,7 @@ const NAV: NavGroup[] = [
   {
     key: 'gastrobar', label: 'Gastrobar', icon: UtensilsCrossed, children: [
       { id: 'restbar', label: 'Salón y comandas', icon: Wine },
+      { id: 'combos', label: 'Combos por día', icon: Layers, adminOnly: true },
       { id: 'gastrobar-ops', label: 'Operación', icon: ClipboardList, adminOnly: true },
       { id: 'merma', label: 'Merma', icon: Trash2, adminOnly: true, warehouse: true },
     ],

@@ -57,6 +57,15 @@ export interface PrintTicketData {
   footerText?: string;
 }
 
+export interface KitchenTicketData {
+  storeName: string;
+  area: string;
+  orderNumber: string;
+  tableNumber: string;
+  waiterName: string;
+  items: Array<{ name: string; qty: number; notes: string | null }>;
+}
+
 interface PrinterRow extends RowDataPacket {
   id: string;
   tenant_id: string;
@@ -218,6 +227,35 @@ function buildTestTicket(printerName: string, paperWidth: PaperWidth): Buffer {
   return esc.toBuffer();
 }
 
+function buildKitchenTicket(data: KitchenTicketData, paperWidth: PaperWidth): Buffer {
+  const cols = paperWidth === 80 ? 42 : 32;
+  const esc = new EscPos().init();
+
+  esc.center().bold(true).doubleH(true).line(data.storeName.substring(0, cols)).doubleH(false).bold(false);
+  esc.separator(cols);
+  esc.center().bold(true).line(`${data.area}  -  Comanda #${data.orderNumber}`).bold(false);
+  esc.line(`Mesa: ${data.tableNumber}  |  Mesero: ${data.waiterName}`);
+  esc.separator(cols);
+
+  for (const item of data.items) {
+    const qtyText = `${item.qty}x`;
+    const nameMax = cols - qtyText.length - 1;
+    const name = item.name.length > nameMax ? item.name.substring(0, nameMax) : item.name;
+    esc.line(`${qtyText} ${name}`);
+    if (item.notes) {
+      esc.line(`   > ${item.notes.substring(0, cols - 5)}`);
+    }
+  }
+
+  esc.separator(cols);
+  const now = new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota', hour12: false });
+  esc.center().line(now);
+  esc.separator(cols);
+  esc.feed(2).cut();
+
+  return esc.toBuffer();
+}
+
 // ─── Service ───────────────────────────────────────────────────────────────────
 
 class PrintersService {
@@ -311,6 +349,30 @@ class PrintersService {
     const printer = await this.findByModule(module, tenantId);
     if (!printer) throw new AppError(`No hay impresora asignada al módulo "${module}"`, 404);
     return this._sendToPrinter(printer, buildSaleTicket(data, printer.paperWidth));
+  }
+
+  async printKitchenOrder(module: PrinterModule, tenantId: string, data: KitchenTicketData): Promise<{ message: string }> {
+    const printer = await this.findByModule(module, tenantId);
+    if (!printer) return { message: `Sin impresora asignada a "${module}"` };
+    return this._sendToPrinter(printer, buildKitchenTicket(data, printer.paperWidth));
+  }
+
+  /**
+   * Encola un ticket de cocina/bar para que lo imprima el Agente de Impresión local
+   * (impresoras LAN detrás de una red privada, inalcanzables desde la nube). Arma el ESC/POS
+   * con la config de la impresora del módulo y lo inserta en print_jobs. Si no hay impresora
+   * LAN con IP para ese módulo, no encola nada (no rompe el flujo del pedido).
+   */
+  async enqueueKitchenJob(module: PrinterModule, tenantId: string, data: KitchenTicketData): Promise<{ queued: boolean }> {
+    const printer = await this.findByModule(module, tenantId);
+    if (!printer || printer.connectionType !== 'lan' || !printer.ip) return { queued: false };
+    const buffer = buildKitchenTicket(data, printer.paperWidth);
+    await db.execute(
+      `INSERT INTO print_jobs (id, tenant_id, module, printer_ip, printer_port, data_base64)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [uuidv4(), tenantId, module, printer.ip, printer.port, buffer.toString('base64')]
+    );
+    return { queued: true };
   }
 
   private async _sendToPrinter(printer: Printer, data: Buffer): Promise<{ message: string }> {

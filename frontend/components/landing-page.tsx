@@ -78,6 +78,7 @@ import { ContactModal } from '@/components/contact-modal'
 import ConsumerRoutine from '@/components/consumer-routine'
 import { ensureAbsoluteUrl } from '@/utils/url'
 import { cldImg, cldSrcSet } from '@/utils/img'
+import { CombosToday } from '@/components/combos-today'
 import { departamentosMunicipios } from '@/constants'
 import { useAuthStore } from '@/lib/auth-store'
 import { GoogleLogin, type CredentialResponse } from '@react-oauth/google'
@@ -2113,7 +2114,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
           neighborhood: formData.barrio,
           notes: formData.notas,
           items: tenantItems.map(p => ({
-            productId: String(p.id),
+            productId: String(p.comboId || p.id),
             productName: p.nombre,
             quantity: p.cantidad,
             unitPrice: p.precio,
@@ -2125,6 +2126,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
             isPresale: (p.isPresale || p.isPreorder) ? 1 : 0,
             presaleShipStart: p.presaleShipStart || p.preorderShipStart || null,
             presaleShipEnd: p.presaleShipEnd || p.preorderShipEnd || null,
+            // Combo por día: el backend revalida precio del tamaño y descuenta stock de componentes
+            ...(p.comboId ? { comboId: p.comboId, comboSizeCount: p.comboSizeCount, comboItemIds: p.comboItemIds } : {}),
           })),
           // Consentimiento Ley 1581 capturado en el checkout
           acceptsDataPolicy: checkoutAcceptsPolicy,
@@ -7633,6 +7636,27 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               })()}
 
             </div>
+          )}
+          {/* Combos de hoy — solo con una tienda seleccionada (se auto-oculta si no hay combos activos hoy) */}
+          {!(showStoresView && selectedStore === 'all') && selectedStore !== 'all' && (
+            <CombosToday
+              store={selectedStore}
+              tenantId={stores.find(s => s.slug === selectedStore)?.id}
+              storeName={stores.find(s => s.slug === selectedStore)?.name}
+              onAdd={(line) => {
+                setCarrito(prev => {
+                  const key = line.tempId || String(line.id)
+                  const idx = prev.findIndex(p => (p.tempId || String(p.id)) === key)
+                  if (idx >= 0) {
+                    const next = [...prev]
+                    next[idx] = { ...next[idx], cantidad: next[idx].cantidad + 1 }
+                    return next
+                  }
+                  return [...prev, line]
+                })
+                setShowCart(true)
+              }}
+            />
           )}
           {/* Category filter — only when a store is selected */}
           {!(showStoresView && selectedStore === 'all') && categories.length > 0 && (

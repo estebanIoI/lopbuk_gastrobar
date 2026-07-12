@@ -28,6 +28,7 @@ import { Recipes } from '@/components/recipes'
 import { DriverPanel } from '@/components/driver-panel'
 import { PurchaseInvoices } from '@/components/purchase-invoices'
 import { ServicesManagement } from '@/components/services-management'
+import { CombosManager } from '@/components/combos-manager'
 import { GymManagement } from '@/components/gym-management'
 import { CartillaManagement } from '@/components/cartilla-management'
 import { ProfileEditor } from '@/components/profile-theme3/profile-editor'
@@ -187,6 +188,8 @@ export function MerchantPanel() {
         return <PurchaseInvoices />
       case 'services':
         return <ServicesManagement />
+      case 'combos':
+        return <CombosManager />
       case 'gym':
         return <GymManagement />
       case 'cartilla':

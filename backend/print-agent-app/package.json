@@ -1,0 +1,17 @@
+{
+  "name": "daimuz-print-agent",
+  "version": "1.0.0",
+  "description": "Agente de impresión local de DAIMUZ (puente nube → impresora LAN).",
+  "bin": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "build": "pkg . --targets node18-win-x64 --output ../assets/print-agent.exe"
+  },
+  "pkg": {
+    "assets": [],
+    "outputPath": "dist"
+  },
+  "devDependencies": {
+    "pkg": "^5.8.1"
+  }
+}

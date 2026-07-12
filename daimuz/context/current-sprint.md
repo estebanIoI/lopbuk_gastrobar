@@ -4,6 +4,8 @@
 
 ## Sprint activo: Julio 2026
 
+### 🔄 [2026-07-11] Combos por día — Fase 1 ✅
+Migración 0036: `combos` (active_days JSON, sizes JSON [{count,price}], includes) + `combo_items` (ítems elegibles). Módulo `/api/combos`: CRUD comerciante + público `GET /combos/public?store=slug` (activos HOY por weekday Bogotá, con ítems+tamaños+inclusiones). E2E 13/13, tsc back 6 (0 nuevos). Decisiones: precio fijo por tamaño, repetición permitida, gestión en panel comerciante, mostrar como "Combos de hoy" + upsell. **Falta: Fase 2 panel comerciante, Fase 3 storefront (armador+carrito), Fase 4 pedido/cocina. Pendiente commit + redeploy.**
 ### 🔄 [2026-07-11] Plantillas de modificadores + aplicación masiva — Fase 1 ✅
 Migración 0035: `modifier_templates` (tenant, name, groups JSON). Backend: CRUD plantillas (crear desde fromProductId) + `POST /modifiers/apply-bulk` (agrega a todos los productos de las categorías los grupos que no existan por nombre; no borra ni duplica). OJO: `groups` es reservada MySQL → backticks. E2E 14/14, tsc back 6 (0 nuevos). **Fase 2 ✅** UI en `product-modifiers-manager` (botones "Guardar como plantilla" + "Aplicar a categorías" con selector plantilla/ítem + checklist de categorías). tsc front 8 (0 nuevos). **🎉 ROADMAP MODIFICADORES COMPLETO (2/2). Pendiente commit + redeploy.**
 

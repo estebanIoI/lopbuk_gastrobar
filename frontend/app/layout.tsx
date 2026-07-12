@@ -6,6 +6,7 @@ import { Toaster } from 'sonner'
 import { GoogleOAuthWrapper } from '@/components/google-oauth-wrapper'
 import { DynamicFavicon } from '@/components/dynamic-favicon'
 import { PlatformThemeLoader } from '@/components/platform-theme-loader'
+import { PwaManager } from '@/components/pwa-manager'
 import './globals.css'
 
 const montserrat = Montserrat({
@@ -70,6 +71,7 @@ export default function RootLayout({
             {children}
           </GoogleOAuthWrapper>
           <Toaster richColors position="top-center" />
+          <PwaManager />
         </ThemeProvider>
       </body>
     </html>

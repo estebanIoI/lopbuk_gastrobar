@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { Theme2OrderSuccess, type OrderSuccessData } from '@/components/theme2/theme2-order-success'
 import { VariantSelector, type RawVariant, type SelectedVariant } from '@/components/variant-selector'
+import { CombosToday } from '@/components/combos-today'
 import { parseQtyPromo, qtyPromoUnit, type QtyPromo } from '@/lib/qty-promo'
 import { cldImg, cldSrcSet } from '@/utils/img'
 
@@ -50,7 +51,7 @@ export interface T2Info {
   address?: string | null
   cardCoverUrl?: string | null
 }
-interface CartItem { key: string; product: T2Product; qty: number; notes: string; mods: SelMod[]; unit: number; variantId?: string; variantLabel?: string; variantImage?: string | null }
+interface CartItem { key: string; product: T2Product; qty: number; notes: string; mods: SelMod[]; unit: number; variantId?: string; variantLabel?: string; variantImage?: string | null; comboId?: string; comboSizeCount?: number; comboItemIds?: string[] }
 
 const priceOf = (p: T2Product) => Number(p.isOnOffer && p.offerPrice ? p.offerPrice : p.salePrice) || 0
 
@@ -179,6 +180,7 @@ export function Theme2OrderFlow({
   }, [products, search, activeCat, activeFilter, newIds, featuredIds, trendingIds])
 
   const cartCount = cart.reduce((s, i) => s + i.qty, 0)
+  const menuTenantId = useMemo(() => products.map(p => p.tenantId).find(Boolean) || undefined, [products])
   // Precio unitario efectivo de la línea: aplica la promo de cantidad ("lleva 2, −X%")
   // del producto según la cantidad de esa línea. Si no hay promo, devuelve i.unit.
   const lineUnit = (i: CartItem) => qtyPromoUnit(i.unit, i.qty, parseQtyPromo(i.product.qtyPromo))
@@ -371,7 +373,7 @@ export function Theme2OrderFlow({
       mode === 'domicilio' && mapsLink ? `Ubicación: ${mapsLink}` : '',
     ].filter(Boolean)
     const items = cart.map(i => ({
-      productId: i.product.id,
+      productId: i.comboId ? 0 : i.product.id,
       productName:
         `${i.product.name}${i.variantLabel ? ` — ${i.variantLabel}` : ''}`
         + (i.mods.length ? ` (${i.mods.map(m => m.optionName).join(', ')})` : ''),
@@ -379,11 +381,11 @@ export function Theme2OrderFlow({
       unitPrice: lineUnit(i),
       productImage: i.variantImage || i.product.imageUrl || undefined,
       variantId: i.variantId,
-      // IDs de modificadores → el backend resuelve sus priceDelta reales (blindaje de precio)
       modifierOptionIds: i.mods.length ? i.mods.map(m => m.optionId) : undefined,
       isPreorder: i.product.isPreorder ? 1 : 0,
       preorderShipStart: i.product.preorderShipStart || null,
       preorderShipEnd: i.product.preorderShipEnd || null,
+      ...(i.comboId ? { comboId: i.comboId, comboSizeCount: i.comboSizeCount, comboItemIds: i.comboItemIds } : {}),
     }))
     // Atribución de afiliado por enlace (?ref= guardado en localStorage).
     let refToken: string | undefined
@@ -586,6 +588,28 @@ export function Theme2OrderFlow({
             ))}
           </div>
         </div>
+      </div>
+
+      {/* Combos de hoy */}
+      <div className="px-4 max-w-3xl mx-auto">
+        <CombosToday
+          store={slug}
+          tenantId={menuTenantId}
+          storeName={info.name}
+          onAdd={(line) => {
+            const fakeProduct: T2Product = {
+              id: 'combo', name: line.nombre, salePrice: line.precio,
+              tenantId: menuTenantId, imageUrl: line.imagen || null,
+            }
+            const comboItem: CartItem = {
+              key: line.tempId || `combo-${Date.now()}`,
+              product: fakeProduct, qty: 1, notes: '', mods: [], unit: line.precio,
+              comboId: line.comboId, comboSizeCount: line.comboSizeCount, comboItemIds: line.comboItemIds,
+            }
+            setCart(prev => [...prev, comboItem])
+            setShowCart(true)
+          }}
+        />
       </div>
 
       {/* Lista de productos */}

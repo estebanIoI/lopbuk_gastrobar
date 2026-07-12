@@ -46,6 +46,7 @@
 | `recipes` | Recetas BOM, cálculo food cost en tiempo real | `recipes.service.ts`, `recipes.tsx` |
 | `merma` | Control de desperdicio, justificación auditada | `merma.service.ts`, `merma.tsx` |
 | `orders` | Pedidos mesa+delivery con estados y Socket.io | `orders.routes.ts`, `pedidos.tsx` |
+| `combos` | Combos por día: precios fijos x2/x3 con ítems elegibles, activos solo en días programados | `combos.routes.ts`, `combos-manager.tsx`, `combos-today.tsx` |
 
 ## RRHH / Nómina
 
