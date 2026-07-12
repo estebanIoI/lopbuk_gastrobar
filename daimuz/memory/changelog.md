@@ -4,6 +4,18 @@
 
 ---
 
+## [2026-07-12] — Fix: prueba de impresión LAN daba 500
+
+`printers.service.ts` `testPrint`: hacía TCP directo backend→impresora; en la nube no alcanza la IP privada → timeout → 500. Ahora, para impresoras **LAN**, **encola** un `print_job` (lo imprime el Agente local) y responde 200 con mensaje según haya o no un agente conectado (últimos 90s). USB/Bluetooth siguen con envío directo. `tsc` back 6 base. E2E 4/4.
+
+## [2026-07-12] — Fix UX: cancelar mesa (mesero) pedía doble confirmación
+
+`components/mesero-panel.tsx`: el flujo de "Cancelar mesa" tenía 2 confirmaciones (cancelStep 0→1→2) y el botón final decía "Cancelar" (ambiguo con "cancelar la operación"). Reducido a **una** confirmación (`0→1`): "¿Cancelar la mesa?" → **[Sí, cancelar] / [No]**. `tsc` front 8 base.
+
+## [2026-07-12] — Fix: "Combos por día" faltaba en el sidebar clásico
+
+El ítem de menú solo estaba en `panel-comerciante-shell.tsx` (tema verde); el tema clásico usa `components/sidebar.tsx`. Añadido ahí: `{ id: 'combos', name: 'Combos por día', icon: Layers, adminOnly, merchantOnly, group: 'gastrobar' }` (import de `Layers`). `tsc` front 8 base.
+
 ## [2026-07-12] — Agente de Impresión: empaquetado en Docker
 
 El botón "Descargar programa" queda funcional en el despliegue: el `.exe` se compila dentro del build del backend.

@@ -13,7 +13,7 @@ import {
   BookOpen, Search, ToggleLeft, ToggleRight, ChevronLeft,
   Banknote, CreditCard, Smartphone, ArrowLeftRight, Layers,
   ChevronRight, User, DollarSign, FileText, Printer, TrendingDown, Download,
-  CalendarDays, Wallet, Link2,
+  CalendarDays, Wallet, Link2, Zap, XCircle,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { RestBarReservations } from '@/components/restbar-reservations'
@@ -1232,6 +1232,7 @@ function CajaTab() {
   const [sending, setSending] = useState(false)
   const [cancelling, setCancelling] = useState(false)
   const [freeTables, setFreeTables] = useState<any[]>([])
+  const [showNewOrder, setShowNewOrder] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -1260,6 +1261,7 @@ function CajaTab() {
   const clearSelection = () => {
     setSelected(null); setBreakdown(null)
     setPayTarget(null); setPayMode(null); setAmountPaid(''); setSplitCount(2)
+    setShowMenuPicker(false); setShowNewOrder(false); setFreeTables([])
   }
 
   // Modo Cajero: helpers
@@ -1405,6 +1407,44 @@ function CajaTab() {
         </button>
       </div>
 
+      {/* Nueva comanda rápida (Modo Cajero) */}
+      {cajaMode === 'full' && (
+        <div className="shrink-0 space-y-2">
+          <button onClick={async () => { await showFreeTables(); setShowNewOrder(true) }}
+            className="w-full rounded-xl border-2 border-dashed border-primary/30 bg-primary/5 py-3 text-xs font-bold text-primary hover:bg-primary/10 hover:border-primary/50 transition-all active:scale-[0.98] flex items-center justify-center gap-2">
+            <Plus className="h-4 w-4" /> Nueva comanda rápida
+          </button>
+          {showNewOrder && freeTables.length > 0 && (
+            <div className="rounded-xl border border-border bg-card overflow-hidden">
+              <div className="px-3 py-2 border-b border-border flex items-center justify-between">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Mesas libres</p>
+                <button onClick={() => { setShowNewOrder(false); setFreeTables([]) }}
+                  className="text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /></button>
+              </div>
+              <div className="divide-y divide-border max-h-48 overflow-y-auto">
+                {freeTables.map((t: any) => (
+                  <button key={t.id} onClick={() => { createQuickOrder(t.id); setShowNewOrder(false); setFreeTables([]) }}
+                    className="w-full px-3 py-2.5 text-left hover:bg-accent transition-colors flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <TableProperties className="h-3.5 w-3.5 text-green-400" />
+                      <span className="text-sm font-semibold">Mesa {t.number}</span>
+                    </div>
+                    <span className="text-xs text-muted-foreground">{t.capacity} p</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {showNewOrder && freeTables.length === 0 && (
+            <div className="rounded-xl border border-border bg-card p-3 text-center">
+              <p className="text-xs text-muted-foreground">No hay mesas libres</p>
+              <button onClick={() => { setShowNewOrder(false); setFreeTables([]) }}
+                className="text-xs text-primary font-semibold mt-1">Cerrar</button>
+            </div>
+          )}
+        </div>
+      )}
+
       {loading ? (
         <div className="flex-1 flex items-center justify-center">
           <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -1464,7 +1504,6 @@ function CajaTab() {
         </div>
       </div>
 
-      {/* ── 
       {/* Modo Cajero: toggle */}
       <div className="flex items-center gap-2 shrink-0">
         <button onClick={() => { setCajaMode('cobro'); setShowMenuPicker(false) }}
@@ -1791,6 +1830,65 @@ function CajaTab() {
       <div className="rounded-2xl border-2 border-dashed border-border p-10 text-center space-y-3">
         <DollarSign className="h-10 w-10 mx-auto opacity-20" />
         <p className="text-sm leading-relaxed">Selecciona una mesa<br />para cobrar</p>
+      </div>
+    </div>
+    ) : showMenuPicker ? (
+    <div className="flex flex-col gap-3 overflow-y-auto pl-0.5 h-full">
+      {/* Back to POS */}
+      <button onClick={() => setShowMenuPicker(false)}
+        className="flex items-center gap-1.5 text-xs font-bold text-muted-foreground hover:text-foreground transition-colors shrink-0 px-1">
+        <ChevronLeft className="h-3.5 w-3.5" /> Volver al cobro
+      </button>
+
+      {/* Categories */}
+      <div className="flex gap-1.5 overflow-x-auto pb-1 shrink-0">
+        <button onClick={() => setActiveCategory(null)}
+          className={cn("rounded-full px-3 py-1.5 text-xs font-semibold whitespace-nowrap transition-colors",
+            activeCategory === null ? "bg-primary text-primary-foreground" : "bg-card border border-border text-muted-foreground hover:text-foreground")}
+        >
+          Todos
+        </button>
+        {[...new Set(menu.map(m => m.category || m.preparationArea || "General"))].map(cat => (
+          <button key={cat} onClick={() => setActiveCategory(cat)}
+            className={cn("rounded-full px-3 py-1.5 text-xs font-semibold whitespace-nowrap transition-colors",
+              activeCategory === cat ? "bg-primary text-primary-foreground" : "bg-card border border-border text-muted-foreground hover:text-foreground")}
+          >
+            {cat}
+          </button>
+        ))}
+      </div>
+
+      {/* Products */}
+      <div className="flex-1 overflow-y-auto space-y-1.5">
+        {menu
+          .filter(m => !activeCategory || (m.category || m.preparationArea || "General") === activeCategory)
+          .map(m => {
+            const isAdding = addingId === m.id
+            return (
+              <button key={m.id} onClick={() => addItemToOrder(m)} disabled={isAdding}
+                className={cn("w-full rounded-xl border border-border bg-card p-3 text-left hover:border-primary/40 transition-all active:scale-[0.98] disabled:opacity-50",
+                  isAdding && "border-primary/50 bg-primary/5")}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold truncate">{m.name}</p>
+                    <p className="text-xs text-muted-foreground">{m.category || m.preparationArea}</p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <p className="text-sm font-bold tabular-nums">{formatCOP(m.salePrice || m.price)}</p>
+                    {isAdding ? (
+                      <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" />
+                    ) : (
+                      <Plus className="h-4 w-4 text-muted-foreground" />
+                    )}
+                  </div>
+                </div>
+              </button>
+            )
+          })}
+        {menu.filter(m => !activeCategory || (m.category || m.preparationArea || "General") === activeCategory).length === 0 && (
+          <p className="text-sm text-muted-foreground text-center py-8">Sin productos en esta categoría</p>
+        )}
       </div>
     </div>
   ) : !posActive ? (

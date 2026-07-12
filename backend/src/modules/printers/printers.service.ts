@@ -336,7 +336,31 @@ class PrintersService {
   async testPrint(id: string, tenantId: string): Promise<{ message: string }> {
     const printer = await this.findById(id, tenantId);
     if (!printer.isActive) throw new AppError('La impresora está desactivada', 400);
-    return this._sendToPrinter(printer, buildTestTicket(printer.name, printer.paperWidth));
+    const buffer = buildTestTicket(printer.name, printer.paperWidth);
+
+    // Impresora LAN: el backend en la nube NO alcanza su IP privada → se ENCOLA para que
+    // la imprima el Agente de Impresión local (mismo camino que los tickets de cocina/bar).
+    // Antes se hacía TCP directo y en producción daba timeout → 500.
+    if (printer.connectionType === 'lan') {
+      if (!printer.ip) throw new AppError('La impresora LAN no tiene IP configurada', 400);
+      await db.execute(
+        `INSERT INTO print_jobs (id, tenant_id, module, printer_ip, printer_port, data_base64)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [uuidv4(), tenantId, printer.assignedModule || 'caja', printer.ip, printer.port, buffer.toString('base64')]
+      );
+      const [ag] = await db.execute<RowDataPacket[]>(
+        'SELECT 1 FROM print_agents WHERE tenant_id = ? AND last_seen_at > (NOW() - INTERVAL 90 SECOND) LIMIT 1',
+        [tenantId]
+      );
+      return {
+        message: ag.length > 0
+          ? 'Prueba enviada — debería imprimir en unos segundos.'
+          : 'Prueba encolada, pero no hay ningún equipo con el Agente de Impresión conectado. Abre el programa en el PC del local.',
+      };
+    }
+
+    // USB/Bluetooth: impresión directa (solo si el backend corre en la misma máquina/LAN).
+    return this._sendToPrinter(printer, buffer);
   }
 
   async printTicket(printerId: string, tenantId: string, data: PrintTicketData): Promise<{ message: string }> {
