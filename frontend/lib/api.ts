@@ -2656,7 +2656,7 @@ class ApiService {
     ip?: string
     port?: number
     paperWidth?: 58 | 80
-    assignedModule?: 'caja' | 'cocina' | 'bar' | 'factura' | null
+    assignedModule?: 'caja' | 'cocina' | 'bar' | 'factura' | 'cocina_bar' | null
   }) {
     return this.request<any>('/printers', {
       method: 'POST',
@@ -2671,7 +2671,7 @@ class ApiService {
     port?: number
     paperWidth?: 58 | 80
     isActive?: boolean
-    assignedModule?: 'caja' | 'cocina' | 'bar' | 'factura' | null
+    assignedModule?: 'caja' | 'cocina' | 'bar' | 'factura' | 'cocina_bar' | null
   }) {
     return this.request<any>(`/printers/${id}`, {
       method: 'PUT',

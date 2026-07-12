@@ -8,7 +8,7 @@ import { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
 
 export type ConnectionType = 'lan' | 'usb' | 'bluetooth';
 export type PaperWidth = 58 | 80;
-export type PrinterModule = 'caja' | 'cocina' | 'bar' | 'factura';
+export type PrinterModule = 'caja' | 'cocina' | 'bar' | 'factura' | 'cocina_bar';
 
 export interface Printer {
   id: string;
@@ -256,6 +256,50 @@ function buildKitchenTicket(data: KitchenTicketData, paperWidth: PaperWidth): Bu
   return esc.toBuffer();
 }
 
+/**
+ * Ticket combinado: una sola comanda con las secciones COCINA y BAR juntas, para cuando
+ * una misma impresora atiende ambas áreas (assigned_module = 'cocina_bar').
+ */
+function buildCombinedKitchenTicket(
+  data: {
+    storeName: string; orderNumber: string; tableNumber: string; waiterName: string;
+    cocinaItems: Array<{ name: string; qty: number; notes: string | null }>;
+    barItems: Array<{ name: string; qty: number; notes: string | null }>;
+  },
+  paperWidth: PaperWidth
+): Buffer {
+  const cols = paperWidth === 80 ? 42 : 32;
+  const esc = new EscPos().init();
+
+  esc.center().bold(true).doubleH(true).line(data.storeName.substring(0, cols)).doubleH(false).bold(false);
+  esc.separator(cols);
+  esc.center().bold(true).line(`Comanda #${data.orderNumber}`).bold(false);
+  esc.line(`Mesa: ${data.tableNumber}  |  Mesero: ${data.waiterName}`);
+
+  const section = (title: string, items: Array<{ name: string; qty: number; notes: string | null }>) => {
+    if (!items.length) return;
+    esc.separator(cols);
+    esc.bold(true).line(`>> ${title}`).bold(false);
+    for (const item of items) {
+      const qtyText = `${item.qty}x`;
+      const nameMax = cols - qtyText.length - 1;
+      const name = item.name.length > nameMax ? item.name.substring(0, nameMax) : item.name;
+      esc.line(`${qtyText} ${name}`);
+      if (item.notes) esc.line(`   > ${item.notes.substring(0, cols - 5)}`);
+    }
+  };
+  section('COCINA', data.cocinaItems);
+  section('BAR', data.barItems);
+
+  esc.separator(cols);
+  const now = new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota', hour12: false });
+  esc.center().line(now);
+  esc.separator(cols);
+  esc.feed(2).cut();
+
+  return esc.toBuffer();
+}
+
 // ─── Service ───────────────────────────────────────────────────────────────────
 
 class PrintersService {
@@ -381,22 +425,56 @@ class PrintersService {
     return this._sendToPrinter(printer, buildKitchenTicket(data, printer.paperWidth));
   }
 
-  /**
-   * Encola un ticket de cocina/bar para que lo imprima el Agente de Impresión local
-   * (impresoras LAN detrás de una red privada, inalcanzables desde la nube). Arma el ESC/POS
-   * con la config de la impresora del módulo y lo inserta en print_jobs. Si no hay impresora
-   * LAN con IP para ese módulo, no encola nada (no rompe el flujo del pedido).
-   */
-  async enqueueKitchenJob(module: PrinterModule, tenantId: string, data: KitchenTicketData): Promise<{ queued: boolean }> {
-    const printer = await this.findByModule(module, tenantId);
-    if (!printer || printer.connectionType !== 'lan' || !printer.ip) return { queued: false };
-    const buffer = buildKitchenTicket(data, printer.paperWidth);
+  /** Resuelve la impresora LAN para un área; prefiere la exacta, si no una 'cocina_bar'. */
+  private async resolveAreaPrinter(tenantId: string, area: 'cocina' | 'bar'): Promise<Printer | null> {
+    const [rows] = await db.execute<PrinterRow[]>(
+      `SELECT * FROM printers
+       WHERE tenant_id = ? AND is_active = 1 AND connection_type = 'lan' AND ip IS NOT NULL
+         AND assigned_module IN (?, 'cocina_bar')
+       ORDER BY (assigned_module = ?) DESC LIMIT 1`,
+      [tenantId, area, area]
+    );
+    return rows.length ? mapRow(rows[0]) : null;
+  }
+
+  /** Inserta un trabajo en la cola para que lo recoja el Agente de Impresión local. */
+  private async _enqueueJob(tenantId: string, printer: Printer, buffer: Buffer, module: string): Promise<void> {
     await db.execute(
       `INSERT INTO print_jobs (id, tenant_id, module, printer_ip, printer_port, data_base64)
        VALUES (?, ?, ?, ?, ?, ?)`,
       [uuidv4(), tenantId, module, printer.ip, printer.port, buffer.toString('base64')]
     );
-    return { queued: true };
+  }
+
+  /**
+   * Encola los tickets de cocina/bar de una comanda para el Agente de Impresión local.
+   * - Si una MISMA impresora atiende ambas áreas (`assigned_module = 'cocina_bar'`) y hay ítems
+   *   de las dos → imprime UN ticket combinado (secciones COCINA + BAR).
+   * - Si hay impresoras separadas (o solo un área con ítems) → un ticket por área.
+   * Solo aplica a impresoras LAN con IP (las alcanza el agente, no la nube). No rompe el pedido.
+   */
+  async enqueueOrderTickets(
+    tenantId: string,
+    base: { storeName: string; orderNumber: string; tableNumber: string; waiterName: string },
+    cocinaItems: Array<{ name: string; qty: number; notes: string | null }>,
+    barItems: Array<{ name: string; qty: number; notes: string | null }>
+  ): Promise<void> {
+    const cocinaPrinter = cocinaItems.length ? await this.resolveAreaPrinter(tenantId, 'cocina') : null;
+    const barPrinter    = barItems.length    ? await this.resolveAreaPrinter(tenantId, 'bar')    : null;
+
+    if (cocinaPrinter && barPrinter && cocinaPrinter.id === barPrinter.id) {
+      const buffer = buildCombinedKitchenTicket({ ...base, cocinaItems, barItems }, cocinaPrinter.paperWidth);
+      await this._enqueueJob(tenantId, cocinaPrinter, buffer, 'cocina_bar');
+      return;
+    }
+    if (cocinaPrinter) {
+      const buf = buildKitchenTicket({ ...base, area: 'COCINA', items: cocinaItems }, cocinaPrinter.paperWidth);
+      await this._enqueueJob(tenantId, cocinaPrinter, buf, 'cocina');
+    }
+    if (barPrinter) {
+      const buf = buildKitchenTicket({ ...base, area: 'BAR', items: barItems }, barPrinter.paperWidth);
+      await this._enqueueJob(tenantId, barPrinter, buf, 'bar');
+    }
   }
 
   private async _sendToPrinter(printer: Printer, data: Buffer): Promise<{ message: string }> {

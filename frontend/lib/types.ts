@@ -666,7 +666,7 @@ export interface Tenant {
 
 export type PrinterConnectionType = 'lan' | 'usb' | 'bluetooth'
 export type PrinterPaperWidth = 58 | 80
-export type PrinterModule = 'caja' | 'cocina' | 'bar' | 'factura'
+export type PrinterModule = 'caja' | 'cocina' | 'bar' | 'factura' | 'cocina_bar'
 
 export interface Printer {
   id: string
