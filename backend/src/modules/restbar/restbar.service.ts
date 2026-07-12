@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { db } from '../../config';
 import { AppError } from '../../common/middleware';
 import { RowDataPacket, ResultSetHeader } from 'mysql2';
+import { printersService } from '../printers/printers.service';
 
 // ─── Row interfaces ───────────────────────────────────────────────────────────
 
@@ -501,7 +502,49 @@ class RestbarService {
       `UPDATE rb_orders SET status = 'en_proceso' WHERE id = ? AND tenant_id = ?`,
       [orderId, tenantId]
     );
+
+    // ── Impresión automática en cocina y bar ──
+    this._printOrderToArea(tenantId, orderId).catch(() => {});
+
     return this.getOrderById(tenantId, orderId);
+  }
+
+  private async _printOrderToArea(tenantId: string, orderId: string) {
+    const [storeRows] = await db.execute<RowDataPacket[]>(
+      'SELECT name FROM store_info WHERE tenant_id = ? LIMIT 1', [tenantId]
+    );
+    const storeName = storeRows[0]?.name || 'Restaurante';
+
+    const order = await this.getOrderById(tenantId, orderId);
+    // getOrderById devuelve los ítems ya mapeados a camelCase (mapOrderItem/mapOrder);
+    // usar los nombres crudos snake_case dejaría todo en undefined y no imprimiría nada.
+    const base = {
+      storeName,
+      orderNumber: order.orderNumber,
+      tableNumber: order.tableNumber,
+      waiterName: order.waiterName,
+    };
+
+    const cocinaItems = order.items.filter(i => ['cocina', 'ambos'].includes(i.preparationArea));
+    const barItems = order.items.filter(i => ['bar', 'ambos'].includes(i.preparationArea));
+
+    // Se ENCOLA (no se imprime directo): el Agente de Impresión local recoge el trabajo y lo
+    // envía a la impresora en la LAN del local (la nube no alcanza las IP privadas 192.168.x.x).
+    const printKitchen = cocinaItems.length > 0
+      ? printersService.enqueueKitchenJob('cocina', tenantId, {
+          ...base, area: 'COCINA',
+          items: cocinaItems.map(i => ({ name: i.menuItemName, qty: i.quantity, notes: i.itemNotes })),
+        }).catch(() => {})
+      : Promise.resolve();
+
+    const printBar = barItems.length > 0
+      ? printersService.enqueueKitchenJob('bar', tenantId, {
+          ...base, area: 'BAR',
+          items: barItems.map(i => ({ name: i.menuItemName, qty: i.quantity, notes: i.itemNotes })),
+        }).catch(() => {})
+      : Promise.resolve();
+
+    await Promise.all([printKitchen, printBar]);
   }
 
   // ── KITCHEN / BAR DISPLAY ─────────────────────────────────────────────────

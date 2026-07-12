@@ -2309,6 +2309,52 @@ export const printers = mysqlTable("printers", {
 	}
 });
 
+// Agente de impresión local: un programa que corre en un PC del local (misma LAN que las
+// impresoras Ethernet) y recibe los trabajos de impresión desde la nube. Cada fila = un
+// agente vinculado a un tenant vía un código corto (pairing_code) que se canjea por un token.
+export const printAgents = mysqlTable("print_agents", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" }),
+	name: varchar({ length: 100 }),
+	pairingCode: varchar("pairing_code", { length: 12 }).notNull(),
+	token: varchar({ length: 64 }).notNull(),
+	pairedAt: datetime("paired_at", { mode: 'string' }),
+	lastSeenAt: datetime("last_seen_at", { mode: 'string' }),
+	createdAt: datetime("created_at", { mode: 'string' }).default(sql`(now())`).notNull(),
+},
+(table) => {
+	return {
+		idxPrintAgentsTenant: index("idx_print_agents_tenant").on(table.tenantId),
+		uniqPrintAgentsCode: unique("uniq_print_agents_code").on(table.pairingCode),
+		uniqPrintAgentsToken: unique("uniq_print_agents_token").on(table.token),
+		printAgentsId: primaryKey({ columns: [table.id], name: "print_agents_id" }),
+	}
+});
+
+// Cola de trabajos de impresión. Cada ticket (cocina/bar/caja) se encola con los bytes
+// ESC/POS ya armados (base64) + la IP/puerto de la impresora destino. El Agente de Impresión
+// local los recoge por heartbeat y los envía a la impresora en su LAN.
+export const printJobs = mysqlTable("print_jobs", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" }),
+	module: varchar({ length: 20 }).notNull(),          // cocina | bar | caja | factura
+	printerIp: varchar("printer_ip", { length: 45 }).notNull(),
+	printerPort: int("printer_port").default(9100).notNull(),
+	dataBase64: mediumtext("data_base64").notNull(),    // bytes ESC/POS en base64
+	status: mysqlEnum(['pending', 'sent', 'done', 'failed']).default('pending').notNull(),
+	attempts: int().default(0).notNull(),
+	error: varchar({ length: 255 }),
+	sentAt: datetime("sent_at", { mode: 'string' }),
+	doneAt: datetime("done_at", { mode: 'string' }),
+	createdAt: datetime("created_at", { mode: 'string' }).default(sql`(now())`).notNull(),
+},
+(table) => {
+	return {
+		idxPrintJobsTenantStatus: index("idx_print_jobs_tenant_status").on(table.tenantId, table.status),
+		printJobsId: primaryKey({ columns: [table.id], name: "print_jobs_id" }),
+	}
+});
+
 export const productAlerts = mysqlTable("product_alerts", {
 	id: varchar({ length: 50 }).notNull(),
 	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" } ),
@@ -4151,6 +4197,7 @@ export const storefrontOrderItems = mysqlTable("storefront_order_items", {
 	// you can use { mode: 'date' }, if you want to have Date as type for this column
 	preorderShipEnd: date("preorder_ship_end", { mode: 'string' }),
 	variantId: varchar("variant_id", { length: 36 }),
+	comboData: json("combo_data"),
 	costPrice: decimal("cost_price", { precision: 12, scale: 2 }),
 	marginPct: decimal("margin_pct", { precision: 5, scale: 2 }),
 	marginAmount: decimal("margin_amount", { precision: 12, scale: 2 }),
@@ -5120,6 +5167,43 @@ export const courierTenants = mysqlTable("courier_tenants", {
 // Links de campaña compartibles (historias IG/TikTok). El superadmin crea un link
 // que redirige a un producto, a una tienda, o a una "colección" filtrada por rubro
 // y/o comercios (solo restaurantes, etc.) para no distraer con otras categorías.
+// Combos por día (evento recurrente): se activan ciertos días de la semana, se
+// arman con ítems elegibles seleccionados (no toda la categoría), con tamaños
+// (x2/x3) a precio fijo e inclusiones. Ver combo_items.
+export const combos = mysqlTable("combos", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" } ),
+	name: varchar({ length: 150 }).notNull(),
+	activeDays: json("active_days").notNull(),   // [0..6] (0=Dom) — días en que se ofrece
+	sizes: json().notNull(),                      // [{ count:2, price:45000 }, { count:3, price:62000 }]
+	includes: text(),                             // "Papas rústicas + Coca-Cola mini"
+	imageUrl: varchar("image_url", { length: 500 }),
+	isActive: tinyint("is_active").default(1).notNull(),
+	sortOrder: int("sort_order").default(0).notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
+},
+(table) => {
+	return {
+		idxCombosTenant: index("idx_combos_tenant").on(table.tenantId, table.isActive),
+		combosId: primaryKey({ columns: [table.id], name: "combos_id"}),
+	}
+});
+
+export const comboItems = mysqlTable("combo_items", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+	comboId: varchar("combo_id", { length: 36 }).notNull().references(() => combos.id, { onDelete: "cascade" } ),
+	productId: varchar("product_id", { length: 36 }).notNull(),
+	sortOrder: int("sort_order").default(0).notNull(),
+},
+(table) => {
+	return {
+		idxComboItemsCombo: index("idx_combo_items_combo").on(table.comboId),
+		comboItemsId: primaryKey({ columns: [table.id], name: "combo_items_id"}),
+	}
+});
+
 export const shareLinks = mysqlTable("share_links", {
 	id: varchar({ length: 36 }).notNull(),
 	code: varchar({ length: 32 }).notNull(),

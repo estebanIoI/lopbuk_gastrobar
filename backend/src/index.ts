@@ -42,6 +42,7 @@ import opsTimelineRoutes from './modules/ops-timeline/ops-timeline.routes';
 import inventoryCountsRoutes from './modules/inventory-counts/inventory-counts.routes';
 import { chatbotRoutes } from './modules/chatbot/chatbot.routes';
 import { printersRoutes } from './modules/printers';
+import printAgentRoutes from './modules/print-agent/print-agent.routes';
 import vendedoresRoutes from './modules/vendedores/vendedores.routes';
 import cargosRoutes from './modules/cargos/cargos.routes';
 import novedadesRoutes from './modules/novedades/novedades.routes';
@@ -83,6 +84,7 @@ import locationsRoutes from './modules/locations/locations.routes';
 import { gymRoutes } from './modules/gym';
 import assistantRoutes from './modules/assistant/assistant.routes';
 import modifiersRoutes from './modules/modifiers/modifiers.routes'
+import combosRoutes from './modules/combos/combos.routes'
 import superadminOrdersRoutes from './modules/orders/superadmin-orders.routes';
 import { cartillasRoutes } from './modules/cartillas';
 import profileRoutes from './modules/profile/profile.routes';
@@ -196,6 +198,7 @@ app.use(`${apiPrefix}/ops`, opsTimelineRoutes);
 app.use(`${apiPrefix}/inventory-counts`, inventoryCountsRoutes);
 app.use(`${apiPrefix}/chatbot`, chatbotRoutes);
 app.use(`${apiPrefix}/printers`, printersRoutes);
+app.use(`${apiPrefix}/print-agent`, printAgentRoutes);
 app.use(`${apiPrefix}/vendedores`, vendedoresRoutes);
 app.use(`${apiPrefix}/cargos`, cargosRoutes);
 app.use(`${apiPrefix}/novedades`, novedadesRoutes);
@@ -232,6 +235,7 @@ app.use(`${apiPrefix}/workouts`, workoutRoutes);
 app.use(`${apiPrefix}/gym`, gymRoutes);
 app.use(`${apiPrefix}/assistant`, assistantRoutes);
 app.use(`${apiPrefix}/modifiers`, modifiersRoutes)
+app.use(`${apiPrefix}/combos`, combosRoutes)
 app.use(`${apiPrefix}/superadmin`, superadminOrdersRoutes);
 app.use(`${apiPrefix}/cartillas`, cartillasRoutes);
 app.use(`${apiPrefix}/profile`, profileRoutes);

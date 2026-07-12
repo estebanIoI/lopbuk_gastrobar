@@ -39,6 +39,11 @@ export interface ProductoCarrito {
   preorderShipStart?: string | null;
   preorderShipEnd?: string | null;
   preorderBadgeText?: string;
+  // Combo por día — línea de combo a precio fijo. El backend revalida el precio del tamaño
+  // y descuenta stock de los productos componentes (comboItemIds).
+  comboId?: string;
+  comboSizeCount?: number;
+  comboItemIds?: string[];
 }
 
 export interface PedidoForm {

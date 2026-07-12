@@ -5,6 +5,7 @@ import { api } from '@/lib/api'
 import { Printer, PrinterConnectionType, PrinterPaperWidth, PrinterModule } from '@/lib/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { PrintAgentCard } from '@/components/print-agent-card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -339,6 +340,9 @@ export function PrintersConfig() {
           </CardContent>
         </Card>
       )}
+
+      {/* Programa de impresión (agente local para impresoras LAN) */}
+      <PrintAgentCard />
 
       {/* Info cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

@@ -46,6 +46,7 @@ import {
 interface OrderItem {
   id: number
   productId: string | null
+  comboData?: { comboId?: string; sizeCount?: number; componentIds?: string[]; componentNames?: string[] } | null
   productName: string
   productImage: string | null
   quantity: number
@@ -117,6 +118,7 @@ export function Pedidos() {
   const [totalPages, setTotalPages] = useState(1)
   const [drivers, setDrivers] = useState<{ id: string; name: string; email: string }[]>([])
   const [assigningOrderId, setAssigningOrderId] = useState<string | null>(null)
+  const [expandedCombos, setExpandedCombos] = useState<Set<number>>(new Set())
 
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list')
   const [focusOrderId, setFocusOrderId] = useState<string | null>(null)
@@ -754,31 +756,71 @@ export function Pedidos() {
                         <Package className="h-4 w-4" /> Productos ({order.items?.length || 0})
                       </h4>
                       <div className="space-y-2">
-                        {order.items?.map(item => (
-                          <div key={item.id} className="flex items-center gap-3 rounded-lg border bg-background p-3">
-                            {item.productImage ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img
-                                src={item.productImage}
-                                alt={item.productName}
-                                className="h-12 w-12 rounded object-cover"
-                              />
-                            ) : (
-                              <div className="h-12 w-12 rounded bg-muted flex items-center justify-center">
-                                <Package className="h-5 w-5 text-muted-foreground" />
+                        {order.items?.map(item => {
+                          const isCombo = item.comboData && item.comboData.componentIds;
+                          const expanded = expandedCombos.has(item.id);
+                          const toggleExpanded = () => {
+                            setExpandedCombos(prev => {
+                              const next = new Set(prev);
+                              if (next.has(item.id)) next.delete(item.id);
+                              else next.add(item.id);
+                              return next;
+                            });
+                          };
+                          return (
+                          <div key={item.id} className="rounded-lg border bg-background p-3">
+                            <div className="flex items-center gap-3">
+                              {item.productImage ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={item.productImage}
+                                  alt={item.productName}
+                                  className="h-12 w-12 rounded object-cover"
+                                />
+                              ) : (
+                                <div className="h-12 w-12 rounded bg-muted flex items-center justify-center">
+                                  <Package className="h-5 w-5 text-muted-foreground" />
+                                </div>
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium truncate">
+                                  {item.productName}
+                                  {isCombo && (
+                                    <Badge variant="secondary" className="ml-2 text-[10px] px-1.5 py-0">COMBO</Badge>
+                                  )}
+                                </p>
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                  <span>{formatCurrency(item.unitPrice)} × {item.quantity}</span>
+                                  {item.size && <Badge variant="outline" className="text-[10px] px-1">{item.size}</Badge>}
+                                  {item.color && <Badge variant="outline" className="text-[10px] px-1">{item.color}</Badge>}
+                                </div>
+                              </div>
+                              <span className="font-medium text-sm">{formatCurrency(item.totalPrice)}</span>
+                            </div>
+                            {isCombo && (
+                              <div className="mt-2 ml-[60px]">
+                                <button
+                                  onClick={toggleExpanded}
+                                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                                >
+                                  {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                                  Componentes ({item.comboData!.componentIds!.length})
+                                </button>
+                                {expanded && (
+                                  <div className="mt-1.5 space-y-1">
+                                    {(item.comboData!.componentNames || item.comboData!.componentIds || []).map((name: string, i: number) => (
+                                      <div key={i} className="text-xs text-muted-foreground flex items-center gap-1.5">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-primary/40" />
+                                        {name}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
                               </div>
                             )}
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium truncate">{item.productName}</p>
-                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                <span>{formatCurrency(item.unitPrice)} × {item.quantity}</span>
-                                {item.size && <Badge variant="outline" className="text-[10px] px-1">{item.size}</Badge>}
-                                {item.color && <Badge variant="outline" className="text-[10px] px-1">{item.color}</Badge>}
-                              </div>
-                            </div>
-                            <span className="font-medium text-sm">{formatCurrency(item.totalPrice)}</span>
                           </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
 

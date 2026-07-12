@@ -1223,6 +1223,16 @@ function CajaTab() {
   const [detailOpen, setDetailOpen] = useState(false)
   const [splitCount, setSplitCount] = useState(2)
 
+  // Modo Cajero
+  const [cajaMode, setCajaMode] = useState<'cobro' | 'full'>('cobro')
+  const [menu, setMenu] = useState<any[]>([])
+  const [showMenuPicker, setShowMenuPicker] = useState(false)
+  const [activeCategory, setActiveCategory] = useState<string | null>(null)
+  const [addingId, setAddingId] = useState<string | null>(null)
+  const [sending, setSending] = useState(false)
+  const [cancelling, setCancelling] = useState(false)
+  const [freeTables, setFreeTables] = useState<any[]>([])
+
   const load = useCallback(async () => {
     setLoading(true)
     const r = await api.getRestbarOrders()
@@ -1250,6 +1260,61 @@ function CajaTab() {
   const clearSelection = () => {
     setSelected(null); setBreakdown(null)
     setPayTarget(null); setPayMode(null); setAmountPaid(''); setSplitCount(2)
+  }
+
+  // Modo Cajero: helpers
+  const loadMenu = async () => {
+    const r = await api.getRestbarMenu()
+    if (r.success) setMenu((r.data ?? []).filter((m: any) => m.availableInMenu))
+  }
+
+  const addItemToOrder = async (menuItem: any) => {
+    if (!selected?.id) return
+    setAddingId(menuItem.id)
+    const r = await api.addRestbarOrderItem(selected.id, { menuItemId: menuItem.id, quantity: 1 })
+    if (r.success) {
+      toast.success(menuItem.name + ' agregado')
+      const refreshed = await api.getRestbarOrder(selected.id)
+      if (refreshed.success) setSelected(refreshed.data)
+    } else toast.error(r.error)
+    setAddingId(null)
+  }
+
+  const cancelCajaOrder = async () => {
+    if (!selected?.id) return
+    setCancelling(true)
+    const r = await api.cancelRestbarOrder(selected.id)
+    if (r.success) {
+      toast.success('Comanda cancelada')
+      clearSelection(); load()
+    } else toast.error(r.error)
+    setCancelling(false)
+  }
+
+  const sendCajaToKitchen = async () => {
+    if (!selected?.id) return
+    setSending(true)
+    const r = await api.sendRestbarOrderToKitchen(selected.id)
+    if (r.success) {
+      toast.success('Enviado a cocina')
+      const refreshed = await api.getRestbarOrder(selected.id)
+      if (refreshed.success) setSelected(refreshed.data)
+    } else toast.error(r.error)
+    setSending(false)
+  }
+
+  const createQuickOrder = async (tableId: string) => {
+    const r = await api.createRestbarOrder({ tableId, guestsCount: 1 })
+    if (r.success) {
+      toast.success('Comanda rapida creada')
+      load()
+      await selectOrder(r.data.id)
+    } else toast.error(r.error)
+  }
+
+  const showFreeTables = async () => {
+    const r = await api.getRestbarTables()
+    if (r.success) setFreeTables((r.data ?? []).filter((t: any) => t.status === 'libre' && t.isActive !== false))
   }
 
   const refreshBreakdown = async () => {
@@ -1399,6 +1464,83 @@ function CajaTab() {
         </div>
       </div>
 
+      {/* ── 
+      {/* Modo Cajero: toggle */}
+      <div className="flex items-center gap-2 shrink-0">
+        <button onClick={() => { setCajaMode('cobro'); setShowMenuPicker(false) }}
+          className={cn('flex-1 rounded-lg py-2 text-sm font-bold transition-all',
+            cajaMode === 'cobro' ? 'bg-green-600 text-white' : 'bg-card border border-border text-muted-foreground hover:text-foreground')}>
+          <Receipt className="h-3.5 w-3.5 inline mr-1.5" /> Cobro
+        </button>
+        <button onClick={() => { setCajaMode('full'); loadMenu() }}
+          className={cn('flex-1 rounded-lg py-2 text-sm font-bold transition-all',
+            cajaMode === 'full' ? 'bg-primary text-primary-foreground' : 'bg-card border border-border text-muted-foreground hover:text-foreground')}>
+          <Zap className="h-3.5 w-3.5 inline mr-1.5" /> Cajero
+        </button>
+      </div>
+
+      {/* Modo Cajero: acciones */}
+      {cajaMode === 'full' && (
+        <div className="grid grid-cols-2 gap-2 shrink-0">
+          <button onClick={() => { setShowMenuPicker(true); loadMenu() }}
+            className="flex items-center justify-center gap-1.5 rounded-xl border-2 border-border bg-card py-2.5 text-sm font-semibold hover:border-primary/50 hover:bg-primary/5 transition-all active:scale-[0.98]">
+            <Plus className="h-4 w-4" /> Andir items
+          </button>
+          <button onClick={sendCajaToKitchen} disabled={sending || selected?.status === 'cerrada' || selected?.status === 'cancelada'}
+            className="flex items-center justify-center gap-1.5 rounded-xl border-2 border-border bg-card py-2.5 text-sm font-semibold hover:border-amber-500/50 hover:bg-amber-500/5 transition-all active:scale-[0.98] disabled:opacity-40">
+            <Send className="h-4 w-4" /> {sending ? 'Enviando...' : 'Enviar cocina'}
+          </button>
+          <button onClick={cancelCajaOrder} disabled={cancelling}
+            className="flex items-center justify-center gap-1.5 rounded-xl border-2 border-red-500/20 bg-card py-2.5 text-sm font-semibold text-red-400 hover:bg-red-500/10 transition-all active:scale-[0.98] disabled:opacity-40">
+            <XCircle className="h-4 w-4" /> {cancelling ? 'Cancelando...' : 'Cancelar comanda'}
+          </button>
+          <button onClick={() => { setPayMode('table'); setPayTarget(null); setAmountPaid(String(Math.ceil(selected.total))) }}
+            className="flex items-center justify-center gap-1.5 rounded-xl border-2 border-green-500/20 bg-green-500/10 py-2.5 text-sm font-semibold text-green-400 hover:bg-green-500/20 transition-all active:scale-[0.98]">
+            <Receipt className="h-4 w-4" /> Cobrar mesa
+          </button>
+        </div>
+      )}
+      {/* Modo Cajero: toggle */}
+      <div className="flex items-center gap-2 shrink-0">
+        <button onClick={() => { setCajaMode('cobro'); setShowMenuPicker(false) }}
+          className={cn('flex-1 rounded-lg py-2 text-xs font-bold transition-all',
+            cajaMode === 'cobro' ? 'bg-green-600 text-white' : 'bg-card border border-border text-muted-foreground hover:text-foreground')}
+        >
+          <Receipt className="h-3.5 w-3.5 inline mr-1" /> Cobro
+        </button>
+        <button onClick={() => { setCajaMode('full'); loadMenu() }}
+          className={cn('flex-1 rounded-lg py-2 text-xs font-bold transition-all',
+            cajaMode === 'full' ? 'bg-primary text-primary-foreground' : 'bg-card border border-border text-muted-foreground hover:text-foreground')}
+        >
+          <Zap className="h-3.5 w-3.5 inline mr-1" /> Cajero
+        </button>
+      </div>
+
+      {/* Modo Cajero: acciones */}
+      {cajaMode === 'full' && (
+        <div className="grid grid-cols-2 gap-2 shrink-0">
+          <button onClick={() => { setShowMenuPicker(true); loadMenu() }}
+            className="flex items-center justify-center gap-1.5 rounded-xl border-2 border-border bg-card py-2.5 text-xs font-semibold hover:border-primary/50 hover:bg-primary/5 transition-all active:scale-[0.98]"
+          >
+            <Plus className="h-4 w-4" /> Añadir items
+          </button>
+          <button onClick={sendCajaToKitchen} disabled={sending || selected?.status === 'cerrada' || selected?.status === 'cancelada'}
+            className="flex items-center justify-center gap-1.5 rounded-xl border-2 border-border bg-card py-2.5 text-xs font-semibold hover:border-amber-500/50 hover:bg-amber-500/5 transition-all active:scale-[0.98] disabled:opacity-40"
+          >
+            <Send className="h-4 w-4" /> {sending ? 'Enviando...' : 'Enviar cocina'}
+          </button>
+          <button onClick={cancelCajaOrder} disabled={cancelling}
+            className="flex items-center justify-center gap-1.5 rounded-xl border-2 border-red-500/20 bg-card py-2.5 text-xs font-semibold text-red-400 hover:bg-red-500/10 transition-all active:scale-[0.98] disabled:opacity-40"
+          >
+            <XCircle className="h-4 w-4" /> {cancelling ? 'Cancelando...' : 'Cancelar comanda'}
+          </button>
+          <button onClick={() => { setPayMode('table'); setPayTarget(null); setAmountPaid(String(Math.ceil(selected.total))) }}
+            className="flex items-center justify-center gap-1.5 rounded-xl border-2 border-green-500/20 bg-green-500/10 py-2.5 text-xs font-semibold text-green-400 hover:bg-green-500/20 transition-all active:scale-[0.98]"
+          >
+            <Receipt className="h-4 w-4" /> Cobrar mesa
+          </button>
+        </div>
+      )}
       {/* ── Selector de modo ── */}
       {payMode === null && (
         <div className="rounded-2xl border-2 border-dashed border-border bg-card/50 p-5 space-y-3 shrink-0">

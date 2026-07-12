@@ -14,6 +14,7 @@ import { variantsService } from '../variants/variants.service';
 import { orderPricingService } from './order-pricing.service';
 import { privacyService } from '../privacy/privacy.service';
 import { redactPII } from '../../utils/redact';
+import { resolveComboOrderItem } from '../combos/combos.routes';
 
 const router: ReturnType<typeof Router> = Router();
 
@@ -129,10 +130,12 @@ async function createHolds(
 ): Promise<void> {
   for (const item of items) {
     if (!item.productId) continue;
+    // `id` es BIGINT AUTO_INCREMENT — NO insertarlo (un uuid se coacciona a 0/número y
+    // colisiona en PK, tumbando el hold). Se deja que la BD lo genere.
     await pool.query(
-      `INSERT INTO inventory_holds (id, order_id, product_id, tenant_id, quantity, expires_at)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [uuidv4(), orderId, item.productId, tenantId, item.quantity, expiresAt]
+      `INSERT INTO inventory_holds (order_id, product_id, tenant_id, quantity, expires_at)
+       VALUES (?, ?, ?, ?, ?)`,
+      [orderId, item.productId, tenantId, item.quantity, expiresAt]
     );
   }
 }
@@ -280,12 +283,40 @@ router.post(
       }
       cleanupTenantId = tenantId;
 
+      // ── Combos: resolver precio autoritativo y componentes (server-side) ──
+      // Un ítem de combo llega con { comboId, comboSizeCount, comboItemIds }. Se revalida
+      // contra la tabla combos (precio fijo del tamaño, ítems permitidos) y se marca para
+      // insertarse como UNA línea con product_id NULL (respeta la FK) cuyo nombre lleva el
+      // detalle. El stock se descuenta de los productos componentes, no del "combo".
+      const comboComponentsForStock: { productId: string; quantity: number; productName?: string }[] = [];
+      for (const ci of (items as any[]).filter(i => i.comboId)) {
+        const resolved = await resolveComboOrderItem(tenantId, {
+          comboId: String(ci.comboId),
+          sizeCount: Number(ci.comboSizeCount),
+          itemIds: Array.isArray(ci.comboItemIds) ? ci.comboItemIds : [],
+        });
+        if (!resolved.ok) {
+          res.status(400).json({ success: false, error: resolved.error });
+          return;
+        }
+        ci._isCombo = true;
+        ci._comboData = { comboId: String(ci.comboId), sizeCount: Number(ci.comboSizeCount), componentIds: resolved.componentIds, componentNames: resolved.componentNames };
+        ci.variantId = null;                 // nunca es variante
+        ci.productName = resolved.name;       // "Combo X (x2): A + B"
+        ci.unitPrice = resolved.price;        // precio fijo autoritativo
+        const qty = Number(ci.quantity) || 1;
+        for (const pid of resolved.componentIds) {
+          comboComponentsForStock.push({ productId: pid, quantity: qty, productName: resolved.name });
+        }
+      }
+
       // Separar ítems con variante (stock en product_variants) de los simples (stock en products)
       const variantItems = (items as any[]).filter(i => i.variantId);
-      const productItems = (items as any[]).filter(i => !i.variantId);
+      const productItems = (items as any[]).filter(i => !i.variantId && !i._isCombo);
 
-      // Verificar stock de productos SIN variante (los de variante se validan al reservar)
-      const stockCheck = await checkStockAvailability(productItems, tenantId);
+      // Verificar stock: productos SIN variante + componentes de combos (los de variante se
+      // validan al reservar). El "combo" en sí no tiene stock propio.
+      const stockCheck = await checkStockAvailability([...productItems, ...comboComponentsForStock], tenantId);
       if (!stockCheck.ok) {
         res.status(409).json({
           success: false,
@@ -376,10 +407,12 @@ router.post(
       for (const item of items) {
         await pool.query(
           `INSERT INTO storefront_order_items
-            (order_id, product_id, variant_id, product_name, product_image, quantity, unit_price, original_price, discount_percent, total_price, size, color,
+            (order_id, product_id, variant_id, combo_data, product_name, product_image, quantity, unit_price, original_price, discount_percent, total_price, size, color,
              is_presale, presale_ship_start, presale_ship_end)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [orderId, item.productId, item.variantId || null, item.productName, item.productImage || null,
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [orderId, item._isCombo ? null : item.productId, item.variantId || null,
+            item._comboData ? JSON.stringify(item._comboData) : null,
+            item.productName, item.productImage || null,
             item.quantity, item.unitPrice, item.originalPrice || item.unitPrice, item.discountPercent || 0,
             item.unitPrice * item.quantity,
             item.size || null, item.color || null,
@@ -392,7 +425,11 @@ router.post(
       // Crear holds de 24h para contraentrega (solo productos sin variante;
       // las variantes ya quedaron reservadas vía reserved_stock)
       const holdExpiry24h = new Date(Date.now() + 24 * 60 * 60 * 1000);
-      await createHolds(orderId, tenantId, productItems.map((i: any) => ({ productId: i.productId, quantity: i.quantity })), holdExpiry24h).catch(() => {});
+      await createHolds(
+        orderId, tenantId,
+        [...productItems, ...comboComponentsForStock].map((i: any) => ({ productId: i.productId, quantity: i.quantity })),
+        holdExpiry24h
+      ).catch((err: any) => console.error('[createHolds] failed for order', orderId, ':', err?.message || err));
 
       // Fire merchant notification (async, non-blocking)
       try {
@@ -1565,7 +1602,7 @@ router.get(
       // Get items for each order
       for (const order of orders) {
         const [items] = await pool.query(
-          `SELECT oi.id, oi.product_id as productId, oi.product_name as productName,
+          `SELECT oi.id, oi.product_id as productId, oi.combo_data as comboData, oi.product_name as productName,
                   oi.product_image as productImage, oi.quantity, oi.unit_price as unitPrice,
                   oi.original_price as originalPrice, oi.discount_percent as discountPercent,
                   oi.total_price as totalPrice, oi.size, oi.color
@@ -1641,7 +1678,7 @@ router.get('/:id', async (req: Request, res: Response) => {
     }
 
     const [items] = await pool.query(
-      `SELECT oi.id, oi.product_id as productId, oi.product_name as productName,
+      `SELECT oi.id, oi.product_id as productId, oi.combo_data as comboData, oi.product_name as productName,
               oi.product_image as productImage, oi.quantity, oi.unit_price as unitPrice,
               oi.total_price as totalPrice, oi.size, oi.color
        FROM storefront_order_items oi
@@ -1721,7 +1758,7 @@ router.put(
       if (status === 'entregado') {
         // Get order items
         const [orderItems] = await connection.query(
-          `SELECT oi.product_id as productId, oi.variant_id as variantId, oi.product_name as productName,
+          `SELECT oi.product_id as productId, oi.variant_id as variantId, oi.combo_data as comboData, oi.product_name as productName,
                   oi.quantity, oi.unit_price as unitPrice, oi.original_price as originalPrice,
                   oi.discount_percent as discountPercent, oi.total_price as totalPrice,
                   oi.is_presale as isPresale
@@ -1854,6 +1891,38 @@ router.put(
                   `Venta online ${invoiceNumber}`, saleId, userId
                 ]
               );
+            }
+          } else if (item.comboData) {
+            // ── Combo: descuenta stock de cada componente (product_id es NULL en el ítem) ──
+            const cd = typeof item.comboData === 'string' ? JSON.parse(item.comboData) : item.comboData;
+            const componentIds: string[] = cd?.componentIds || [];
+            for (const cid of componentIds) {
+              const [cdRows] = await connection.query(
+                'SELECT sku, stock FROM products WHERE id = ? FOR UPDATE',
+                [cid]
+              ) as any;
+              if (cdRows.length > 0) {
+                const cdStock = cdRows[0].stock;
+                await connection.query(
+                  'UPDATE products SET stock = GREATEST(0, stock - ?) WHERE id = ? AND tenant_id = ?',
+                  [item.quantity, cid, tenantId]
+                );
+                if (order.sede_id) {
+                  await connection.query(
+                    'UPDATE sede_stock SET stock = GREATEST(0, stock - ?) WHERE tenant_id = ? AND sede_id = ? AND product_id = ?',
+                    [item.quantity, tenantId, order.sede_id, cid]
+                  );
+                }
+                await connection.query(
+                  `INSERT INTO stock_movements (id, tenant_id, product_id, type, quantity, previous_stock, new_stock, reason, reference_id, user_id)
+                   VALUES (?, ?, ?, 'venta', ?, ?, GREATEST(0, ?), ?, ?, ?)`,
+                  [
+                    uuidv4(), tenantId, cid,
+                    item.quantity, cdStock, cdStock - item.quantity,
+                    `Venta online combo ${invoiceNumber}`, saleId, userId
+                  ]
+                );
+              }
             }
           }
 

@@ -4,6 +4,94 @@
 
 ---
 
+## [2026-07-12] — Agente de Impresión: empaquetado en Docker
+
+El botón "Descargar programa" queda funcional en el despliegue: el `.exe` se compila dentro del build del backend.
+
+- **Movido** `tools/print-agent/` → `backend/print-agent-app/` (para que esté en el contexto de build del backend). Build script ahora emite `../assets/print-agent.exe`.
+- **`backend/Dockerfile`**: en el stage builder, tras compilar el server, corre `pkg print-agent-app --targets node18-win-x64 --output /app/assets/print-agent.exe` (instala `pkg@5.8.1`). Es **no-fatal**: si pkg falla (p.ej. sin red), la imagen igual se construye y `/print-agent/download` responde 503. El runner copia `/app/assets` → `./assets`.
+- `BINARY_PATH` del endpoint resuelve a `/app/assets/print-agent.exe` (coincide con lo copiado). Syntax-check del agente OK.
+- **Nota**: `pkg` descarga el binario base de Node para Windows → el build necesita red. Verificar en los logs del build que NO aparezca "WARN: no se pudo compilar print-agent.exe".
+
+## [2026-07-12] — Agente de Impresión: cola de trabajos
+
+Cierra el puente nube→impresora: los tickets de cocina/bar se encolan y el agente los imprime en la LAN. Migración 0039. E2E 10/10.
+
+- **DB** (migración 0039): tabla `print_jobs` (tenant, module, `printer_ip`/`printer_port`, `data_base64` ESC/POS, `status` pending|sent|done|failed, `attempts`, `error`, timestamps).
+- **Backend** `printers.service.ts`: `enqueueKitchenJob(module, tenantId, data)` — resuelve la impresora LAN del módulo, arma el ESC/POS (`buildKitchenTicket`) y lo inserta en `print_jobs`. No encola si no hay impresora LAN con IP (no rompe el pedido).
+- **Backend** `restbar.service.ts` `_printOrderToArea`: ahora **encola** (`enqueueKitchenJob`) en vez de imprimir por TCP directo (que la nube no puede).
+- **Backend** `print-agent.routes.ts`: `heartbeat` ahora reclama pendientes (pending→sent, +attempts), recupera atascados (sent >60s → pending) y devuelve `{id, ip, port, dataBase64, area}`; nuevos `POST /jobs/:id/done` y `POST /jobs/:id/failed` (reintenta hasta 3, luego failed). Helper `agentFromToken`.
+- El agente (`tools/print-agent/index.js`) ya consumía este formato (imprime por TCP y confirma done/failed) → sin cambios.
+- `tsc` back 6 base. **E2E 10/10**: entrega con bytes, done, reintentos 3×→failed, reclaim de atascados, aislamiento por token.
+
+## [2026-07-12] — Agente de Impresión local: distribución + vinculación
+
+Primer paso del puente nube→impresora LAN: el comerciante descarga un programa desde su panel, lo abre y lo vincula con un código. La cola de trabajos de impresión va en el siguiente paso. Migración 0038. E2E 14/14.
+
+- **DB** (migración 0038): tabla `print_agents` (tenant, `pairing_code` único, `token` único, `paired_at`, `last_seen_at`).
+- **Backend** `modules/print-agent/print-agent.routes.ts` (montado en `/api/print-agent`):
+  - Comerciante (auth): `GET /download` (sirve el .exe desde `PRINT_AGENT_BINARY_PATH` o `backend/assets/print-agent.exe`; 503 con mensaje si no está), `GET /status` (agentes + online<90s + binaryAvailable), `POST /pairing-code` (genera/reutiliza código sin vincular), `DELETE /:id`.
+  - Agente (público): `POST /pair` (canjea código→token durable + nombre del comercio), `POST /heartbeat` (header `x-agent-token`, actualiza last_seen, devuelve `jobs:[]` — placeholder de la cola).
+- **Agente** `tools/print-agent/` (Node nativo, sin deps → empaquetable con `pkg`): `index.js` (config en `%APPDATA%`, pide código en 1er arranque, canjea token, se registra en auto-inicio de Windows vía clave Run, loop heartbeat + impresión TCP a `ip:9100`), `package.json` (`npm run build` → `backend/assets/print-agent.exe`), `README.md`.
+- **Frontend**: `components/print-agent-card.tsx` (descargar, generar/copiar código, equipos con estado en línea) integrado en `printers.tsx`; métodos en `api.ts` (`getPrintAgentStatus`, `createPrintAgentCode`, `deletePrintAgent`, `downloadPrintAgent` con blob).
+- **Pendiente**: (1) compilar el `.exe` (`cd tools/print-agent && npm i && npm run build`) e incluirlo en la imagen Docker para que `/download` lo sirva; (2) cola de trabajos: encolar tickets en `sendToKitchen`/venta y entregarlos por `heartbeat`. `tsc` back 6 / front 8 base. E2E 14/14.
+
+## [2026-07-12] — Impresión cocina/bar (fix) + PWA instalable en escritorio
+
+### Fix impresión RestBar (cocina/bar)
+- `restbar.service.ts` `_printOrderToArea`: leía los ítems/comanda con nombres **snake_case** (`i.preparation_area`, `menu_item_name`, `order.order_number`…) pero `getOrderById` los devuelve **camelCase** (`mapOrderItem`/`mapOrder`) → filtros siempre vacíos → **nunca imprimía** (silencioso, TS no lo atrapa por bivarianza del callback de `.filter`). Corregido a camelCase (`preparationArea`, `menuItemName`, `itemNotes`, `orderNumber`, `tableNumber`, `waiterName`). `tsc` back 6 base.
+- **Nota de arquitectura pendiente**: la impresión LAN sale del backend (socket TCP a `ip:9100`). Con el backend en la nube NO alcanza IPs privadas `192.168.x.x` de las impresoras Ethernet del local → hace falta un **agente de impresión local** (puente nube→impresora). Ver plan en la sesión.
+
+### PWA instalable + aviso de actualización
+- `next.config.ts`: `BUILD_ID` único por build → `generateBuildId` + `env.NEXT_PUBLIC_APP_VERSION`.
+- Nuevo `app/app-version/route.ts`: devuelve el build id del servidor (`no-store`, fuera de `/api` para no pasar por el rewrite al backend).
+- Nuevo `components/pwa-manager.tsx` (montado en `layout.tsx`): registra el SW al arranque, captura `beforeinstallprompt` → botón "Instalar app" (escritorio Chrome/Edge + Android, oculto si ya está en modo standalone), y sondea `/app-version` (cada 2 min + al enfocar) → si el build del servidor difiere del horneado en el cliente, muestra toast persistente "Actualizar" que recarga. `tsc` front 8 base.
+
+## [2026-07-12] — Combos por día — Fases 3+4: storefront, stock, visualización
+
+Cierre completo del módulo de combos. `tsc` backend 6 base (0 nuevos). Migración 0037.
+
+### Fase 3 — Storefront + ruta de pedido de combo
+- **Nuevo** `frontend/components/combos-today.tsx` (`CombosToday`): sección pública "Combos de hoy" en el storefront (Tema 1). Muestra combos activos HOY con modal armador (elegir tamaño → elegir N ítems → precio fijo). Línea de combo al carrito con `comboId`, `comboSizeCount`, `comboItemIds`.
+- **Backend** `combos.routes.ts`: `resolveComboOrderItem()` — resolución autoritativa server-side del precio + validación de ítems.
+- **Backend** `orders.routes.ts:289-308`: integración de combo en el POST público de pedidos: revalida precio, marca `_isCombo`, inserta con `product_id=NULL` + `combo_data` JSON, crea holds de componentes.
+- **Fix** `.catch(() => {})` → `.catch(err => console.error(...))` en `createHolds` para no tragar errores.
+
+### Fase 4 — Stock, visualización, Theme 2, DAIMUZ
+- **Bug crítico corregido**: stock de componentes nunca se deducía al entregar (los ítems de combo tenían `product_id=NULL` y saltaban el bloque de deducción). Ahora `orders.routes.ts:1893-1930` itera `componentIds` de `combo_data`, descuenta `products.stock`, crea `stock_movements` y descuenta `sede_stock`.
+- **Schema**: migración 0037 (`0037_wild_supreme_intelligence.sql`) — columna `combo_data` JSON en `storefront_order_items`.
+- **Frontend** `pedidos.tsx`: badge "COMBO" en ítems de combo + lista colapsable de componentes.
+- **Frontend** `theme2-order-flow.tsx`: integración de `CombosToday` en Tema 2 con `CartItem` extendido (campos `comboId`, `comboSizeCount`, `comboItemIds`) y payload de checkout.
+- **DAIMUZ**: `daimuz/modules/combos/combos.md` creado. Índices de módulos y endpoints actualizados.
+
+### Verificación (revisión + E2E)
+- **Bug crítico corregido en `createHolds`** (`orders.routes.ts`): insertaba un `uuid` en la columna `id` de `inventory_holds`, que es **`BIGINT AUTO_INCREMENT`** → MySQL coacciona el uuid a número (0/parcial) y el 2.º hold colisiona en PK y falla. Esto rompía **todos** los holds anti-sobreventa de contraentrega (enmascarado por el `.catch(()=>{})`). Fix: no insertar `id`, dejar que la BD lo genere.
+- **E2E `/orders/public` con combo → 15/15**: precio autoritativo (front 999 ignorado → 15000), línea con `product_id=NULL` (respeta FK), nombre con detalle, holds creados para los 2 componentes (no para el combo), x3→20000, y rechazos correctos (ítems insuficientes, ítem ajeno, tamaño inexistente, combo inactivo).
+- **Round-trip `combo_data` verificado**: `{comboId, sizeCount, componentIds, componentNames}` se almacena y se relee OK (alimenta el render de `pedidos.tsx`).
+- Deducción de stock de componentes al facturar (`orders.routes.ts:1895-1927`): revisado por código — correcto y consistente con la rama de producto normal (lock `FOR UPDATE`, `products.stock` + `sede_stock` + `stock_movements`).
+- `tsc` backend 6 base / frontend 8 base — 0 errores nuevos.
+
+## [2026-07-11] — Combos por día — Fase 2: panel del comerciante
+
+Módulo "Combos por día" en el panel del comerciante para crear/editar/activar/eliminar combos usando los endpoints ya verificados en Fase 1. `tsc` front 8 base (0 nuevos).
+
+- **Nuevo** `frontend/components/combos-manager.tsx` (`CombosManager`): lista de combos (chips de días Dom–Sáb, tamaños `x{count} · precio`, # ítems, toggle activo, editar, eliminar) + diálogo crear/editar con nombre, días activos (chips 0-6), tamaños+precios dinámicos (agregar/quitar filas), inclusiones, y **multiselección de ítems** con buscador + filtro por categoría (`api.getProducts({limit:1000})` + `api.getCategories()`). Validación cliente: nombre, ≥1 día, cada tamaño con precio > 0, ≥1 ítem.
+- `frontend/lib/api.ts`: `getCombos`, `createCombo`, `updateCombo`, `toggleCombo`, `deleteCombo`, `getPublicCombos(store)`.
+- `frontend/components/panel-comerciante-shell.tsx`: ítem de menú `{ id: 'combos', label: 'Combos por día', icon: Layers, adminOnly: true }` (grupo gastrobar).
+- `frontend/components/merchant-panel.tsx`: import + `case 'combos': return <CombosManager />`.
+- **Pendiente Fase 3** (storefront): sección "Combos de hoy" + upsell + modal armador (elegir tamaño → elegir N ítems) + línea de combo en carrito. Nota técnica: el blindaje de precios del backend (`order-pricing.service`) reescribe el `unitPrice` de ítems con `productId` real → la Fase 3/4 necesita una ruta de pedido de combo dedicada (precio fijo autoritativo desde la tabla `combos` + descuento de stock de los componentes).
+
+## [2026-07-11] — Combos por día — Fase 1: DB + backend
+
+Combos recurrentes por día de la semana (lun perros x2/x3, mié hamburguesas, jue tacos), armados con ítems elegibles seleccionados (no toda la categoría), tamaños a precio fijo e inclusiones. Verificado E2E 13/13. Migración 0036.
+
+- **DB** (`schema.ts` → migración 0036 `woozy_the_executioner`): tabla `combos` (name, `active_days` JSON [0-6], `sizes` JSON `[{count,price}]`, `includes` texto, image_url, is_active) + `combo_items` (los ítems elegibles del combo → product_id).
+- **Backend** (`modules/combos/combos.routes.ts`, montado en `/api/combos`): 
+  - Comerciante: `GET /` (lista con ítems), `POST` (name/activeDays/sizes/includes/itemIds, valida días+tamaños+ítems), `PUT /:id` (campos + ítems), `PATCH /:id` (activar/desactivar), `DELETE /:id`.
+  - **Público `GET /combos/public?store=slug`** → combos **activos HOY** (weekday en zona Bogotá UTC-5 vía `JSON_CONTAINS(active_days, ?)`) con sus ítems (id, nombre, precio, foto) + tamaños + inclusiones; solo los que tienen ≥1 ítem.
+- `normalizeDays`/`normalizeSizes`, `attachItems` (join a products), `bogotaWeekday`. `tsc` back 6 base (0 nuevos). E2E 13/13: crear combo hoy y otro día; validaciones (sin días/ítems → 400); el público SOLO trae el de hoy (no el de otro día); trae tamaños/ítems/inclusiones; desactivar lo oculta; editar ítems reduce a 1.
+- **Siguiente**: Fase 2 (panel comerciante: módulo "Combos"), Fase 3 (storefront: sección "Combos de hoy" + armador + upsell + línea de carrito), Fase 4 (pedido/cocina). Pendiente commit + redeploy.
+
 ## [2026-07-11] — Plantillas de modificadores — Fase 2: UI en el gestor del ítem (inventario) · ROADMAP COMPLETO
 
 El comerciante guarda y aplica plantillas desde el mismo gestor de modificadores del producto. `tsc` front 8 base (0 nuevos).

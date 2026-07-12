@@ -2,6 +2,16 @@
 
 > Actualiza este archivo después de cada sesión de trabajo significativa.
 
+## 🆕 [2026-07-12] Combos por día — Fases 3+4 completas (storefront + stock + visualización)
+
+> Cierre del módulo de combos (4/4 fases). Detalle en `changelog.md`.
+
+- ✅ **Fase 3**: `CombosToday` en storefront Tema 1 (modal armador: elegir tamaño → N ítems → precio fijo). `resolveComboOrderItem()` server-side. Ruta de pedido con `_isCombo` + `combo_data` JSON + holds de componentes.
+- ✅ **Fase 4**: deducción de stock de componentes al entregar (bug crítico corregido). Badge COMBO + lista colapsable en `pedidos.tsx`. Integración en Tema 2 (`theme2-order-flow.tsx`). DAIMUZ docs completos.
+- ✅ Migración 0037: columna `combo_data` JSON en `storefront_order_items`.
+- ✅ `tsc` backend 6 base (0 nuevos), frontend pendiente de verificación por timeout de build.
+- ⏳ Redeploy (back+front) a producción pendiente. Migraciones 0036–0037 pendientes de aplicar en prod.
+
 ## 🆕 [2026-07-08] F5+F6 — tracking del cliente + dashboard gerencial: PLAN FERRETERÍA COMPLETO (✅ E2E 23/23)
 
 > Cierre del plan de la auditoría ferretería (6/6 fases). Detalle en `changelog.md`.

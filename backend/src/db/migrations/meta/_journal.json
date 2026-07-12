@@ -253,6 +253,34 @@
       "when": 1783786930500,
       "tag": "0035_nasty_fallen_one",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "5",
+      "when": 1783810302859,
+      "tag": "0036_woozy_the_executioner",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "5",
+      "when": 1783868784904,
+      "tag": "0037_wild_supreme_intelligence",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "5",
+      "when": 1783877161144,
+      "tag": "0038_burly_franklin_richards",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "5",
+      "when": 1783883483209,
+      "tag": "0039_slow_old_lace",
+      "breakpoints": true
     }
   ]
 }

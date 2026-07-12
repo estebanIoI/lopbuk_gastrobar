@@ -1472,6 +1472,61 @@ class ApiService {
     return this.request<{ productsScanned: number; productsAffected: number; groupsAdded: number }>('/modifiers/apply-bulk', { method: 'POST', body: JSON.stringify(data) })
   }
 
+  // ── Combos por día ──
+  async getCombos() {
+    return this.request<any[]>('/combos')
+  }
+  async createCombo(data: { name: string; activeDays: number[]; sizes: { count: number; price: number }[]; includes?: string; imageUrl?: string; itemIds: string[] }) {
+    return this.request<{ id: string }>('/combos', { method: 'POST', body: JSON.stringify(data) })
+  }
+  async updateCombo(id: string, data: Record<string, unknown>) {
+    return this.request<any>(`/combos/${id}`, { method: 'PUT', body: JSON.stringify(data) })
+  }
+  async toggleCombo(id: string, isActive: boolean) {
+    return this.request<any>(`/combos/${id}`, { method: 'PATCH', body: JSON.stringify({ isActive }) })
+  }
+  async deleteCombo(id: string) {
+    return this.request<any>(`/combos/${id}`, { method: 'DELETE' })
+  }
+  // Público (armador en la tienda)
+  async getPublicCombos(store: string) {
+    return this.request<any[]>(`/combos/public?store=${encodeURIComponent(store)}`)
+  }
+
+  // ── Agente de impresión local ──
+  async getPrintAgentStatus() {
+    return this.request<{ agents: { id: string; name: string | null; pairingCode: string; paired: boolean; lastSeenAt: string | null; online: boolean }[]; binaryAvailable: boolean }>('/print-agent/status')
+  }
+  async createPrintAgentCode() {
+    return this.request<{ code: string }>('/print-agent/pairing-code', { method: 'POST' })
+  }
+  async deletePrintAgent(id: string) {
+    return this.request<any>(`/print-agent/${id}`, { method: 'DELETE' })
+  }
+  /** Descarga el .exe del agente (maneja el 503 si aún no está publicado). */
+  async downloadPrintAgent(): Promise<{ success: boolean; error?: string }> {
+    try {
+      const res = await fetch(`${API_URL}/print-agent/download`, { credentials: 'include' })
+      if (!res.ok) {
+        let error = `Error ${res.status}`
+        try { const j = await res.json(); error = j.error || error } catch { /* binario */ }
+        return { success: false, error }
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'DAIMUZ-Impresion.exe'
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+      return { success: true }
+    } catch (e: any) {
+      return { success: false, error: e?.message || 'No se pudo descargar' }
+    }
+  }
+
   // ── Tarjetas del marketplace (página principal, superadmin) ──
   async getMarketplaceCards() {
     return this.request<any[]>('/tenants/marketplace-cards')

@@ -144,7 +144,7 @@ router.use(authenticate);
 
 const ADMIN_ROLES: UserRole[]   = ['superadmin', 'comerciante', 'administrador_rb'];
 // vendedor tiene los mismos permisos que mesero dentro del módulo RestBar
-const WAITER_ROLES: UserRole[]  = [...ADMIN_ROLES, 'mesero', 'vendedor'];
+const WAITER_ROLES: UserRole[]  = [...ADMIN_ROLES, 'mesero', 'vendedor', 'cajero'];
 const KITCHEN_ROLES: UserRole[] = [...ADMIN_ROLES, 'cocinero', 'bartender'];
 const CASHIER_ROLES: UserRole[] = [...ADMIN_ROLES, 'cajero', 'vendedor'];
 const ALL_RB_ROLES: UserRole[]  = [...new Set([...WAITER_ROLES, ...KITCHEN_ROLES, ...CASHIER_ROLES])];
