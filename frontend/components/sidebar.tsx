@@ -50,6 +50,7 @@ import {
   BookOpenText,
   IdCard,
   Briefcase,
+  Layers,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { resolveActiveModules } from '@/lib/modules'
@@ -109,6 +110,7 @@ const navigation: NavItem[] = [
   // gastrobar ops
   { id: 'gastrobar-ops', name: 'Centro de Mando', icon: Gauge, adminOnly: true, superadminOnly: false, merchantOnly: true, group: 'gastrobar' },
   { id: 'merma', name: 'Control de Merma', icon: Flame, adminOnly: true, superadminOnly: false, merchantOnly: true, group: 'gastrobar' },
+  { id: 'combos', name: 'Combos por día', icon: Layers, adminOnly: true, superadminOnly: false, merchantOnly: true, group: 'gastrobar' },
   // operations
   { id: 'restbar', name: 'RestBar', icon: UtensilsCrossed, adminOnly: false, superadminOnly: false, merchantOnly: true, group: 'ops' },
   { id: 'pos', name: 'Punto de Venta', icon: ShoppingCart, adminOnly: false, superadminOnly: false, merchantOnly: true, group: 'ops' },

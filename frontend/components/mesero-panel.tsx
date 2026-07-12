@@ -317,7 +317,7 @@ function OrderModal({
   const [editingNote, setEditingNote]       = useState<string | null>(null)
   const [noteText, setNoteText]             = useState('')
   const [savingNote, setSavingNote]         = useState(false)
-  const [cancelStep, setCancelStep]         = useState<0 | 1 | 2>(0)
+  const [cancelStep, setCancelStep]         = useState<0 | 1>(0)
 
   // ── Guest management ──────────────────────────────────────────────────────
   const [guests, setGuests]             = useState<Guest[]>([])
@@ -507,7 +507,7 @@ function OrderModal({
           <p className="text-lg font-bold text-amber-400 shrink-0">{fmt(cartTotal)}</p>
         )}
 
-        {/* Cancel mesa button — 2-step confirmation */}
+        {/* Cancelar mesa — una sola confirmación (evita el doble "confirmar" que confundía al mesero) */}
         {order && cancelStep === 0 && (
           <button
             onClick={() => setCancelStep(1)}
@@ -518,37 +518,19 @@ function OrderModal({
         )}
         {order && cancelStep === 1 && (
           <div className="shrink-0 flex items-center gap-1.5 animate-in fade-in duration-150">
-            <AlertTriangle className="h-3.5 w-3.5 text-amber-400 shrink-0" />
-            <span className="text-[11px] text-amber-400 font-medium">¿Seguro?</span>
+            <AlertTriangle className="h-3.5 w-3.5 text-rose-500 shrink-0" />
+            <span className="text-[11px] text-rose-400 font-medium">¿Cancelar la mesa?</span>
             <button
-              onClick={() => setCancelStep(2)}
-              className="h-7 px-2 rounded text-[11px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30 hover:bg-amber-500/25 transition-colors"
+              onClick={cancelOrder}
+              className="h-7 px-2 rounded text-[11px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/40 hover:bg-rose-500/30 transition-colors"
             >
-              Sí
+              Sí, cancelar
             </button>
             <button
               onClick={() => setCancelStep(0)}
               className="h-7 px-2 rounded text-[11px] text-muted-foreground hover:text-foreground transition-colors"
             >
               No
-            </button>
-          </div>
-        )}
-        {order && cancelStep === 2 && (
-          <div className="shrink-0 flex items-center gap-1.5 animate-in fade-in duration-150">
-            <AlertTriangle className="h-3.5 w-3.5 text-rose-500 shrink-0" />
-            <span className="text-[11px] text-rose-400 font-medium leading-tight">¿Confirmar<br/>cancelación?</span>
-            <button
-              onClick={cancelOrder}
-              className="h-7 px-2 rounded text-[11px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/40 hover:bg-rose-500/30 transition-colors"
-            >
-              Cancelar
-            </button>
-            <button
-              onClick={() => setCancelStep(0)}
-              className="h-7 px-2 rounded text-[11px] text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Volver
             </button>
           </div>
         )}
