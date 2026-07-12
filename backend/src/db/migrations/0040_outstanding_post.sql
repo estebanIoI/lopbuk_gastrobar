@@ -1,0 +1,1 @@
+ALTER TABLE `printers` MODIFY COLUMN `assigned_module` enum('caja','cocina','bar','factura','cocina_bar');

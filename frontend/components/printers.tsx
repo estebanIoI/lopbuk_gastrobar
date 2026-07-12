@@ -45,6 +45,7 @@ const MODULE_LABELS: Record<PrinterModule, string> = {
   cocina: 'Cocina',
   bar: 'Bar',
   factura: 'Factura',
+  cocina_bar: 'Cocina y Bar',
 }
 
 // ─── Default form state ────────────────────────────────────────────────────────

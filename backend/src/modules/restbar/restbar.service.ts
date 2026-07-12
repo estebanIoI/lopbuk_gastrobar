@@ -525,26 +525,16 @@ class RestbarService {
       waiterName: order.waiterName,
     };
 
-    const cocinaItems = order.items.filter(i => ['cocina', 'ambos'].includes(i.preparationArea));
-    const barItems = order.items.filter(i => ['bar', 'ambos'].includes(i.preparationArea));
+    const mapItems = (list: typeof order.items) =>
+      list.map(i => ({ name: i.menuItemName, qty: i.quantity, notes: i.itemNotes }));
+    const cocinaItems = mapItems(order.items.filter(i => ['cocina', 'ambos'].includes(i.preparationArea)));
+    const barItems = mapItems(order.items.filter(i => ['bar', 'ambos'].includes(i.preparationArea)));
 
     // Se ENCOLA (no se imprime directo): el Agente de Impresión local recoge el trabajo y lo
     // envía a la impresora en la LAN del local (la nube no alcanza las IP privadas 192.168.x.x).
-    const printKitchen = cocinaItems.length > 0
-      ? printersService.enqueueKitchenJob('cocina', tenantId, {
-          ...base, area: 'COCINA',
-          items: cocinaItems.map(i => ({ name: i.menuItemName, qty: i.quantity, notes: i.itemNotes })),
-        }).catch(() => {})
-      : Promise.resolve();
-
-    const printBar = barItems.length > 0
-      ? printersService.enqueueKitchenJob('bar', tenantId, {
-          ...base, area: 'BAR',
-          items: barItems.map(i => ({ name: i.menuItemName, qty: i.quantity, notes: i.itemNotes })),
-        }).catch(() => {})
-      : Promise.resolve();
-
-    await Promise.all([printKitchen, printBar]);
+    // enqueueOrderTickets decide: 1 ticket combinado si una sola impresora atiende cocina+bar
+    // ('cocina_bar'), o un ticket por área si están separadas.
+    await printersService.enqueueOrderTickets(tenantId, base, cocinaItems, barItems).catch(() => {});
   }
 
   // ── KITCHEN / BAR DISPLAY ─────────────────────────────────────────────────

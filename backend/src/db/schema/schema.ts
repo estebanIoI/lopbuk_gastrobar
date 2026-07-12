@@ -2297,7 +2297,7 @@ export const printers = mysqlTable("printers", {
 	port: int().default(9100).notNull(),
 	paperWidth: tinyint("paper_width").default(80).notNull(),
 	isActive: tinyint("is_active").default(1).notNull(),
-	assignedModule: mysqlEnum("assigned_module", ['caja','cocina','bar','factura']),
+	assignedModule: mysqlEnum("assigned_module", ['caja','cocina','bar','factura','cocina_bar']),
 	createdAt: datetime("created_at", { mode: 'string'}).default(sql`(now())`).notNull(),
 	updatedAt: datetime("updated_at", { mode: 'string'}).default(sql`(now())`).notNull(),
 },
