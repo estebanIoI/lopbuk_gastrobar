@@ -282,9 +282,11 @@ function buildKitchenTicket(data: KitchenTicketData, paperWidth: PaperWidth): Bu
     const qtyText = `${item.qty}x`;
     const nameMax = cols - qtyText.length - 1;
     const name = item.name.length > nameMax ? item.name.substring(0, nameMax) : item.name;
-    esc.line(`${qtyText} ${name}`);
+    // Ítem en NEGRITA + doble alto (grande y legible para la cocina).
+    esc.bold(true).doubleH(true).line(`${qtyText} ${name}`).doubleH(false).bold(false);
     if (item.notes) {
-      esc.line(`   > ${item.notes.substring(0, cols - 5)}`);
+      // Nota en peso normal, con ajuste de línea (no se corta).
+      for (const l of wrapText(item.notes, cols - 3)) esc.line(`  > ${l}`);
     }
   }
 
@@ -325,8 +327,10 @@ function buildCombinedKitchenTicket(
       const qtyText = `${item.qty}x`;
       const nameMax = cols - qtyText.length - 1;
       const name = item.name.length > nameMax ? item.name.substring(0, nameMax) : item.name;
-      esc.line(`${qtyText} ${name}`);
-      if (item.notes) esc.line(`   > ${item.notes.substring(0, cols - 5)}`);
+      esc.bold(true).doubleH(true).line(`${qtyText} ${name}`).doubleH(false).bold(false);
+      if (item.notes) {
+        for (const l of wrapText(item.notes, cols - 3)) esc.line(`  > ${l}`);
+      }
     }
   };
   section('COCINA', data.cocinaItems);
