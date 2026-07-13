@@ -17,6 +17,7 @@ export interface Printer {
   connectionType: ConnectionType;
   ip: string | null;
   port: number;
+  deviceName: string | null;   // USB: nombre de la impresora en Windows
   paperWidth: PaperWidth;
   isActive: boolean;
   assignedModule: PrinterModule | null;
@@ -29,6 +30,7 @@ export interface CreatePrinterData {
   connectionType: ConnectionType;
   ip?: string;
   port?: number;
+  deviceName?: string;
   paperWidth?: PaperWidth;
   assignedModule?: PrinterModule;
 }
@@ -38,6 +40,7 @@ export interface UpdatePrinterData {
   connectionType?: ConnectionType;
   ip?: string;
   port?: number;
+  deviceName?: string | null;
   paperWidth?: PaperWidth;
   isActive?: boolean;
   assignedModule?: PrinterModule | null;
@@ -66,6 +69,14 @@ export interface KitchenTicketData {
   items: Array<{ name: string; qty: number; notes: string | null }>;
 }
 
+export interface BillTicketData {
+  storeName: string;
+  tableNumber: string;
+  orderNumber: string;
+  items: Array<{ name: string; quantity: number; price: number }>;
+  total: number;
+}
+
 interface PrinterRow extends RowDataPacket {
   id: string;
   tenant_id: string;
@@ -73,6 +84,7 @@ interface PrinterRow extends RowDataPacket {
   connection_type: ConnectionType;
   ip: string | null;
   port: number;
+  device_name: string | null;
   paper_width: number;
   is_active: boolean | number;
   assigned_module: PrinterModule | null;
@@ -126,6 +138,7 @@ function mapRow(row: PrinterRow): Printer {
     connectionType: row.connection_type,
     ip: row.ip,
     port: row.port,
+    deviceName: row.device_name,
     paperWidth: row.paper_width as PaperWidth,
     isActive: Boolean(row.is_active),
     assignedModule: row.assigned_module,
@@ -144,6 +157,28 @@ function padRight(str: string, width: number): string {
 
 function padLeft(str: string, width: number): string {
   return str.length >= width ? str.substring(0, width) : ' '.repeat(width - str.length) + str;
+}
+
+/** Parte un texto largo en líneas de ancho `width` respetando palabras (para no cortar notas). */
+function wrapText(str: string, width: number): string[] {
+  const out: string[] = [];
+  for (const rawLine of String(str).split('\n')) {
+    let cur = '';
+    for (const word of rawLine.split(/\s+/).filter(Boolean)) {
+      let w = word;
+      // Palabra sola más larga que el ancho: se parte en trozos.
+      while (w.length > width) {
+        if (cur) { out.push(cur); cur = ''; }
+        out.push(w.slice(0, width));
+        w = w.slice(width);
+      }
+      if (!cur) cur = w;
+      else if ((cur + ' ' + w).length <= width) cur += ' ' + w;
+      else { out.push(cur); cur = w; }
+    }
+    if (cur) out.push(cur);
+  }
+  return out;
 }
 
 // ─── TCP send ──────────────────────────────────────────────────────────────────
@@ -184,6 +219,8 @@ function buildSaleTicket(data: PrintTicketData, paperWidth: PaperWidth): Buffer 
   esc.separator(cols);
   esc.left();
 
+  // Ítems en NEGRITA y un poco más grandes (doble alto) para lectura fácil.
+  esc.bold(true).doubleH(true);
   for (const item of data.items) {
     const qty = `${item.quantity}x`;
     const price = formatCurrency(item.price * item.quantity);
@@ -191,6 +228,7 @@ function buildSaleTicket(data: PrintTicketData, paperWidth: PaperWidth): Buffer 
     const name = item.name.length > nameMaxLen ? item.name.substring(0, nameMaxLen) : padRight(item.name, nameMaxLen);
     esc.line(`${qty} ${name} ${padLeft(price, price.length)}`);
   }
+  esc.doubleH(false).bold(false);
 
   esc.separator(cols);
 
@@ -207,7 +245,10 @@ function buildSaleTicket(data: PrintTicketData, paperWidth: PaperWidth): Buffer 
   esc.line(`Cambio:   ${formatCurrency(data.change)}`);
 
   if (data.notes) {
-    esc.separator(cols).center().line(data.notes);
+    // Nota en peso normal y con ajuste de línea (no se corta si es larga).
+    esc.separator(cols).left().bold(false);
+    esc.line('Nota:');
+    for (const l of wrapText(data.notes, cols)) esc.line(l);
   }
 
   esc.separator(cols);
@@ -300,6 +341,37 @@ function buildCombinedKitchenTicket(
   return esc.toBuffer();
 }
 
+/** Ticket de PRE-CUENTA de mesa (para el cliente): ítems + total, sin ser factura. */
+function buildBillTicket(data: BillTicketData, paperWidth: PaperWidth): Buffer {
+  const cols = paperWidth === 80 ? 42 : 32;
+  const esc = new EscPos().init();
+
+  esc.center().bold(true).doubleH(true).line(data.storeName.substring(0, cols)).doubleH(false).bold(false);
+  esc.separator(cols);
+  esc.center().bold(true).line('PRE-CUENTA').bold(false);
+  esc.center().line(`Mesa: ${data.tableNumber}   ·   #${data.orderNumber}`);
+  esc.separator(cols);
+  esc.left();
+
+  esc.bold(true).doubleH(true);
+  for (const item of data.items) {
+    const qty = `${item.quantity}x`;
+    const price = formatCurrency(item.price * item.quantity);
+    const nameMaxLen = cols - qty.length - price.length - 2;
+    const name = item.name.length > nameMaxLen ? item.name.substring(0, nameMaxLen) : padRight(item.name, nameMaxLen);
+    esc.line(`${qty} ${name} ${padLeft(price, price.length)}`);
+  }
+  esc.doubleH(false).bold(false);
+
+  esc.separator(cols);
+  const totalLabel = padRight('TOTAL:', cols - 12);
+  esc.bold(true).doubleH(true).line(`${totalLabel}${padLeft(formatCurrency(data.total), 12)}`).doubleH(false).bold(false);
+  esc.separator(cols);
+  esc.center().line('Este documento no es factura').feed(3).cut();
+
+  return esc.toBuffer();
+}
+
 // ─── Service ───────────────────────────────────────────────────────────────────
 
 class PrintersService {
@@ -332,8 +404,8 @@ class PrintersService {
   async create(tenantId: string, data: CreatePrinterData): Promise<Printer> {
     const id = uuidv4();
     await db.execute<ResultSetHeader>(
-      `INSERT INTO printers (id, tenant_id, name, connection_type, ip, port, paper_width, is_active, assigned_module)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)`,
+      `INSERT INTO printers (id, tenant_id, name, connection_type, ip, port, device_name, paper_width, is_active, assigned_module)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
       [
         id,
         tenantId,
@@ -341,6 +413,7 @@ class PrintersService {
         data.connectionType,
         data.ip ?? null,
         data.port ?? 9100,
+        data.deviceName ?? null,
         data.paperWidth ?? 80,
         data.assignedModule ?? null,
       ]
@@ -358,6 +431,7 @@ class PrintersService {
     if (data.connectionType !== undefined)  { fields.push('connection_type = ?');  values.push(data.connectionType); }
     if (data.ip !== undefined)              { fields.push('ip = ?');               values.push(data.ip); }
     if (data.port !== undefined)            { fields.push('port = ?');             values.push(data.port); }
+    if ('deviceName' in data)               { fields.push('device_name = ?');      values.push(data.deviceName ?? null); }
     if (data.paperWidth !== undefined)      { fields.push('paper_width = ?');      values.push(data.paperWidth); }
     if (data.isActive !== undefined)        { fields.push('is_active = ?');        values.push(data.isActive ? 1 : 0); }
     if ('assignedModule' in data)           { fields.push('assigned_module = ?');  values.push(data.assignedModule ?? null); }
@@ -439,11 +513,42 @@ class PrintersService {
 
   /** Inserta un trabajo en la cola para que lo recoja el Agente de Impresión local. */
   private async _enqueueJob(tenantId: string, printer: Printer, buffer: Buffer, module: string): Promise<void> {
+    const isUsb = printer.connectionType !== 'lan'; // usb | bluetooth → imprime por Windows
     await db.execute(
-      `INSERT INTO print_jobs (id, tenant_id, module, printer_ip, printer_port, data_base64)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [uuidv4(), tenantId, module, printer.ip, printer.port, buffer.toString('base64')]
+      `INSERT INTO print_jobs (id, tenant_id, module, connection_type, printer_ip, printer_port, printer_name, data_base64)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        uuidv4(), tenantId, module,
+        isUsb ? 'usb' : 'lan',
+        isUsb ? null : printer.ip,
+        printer.port,
+        isUsb ? printer.deviceName : null,
+        buffer.toString('base64'),
+      ]
     );
+  }
+
+  /**
+   * Imprime la PRE-CUENTA de una mesa en la impresora asignada al módulo 'caja'.
+   * Encola para el Agente local (LAN o USB — USB por el spooler de Windows).
+   */
+  async printBill(tenantId: string, data: BillTicketData): Promise<{ message: string }> {
+    const printer = await this.findByModule('caja', tenantId);
+    if (!printer) throw new AppError('No hay impresora asignada a "Caja". Asígnala en el módulo de Impresoras.', 400);
+    const isUsb = printer.connectionType !== 'lan';
+    if (!isUsb && !printer.ip) throw new AppError('La impresora de Caja (LAN) no tiene IP configurada.', 400);
+    if (isUsb && !printer.deviceName) throw new AppError('La impresora de Caja (USB) no tiene el "Nombre en Windows" configurado.', 400);
+
+    await this._enqueueJob(tenantId, printer, buildBillTicket(data, printer.paperWidth), 'cuenta');
+    const [ag] = await db.execute<RowDataPacket[]>(
+      'SELECT 1 FROM print_agents WHERE tenant_id = ? AND last_seen_at > (NOW() - INTERVAL 90 SECOND) LIMIT 1',
+      [tenantId]
+    );
+    return {
+      message: ag.length > 0
+        ? 'Cuenta enviada — imprimirá en unos segundos.'
+        : 'Cuenta encolada, pero no hay ningún equipo con el Agente de Impresión conectado. Abre el programa en el PC.',
+    };
   }
 
   /**

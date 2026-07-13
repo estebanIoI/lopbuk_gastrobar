@@ -675,6 +675,7 @@ export interface Printer {
   connectionType: PrinterConnectionType
   ip: string | null
   port: number
+  deviceName: string | null
   paperWidth: PrinterPaperWidth
   isActive: boolean
   assignedModule: PrinterModule | null

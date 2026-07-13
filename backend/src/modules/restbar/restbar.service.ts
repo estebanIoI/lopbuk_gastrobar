@@ -87,7 +87,7 @@ class RestbarService {
        LEFT JOIN rb_orders o
          ON o.table_id = t.id AND o.status NOT IN ('cerrada','cancelada')
        WHERE t.tenant_id = ? AND t.is_active = 1
-       ORDER BY t.number`,
+       ORDER BY CAST(t.number AS UNSIGNED), t.number`,
       [tenantId]
     );
     return rows.map(r => ({
@@ -507,6 +507,23 @@ class RestbarService {
     this._printOrderToArea(tenantId, orderId).catch(() => {});
 
     return this.getOrderById(tenantId, orderId);
+  }
+
+  /** Imprime la pre-cuenta de la mesa en la impresora asignada a Caja (vía Agente de Impresión). */
+  async printBill(tenantId: string, orderId: string) {
+    const order = await this.getOrderById(tenantId, orderId);
+    const [si] = await db.execute<RowDataPacket[]>('SELECT name FROM store_info WHERE tenant_id = ? LIMIT 1', [tenantId]);
+    const storeName = (si[0] as any)?.name || 'Restaurante';
+    const items = order.items
+      .filter(i => i.status !== 'cancelado')
+      .map(i => ({ name: i.menuItemName, quantity: i.quantity, price: Number(i.unitPrice) }));
+    return printersService.printBill(tenantId, {
+      storeName,
+      tableNumber: String(order.tableNumber ?? ''),
+      orderNumber: order.orderNumber,
+      items,
+      total: Number(order.total) || items.reduce((s, i) => s + i.price * i.quantity, 0),
+    });
   }
 
   private async _printOrderToArea(tenantId: string, orderId: string) {

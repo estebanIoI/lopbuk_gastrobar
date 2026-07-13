@@ -137,6 +137,13 @@ export class RestbarController {
     } catch (err) { next(err); }
   }
 
+  async printBill(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const result = await restbarService.printBill(req.user!.tenantId!, req.params.id);
+      res.json({ success: true, message: result.message });
+    } catch (err) { next(err); }
+  }
+
   // ── KITCHEN / BAR DISPLAY ─────────────────────────────────────────────────
 
   async getKitchenDisplay(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {

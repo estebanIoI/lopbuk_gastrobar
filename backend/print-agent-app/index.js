@@ -87,6 +87,59 @@ function sendToPrinter(ip, port, buffer) {
   });
 }
 
+// Script PowerShell que envía bytes RAW al spooler de Windows (impresoras USB/instaladas).
+const PS_RAWPRINT = `param([string]$PrinterName, [string]$FilePath)
+$ErrorActionPreference = 'Stop'
+Add-Type -TypeDefinition @"
+using System;
+using System.IO;
+using System.Runtime.InteropServices;
+public class DaimuzRaw {
+  [StructLayout(LayoutKind.Sequential, CharSet=CharSet.Unicode)]
+  public struct DOCINFO { [MarshalAs(UnmanagedType.LPWStr)] public string pDocName; [MarshalAs(UnmanagedType.LPWStr)] public string pOutputFile; [MarshalAs(UnmanagedType.LPWStr)] public string pDataType; }
+  [DllImport("winspool.drv", CharSet=CharSet.Unicode, SetLastError=true)] public static extern bool OpenPrinter(string src, out IntPtr h, IntPtr pd);
+  [DllImport("winspool.drv", SetLastError=true)] public static extern bool ClosePrinter(IntPtr h);
+  [DllImport("winspool.drv", CharSet=CharSet.Unicode, SetLastError=true)] public static extern bool StartDocPrinter(IntPtr h, int level, ref DOCINFO di);
+  [DllImport("winspool.drv", SetLastError=true)] public static extern bool EndDocPrinter(IntPtr h);
+  [DllImport("winspool.drv", SetLastError=true)] public static extern bool StartPagePrinter(IntPtr h);
+  [DllImport("winspool.drv", SetLastError=true)] public static extern bool EndPagePrinter(IntPtr h);
+  [DllImport("winspool.drv", SetLastError=true)] public static extern bool WritePrinter(IntPtr h, byte[] buf, int count, out int written);
+  public static void Send(string printer, byte[] bytes) {
+    IntPtr h;
+    if(!OpenPrinter(printer, out h, IntPtr.Zero)) throw new Exception("No se pudo abrir la impresora: " + printer);
+    try {
+      DOCINFO di = new DOCINFO(); di.pDocName = "DAIMUZ Ticket"; di.pDataType = "RAW";
+      if(!StartDocPrinter(h, 1, ref di)) throw new Exception("StartDocPrinter fallo");
+      StartPagePrinter(h);
+      int written; WritePrinter(h, bytes, bytes.Length, out written);
+      EndPagePrinter(h); EndDocPrinter(h);
+    } finally { ClosePrinter(h); }
+  }
+}
+"@
+[DaimuzRaw]::Send($PrinterName, [System.IO.File]::ReadAllBytes($FilePath))
+Write-Output "OK"`;
+
+// ── Imprimir por el spooler de Windows (impresora USB por nombre) ──
+function printRawWindows(printerName, buffer) {
+  return new Promise((resolve, reject) => {
+    if (process.platform !== 'win32') return reject(new Error('La impresión USB solo funciona en Windows'));
+    if (!printerName) return reject(new Error('Falta el nombre de la impresora en Windows'));
+    const stamp = Date.now() + '-' + Math.random().toString(36).slice(2);
+    const tmpData = path.join(os.tmpdir(), `daimuz-${stamp}.bin`);
+    const tmpPs = path.join(os.tmpdir(), `daimuz-${stamp}.ps1`);
+    try { fs.writeFileSync(tmpData, buffer); fs.writeFileSync(tmpPs, PS_RAWPRINT); }
+    catch (e) { return reject(e); }
+    execFile('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', tmpPs, '-PrinterName', printerName, '-FilePath', tmpData],
+      { timeout: 15000 }, (err, stdout, stderr) => {
+        try { fs.unlinkSync(tmpData); fs.unlinkSync(tmpPs); } catch { /* ignore */ }
+        if (err) return reject(new Error((String(stderr) || err.message || 'error al imprimir por Windows').trim()));
+        if (String(stdout).includes('OK')) resolve();
+        else reject(new Error(String(stdout || stderr || 'sin respuesta').trim()));
+      });
+  });
+}
+
 // ── Registrar auto-inicio con Windows (clave Run de HKCU) ──
 function registerAutoStart() {
   if (process.platform !== 'win32') return;
@@ -133,8 +186,13 @@ async function pair() {
 async function processJob(job, token) {
   try {
     const buffer = Buffer.from(job.dataBase64, 'base64');
-    await sendToPrinter(job.ip, job.port, buffer);
-    log(`Impreso ${job.area || ''} (job ${job.id}) en ${job.ip}:${job.port}`);
+    if (job.connectionType === 'usb') {
+      await printRawWindows(job.printerName, buffer);
+      log(`Impreso ${job.area || ''} (job ${job.id}) en USB "${job.printerName}"`);
+    } else {
+      await sendToPrinter(job.ip, job.port, buffer);
+      log(`Impreso ${job.area || ''} (job ${job.id}) en ${job.ip}:${job.port}`);
+    }
     await apiRequest('POST', `/print-agent/jobs/${job.id}/done`, { token });
   } catch (e) {
     log(`Falló impresión job ${job.id}:`, e.message);

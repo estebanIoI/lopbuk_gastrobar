@@ -297,6 +297,14 @@ router.post(
   restbarController.sendToKitchen.bind(restbarController)
 );
 
+// Imprime la pre-cuenta de la mesa en la impresora de Caja (LAN o USB vía agente).
+router.post(
+  '/orders/:id/print-bill',
+  authorize(...WAITER_ROLES, ...CASHIER_ROLES),
+  [param('id').notEmpty(), validateRequest],
+  restbarController.printBill.bind(restbarController)
+);
+
 router.delete(
   '/orders/:id',
   authorize(...WAITER_ROLES),

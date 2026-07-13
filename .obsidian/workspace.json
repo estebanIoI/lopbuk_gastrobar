@@ -11,10 +11,14 @@
             "id": "3d2798e7625b49ea",
             "type": "leaf",
             "state": {
-              "type": "empty",
-              "state": {},
+              "type": "markdown",
+              "state": {
+                "file": "daimuz/ontology/entities.md",
+                "mode": "source",
+                "source": false
+              },
               "icon": "lucide-file",
-              "title": "Nueva pestaña"
+              "title": "entities"
             }
           }
         ]
@@ -179,8 +183,9 @@
       "bases:Crear nueva base": false
     }
   },
-  "active": "7db4f582bcf38241",
+  "active": "3d2798e7625b49ea",
   "lastOpenFiles": [
+    "daimuz/agents/README.md",
     "Sin nombre",
     "daimuz/memory/current-state.md.tmp.9732.9ffc5fafb42d",
     "backend/src/modules/storefront/storefront.routes.ts.tmp.9732.37e22cf61273",
@@ -191,7 +196,6 @@
     "backend/src/modules/variants/variants.service.ts.tmp.9732.aaf645bef8e6",
     "backend/src/index.ts.tmp.9732.ff42354240ee",
     "daimuz/context/pending.md.tmp.26036.c873844153ab",
-    "daimuz/context/current-sprint.md.tmp.26036.b1b3d56dd802",
     "daimuz/DAIMUZ.md",
     "daimuz/memory/bugs-history.md",
     "README.md",

@@ -91,7 +91,7 @@ router.post('/heartbeat', async (req: Request, res: Response) => {
     );
     // Devuelve los reclamados con el formato que espera el agente.
     const [jobs] = await pool.query(
-      "SELECT id, printer_ip AS ip, printer_port AS port, data_base64 AS dataBase64, module AS area FROM print_jobs WHERE tenant_id = ? AND status = 'sent' ORDER BY created_at ASC LIMIT 10",
+      "SELECT id, connection_type AS connectionType, printer_ip AS ip, printer_port AS port, printer_name AS printerName, data_base64 AS dataBase64, module AS area FROM print_jobs WHERE tenant_id = ? AND status = 'sent' ORDER BY created_at ASC LIMIT 10",
       [agent.tenantId]
     ) as any;
     res.json({ success: true, data: { jobs } });
