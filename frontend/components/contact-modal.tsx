@@ -100,7 +100,7 @@ export function ContactModal({ className }: { className?: string }) {
         </Button>
       </DialogTrigger>
 
-      <DialogContent className="max-w-lg w-[95vw] max-h-[92vh] overflow-y-auto scrollbar-none p-0 gap-0 rounded-2xl border-0 shadow-2xl bg-[#0f0f13]" style={{ scrollbarWidth: 'none' }}>
+      <DialogContent className="max-w-lg w-[95vw] max-h-[92vh] overflow-y-auto scrollbar-none p-0 gap-0 rounded-2xl glass-strong" style={{ scrollbarWidth: 'none' }}>
         <DialogTitle className="sr-only">Contáctanos</DialogTitle>
         <DialogDescription className="sr-only">Canales de contacto disponibles</DialogDescription>
 

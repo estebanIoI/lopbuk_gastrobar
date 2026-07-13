@@ -27,7 +27,7 @@ router.put(
   '/:id',
   authorize('comerciante', 'superadmin'),
   [
-    param('id').isInt().withMessage('ID inválido'),
+    param('id').isString().notEmpty().withMessage('ID inválido'),
     body('term').optional().notEmpty(),
     body('sortOrder').optional().isInt({ min: 0 }),
     validateRequest,
@@ -39,7 +39,7 @@ router.delete(
   '/:id',
   authorize('comerciante', 'superadmin'),
   [
-    param('id').isInt().withMessage('ID inválido'),
+    param('id').isString().notEmpty().withMessage('ID inválido'),
     validateRequest,
   ],
   popularSearchesController.delete.bind(popularSearchesController)

@@ -41,7 +41,7 @@ router.put(
   '/:id',
   authorize('comerciante', 'superadmin'),
   [
-    param('id').isInt().withMessage('ID inválido'),
+    param('id').isString().notEmpty().withMessage('ID inválido'),
     body('slug').optional().notEmpty(),
     body('title').optional().notEmpty(),
     body('content').optional().notEmpty(),
@@ -59,7 +59,7 @@ router.delete(
   '/:id',
   authorize('comerciante', 'superadmin'),
   [
-    param('id').isInt().withMessage('ID inválido'),
+    param('id').isString().notEmpty().withMessage('ID inválido'),
     validateRequest,
   ],
   contentPagesController.delete.bind(contentPagesController)

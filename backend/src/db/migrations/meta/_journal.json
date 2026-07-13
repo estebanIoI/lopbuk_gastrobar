@@ -302,6 +302,13 @@
       "when": 1783920495080,
       "tag": "0042_striped_mauler",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "5",
+      "when": 1783983731779,
+      "tag": "0043_brief_millenium_guard",
+      "breakpoints": true
     }
   ]
 }

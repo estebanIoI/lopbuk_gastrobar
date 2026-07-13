@@ -7,6 +7,7 @@ import { validateRequest } from '../../utils/validators';
 const router: ReturnType<typeof Router> = Router();
 
 router.get('/public', homepageController.findPublic.bind(homepageController));
+router.get('/platform', homepageController.findPlatformPublic.bind(homepageController));
 
 router.use(authenticate);
 

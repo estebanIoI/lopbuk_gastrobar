@@ -387,7 +387,7 @@ export function AccountingReport() {
       </div>
 
       {/* Selector de Periodo */}
-      <Card className="border-border bg-card print:hidden">
+      <Card variant="glass" className="border-glass-border print:hidden">
         <CardContent className="p-4">
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center gap-2">
@@ -606,9 +606,9 @@ function LibroVentas({ sales, cancelledSales, periodLabel, storeInfo, onExport }
         </Button>
       </div>
 
-      <Card className="border-border bg-card overflow-hidden">
+      <Card variant="glass" className="border-glass-border overflow-hidden">
         <div className="overflow-x-auto">
-          <Table>
+          <Table variant="glass">
             <TableHeader>
               <TableRow className="bg-muted/50">
                 <TableHead className="text-xs font-semibold">No. Factura</TableHead>
@@ -678,7 +678,7 @@ function LibroVentas({ sales, cancelledSales, periodLabel, storeInfo, onExport }
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
-              <Table>
+              <Table variant="glass">
                 <TableHeader>
                   <TableRow>
                     <TableHead className="text-xs">Factura</TableHead>
@@ -750,7 +750,7 @@ function InformeIVA({ totalSubtotal, totalIVA, totalDescuentos, totalVentas, can
 
       <div className="grid gap-4 md:grid-cols-2">
         {/* IVA Generado (Ventas) */}
-        <Card className="border-border bg-card">
+        <Card variant="glass" className="border-glass-border">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <Receipt className="h-4 w-4 text-emerald-500" />
@@ -785,7 +785,7 @@ function InformeIVA({ totalSubtotal, totalIVA, totalDescuentos, totalVentas, can
         </Card>
 
         {/* Resumen IVA */}
-        <Card className="border-border bg-card">
+        <Card variant="glass" className="border-glass-border">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <Calculator className="h-4 w-4 text-blue-500" />
@@ -821,13 +821,13 @@ function InformeIVA({ totalSubtotal, totalIVA, totalDescuentos, totalVentas, can
       </div>
 
       {/* Tabla desglose por tarifa */}
-      <Card className="border-border bg-card">
+      <Card variant="glass" className="border-glass-border">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium">Desglose por Tarifa de IVA</CardTitle>
           <CardDescription>Art. 468 ET — Tarifa general 19%</CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
+          <Table variant="glass">
             <TableHeader>
               <TableRow>
                 <TableHead className="text-xs">Tarifa</TableHead>
@@ -908,9 +908,9 @@ function EstadoResultados({ totalSubtotal, totalIVA, totalDescuentos, totalVenta
         </Button>
       </div>
 
-      <Card className="border-border bg-card">
+      <Card variant="glass" className="border-glass-border">
         <CardContent className="p-6">
-          <Table>
+          <Table variant="glass">
             <TableBody>
               {/* INGRESOS OPERACIONALES */}
               <TableRow className="bg-blue-500/10">
@@ -981,20 +981,20 @@ function EstadoResultados({ totalSubtotal, totalIVA, totalDescuentos, totalVenta
 
       {/* KPIs adicionales */}
       <div className="grid gap-4 md:grid-cols-3">
-        <Card className="border-border bg-card">
+        <Card variant="glass" className="border-glass-border">
           <CardContent className="p-4 text-center">
             <p className="text-xs text-muted-foreground">Transacciones</p>
             <p className="text-2xl font-bold text-foreground">{completedSales.length}</p>
             <p className="text-xs text-muted-foreground">{cancelledSales.length} anuladas</p>
           </CardContent>
         </Card>
-        <Card className="border-border bg-card">
+        <Card variant="glass" className="border-glass-border">
           <CardContent className="p-4 text-center">
             <p className="text-xs text-muted-foreground">Ticket Promedio</p>
             <p className="text-2xl font-bold text-blue-500">{formatCOP(ticketPromedio)}</p>
           </CardContent>
         </Card>
-        <Card className="border-border bg-card">
+        <Card variant="glass" className="border-glass-border">
           <CardContent className="p-4 text-center">
             <p className="text-xs text-muted-foreground">Utilidad por Venta</p>
             <p className="text-2xl font-bold text-emerald-500">
@@ -1051,26 +1051,26 @@ function InventarioValorizado({ products, categories, inventarioPorCategoria, in
 
       {/* Resumen */}
       <div className="grid gap-4 md:grid-cols-4">
-        <Card className="border-border bg-card">
+        <Card variant="glass" className="border-glass-border">
           <CardContent className="p-4 text-center">
             <p className="text-xs text-muted-foreground">Total Referencias</p>
             <p className="text-2xl font-bold">{products.length}</p>
           </CardContent>
         </Card>
-        <Card className="border-border bg-card">
+        <Card variant="glass" className="border-glass-border">
           <CardContent className="p-4 text-center">
             <p className="text-xs text-muted-foreground">Total Unidades</p>
             <p className="text-2xl font-bold">{formatNumber(totalUnidades)}</p>
           </CardContent>
         </Card>
-        <Card className="border-border bg-card">
+        <Card variant="glass" className="border-glass-border">
           <CardContent className="p-4 text-center">
             <p className="text-xs text-muted-foreground">Valor al Costo</p>
             <p className="text-xl font-bold text-orange-500">{formatCOP(inventarioCosto)}</p>
             <p className="text-[10px] text-muted-foreground">Para declaración de renta</p>
           </CardContent>
         </Card>
-        <Card className="border-border bg-card">
+        <Card variant="glass" className="border-glass-border">
           <CardContent className="p-4 text-center">
             <p className="text-xs text-muted-foreground">Valor a Precio Venta</p>
             <p className="text-xl font-bold text-emerald-500">{formatCOP(inventarioVenta)}</p>
@@ -1080,13 +1080,13 @@ function InventarioValorizado({ products, categories, inventarioPorCategoria, in
       </div>
 
       {/* Inventario por categoría */}
-      <Card className="border-border bg-card overflow-hidden">
+      <Card variant="glass" className="border-glass-border overflow-hidden">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium">Resumen por Categoría</CardTitle>
           <CardDescription>Art. 65 ET — Sistema de inventarios permanentes</CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
+          <Table variant="glass">
             <TableHeader>
               <TableRow className="bg-muted/50">
                 <TableHead className="text-xs font-semibold">Categoría</TableHead>
@@ -1128,13 +1128,13 @@ function InventarioValorizado({ products, categories, inventarioPorCategoria, in
       </Card>
 
       {/* Detalle productos (top 20 por valor) */}
-      <Card className="border-border bg-card overflow-hidden">
+      <Card variant="glass" className="border-glass-border overflow-hidden">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium">Detalle — Top 20 por Valor en Inventario</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
-            <Table>
+            <Table variant="glass">
               <TableHeader>
                 <TableRow className="bg-muted/50">
                   <TableHead className="text-xs">SKU</TableHead>
@@ -1203,19 +1203,19 @@ function CuentasPorCobrar({ cuentasPorCobrar, totalCartera, periodLabel }: {
 
       {/* Resumen */}
       <div className="grid gap-4 md:grid-cols-3">
-        <Card className="border-border bg-card">
+        <Card variant="glass" className="border-glass-border">
           <CardContent className="p-4 text-center">
             <p className="text-xs text-muted-foreground">Total Cartera</p>
             <p className="text-2xl font-bold text-orange-500">{formatCOP(totalCartera)}</p>
           </CardContent>
         </Card>
-        <Card className="border-border bg-card">
+        <Card variant="glass" className="border-glass-border">
           <CardContent className="p-4 text-center">
             <p className="text-xs text-muted-foreground">Créditos Activos</p>
             <p className="text-2xl font-bold">{cuentasPorCobrar.length}</p>
           </CardContent>
         </Card>
-        <Card className="border-border bg-card">
+        <Card variant="glass" className="border-glass-border">
           <CardContent className="p-4 text-center">
             <p className="text-xs text-muted-foreground">Promedio por Crédito</p>
             <p className="text-2xl font-bold text-blue-500">
@@ -1225,9 +1225,9 @@ function CuentasPorCobrar({ cuentasPorCobrar, totalCartera, periodLabel }: {
         </Card>
       </div>
 
-      <Card className="border-border bg-card overflow-hidden">
+      <Card variant="glass" className="border-glass-border overflow-hidden">
         <CardContent className="p-0">
-          <Table>
+          <Table variant="glass">
             <TableHeader>
               <TableRow className="bg-muted/50">
                 <TableHead className="text-xs font-semibold">Factura</TableHead>
@@ -1335,14 +1335,14 @@ function ConciliacionCaja({ sessions, closedSessions, totalSesiones, sesionesCon
 
       {/* KPIs */}
       <div className="grid gap-4 md:grid-cols-4">
-        <Card className="border-border bg-card">
+        <Card variant="glass" className="border-glass-border">
           <CardContent className="p-4 text-center">
             <p className="text-xs text-muted-foreground">Sesiones del Periodo</p>
             <p className="text-2xl font-bold">{totalSesiones}</p>
             <p className="text-xs text-muted-foreground">{closedSessions.length} cerradas</p>
           </CardContent>
         </Card>
-        <Card className="border-border bg-card">
+        <Card variant="glass" className="border-glass-border">
           <CardContent className="p-4 text-center">
             <p className="text-xs text-muted-foreground">Sesiones Cuadradas</p>
             <p className="text-2xl font-bold text-emerald-500">
@@ -1350,13 +1350,13 @@ function ConciliacionCaja({ sessions, closedSessions, totalSesiones, sesionesCon
             </p>
           </CardContent>
         </Card>
-        <Card className="border-border bg-card">
+        <Card variant="glass" className="border-glass-border">
           <CardContent className="p-4 text-center">
             <p className="text-xs text-muted-foreground">Con Diferencia</p>
             <p className="text-2xl font-bold text-amber-500">{sesionesConDiferencia.length}</p>
           </CardContent>
         </Card>
-        <Card className="border-border bg-card">
+        <Card variant="glass" className="border-glass-border">
           <CardContent className="p-4 text-center">
             <p className="text-xs text-muted-foreground">Diferencia Acumulada</p>
             <p className={`text-2xl font-bold ${totalDiferencias >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
@@ -1435,14 +1435,14 @@ function ConciliacionCaja({ sessions, closedSessions, totalSesiones, sesionesCon
       )}
 
       {/* Detalle por sesión */}
-      <Card className="border-border bg-card overflow-hidden">
+      <Card variant="glass" className="border-glass-border overflow-hidden">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium">Detalle por Sesión de Caja</CardTitle>
           <CardDescription>Historial de aperturas y cierres del periodo</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
-            <Table>
+            <Table variant="glass">
               <TableHeader>
                 <TableRow className="bg-muted/50">
                   <TableHead className="text-xs font-semibold">Fecha Apertura</TableHead>
@@ -1608,9 +1608,9 @@ function MediosDePago({ ventasPorMetodo, totalVentas, completedSales, periodLabe
         </p>
       </div>
 
-      <Card className="border-border bg-card overflow-hidden">
+      <Card variant="glass" className="border-glass-border overflow-hidden">
         <CardContent className="p-0">
-          <Table>
+          <Table variant="glass">
             <TableHeader>
               <TableRow className="bg-muted/50">
                 <TableHead className="text-xs font-semibold">Método de Pago</TableHead>
@@ -1739,7 +1739,7 @@ function InformeRetenciones({ ventasConRetencion, retefuenteEstimada, reteIVAEst
 
       <div className="grid gap-4 md:grid-cols-2">
         {/* ReteFuente */}
-        <Card className="border-border bg-card">
+        <Card variant="glass" className="border-glass-border">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Retención en la Fuente</CardTitle>
             <CardDescription>Art. 392 ET — Por compras (2.5% sobre base gravable)</CardDescription>
@@ -1771,7 +1771,7 @@ function InformeRetenciones({ ventasConRetencion, retefuenteEstimada, reteIVAEst
         </Card>
 
         {/* ReteIVA */}
-        <Card className="border-border bg-card">
+        <Card variant="glass" className="border-glass-border">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Retención de IVA (ReteIVA)</CardTitle>
             <CardDescription>Art. 437-1 ET — 15% del IVA</CardDescription>
@@ -1796,12 +1796,12 @@ function InformeRetenciones({ ventasConRetencion, retefuenteEstimada, reteIVAEst
       </div>
 
       {/* Resumen obligaciones */}
-      <Card className="border-border bg-card">
+      <Card variant="glass" className="border-glass-border">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium">Resumen de Obligaciones Tributarias del Periodo</CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
+          <Table variant="glass">
             <TableHeader>
               <TableRow className="bg-muted/50">
                 <TableHead className="text-xs font-semibold">Concepto</TableHead>
@@ -1922,7 +1922,7 @@ function ResumenEjecutivo({ periodLabel, storeInfo, completedSales, cancelledSal
       </Card>
 
       {/* 1. Ventas */}
-      <Card className="border-border bg-card">
+      <Card variant="glass" className="border-glass-border">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium flex items-center gap-2">
             <Receipt className="h-4 w-4 text-emerald-500" />
@@ -1972,7 +1972,7 @@ function ResumenEjecutivo({ periodLabel, storeInfo, completedSales, cancelledSal
       </Card>
 
       {/* 2. Estado de Resultados Resumen */}
-      <Card className="border-border bg-card">
+      <Card variant="glass" className="border-glass-border">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium flex items-center gap-2">
             <TrendingUp className="h-4 w-4 text-blue-500" />
@@ -2002,7 +2002,7 @@ function ResumenEjecutivo({ periodLabel, storeInfo, completedSales, cancelledSal
       </Card>
 
       {/* 3. Medios de Pago */}
-      <Card className="border-border bg-card">
+      <Card variant="glass" className="border-glass-border">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium flex items-center gap-2">
             <DollarSign className="h-4 w-4 text-green-500" />
@@ -2022,7 +2022,7 @@ function ResumenEjecutivo({ periodLabel, storeInfo, completedSales, cancelledSal
       </Card>
 
       {/* 4. Inventario */}
-      <Card className="border-border bg-card">
+      <Card variant="glass" className="border-glass-border">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium flex items-center gap-2">
             <Package className="h-4 w-4 text-amber-500" />
@@ -2053,7 +2053,7 @@ function ResumenEjecutivo({ periodLabel, storeInfo, completedSales, cancelledSal
 
       {/* 5. Cartera y Retenciones */}
       <div className="grid md:grid-cols-2 gap-4">
-        <Card className="border-border bg-card">
+        <Card variant="glass" className="border-glass-border">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <Users className="h-4 w-4 text-orange-500" />
@@ -2066,7 +2066,7 @@ function ResumenEjecutivo({ periodLabel, storeInfo, completedSales, cancelledSal
           </CardContent>
         </Card>
 
-        <Card className="border-border bg-card">
+        <Card variant="glass" className="border-glass-border">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <Scale className="h-4 w-4 text-purple-500" />
@@ -2088,7 +2088,7 @@ function ResumenEjecutivo({ periodLabel, storeInfo, completedSales, cancelledSal
 
       {/* 7. Conciliación de Caja */}
       {closedSessions.length > 0 && (
-        <Card className="border-border bg-card">
+        <Card variant="glass" className="border-glass-border">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <Vault className="h-4 w-4 text-cyan-500" />
@@ -2125,7 +2125,7 @@ function ResumenEjecutivo({ periodLabel, storeInfo, completedSales, cancelledSal
       )}
 
       {/* 8. Top Vendidos */}
-      <Card className="border-border bg-card">
+      <Card variant="glass" className="border-glass-border">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium flex items-center gap-2">
             <Shield className="h-4 w-4 text-emerald-500" />
@@ -2134,7 +2134,7 @@ function ResumenEjecutivo({ periodLabel, storeInfo, completedSales, cancelledSal
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
-            <Table>
+            <Table variant="glass">
               <TableHeader>
                 <TableRow className="bg-muted/50">
                   <TableHead className="text-xs">#</TableHead>

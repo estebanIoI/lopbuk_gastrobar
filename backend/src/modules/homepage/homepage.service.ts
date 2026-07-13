@@ -104,6 +104,23 @@ export class HomepageService {
     );
     return rows.map(this.mapItem.bind(this));
   }
+
+  async findPlatformPublic(): Promise<HomepageSectionItem[]> {
+    const [tenantRows] = await db.execute<RowDataPacket[]>(
+      `SELECT t.id FROM tenants t
+       JOIN users u ON u.tenant_id = t.id AND u.id = t.owner_id
+       WHERE u.role = 'superadmin' AND t.status = 'activo'
+       LIMIT 1`
+    );
+    if (tenantRows.length === 0) return [];
+
+    const tenantId = tenantRows[0].id as string;
+    const [rows] = await db.execute<HomepageSectionRow[]>(
+      'SELECT * FROM homepage_sections WHERE tenant_id = ? AND enabled = 1 ORDER BY sort_order ASC',
+      [tenantId]
+    );
+    return rows.map(this.mapItem.bind(this));
+  }
 }
 
 export const homepageService = new HomepageService();

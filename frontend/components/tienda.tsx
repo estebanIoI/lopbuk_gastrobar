@@ -769,7 +769,7 @@ export function Tienda() {
         !p.name.toLowerCase().includes(q) &&
         !(p.brand && p.brand.toLowerCase().includes(q)) &&
         !p.category.toLowerCase().includes(q) &&
-        !(p.sku && (p as any).sku.toLowerCase().includes(q))
+        !((p as any).sku && (p as any).sku.toLowerCase().includes(q))
       ) return false
     }
     return true

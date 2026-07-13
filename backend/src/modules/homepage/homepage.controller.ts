@@ -43,6 +43,15 @@ export class HomepageController {
       next(error);
     }
   }
+
+  async findPlatformPublic(_req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const sections = await homepageService.findPlatformPublic();
+      res.json({ success: true, data: sections });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const homepageController = new HomepageController();

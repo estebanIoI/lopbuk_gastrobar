@@ -547,7 +547,7 @@ export class VariantsService {
 
   async update(id: string, tenantId: string, data: Partial<{
     sku: string; barcode: string; color: string; colorHex: string; size: string; material: string;
-    minStock: number; costPrice: number; priceOverride: number;
+    minStock: number; costPrice: number | null; priceOverride: number | null;
     supplierId: string; images: string[]; sortOrder: number; isActive: boolean;
     presale: boolean; presaleDate: string | null; presaleLimit: number | null; presaleDepositPct: number;
     /** @deprecated usa presaleLimit */ preorderLimit: number | null;

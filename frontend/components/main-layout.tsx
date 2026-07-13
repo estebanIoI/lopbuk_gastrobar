@@ -11,6 +11,15 @@ interface MainLayoutProps {
 export function MainLayout({ children }: MainLayoutProps) {
   return (
     <div className="min-h-screen bg-background">
+      {/* Decorative ambient orbs - glass depth enhancer */}
+      <div
+        className="fixed -top-40 -right-40 w-96 h-96 rounded-full opacity-[0.04] pointer-events-none z-0"
+        style={{ background: 'radial-gradient(circle, var(--primary), transparent 70%)' }}
+      />
+      <div
+        className="fixed -bottom-20 -left-20 w-80 h-80 rounded-full opacity-[0.04] pointer-events-none z-0"
+        style={{ background: 'radial-gradient(circle, var(--primary), transparent 70%)' }}
+      />
       <Sidebar />
       <div className="md:pl-[90px]">
         <Header />

@@ -297,13 +297,13 @@ function DashboardView({ dashboard }: { dashboard: DashboardData }) {
     <div className="space-y-4">
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Card className="border-0 shadow-sm">
+        <Card variant="glass" className="glass">
           <CardContent className="p-4">
             <p className="text-xs text-gray-500 mb-1">Pérdida total</p>
             <p className="text-xl font-bold text-red-600">{fmt(summary.totalCost)}</p>
           </CardContent>
         </Card>
-        <Card className="border-0 shadow-sm">
+        <Card variant="glass" className="glass">
           <CardContent className="p-4">
             <p className="text-xs text-gray-500 mb-1">% de merma</p>
             <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-sm font-bold ${statusCls}`}>
@@ -312,14 +312,14 @@ function DashboardView({ dashboard }: { dashboard: DashboardData }) {
             <p className="text-xs text-gray-400 mt-1">Meta: &lt;5%</p>
           </CardContent>
         </Card>
-        <Card className="border-0 shadow-sm">
+        <Card variant="glass" className="glass">
           <CardContent className="p-4">
             <p className="text-xs text-gray-500 mb-1">Registros</p>
             <p className="text-xl font-bold text-gray-900">{summary.totalQty.toFixed(1)}</p>
             <p className="text-xs text-gray-400">unidades perdidas</p>
           </CardContent>
         </Card>
-        <Card className="border-0 shadow-sm">
+        <Card variant="glass" className="glass">
           <CardContent className="p-4">
             <p className="text-xs text-gray-500 mb-1">vs Compras</p>
             <p className="text-sm font-semibold text-gray-700">{fmt(summary.purchasesTotal)}</p>
@@ -345,7 +345,7 @@ function DashboardView({ dashboard }: { dashboard: DashboardData }) {
 
       <div className="grid md:grid-cols-2 gap-4">
         {/* By area */}
-        <Card className="border-0 shadow-sm">
+        <Card variant="glass" className="glass">
           <CardHeader className="pb-2 pt-4 px-4">
             <CardTitle className="text-sm font-semibold text-gray-700">Pérdidas por área</CardTitle>
           </CardHeader>
@@ -363,7 +363,7 @@ function DashboardView({ dashboard }: { dashboard: DashboardData }) {
         </Card>
 
         {/* Top products */}
-        <Card className="border-0 shadow-sm">
+        <Card variant="glass" className="glass">
           <CardHeader className="pb-2 pt-4 px-4">
             <CardTitle className="text-sm font-semibold text-gray-700">Top productos con más merma</CardTitle>
           </CardHeader>
@@ -382,7 +382,7 @@ function DashboardView({ dashboard }: { dashboard: DashboardData }) {
         </Card>
 
         {/* By type */}
-        <Card className="border-0 shadow-sm">
+        <Card variant="glass" className="glass">
           <CardHeader className="pb-2 pt-4 px-4">
             <CardTitle className="text-sm font-semibold text-gray-700">Por tipo de merma</CardTitle>
           </CardHeader>
@@ -399,7 +399,7 @@ function DashboardView({ dashboard }: { dashboard: DashboardData }) {
         </Card>
 
         {/* Daily trend */}
-        <Card className="border-0 shadow-sm">
+        <Card variant="glass" className="glass">
           <CardHeader className="pb-2 pt-4 px-4">
             <CardTitle className="text-sm font-semibold text-gray-700">Tendencia diaria</CardTitle>
           </CardHeader>

@@ -29,7 +29,7 @@ la variable de entorno `PRINT_AGENT_BINARY_PATH`.
 
 ## Configuración
 
-- API del servidor: variable `DAIMUZ_API` (por defecto `https://daimuz.alexsters.works/api`).
+- API del servidor: variable `DAIMUZ_API` (por defecto `https://daimuz.com/api`).
 - Config del usuario (token): `%APPDATA%\DAIMUZ-Impresion\config.json`.
 
 ## Notas

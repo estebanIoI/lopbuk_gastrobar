@@ -255,7 +255,7 @@ export function Cupones() {
 
             {/* Stats */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <Card>
+                <Card variant="glass">
                     <CardContent className="pt-6">
                         <div className="flex items-center gap-3">
                             <div className="p-2 rounded-lg bg-primary/10">
@@ -268,7 +268,7 @@ export function Cupones() {
                         </div>
                     </CardContent>
                 </Card>
-                <Card>
+                <Card variant="glass">
                     <CardContent className="pt-6">
                         <div className="flex items-center gap-3">
                             <div className="p-2 rounded-lg bg-green-500/10">
@@ -281,7 +281,7 @@ export function Cupones() {
                         </div>
                     </CardContent>
                 </Card>
-                <Card>
+                <Card variant="glass">
                     <CardContent className="pt-6">
                         <div className="flex items-center gap-3">
                             <div className="p-2 rounded-lg bg-amber-500/10">
@@ -431,7 +431,7 @@ export function Cupones() {
                     <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
             ) : coupons.length === 0 ? (
-                <Card>
+                <Card variant="glass">
                     <CardContent className="flex flex-col items-center justify-center py-16 gap-4">
                         <div className="p-4 rounded-full bg-muted">
                             <Ticket className="h-8 w-8 text-muted-foreground" />

@@ -18,13 +18,13 @@ function toCache(key: string, data: any) {
 
 const BASE = 'https://countriesnow.space/api/v0.1';
 
-async function cnGet(path: string) {
+async function cnGet(path: string): Promise<any> {
   const res = await fetch(`${BASE}${path}`, { headers: { 'Content-Type': 'application/json' } });
   if (!res.ok) throw new Error(`CountriesNow error ${res.status}`);
   return res.json();
 }
 
-async function cnPost(path: string, body: object) {
+async function cnPost(path: string, body: object): Promise<any> {
   const res = await fetch(`${BASE}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

@@ -26,7 +26,7 @@ export class TrustBadgesController {
   async update(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const tenantId = req.user!.tenantId!;
-      const badge = await trustBadgesService.update(tenantId, parseInt(req.params.id), req.body);
+      const badge = await trustBadgesService.update(tenantId, req.params.id, req.body);
       res.json({ success: true, data: badge, message: 'Insignia actualizada' });
     } catch (error) {
       next(error);
@@ -36,7 +36,7 @@ export class TrustBadgesController {
   async delete(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const tenantId = req.user!.tenantId!;
-      await trustBadgesService.delete(tenantId, parseInt(req.params.id));
+      await trustBadgesService.delete(tenantId, req.params.id);
       res.json({ success: true, message: 'Insignia eliminada exitosamente' });
     } catch (error) {
       next(error);

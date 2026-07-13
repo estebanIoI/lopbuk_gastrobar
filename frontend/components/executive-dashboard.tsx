@@ -83,7 +83,7 @@ export function ExecutiveDashboard() {
       </Section>
 
       {/* Operación: embudo en vivo */}
-      <Card className="border-border">
+      <Card variant="glass" className="border-glass-border">
         <CardContent className="p-4">
           <p className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 mb-3">
             <Flame className="h-4 w-4 text-primary" /> Operación en vivo
@@ -144,7 +144,7 @@ export function ExecutiveDashboard() {
 
       {/* Inventario + Sugerencia de compra */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        <Card className="border-border">
+        <Card variant="glass" className="border-glass-border">
           <CardContent className="p-4">
             <p className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 mb-3">
               <Package className="h-4 w-4 text-primary" /> Inventario
@@ -178,7 +178,7 @@ export function ExecutiveDashboard() {
         </Card>
 
         {/* Mapa de calor */}
-        <Card className="border-border">
+        <Card variant="glass" className="border-glass-border">
           <CardContent className="p-4">
             <p className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 mb-3">
               <MapPin className="h-4 w-4 text-primary" /> Mapa de calor de ventas (30 días)
@@ -212,7 +212,7 @@ export function ExecutiveDashboard() {
 
 function Section({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
   return (
-    <Card className="border-border">
+    <Card variant="glass" className="border-glass-border">
       <CardContent className="p-4">
         <p className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 mb-3">
           <span className="text-primary">{icon}</span> {title}

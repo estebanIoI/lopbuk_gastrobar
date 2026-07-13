@@ -516,12 +516,15 @@ class RestbarService {
     const storeName = (si[0] as any)?.name || 'Restaurante';
     const items = order.items
       .filter(i => i.status !== 'cancelado')
-      .map(i => ({ name: i.menuItemName, quantity: i.quantity, price: Number(i.unitPrice) }));
+      .map(i => ({ name: i.menuItemName, quantity: i.quantity, price: Number(i.unitPrice), notes: i.itemNotes }));
     return printersService.printBill(tenantId, {
       storeName,
       tableNumber: String(order.tableNumber ?? ''),
       orderNumber: order.orderNumber,
+      waiterName: order.waiterName,
       items,
+      subtotal: Number(order.subtotal) || undefined,
+      tax: Number(order.tax) || undefined,
       total: Number(order.total) || items.reduce((s, i) => s + i.price * i.quantity, 0),
     });
   }

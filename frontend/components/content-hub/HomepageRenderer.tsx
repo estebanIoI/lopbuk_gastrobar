@@ -397,9 +397,13 @@ export function HomepageRenderer({ storeSlug, storeName, storeLogo }: Props) {
     fetch(`${API_URL}/homepage/public?store=${storeSlug}`)
       .then(r => r.json())
       .then((data: any) => {
-        const raw = data.success !== false ? (data.data?.sections ?? data.sections) : null
+        const raw = data.success !== false ? (data.data?.sections ?? data.sections ?? data.data) : null
         if (Array.isArray(raw) && raw.length) {
-          setSections(raw.filter((s: HomepageSection) => s.enabled).sort((a, b) => a.sortOrder - b.sortOrder))
+          const mapped = raw.map((s: any) => ({
+            ...s,
+            type: s.sectionType || s.type,
+          })).filter((s: HomepageSection) => s.enabled).sort((a: HomepageSection, b: HomepageSection) => a.sortOrder - b.sortOrder)
+          setSections(mapped)
         } else {
           setError('No se encontraron secciones configuradas')
         }

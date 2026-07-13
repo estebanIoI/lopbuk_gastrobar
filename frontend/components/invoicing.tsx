@@ -254,7 +254,7 @@ export function Invoicing() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="bg-card border-border">
+        <Card variant="glass" className="border-glass-border">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
@@ -270,7 +270,7 @@ export function Invoicing() {
           </CardContent>
         </Card>
 
-        <Card className="bg-card border-border">
+        <Card variant="glass" className="border-glass-border">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
@@ -286,7 +286,7 @@ export function Invoicing() {
           </CardContent>
         </Card>
 
-        <Card className="bg-card border-border">
+        <Card variant="glass" className="border-glass-border">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
@@ -303,7 +303,7 @@ export function Invoicing() {
         </Card>
       </div>
 
-      <Card className="bg-card border-border">
+      <Card variant="glass" className="border-glass-border">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Filter className="w-5 h-5" />
@@ -360,7 +360,7 @@ export function Invoicing() {
         </CardContent>
       </Card>
 
-      <Card className="bg-card border-border">
+      <Card variant="glass" className="border-glass-border">
         <CardHeader>
           <CardTitle>Lista de Facturas</CardTitle>
         </CardHeader>
@@ -479,7 +479,7 @@ export function Invoicing() {
       </Card>
 
       <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-        <DialogContent className="bg-card border-border max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileText className="w-5 h-5 text-primary" />
@@ -650,7 +650,7 @@ export function Invoicing() {
 
       {/* Invoice Settings Dialog */}
       <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
-        <DialogContent className="bg-card border-border w-full max-w-lg mx-4 sm:mx-auto">
+        <DialogContent className="w-full max-w-lg mx-4 sm:mx-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Settings className="w-5 h-5" />

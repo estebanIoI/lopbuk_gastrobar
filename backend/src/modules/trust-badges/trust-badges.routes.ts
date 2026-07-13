@@ -28,7 +28,7 @@ router.put(
   '/:id',
   authorize('comerciante', 'superadmin'),
   [
-    param('id').isInt().withMessage('ID inválido'),
+    param('id').isString().notEmpty().withMessage('ID inválido'),
     body('icon').optional().notEmpty(),
     body('title').optional().notEmpty(),
     body('description').optional().isString(),
@@ -42,7 +42,7 @@ router.delete(
   '/:id',
   authorize('comerciante', 'superadmin'),
   [
-    param('id').isInt().withMessage('ID inválido'),
+    param('id').isString().notEmpty().withMessage('ID inválido'),
     validateRequest,
   ],
   trustBadgesController.delete.bind(trustBadgesController)

@@ -96,6 +96,7 @@
   --glass-blur-lg: 32px;
   --glass-shadow: 0 8px 32px rgba(0,0,0,0.06);
   --glass-shadow-sm: 0 2px 8px rgba(0,0,0,0.04);
+  --glass-ring: oklch(0.55 0.18 145 / 0.30);
 }
 
 .dark {
@@ -148,6 +149,7 @@
   --glass-blur-lg: 32px;
   --glass-shadow: 0 8px 32px rgba(0,0,0,0.20);
   --glass-shadow-sm: 0 2px 8px rgba(0,0,0,0.12);
+  --glass-ring: oklch(0.65 0.18 145 / 0.35);
 }
 
 @theme inline {
@@ -194,6 +196,7 @@
   --color-glass-bg-subtle: var(--glass-bg-subtle);
   --color-glass-border: var(--glass-border);
   --color-glass-border-strong: var(--glass-border-strong);
+  --color-glass-ring: var(--glass-ring);
 }
 
 @layer base {
@@ -263,7 +266,7 @@
   /* ── Glass focus glow ── */
   .glass-focus:focus-visible {
     outline: none;
-    box-shadow: 0 0 0 3px var(--glass-ring, oklch(0.55 0.18 145 / 0.3));
+    box-shadow: 0 0 0 3px var(--glass-ring);
     border-color: var(--ring);
   }
 }

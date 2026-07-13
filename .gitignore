@@ -107,3 +107,6 @@ public/uploads/
 *.tar.gz
 *.rar
 *.7z
+
+# Agente de impresión compilado (Docker lo regenera en el build, no se versiona)
+backend/assets/

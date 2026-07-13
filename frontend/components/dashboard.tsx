@@ -313,7 +313,7 @@ export function Dashboard() {
     <div className="space-y-4 sm:space-y-6 lg:space-y-8">
       <AssistantConnectedBanner />
       {/* ========== HERO: Sales Trend Line (Shopify-style) ========== */}
-      <Card className="border-border bg-card overflow-hidden">
+      <Card variant="glass" className="border-glass-border overflow-hidden">
         <div className="p-4 sm:p-6 pb-0">
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-2">
             <div className="space-y-1">
@@ -549,7 +549,7 @@ export function Dashboard() {
       {/* ========== CHARTS ROW: Top Products + Profit Margin ========== */}
       <div className="grid gap-4 sm:gap-6 lg:gap-8 lg:grid-cols-2">
         {/* Top Products Chart */}
-        <Card className="border-border bg-card">
+        <Card variant="glass" className="border-glass-border">
           <CardHeader className="p-4 sm:p-6 pb-2 sm:pb-4">
             <CardTitle className="text-sm sm:text-base lg:text-lg font-medium">Productos Más Vendidos</CardTitle>
             <CardDescription className="text-xs sm:text-sm">Top 5 por cantidad vendida</CardDescription>
@@ -577,7 +577,7 @@ export function Dashboard() {
         </Card>
 
         {/* Profit Margin Chart */}
-        <Card className="border-border bg-card">
+        <Card variant="glass" className="border-glass-border">
           <CardHeader className="p-4 sm:p-6 pb-2 sm:pb-4">
             <CardTitle className="text-sm sm:text-base lg:text-lg font-medium">Margen de Ganancia</CardTitle>
             <CardDescription className="text-xs sm:text-sm">Ingresos vs Costo — Top 5 productos</CardDescription>
@@ -636,7 +636,7 @@ export function Dashboard() {
       {/* ========== ROW: Category + Payment Method + Low Stock ========== */}
       <div className="grid gap-4 sm:gap-6 lg:gap-8 lg:grid-cols-2 xl:grid-cols-4">
         {/* Sales by Category */}
-        <Card className="border-border bg-card">
+        <Card variant="glass" className="border-glass-border">
           <CardHeader>
             <CardTitle className="text-base lg:text-lg font-medium">Ventas por Categoría</CardTitle>
             <CardDescription>Distribución de ingresos</CardDescription>
@@ -678,7 +678,7 @@ export function Dashboard() {
         </Card>
 
         {/* Payment Method Distribution */}
-        <Card className="border-border bg-card">
+        <Card variant="glass" className="border-glass-border">
           <CardHeader>
             <CardTitle className="text-base lg:text-lg font-medium">Métodos de Pago</CardTitle>
             <CardDescription>Distribución por forma de pago</CardDescription>
@@ -728,7 +728,7 @@ export function Dashboard() {
         </Card>
 
         {/* Low Stock Alert */}
-        <Card className="border-border bg-card xl:col-span-2">
+        <Card variant="glass" className="border-glass-border xl:col-span-2">
           <CardHeader>
             <CardTitle className="text-base lg:text-lg font-medium">Alertas de Reabastecimiento</CardTitle>
             <CardDescription>Productos que necesitan atención</CardDescription>
@@ -775,7 +775,7 @@ export function Dashboard() {
       </div>
 
       {/* Recent Sales */}
-      <Card className="border-border bg-card">
+      <Card variant="glass" className="border-glass-border">
         <CardHeader>
           <CardTitle className="text-base lg:text-lg font-medium">Ventas Recientes</CardTitle>
           <CardDescription>Últimas transacciones realizadas</CardDescription>
@@ -827,7 +827,7 @@ interface MetricCardProps {
 function MetricCard({ title, value, description, icon: _icon, trend, variant = 'default' }: MetricCardProps) {
   const Icon = _icon as React.ComponentType<{ className?: string }>
   return (
-    <Card className="border-border bg-card">
+    <Card variant="glass" className="border-glass-border">
       <CardContent className="p-4 sm:p-5">
         <div className="flex items-center justify-between gap-2">
           <div className="space-y-1 flex-1 min-w-0">

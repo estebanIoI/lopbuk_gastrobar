@@ -188,7 +188,7 @@ export function Analytics() {
       {/* Gráficos principales */}
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Tendencia de Ingresos vs Gastos */}
-        <Card className="border-border bg-card">
+        <Card variant="glass" className="border-glass-border">
           <CardHeader>
             <CardTitle className="text-base font-medium">Ingresos vs Costos</CardTitle>
             <CardDescription>Comparativa mensual (últimos 6 meses)</CardDescription>
@@ -231,7 +231,7 @@ export function Analytics() {
         </Card>
 
         {/* Margen por Categoría */}
-        <Card className="border-border bg-card">
+        <Card variant="glass" className="border-glass-border">
           <CardHeader>
             <CardTitle className="text-base font-medium">Margen por Categoría</CardTitle>
             <CardDescription>Porcentaje de ganancia promedio</CardDescription>
@@ -259,7 +259,7 @@ export function Analytics() {
       {/* Fila inferior */}
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Métodos de Pago */}
-        <Card className="border-border bg-card">
+        <Card variant="glass" className="border-glass-border">
           <CardHeader>
             <CardTitle className="text-base font-medium">Métodos de Pago</CardTitle>
             <CardDescription>Distribución de ventas</CardDescription>
@@ -297,7 +297,7 @@ export function Analytics() {
         </Card>
 
         {/* Rotación de Inventario */}
-        <Card className="border-border bg-card">
+        <Card variant="glass" className="border-glass-border">
           <CardHeader>
             <CardTitle className="text-base font-medium flex items-center gap-2">
               <RotateCcw className="h-4 w-4" />
@@ -335,7 +335,7 @@ export function Analytics() {
         </Card>
 
         {/* Productos Estancados */}
-        <Card className="border-border bg-card">
+        <Card variant="glass" className="border-glass-border">
           <CardHeader>
             <CardTitle className="text-base font-medium flex items-center gap-2">
               <PackageX className="h-4 w-4" />
@@ -404,7 +404,7 @@ function AnalyticsCard({ title, value, description, icon: _icon, color }: Analyt
   }
 
   return (
-    <Card className="border-border bg-card">
+    <Card variant="glass" className="border-glass-border">
       <CardContent className="p-6">
         <div className="flex items-start justify-between">
           <div className="space-y-2">

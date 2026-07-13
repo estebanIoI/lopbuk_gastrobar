@@ -49,7 +49,7 @@ function KpiCard({ label, value, sub, icon: _icon, accent }: {
 }) {
   const Icon = _icon as React.ComponentType<{ className?: string }>
   return (
-    <Card className="border-0 shadow-sm">
+    <Card variant="glass" className="glass">
       <CardContent className="p-4">
         <div className="flex items-start justify-between gap-2">
           <div>
@@ -152,7 +152,7 @@ export function GastrobarOps() {
         ] as [string, string][]).map(([id, label]) => (
           <button key={id} onClick={() => setTab(id as any)}
             className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${
-              tab === id ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'
+              tab === id ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-foreground'
             }`}>
             {label}
           </button>
@@ -196,9 +196,9 @@ function ModoDuenoView({ data }: { data: any }) {
   return (
     <div className="space-y-4">
       {/* Semáforo operacional */}
-      <Card className="border-0 shadow-sm">
+      <Card variant="glass" className="glass">
         <CardHeader className="pb-2 pt-4 px-4">
-          <CardTitle className="text-sm font-semibold text-gray-700">Estado operacional</CardTitle>
+          <CardTitle className="text-sm font-semibold text-foreground">Estado operacional</CardTitle>
         </CardHeader>
         <CardContent className="px-4 pb-4">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -244,9 +244,9 @@ function ModoDuenoView({ data }: { data: any }) {
 
       <div className="grid md:grid-cols-2 gap-4">
         {/* Top platos */}
-        <Card className="border-0 shadow-sm">
+        <Card variant="glass" className="glass">
           <CardHeader className="pb-2 pt-4 px-4">
-            <CardTitle className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+            <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
               <Star className="h-4 w-4 text-amber-400" />
               Más vendidos hoy
             </CardTitle>
@@ -261,16 +261,16 @@ function ModoDuenoView({ data }: { data: any }) {
                 }`}>{i + 1}</span>
                 <span className="text-sm flex-1 truncate">{item.product_name}</span>
                 <Badge variant="outline" className="text-xs">{item.qty} uds</Badge>
-                <span className="text-sm font-semibold text-gray-700">{fmt(item.revenue)}</span>
+                <span className="text-sm font-semibold text-foreground">{fmt(item.revenue)}</span>
               </div>
             ))}
           </CardContent>
         </Card>
 
         {/* Alertas */}
-        <Card className="border-0 shadow-sm">
+        <Card variant="glass" className="glass">
           <CardHeader className="pb-2 pt-4 px-4">
-            <CardTitle className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+            <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
               <AlertTriangle className="h-4 w-4 text-amber-400" />
               Alertas críticas
             </CardTitle>
@@ -304,12 +304,12 @@ function ModoDuenoView({ data }: { data: any }) {
       </div>
 
       {/* Cost breakdown */}
-      <Card className="border-0 shadow-sm">
+      <Card variant="glass" className="glass">
         <CardContent className="p-4">
           <div className="grid grid-cols-3 gap-4 text-center">
             <div>
               <p className="text-xs text-gray-500">Costo ingredientes</p>
-              <p className="text-lg font-bold text-gray-700">{fmt(kpis.totalCost)}</p>
+              <p className="text-lg font-bold text-foreground">{fmt(kpis.totalCost)}</p>
             </div>
             <div>
               <p className="text-xs text-gray-500">Pérdida por merma</p>
@@ -403,7 +403,7 @@ function FoodCostView({ items, search, setSearch }: { items: any[]; search: stri
       </div>
 
       <div className="bg-gray-50 rounded-xl p-4 text-xs text-gray-500 space-y-1">
-        <p className="font-medium text-gray-700">¿Cómo leer el Food Cost?</p>
+        <p className="font-medium text-foreground">¿Cómo leer el Food Cost?</p>
         <p><span className="text-green-600 font-medium">Verde (25-35% cocina / 18-28% bar):</span> Rango sano — el plato deja buena utilidad.</p>
         <p><span className="text-amber-600 font-medium">Amarillo (&gt;35%):</span> Revisar precio de venta o reducir porciones.</p>
         <p><span className="text-red-600 font-medium">Rojo (&gt;45%):</span> Estás vendiendo con pérdida — actúa de inmediato.</p>
@@ -506,9 +506,9 @@ function TrendView({ data }: { data: any[] }) {
 
   return (
     <div className="space-y-4">
-      <Card className="border-0 shadow-sm">
+      <Card variant="glass" className="glass">
         <CardHeader className="pb-2 pt-4 px-4">
-          <CardTitle className="text-sm font-semibold text-gray-700">Ventas vs Merma — últimos 14 días</CardTitle>
+          <CardTitle className="text-sm font-semibold text-foreground">Ventas vs Merma — últimos 14 días</CardTitle>
         </CardHeader>
         <CardContent className="px-4 pb-4 space-y-2">
           {data.map(d => (
@@ -517,7 +517,7 @@ function TrendView({ data }: { data: any[] }) {
                 <span className="text-xs text-gray-500 w-20 shrink-0">
                   {format(new Date(String(d.day).substring(0, 10) + 'T12:00:00'), 'EEE d/M', { locale: es })}
                 </span>
-                <span className="text-xs text-gray-700 font-medium">{fmt(d.revenue)}</span>
+                <span className="text-xs text-foreground font-medium">{fmt(d.revenue)}</span>
               </div>
               <div className="flex items-center gap-1">
                 <div className="flex-1 bg-gray-100 rounded-full h-2.5">
