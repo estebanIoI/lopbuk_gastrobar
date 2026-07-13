@@ -27,6 +27,7 @@ export class PrintersController {
         port: req.body.port,
         paperWidth: req.body.paperWidth,
         assignedModule: req.body.assignedModule,
+        deviceName: req.body.deviceName,
       };
       const printer = await printersService.create(req.user!.tenantId!, data);
       res.status(201).json({ success: true, data: printer });
@@ -43,6 +44,7 @@ export class PrintersController {
       if (req.body.paperWidth !== undefined)     data.paperWidth = req.body.paperWidth;
       if (req.body.isActive !== undefined)       data.isActive = req.body.isActive;
       if ('assignedModule' in req.body)          data.assignedModule = req.body.assignedModule;
+      if ('deviceName' in req.body)             data.deviceName = req.body.deviceName;
 
       const printer = await printersService.update(req.params.id, req.user!.tenantId!, data);
       res.json({ success: true, data: printer });
