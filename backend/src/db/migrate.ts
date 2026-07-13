@@ -154,6 +154,8 @@ async function runCatchup(): Promise<void> {
   await addColumnIfMissing('sales', 'dispatch_notes', 'TEXT NULL')
   await addColumnIfMissing('sales', 'dispatched_at', 'TIMESTAMP NULL')
   await addColumnIfMissing('storefront_orders', 'assigned_to', 'VARCHAR(36) NULL')
+  await addColumnIfMissing('cash_sessions', 'shift_type', "ENUM('mañana','tarde','unico') NOT NULL DEFAULT 'unico'")
+  await addColumnIfMissing('cash_sessions', 'shift_label', 'VARCHAR(50)')
 
   // ── Reconciliación preorden → precompra ───────────────────────────────────
   // El baseline 0000 conserva los nombres legacy (is_preorder, preorder_*) porque
