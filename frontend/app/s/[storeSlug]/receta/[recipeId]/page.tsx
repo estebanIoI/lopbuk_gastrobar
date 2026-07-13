@@ -10,15 +10,16 @@ async function fetchRecipePage(storeSlug: string, recipeId: string) {
   return json.data.recipes.find((r: any) => r.id === recipeId) || null
 }
 
-export default async function RecipeDetailPage({ params }: { params: { store: string; recipeId: string } }) {
-  const recipe = await fetchRecipePage(params.store, params.recipeId)
+export default async function RecipeDetailPage({ params }: { params: Promise<{ storeSlug: string; recipeId: string }> }) {
+  const { storeSlug, recipeId } = await params
+  const recipe = await fetchRecipePage(storeSlug, recipeId)
   if (!recipe) notFound()
 
   return (
     <div className="min-h-screen bg-[#F6F5F2]">
       <div className="max-w-4xl mx-auto px-4 py-8">
         {/* Back link */}
-        <a href={`/s/${params.store}`} className="text-sm text-gray-500 hover:text-gray-800 mb-6 inline-block">
+        <a href={`/s/${storeSlug}`} className="text-sm text-gray-500 hover:text-gray-800 mb-6 inline-block">
           ← Volver a la tienda
         </a>
 
