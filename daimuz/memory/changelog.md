@@ -4,6 +4,22 @@
 
 ---
 
+## [2026-07-12] — Revisión Content Hub (otro agente): 7 bugs corregidos
+
+El Content Hub (recetas, FAQ, páginas, newsletter, búsquedas, insignias + editores de sección + 3 vistas públicas) estaba **estructuralmente completo pero funcionalmente roto**. Verificado con E2E → 10/10 tras los fixes.
+
+1. **Migración 0042 nunca aplicada** — las 9 tablas no existían → todo daba 500. Aplicada.
+2. `RecipeEditor.tsx:84` — error tsc (`t` implicit any). Anotado `(t: string)`.
+3. **Recetas público** — ruta `/public/:slug` vs frontend `?store=` → mismatch. Ruta → `/public` + controller lee `req.query.store`.
+4. **FAQ público** — controller leía `req.query.slug` pero el front manda `?store=` → 400. Alineado a `store`.
+5. **content_pages.create** — `id` varchar(36) no generado + `page_type='page'` inválido (enum `corporate|legal|custom`) → 500. Genera uuid + default `custom`.
+6. **newsletter.subscribe** — `id` varchar(36) no generado → 500. Genera uuid.
+7. **newsletter.findAll** — `LIMIT ? OFFSET ?` con `execute` (mysql2 lo rechaza) → 500. Enteros validados interpolados.
+
+`tsc` back 6 / front 8 base. E2E 10/10 (crear+leer público de recetas/FAQ/newsletter/content-pages, consentimiento obligatorio).
+
+**Ajuste newsletter (store):** `api.subscribeNewsletter(email, acceptedTerms, store?)` ahora envía `store`; y el controller **exige `store`** (antes, sin store, suscribía al tenant más antiguo → contaminaba la lista de un comercio con correos de otro). Ahora sin store → 400.
+
 ## [2026-07-12] — Fix Caja: botones duplicados + orden de mesas
 
 - `restbar.tsx` modo cajero: el toggle (Cobro/Cajero) y la barra de acciones estaban **duplicados** (dos bloques idénticos) → se veían dos veces. Eliminado el bloque repetido. Corregido typo "Andir" → "Añadir".

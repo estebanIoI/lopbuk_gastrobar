@@ -83,6 +83,7 @@ const navigation: NavItem[] = [
   // core
   // (DAIMUZ Chat ya no es ítem del menú: se abre desde el botón CHAT DAIMUZ del footer)
   { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard, adminOnly: true, superadminOnly: false, merchantOnly: true, group: 'core' },
+  { id: 'contenido', name: 'Página Principal', icon: LayoutTemplate, adminOnly: true, superadminOnly: false, merchantOnly: true, group: 'core' },
   { id: 'inventory', name: 'Inventario', icon: Package, adminOnly: true, superadminOnly: false, merchantOnly: true, group: 'core' },
   { id: 'recipes', name: 'Recetas BOM', icon: FlaskConical, adminOnly: true, superadminOnly: false, merchantOnly: true, group: 'core' },
   { id: 'purchases', name: 'Compras', icon: ShoppingBag, adminOnly: true, superadminOnly: false, merchantOnly: true, group: 'core' },
@@ -235,26 +236,25 @@ export function Sidebar() {
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         className={cn(
-          "fixed left-4 top-1/2 z-50 flex flex-col rounded-[28px] max-h-[90vh] overflow-hidden",
+          "fixed left-4 top-1/2 z-50 flex flex-col rounded-[28px] max-h-[90vh] overflow-hidden glass-strong",
           "transition-all duration-300",
           isExpanded
-            ? "w-[220px] shadow-[0_12px_48px_rgba(0,0,0,0.18),0_2px_8px_rgba(0,0,0,0.08)]"
-            : "w-[58px] shadow-[0_4px_24px_rgba(0,0,0,0.10)]",
+            ? "w-[220px]"
+            : "w-[58px]",
           "-translate-y-1/2 md:translate-x-0",
           sidebarOpen ? "translate-x-0" : "-translate-x-[calc(100%+16px)] md:translate-x-0"
         )}
-        style={{ background: 'rgba(245, 246, 250, 0.98)', backdropFilter: 'blur(24px)' }}
       >
 
         {/* ── Logo ── */}
-        <div className="flex h-14 shrink-0 items-center border-b border-black/[0.06] px-3">
+        <div className="flex h-14 shrink-0 items-center border-b border-glass-border px-3">
           <div data-tour="sidebar-logo" className={cn("flex items-center gap-2.5 min-w-0", !isExpanded && "justify-center w-full")}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={BRAND.icon} alt={BRAND.name} width={30} height={30} className="rounded-md shrink-0 object-contain" />
             {isExpanded && (
               <div className="flex flex-col leading-none min-w-0">
-                <span className="text-sm font-bold text-gray-900 tracking-tight">{BRAND.name}</span>
-                <span className="text-[10px] text-gray-400">Gestión de Inventario</span>
+                <span className="text-sm font-bold text-foreground tracking-tight">{BRAND.name}</span>
+                <span className="text-[10px] text-muted-foreground">Gestión de Inventario</span>
               </div>
             )}
           </div>
@@ -264,7 +264,7 @@ export function Sidebar() {
             <Button
               variant="ghost"
               size="icon"
-              className="md:hidden ml-auto h-7 w-7 text-gray-400 hover:text-gray-900 shrink-0"
+              className="md:hidden ml-auto h-7 w-7 text-muted-foreground hover:text-foreground shrink-0"
               onClick={() => setSidebarOpen(false)}
             >
               <X className="h-4 w-4" />
@@ -273,7 +273,7 @@ export function Sidebar() {
         </div>
 
         {/* ── Navigation ── */}
-        <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+        <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5 glass-scroll">
           {groups.map(group => {
             const items = filteredNavigation.filter(i => i.group === group.key)
             if (items.length === 0) return null
@@ -305,8 +305,8 @@ export function Sidebar() {
                             className={cn(
                               "group relative flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium transition-all duration-150",
                               isParentActive
-                                ? "bg-[#141928] text-white"
-                                : !isExpanded ? "text-gray-400 hover:bg-black/[0.06] hover:text-gray-900" : "text-gray-600 hover:bg-black/[0.06] hover:text-gray-900",
+                                ? "bg-primary/85 text-primary-foreground shadow-sm"
+                                : !isExpanded ? "text-muted-foreground hover:bg-glass-bg-subtle hover:text-foreground" : "text-muted-foreground hover:bg-glass-bg-subtle hover:text-foreground",
                               !isExpanded && "justify-center px-0"
                             )}
                           >
@@ -315,7 +315,7 @@ export function Sidebar() {
                             )}
                             <ItemIcon className={cn(
                               "h-4 w-4 shrink-0 transition-colors",
-                              isParentActive ? "text-primary" : "text-gray-400 group-hover:text-gray-900"
+                              isParentActive ? "text-primary-foreground" : "text-muted-foreground group-hover:text-foreground"
                             )} />
                             {isExpanded && (
                               <>
@@ -330,7 +330,7 @@ export function Sidebar() {
 
                         {/* Children submenu — only when expanded */}
                         {isExpanded && tiendaOpen && (
-                          <div className="mt-0.5 ml-3 pl-3 border-l border-black/[0.08] space-y-0.5">
+                          <div className="mt-0.5 ml-3 pl-3 border-l border-glass-border space-y-0.5">
                             {visibleChildren.map(child => {
                               const ChildIcon = child.icon as React.ComponentType<{ className?: string }>
                               const isChildActive = activeSection === child.id
@@ -341,8 +341,8 @@ export function Sidebar() {
                                     className={cn(
                                       "group relative flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-sm font-medium transition-all duration-150",
                                       isChildActive
-                                        ? "bg-[#141928] text-white"
-                                        : "text-gray-600 hover:bg-black/[0.06] hover:text-gray-900"
+                                        ? "bg-primary/85 text-primary-foreground"
+                                        : "text-muted-foreground hover:bg-glass-bg-subtle hover:text-foreground"
                                     )}
                                   >
                                     {isChildActive && (
@@ -350,7 +350,7 @@ export function Sidebar() {
                                     )}
                                     <ChildIcon className={cn(
                                       "h-3.5 w-3.5 shrink-0",
-                                      isChildActive ? "text-primary" : "text-gray-400 group-hover:text-gray-900"
+                                      isChildActive ? "text-primary-foreground" : "text-muted-foreground group-hover:text-foreground"
                                     )} />
                                     <span className="truncate">{child.name}</span>
                                   </button>
@@ -373,8 +373,8 @@ export function Sidebar() {
                         className={cn(
                           "group relative flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium transition-all duration-150",
                           isActive
-                            ? "bg-[#141928] text-white shadow-sm"
-                            : !isExpanded ? "text-gray-400 hover:bg-black/[0.06] hover:text-gray-900" : "text-gray-600 hover:bg-black/[0.06] hover:text-gray-900",
+                            ? "bg-primary/85 text-primary-foreground shadow-sm"
+                            : !isExpanded ? "text-muted-foreground hover:bg-glass-bg-subtle hover:text-foreground" : "text-muted-foreground hover:bg-glass-bg-subtle hover:text-foreground",
                           !isExpanded && "justify-center px-0"
                         )}
                       >
@@ -383,7 +383,7 @@ export function Sidebar() {
                         )}
                         <ItemIcon className={cn(
                           "h-4 w-4 shrink-0 transition-colors",
-                          isActive ? "text-primary" : "text-gray-400 group-hover:text-gray-900"
+                          isActive ? "text-primary-foreground" : "text-muted-foreground group-hover:text-foreground"
                         )} />
                         {isExpanded && (
                           <>
@@ -397,7 +397,7 @@ export function Sidebar() {
                 })}
 
                 {group.key !== 'config' && items.length > 0 && isExpanded && (
-                  <div className="mx-3 mt-2 mb-1 border-t border-black/[0.06]" />
+                  <div className="mx-3 mt-2 mb-1 border-t border-glass-border" />
                 )}
               </div>
             )
@@ -405,7 +405,7 @@ export function Sidebar() {
         </nav>
 
         {/* ── Footer ── */}
-        <div className={cn("shrink-0 border-t border-black/[0.06] p-3 space-y-2", !isExpanded && "px-2")}>
+        <div className={cn("shrink-0 border-t border-glass-border p-3 space-y-2", !isExpanded && "px-2")}>
           {isExpanded ? (
             <>
               {/* Entrada al Modo Chat Daimuz (solo plan empresarial) */}
@@ -420,12 +420,12 @@ export function Sidebar() {
                   {user?.name?.charAt(0).toUpperCase() ?? '?'}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-gray-900 truncate">{user?.name ?? '—'}</p>
-                  <p className="text-[10px] text-gray-400 truncate">{user?.email ?? ''}</p>
+                  <p className="text-xs font-medium text-foreground truncate">{user?.name ?? '—'}</p>
+                  <p className="text-[10px] text-muted-foreground truncate">{user?.email ?? ''}</p>
                 </div>
               </div>
               {/* Role badge */}
-              <div className={cn('mx-1 rounded-md border px-2 py-1 text-[10px] font-semibold uppercase tracking-widest text-center', roleColor)}>
+              <div className={cn('mx-1 rounded-md border border-glass-border px-2 py-1 text-[10px] font-semibold uppercase tracking-widest text-center', roleColor)}>
                 {roleLabel}
               </div>
               {/* Guide + Logout row */}
@@ -433,7 +433,7 @@ export function Sidebar() {
                 <GuideButton />
                 <button
                   onClick={logout}
-                  className="flex flex-1 items-center gap-2 rounded-xl px-3 py-1.5 text-xs text-gray-400 hover:bg-black/[0.06] hover:text-red-500 transition-colors"
+                  className="flex flex-1 items-center gap-2 rounded-xl px-3 py-1.5 text-xs text-muted-foreground hover:bg-glass-bg-subtle hover:text-red-500 transition-colors"
                 >
                   <LogOut className="h-3.5 w-3.5" />
                   Cerrar sesión
@@ -449,7 +449,7 @@ export function Sidebar() {
               <GuideButton />
               <button
                 onClick={logout}
-                className="flex items-center justify-center h-7 w-7 rounded-xl text-gray-400 hover:bg-black/[0.06] hover:text-red-500 transition-colors"
+                className="flex items-center justify-center h-7 w-7 rounded-xl text-muted-foreground hover:bg-glass-bg-subtle hover:text-red-500 transition-colors"
               >
                 <LogOut className="h-3.5 w-3.5" />
               </button>

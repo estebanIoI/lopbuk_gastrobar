@@ -4,15 +4,19 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
-function Table({ className, ...props }: React.ComponentProps<"table">) {
+function Table({ className, variant, ...props }: React.ComponentProps<"table"> & { variant?: "default" | "glass" }) {
   return (
     <div
       data-slot="table-container"
-      className="relative w-full overflow-x-auto"
+      className={cn(
+        "relative w-full overflow-x-auto",
+        variant === "glass" && "glass rounded-xl",
+        className
+      )}
     >
       <table
         data-slot="table"
-        className={cn("w-full caption-bottom text-sm", className)}
+        className="w-full caption-bottom text-sm"
         {...props}
       />
     </div>

@@ -295,6 +295,13 @@
       "when": 1783904369815,
       "tag": "0041_supreme_gressill",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "5",
+      "when": 1783920495080,
+      "tag": "0042_striped_mauler",
+      "breakpoints": true
     }
   ]
 }

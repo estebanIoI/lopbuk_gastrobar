@@ -4079,6 +4079,113 @@ class ApiService {
   async adminProcessTrainerWithdrawal(id: string, status: 'processing' | 'paid' | 'rejected', note?: string) {
     return this.request<any>(`/trainers/admin/withdrawals/${id}`, { method: 'PATCH', body: JSON.stringify({ status, note }) })
   }
+
+  // ── Content Hub ────────────────────────────────────────────────────────────
+
+  // Recipe Pages (public recipes display)
+  async getRecipePages() {
+    return this.request<any[]>('/recipe-pages')
+  }
+  async getRecipePage(id: string) {
+    return this.request<any>(`/recipe-pages/${id}`)
+  }
+  async createRecipePage(data: any) {
+    return this.request<any>('/recipe-pages', { method: 'POST', body: JSON.stringify(data) })
+  }
+  async updateRecipePage(id: string, data: any) {
+    return this.request<any>(`/recipe-pages/${id}`, { method: 'PUT', body: JSON.stringify(data) })
+  }
+  async deleteRecipePage(id: string) {
+    return this.request<any>(`/recipe-pages/${id}`, { method: 'DELETE' })
+  }
+
+  // FAQ
+  async getFaqCategories() {
+    return this.request<any[]>('/faq/categories')
+  }
+  async createFaqCategory(data: any) {
+    return this.request<any>('/faq/categories', { method: 'POST', body: JSON.stringify(data) })
+  }
+  async updateFaqCategory(id: string, data: any) {
+    return this.request<any>(`/faq/categories/${id}`, { method: 'PUT', body: JSON.stringify(data) })
+  }
+  async deleteFaqCategory(id: string) {
+    return this.request<any>(`/faq/categories/${id}`, { method: 'DELETE' })
+  }
+  async getFaqItems(categoryId?: string) {
+    const url = categoryId ? `/faq/items?categoryId=${categoryId}` : '/faq/items'
+    return this.request<any[]>(url)
+  }
+  async createFaqItem(data: any) {
+    return this.request<any>('/faq/items', { method: 'POST', body: JSON.stringify(data) })
+  }
+  async updateFaqItem(id: string, data: any) {
+    return this.request<any>(`/faq/items/${id}`, { method: 'PUT', body: JSON.stringify(data) })
+  }
+  async deleteFaqItem(id: string) {
+    return this.request<any>(`/faq/items/${id}`, { method: 'DELETE' })
+  }
+
+  // Trust Badges
+  async getTrustBadges() {
+    return this.request<any[]>('/trust-badges')
+  }
+  async createTrustBadge(data: any) {
+    return this.request<any>('/trust-badges', { method: 'POST', body: JSON.stringify(data) })
+  }
+  async updateTrustBadge(id: string, data: any) {
+    return this.request<any>(`/trust-badges/${id}`, { method: 'PUT', body: JSON.stringify(data) })
+  }
+  async deleteTrustBadge(id: string) {
+    return this.request<any>(`/trust-badges/${id}`, { method: 'DELETE' })
+  }
+
+  // Newsletter
+  async getNewsletterSubscribers(page = 1, limit = 50) {
+    return this.request<any>(`/newsletter?page=${page}&limit=${limit}`)
+  }
+  async subscribeNewsletter(email: string, acceptedTerms: boolean, store?: string) {
+    return this.request<any>('/newsletter/subscribe', { method: 'POST', body: JSON.stringify({ email, acceptedTerms, store }) })
+  }
+
+  // Content Pages
+  async getContentPages() {
+    return this.request<any[]>('/content-pages')
+  }
+  async getContentPage(id: string) {
+    return this.request<any>(`/content-pages/${id}`)
+  }
+  async createContentPage(data: any) {
+    return this.request<any>('/content-pages', { method: 'POST', body: JSON.stringify(data) })
+  }
+  async updateContentPage(id: string, data: any) {
+    return this.request<any>(`/content-pages/${id}`, { method: 'PUT', body: JSON.stringify(data) })
+  }
+  async deleteContentPage(id: string) {
+    return this.request<any>(`/content-pages/${id}`, { method: 'DELETE' })
+  }
+
+  // Popular Searches
+  async getPopularSearches() {
+    return this.request<any[]>('/popular-searches')
+  }
+  async createPopularSearch(data: any) {
+    return this.request<any>('/popular-searches', { method: 'POST', body: JSON.stringify(data) })
+  }
+  async updatePopularSearch(id: string, data: any) {
+    return this.request<any>(`/popular-searches/${id}`, { method: 'PUT', body: JSON.stringify(data) })
+  }
+  async deletePopularSearch(id: string) {
+    return this.request<any>(`/popular-searches/${id}`, { method: 'DELETE' })
+  }
+
+  // Homepage Sections Config
+  async getHomepageConfig() {
+    return this.request<any>('/homepage/config')
+  }
+  async saveHomepageConfig(sections: any[]) {
+    return this.request<any>('/homepage/config', { method: 'PUT', body: JSON.stringify({ sections }) })
+  }
 }
 
 export const api = new ApiService()

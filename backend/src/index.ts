@@ -92,6 +92,13 @@ import communityRoutes from './modules/community/community.routes';
 import notificationsRoutes from './modules/notifications/notifications.routes';
 import theme4Routes from './modules/theme4/theme4.routes';
 import cloudinaryBrowserRoutes from './modules/cloudinary-browser/cloudinary-browser.routes';
+import { recipePagesRoutes } from './modules/recipe-pages';
+import { faqRoutes } from './modules/faq';
+import { newsletterRoutes } from './modules/newsletter';
+import { trustBadgesRoutes } from './modules/trust-badges';
+import { contentPagesRoutes } from './modules/content-pages';
+import { popularSearchesRoutes } from './modules/popular-searches';
+import { homepageRoutes } from './modules/homepage';
 
 const app = express();
 
@@ -243,6 +250,13 @@ app.use(`${apiPrefix}/community`, communityRoutes);
 app.use(`${apiPrefix}/notifications`, notificationsRoutes);
 app.use(`${apiPrefix}/theme4`, theme4Routes);
 app.use(`${apiPrefix}/cloudinary`, cloudinaryBrowserRoutes);
+app.use(`${apiPrefix}/recipe-pages`, recipePagesRoutes);
+app.use(`${apiPrefix}/faq`, faqRoutes);
+app.use(`${apiPrefix}/newsletter`, newsletterRoutes);
+app.use(`${apiPrefix}/trust-badges`, trustBadgesRoutes);
+app.use(`${apiPrefix}/content-pages`, contentPagesRoutes);
+app.use(`${apiPrefix}/popular-searches`, popularSearchesRoutes);
+app.use(`${apiPrefix}/homepage`, homepageRoutes);
 
 // Variantes + Proveedores + Hormas + Hidden-access + Locations
 // IMPORTANTE: rutas con prefijo específico van ANTES de variantsRoutes (/api)

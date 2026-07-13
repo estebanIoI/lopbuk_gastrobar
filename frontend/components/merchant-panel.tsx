@@ -56,6 +56,7 @@ import { RealEstate } from '@/components/realestate'
 import { Tapiceria } from '@/components/tapiceria'
 import { Merma } from '@/components/merma'
 import { GastrobarOps } from '@/components/gastrobar-ops'
+import { ContentHub } from '@/components/content-hub/ContentHub'
 import { applyAdminAccent } from '@/lib/theme-vars'
 import { applyPlatformAccentDefault } from '@/lib/platform-theme'
 
@@ -260,6 +261,8 @@ export function MerchantPanel() {
         return <Merma />
       case 'gastrobar-ops':
         return <GastrobarOps />
+      case 'contenido':
+        return <ContentHub />
       default:
         return <Dashboard />
     }
