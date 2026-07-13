@@ -230,10 +230,13 @@ async function main() {
   if (!token) {
     token = await pair();
     saveConfig({ token, pairedAt: new Date().toISOString() });
-    registerAutoStart();
   } else {
     log('Ya vinculado. Escuchando trabajos de impresión…');
   }
+
+  // Siempre (re)registra el auto-inicio apuntando a ESTE ejecutable. Así, al actualizar el
+  // agente, Windows arranca la versión nueva (no la vieja). Es idempotente (reg add /f).
+  registerAutoStart();
 
   console.log('\n✅ Listo. Puedes minimizar esta ventana. Imprimirá automáticamente.\n');
   await loop(token);
