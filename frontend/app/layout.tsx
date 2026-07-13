@@ -70,7 +70,20 @@ export default function RootLayout({
           <GoogleOAuthWrapper>
             {children}
           </GoogleOAuthWrapper>
-          <Toaster richColors position="top-center" />
+          <Toaster
+            richColors
+            position="top-center"
+            toastOptions={{
+              className: 'glass-strong',
+              style: {
+                background: 'var(--glass-bg-strong)',
+                backdropFilter: 'blur(var(--glass-blur))',
+                WebkitBackdropFilter: 'blur(var(--glass-blur))',
+                border: '1px solid var(--glass-border-strong)',
+                boxShadow: 'var(--glass-shadow)',
+              },
+            }}
+          />
           <PwaManager />
         </ThemeProvider>
       </body>

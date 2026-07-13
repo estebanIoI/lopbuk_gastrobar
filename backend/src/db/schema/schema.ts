@@ -5227,6 +5227,181 @@ export const shareLinks = mysqlTable("share_links", {
 	}
 });
 
+// ────────────────────────────────────────────────────────────────────────────────
+// CONTENT HUB — páginas de contenido, recetas públicas, FAQ, badges, newsletter
+// ────────────────────────────────────────────────────────────────────────────────
+
+export const recipePages = mysqlTable("recipe_pages", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" } ),
+	productId: varchar("product_id", { length: 36 }).notNull().references(() => products.id, { onDelete: "cascade" } ),
+	title: varchar({ length: 255 }).notNull(),
+	description: text(),
+	imageUrl: varchar("image_url", { length: 500 }),
+	prepTimeMinutes: int("prep_time_minutes"),
+	difficulty: mysqlEnum("difficulty", ['fácil','medio','difícil']).default('fácil'),
+	servings: int().default(4).notNull(),
+	steps: json().notNull(), // [{ step: 1, instruction: "..." }]
+	tips: text(),
+	tags: varchar({ length: 500 }),
+	totalCost: decimal("total_cost", { precision: 12, scale: 2 }),
+	isActive: tinyint("is_active").default(1).notNull(),
+	sortOrder: int("sort_order").default(0).notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
+},
+(table) => {
+	return {
+		idxRecipePagesTenant: index("idx_recipe_pages_tenant").on(table.tenantId),
+		idxRecipePagesProduct: index("idx_recipe_pages_product").on(table.productId),
+		recipePagesId: primaryKey({ columns: [table.id], name: "recipe_pages_id"}),
+	}
+});
+
+export const recipePageIngredients = mysqlTable("recipe_page_ingredients", {
+	id: varchar({ length: 36 }).notNull(),
+	recipePageId: varchar("recipe_page_id", { length: 36 }).notNull().references(() => recipePages.id, { onDelete: "cascade" } ),
+	productId: varchar("product_id", { length: 36 }).notNull().references(() => products.id, { onDelete: "restrict" } ),
+	quantity: decimal({ precision: 10, scale: 3 }).notNull(),
+	unit: varchar({ length: 50 }).default('unidad').notNull(),
+	notes: varchar({ length: 255 }),
+	sortOrder: int("sort_order").default(0).notNull(),
+},
+(table) => {
+	return {
+		idxRpiRecipe: index("idx_rpi_recipe").on(table.recipePageId),
+		idxRpiProduct: index("idx_rpi_product").on(table.productId),
+		recipePageIngredientsId: primaryKey({ columns: [table.id], name: "recipe_page_ingredients_id"}),
+	}
+});
+
+export const faqCategories = mysqlTable("faq_categories", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" } ),
+	name: varchar({ length: 255 }).notNull(),
+	sortOrder: int("sort_order").default(0).notNull(),
+	isActive: tinyint("is_active").default(1).notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
+},
+(table) => {
+	return {
+		idxFaqCatTenant: index("idx_faq_cat_tenant").on(table.tenantId),
+		faqCategoriesId: primaryKey({ columns: [table.id], name: "faq_categories_id"}),
+	}
+});
+
+export const faqItems = mysqlTable("faq_items", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).references(() => tenants.id, { onDelete: "cascade" } ),
+	categoryId: varchar("category_id", { length: 36 }).references(() => faqCategories.id, { onDelete: "set null" } ),
+	question: varchar({ length: 500 }).notNull(),
+	answer: text().notNull(),
+	sortOrder: int("sort_order").default(0).notNull(),
+	isActive: tinyint("is_active").default(1).notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
+},
+(table) => {
+	return {
+		idxFaqItemCat: index("idx_faq_item_cat").on(table.categoryId),
+		idxFaqItemTenant: index("idx_faq_item_tenant").on(table.tenantId),
+		faqItemsId: primaryKey({ columns: [table.id], name: "faq_items_id"}),
+	}
+});
+
+export const trustBadges = mysqlTable("trust_badges", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" } ),
+	icon: varchar({ length: 50 }).notNull(),
+	title: varchar({ length: 255 }).notNull(),
+	description: text().notNull(),
+	sortOrder: int("sort_order").default(0).notNull(),
+	isActive: tinyint("is_active").default(1).notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
+},
+(table) => {
+	return {
+		idxTrustBadgesTenant: index("idx_trust_badges_tenant").on(table.tenantId),
+		trustBadgesId: primaryKey({ columns: [table.id], name: "trust_badges_id"}),
+	}
+});
+
+export const newsletterSubscribers = mysqlTable("newsletter_subscribers", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" } ),
+	email: varchar({ length: 255 }).notNull(),
+	acceptedTerms: tinyint("accepted_terms").default(1).notNull(),
+	subscribedAt: timestamp("subscribed_at", { mode: 'string' }).default(sql`(now())`),
+	unsubscribedAt: timestamp("unsubscribed_at", { mode: 'string' }),
+	isActive: tinyint("is_active").default(1).notNull(),
+},
+(table) => {
+	return {
+		idxNewsletterTenant: index("idx_newsletter_tenant").on(table.tenantId),
+		idxNewsletterEmail: unique("idx_newsletter_email").on(table.tenantId, table.email),
+		newsletterSubscribersId: primaryKey({ columns: [table.id], name: "newsletter_subscribers_id"}),
+	}
+});
+
+export const contentPages = mysqlTable("content_pages", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" } ),
+	slug: varchar({ length: 100 }).notNull(),
+	title: varchar({ length: 255 }).notNull(),
+	content: longtext().notNull(),
+	metaTitle: varchar("meta_title", { length: 255 }),
+	metaDescription: varchar("meta_description", { length: 500 }),
+	pageType: mysqlEnum("page_type", ['corporate','legal','custom']).default('custom').notNull(),
+	isPublished: tinyint("is_published").default(0).notNull(),
+	sortOrder: int("sort_order").default(0).notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
+},
+(table) => {
+	return {
+		idxContentPagesTenant: index("idx_content_pages_tenant").on(table.tenantId),
+		idxContentPagesSlug: unique("idx_content_pages_slug").on(table.tenantId, table.slug),
+		contentPagesId: primaryKey({ columns: [table.id], name: "content_pages_id"}),
+	}
+});
+
+export const popularSearches = mysqlTable("popular_searches", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" } ),
+	term: varchar({ length: 255 }).notNull(),
+	sortOrder: int("sort_order").default(0).notNull(),
+	isActive: tinyint("is_active").default(1).notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
+},
+(table) => {
+	return {
+		idxPopularSearchesTenant: index("idx_popular_searches_tenant").on(table.tenantId),
+		popularSearchesId: primaryKey({ columns: [table.id], name: "popular_searches_id"}),
+	}
+});
+
+export const homepageSections = mysqlTable("homepage_sections", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" } ),
+	sectionType: mysqlEnum("section_type", ['hero','categoryGrid','categoryStrip','productGrid','recipeGrid','brandChips','trustBadges','newsletter','footer','pillRow']).notNull(),
+	title: varchar({ length: 255 }),
+	enabled: tinyint().default(1).notNull(),
+	config: json().notNull(),
+	sortOrder: int("sort_order").default(0).notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
+},
+(table) => {
+	return {
+		idxHpSectionsTenant: index("idx_hp_sections_tenant").on(table.tenantId),
+		idxHpSectionsType: index("idx_hp_sections_type").on(table.tenantId, table.sectionType),
+		homepageSectionsId: primaryKey({ columns: [table.id], name: "homepage_sections_id"}),
+	}
+});
+
 export const vCustomerBalances = mysqlView("v_customer_balances", {
 	customerId: varchar("customer_id", { length: 36 }).notNull(),
 	tenantId: varchar("tenant_id", { length: 36 }).notNull(),

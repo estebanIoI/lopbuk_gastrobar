@@ -10,6 +10,7 @@ export const SECTION_TO_SLUG: Record<string, string> = {
   'pagina-principal': 'pagina-principal',
   // Núcleo
   'dashboard': 'inicio',
+  'contenido': 'contenido',
   'inventory': 'inventario',
   'recipes': 'recetas',
   'purchases': 'compras',

@@ -84,6 +84,18 @@
   --success-foreground: oklch(0.98 0 0);
   --warning: oklch(0.75 0.15 85);
   --warning-foreground: oklch(0.15 0.005 260);
+
+  /* ── Glass surfaces (light) ── */
+  --glass-bg: oklch(1 0 0 / 0.65);
+  --glass-bg-strong: oklch(0.98 0.002 260 / 0.85);
+  --glass-bg-subtle: oklch(1 0 0 / 0.35);
+  --glass-border: oklch(1 0 0 / 0.18);
+  --glass-border-strong: oklch(0.88 0.008 260 / 0.40);
+  --glass-blur: 20px;
+  --glass-blur-sm: 10px;
+  --glass-blur-lg: 32px;
+  --glass-shadow: 0 8px 32px rgba(0,0,0,0.06);
+  --glass-shadow-sm: 0 2px 8px rgba(0,0,0,0.04);
 }
 
 .dark {
@@ -124,6 +136,18 @@
   --success-foreground: oklch(0.13 0.005 260);
   --warning: oklch(0.75 0.15 85);
   --warning-foreground: oklch(0.13 0.005 260);
+
+  /* ── Glass surfaces (dark) ── */
+  --glass-bg: oklch(0.15 0.01 260 / 0.60);
+  --glass-bg-strong: oklch(0.18 0.01 260 / 0.82);
+  --glass-bg-subtle: oklch(0.12 0.01 260 / 0.30);
+  --glass-border: oklch(1 0 0 / 0.06);
+  --glass-border-strong: oklch(1 0 0 / 0.10);
+  --glass-blur: 20px;
+  --glass-blur-sm: 10px;
+  --glass-blur-lg: 32px;
+  --glass-shadow: 0 8px 32px rgba(0,0,0,0.20);
+  --glass-shadow-sm: 0 2px 8px rgba(0,0,0,0.12);
 }
 
 @theme inline {
@@ -165,6 +189,11 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  --color-glass-bg: var(--glass-bg);
+  --color-glass-bg-strong: var(--glass-bg-strong);
+  --color-glass-bg-subtle: var(--glass-bg-subtle);
+  --color-glass-border: var(--glass-border);
+  --color-glass-border-strong: var(--glass-border-strong);
 }
 
 @layer base {
@@ -174,12 +203,89 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  /* Smooth dark ↔ light transitions */
+  html {
+    transition: color 0.3s ease;
+  }
+  body,
+  .glass,
+  .glass-strong,
+  .glass-subtle,
+  .glass-no-border {
+    transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+  }
 }
 
 @layer components {
   .input {
     @apply w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/40 placeholder:text-gray-400;
   }
+
+  /* ── Glass utility classes ── */
+  .glass {
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow-sm);
+  }
+  .glass-strong {
+    background: var(--glass-bg-strong);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--glass-border-strong);
+    box-shadow: var(--glass-shadow);
+  }
+  .glass-subtle {
+    background: var(--glass-bg-subtle);
+    backdrop-filter: blur(var(--glass-blur-sm));
+    -webkit-backdrop-filter: blur(var(--glass-blur-sm));
+    border: 1px solid var(--glass-border);
+  }
+  .glass-no-border {
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    box-shadow: var(--glass-shadow-sm);
+  }
+
+  /* ── Glass hover effects ── */
+  .glass-hover {
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  }
+  .glass-hover:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--glass-shadow);
+    border-color: var(--glass-border-strong);
+  }
+
+  /* ── Glass focus glow ── */
+  .glass-focus:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--glass-ring, oklch(0.55 0.18 145 / 0.3));
+    border-color: var(--ring);
+  }
+}
+
+/* ── Glass scrollbar ── */
+.glass-scroll::-webkit-scrollbar {
+  width: 5px;
+}
+.glass-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.glass-scroll::-webkit-scrollbar-thumb {
+  background: var(--glass-border-strong);
+  border-radius: 8px;
+}
+.glass-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--glass-border);
+}
+/* Firefox */
+.glass-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--glass-border-strong) transparent;
 }
 
 @keyframes scan {
