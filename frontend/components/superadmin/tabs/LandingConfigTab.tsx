@@ -156,6 +156,7 @@ export function LandingConfigTab() {
             {([
               { value: 'theme1', title: 'Tema 1 · Clásico', desc: 'Banner único + pills de rubro centradas. El diseño original de la home.', accent: '#6366f1' },
               { value: 'theme2', title: 'Tema 2 · Marketplace', desc: 'Carrusel de banners/GIF/video + barra y grid de categorías estilo Mercado Libre.', accent: '#FFE600' },
+              { value: 'theme3', title: 'Tema 3 · D1', desc: 'Estilo supermercado D1: barra roja, categorías, hero, grid de comercios, badges, newsletter, footer.', accent: '#E30613' },
             ] as const).map(opt => {
               const selected = homeTheme === opt.value
               return (

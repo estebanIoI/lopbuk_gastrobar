@@ -1,6 +1,7 @@
 import { db } from '../../config';
 import { AppError } from '../../common/middleware';
 import { RowDataPacket, ResultSetHeader } from 'mysql2';
+import { v4 as uuidv4 } from 'uuid';
 
 interface HomepageSectionRow extends RowDataPacket {
   id: number;
@@ -69,11 +70,12 @@ export class HomepageService {
     const params: (string | number)[] = [];
 
     sections.forEach((section, index) => {
-      values.push('(?, ?, ?, ?, ?, ?)');
+      values.push('(?, ?, ?, ?, ?, ?, ?)');
       params.push(
+        uuidv4(),                         // id varchar(36) — no auto-increment
         tenantId,
         section.sectionType,
-        section.title,
+        section.title ?? null,
         section.enabled ? 1 : 0,
         JSON.stringify(section.config || {}),
         section.sortOrder ?? index
@@ -81,7 +83,7 @@ export class HomepageService {
     });
 
     await db.execute<ResultSetHeader>(
-      `INSERT INTO homepage_sections (tenant_id, section_type, title, enabled, config, sort_order) VALUES ${values.join(', ')}`,
+      `INSERT INTO homepage_sections (id, tenant_id, section_type, title, enabled, config, sort_order) VALUES ${values.join(', ')}`,
       params
     );
 

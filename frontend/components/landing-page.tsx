@@ -11,6 +11,7 @@ import { ProductDetailML, type MLProduct } from '@/components/theme-ml/product-d
 import { CheckoutWizardML } from '@/components/theme-ml/checkout-wizard-ml'
 import { parseQtyPromo } from '@/lib/qty-promo'
 import { HomeHeroCarousel, HomeCategoryRail, MarketplaceHomeGovCo, type HeroSlide, type PromoCardConfig } from '@/components/home-theme2'
+import { MarketplaceHomeD1 } from '@/components/marketplace-home-d1'
 import { WhatsAppFloatingWidget } from '@/components/whatsapp-floating-widget'
 import { BoxLoader } from '@/components/box-loader'
 import {
@@ -310,7 +311,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   const [platformHeroSubtitle, setPlatformHeroSubtitle] = useState('')
 
   // ====== HOME THEME (Tema 1 clásico / Tema 2 marketplace) ======
-  const [homeTheme, setHomeTheme] = useState<'theme1' | 'theme2'>('theme1')
+  const [homeTheme, setHomeTheme] = useState<'theme1' | 'theme2' | 'theme3'>('theme1')
   const [settingsLoaded, setSettingsLoaded] = useState(false)
   const [homeHeroSlides, setHomeHeroSlides] = useState<HeroSlide[]>([])
   const [homeHeroSplit, setHomeHeroSplit] = useState('60-40')
@@ -322,6 +323,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   const [platformLogo, setPlatformLogo] = useState('/daimuz-icon.png')
   // Tema 2 solo aplica a la home del marketplace (todas las tiendas), no dentro de una tienda
   const isHomeTheme2 = homeTheme === 'theme2' && showStoresView && selectedStore === 'all'
+  const isHomeTheme3 = homeTheme === 'theme3' && showStoresView && selectedStore === 'all'
 
   // ====== STORE CONFIG STATE (Hero Sections) ======
   const [storeConfig, setStoreConfig] = useState<{
@@ -1223,7 +1225,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
           if (json.data.hero_image_url) setPlatformHeroUrl(json.data.hero_image_url)
           if (json.data.hero_title) setPlatformHeroTitle(json.data.hero_title)
           if (json.data.hero_subtitle) setPlatformHeroSubtitle(json.data.hero_subtitle)
-          if (json.data.home_theme === 'theme2' || json.data.home_theme === 'theme1') {
+          if (json.data.home_theme === 'theme1' || json.data.home_theme === 'theme2' || json.data.home_theme === 'theme3') {
             setHomeTheme(json.data.home_theme)
           }
           if (json.data.home_hero_slides) {
@@ -2898,6 +2900,11 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         <BoxLoader />
       </div>
     )
+  }
+
+  // ── TEMA 3 (D1): marketplace estilo supermercado ──
+  if (isHomeTheme3) {
+    return <MarketplaceHomeD1 />
   }
 
   // ── TEMA 2 (institucional): reemplaza toda la home del marketplace ──

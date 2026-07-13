@@ -4,6 +4,19 @@
 
 ---
 
+## [2026-07-12] — Home D1 (otro agente): A renderer comerciante + B Tema 3 marketplace — 3 bugs corregidos
+
+Verificación de la implementación del otro agente (renderer del comerciante + Tema 3 D1 del marketplace). Estructura y wiring correctos; corregidos 3 defectos.
+
+**A — Renderer del comerciante:** `HomepageRenderer.tsx` (10 secciones D1) + `app/t/[slug]/page.tsx` detecta si el comercio guardó secciones (`GET /homepage/public?store=`) y las renderiza; si no, cae al flujo de temas normal. ✓
+**B — Tema 3 marketplace:** `marketplace-home-d1.tsx` (topbar, header rojo, category strip, hero, grid de comercios, badges, newsletter, footer) + `isHomeTheme3` en `landing-page.tsx` (renderiza `<MarketplaceHomeD1/>`) + opción "Tema 3 · D1" en `LandingConfigTab`. Consume `/storefront/{stores,platform-settings,platform-featured}` (los 3 existen, 200). ✓
+
+**Bugs corregidos:**
+1. `handleSaveHomeTheme` en `useLandingConfig.ts` solo aceptaba `theme1|theme2` → **error tsc** (rompía el build) al pasar `theme3`. Añadido `theme3`.
+2. `homepage.service.saveConfig`: el INSERT de `homepage_sections` **no generaba `id`** (varchar(36) NOT NULL) → 500 al guardar (el PageBuilder del comerciante no podía guardar). Genera uuid + guard `title ?? null`.
+
+`tsc` back 6 / front 8 base. E2E homepage 3/3 (guardar secciones → GET /config → GET público). Home theme selector ahora ofrece Tema 1/2/3.
+
 ## [2026-07-12] — Revisión Content Hub (otro agente): 7 bugs corregidos
 
 El Content Hub (recetas, FAQ, páginas, newsletter, búsquedas, insignias + editores de sección + 3 vistas públicas) estaba **estructuralmente completo pero funcionalmente roto**. Verificado con E2E → 10/10 tras los fixes.

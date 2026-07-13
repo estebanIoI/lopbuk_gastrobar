@@ -8,6 +8,7 @@ import { ProfileThemeThree } from '@/components/profile-theme3/profile-theme-thr
 import { Theme4Layout } from '@/components/theme4/theme4-layout'
 import { BoxLoader } from '@/components/box-loader'
 import { loginHref } from '@/lib/login-path'
+import { HomepageRenderer } from '@/components/content-hub/HomepageRenderer'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'
 
@@ -24,6 +25,9 @@ export default function StoreBySlugPage() {
   const slug = Array.isArray(params?.slug) ? params.slug[0] : (params?.slug as string)
 
   const [theme, setTheme] = useState<'theme1' | 'theme2' | 'theme3' | 'theme4' | null>(null)
+  const [useHomepageRenderer, setUseHomepageRenderer] = useState(false)
+  const [storeName, setStoreName] = useState('')
+  const [storeLogo, setStoreLogo] = useState<string | undefined>(undefined)
 
   useEffect(() => {
     let alive = true
@@ -31,7 +35,15 @@ export default function StoreBySlugPage() {
       try {
         const res = await fetch(`${API_URL}/storefront/store-config/${slug}`).then(r => r.json()).catch(() => null)
         const t = res?.data?.storeInfo?.theme
-        if (alive) setTheme(['theme2', 'theme3', 'theme4'].includes(t) ? t : 'theme1')
+        if (alive) {
+          setTheme(['theme2', 'theme3', 'theme4'].includes(t) ? t : 'theme1')
+          setStoreName(res?.data?.storeInfo?.name || '')
+          setStoreLogo(res?.data?.storeInfo?.logoUrl || undefined)
+        }
+        const homepageRes = await fetch(`${API_URL}/homepage/public?store=${slug}`).then(r => r.json()).catch(() => null)
+        if (alive && homepageRes?.success && homepageRes?.data?.length > 0) {
+          setUseHomepageRenderer(true)
+        }
       } catch {
         if (alive) setTheme('theme1')
       }
@@ -45,6 +57,10 @@ export default function StoreBySlugPage() {
         <BoxLoader />
       </div>
     )
+  }
+
+  if (useHomepageRenderer) {
+    return <HomepageRenderer storeSlug={slug} storeName={storeName || slug} storeLogo={storeLogo} />
   }
 
   if (theme === 'theme2') return <Theme2Storefront slug={slug} />

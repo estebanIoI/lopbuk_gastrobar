@@ -50,7 +50,7 @@ export function useLandingConfig() {
   const [isSavingTheme, setIsSavingTheme] = useState(false)
 
   // Home theme (Tema 1 clásico / Tema 2 marketplace estilo Mercado Libre)
-  const [homeTheme, setHomeTheme] = useState<'theme1' | 'theme2'>('theme1')
+  const [homeTheme, setHomeTheme] = useState<'theme1' | 'theme2' | 'theme3'>('theme1')
   const [isSavingHomeTheme, setIsSavingHomeTheme] = useState(false)
 
   // Slides del carrusel del Hero (Página de Inicio, Tema 2)
@@ -97,7 +97,7 @@ export function useLandingConfig() {
       if (result.data.panel_theme === 'comerciante' || result.data.panel_theme === 'classic') {
         setPanelTheme(result.data.panel_theme)
       }
-      if (result.data.home_theme === 'theme2' || result.data.home_theme === 'theme1') {
+      if (result.data.home_theme === 'theme2' || result.data.home_theme === 'theme1' || result.data.home_theme === 'theme3') {
         setHomeTheme(result.data.home_theme)
       }
       if (result.data.home_hero_slides) {
@@ -202,7 +202,7 @@ export function useLandingConfig() {
     setIsSavingTheme(false)
   }
 
-  const handleSaveHomeTheme = async (value: 'theme1' | 'theme2') => {
+  const handleSaveHomeTheme = async (value: 'theme1' | 'theme2' | 'theme3') => {
     setIsSavingHomeTheme(true)
     const prev = homeTheme
     setHomeTheme(value)
