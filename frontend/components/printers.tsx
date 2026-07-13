@@ -55,6 +55,7 @@ const defaultForm = {
   connectionType: 'lan' as PrinterConnectionType,
   ip: '',
   port: 9100,
+  deviceName: '',
   paperWidth: 80 as PrinterPaperWidth,
   assignedModule: '' as PrinterModule | '',
 }
@@ -113,6 +114,7 @@ export function PrintersConfig() {
       connectionType: p.connectionType,
       ip: p.ip ?? '',
       port: p.port,
+      deviceName: p.deviceName ?? '',
       paperWidth: p.paperWidth,
       assignedModule: p.assignedModule ?? '',
     })
@@ -123,6 +125,7 @@ export function PrintersConfig() {
   const handleSave = async () => {
     if (!form.name.trim()) { setError('El nombre es requerido'); return }
     if (form.connectionType === 'lan' && !form.ip.trim()) { setError('La IP es requerida para conexión LAN'); return }
+    if (form.connectionType !== 'lan' && !form.deviceName.trim()) { setError('El "Nombre en Windows" es requerido para USB'); return }
 
     setSaving(true)
     setError(null)
@@ -132,6 +135,7 @@ export function PrintersConfig() {
       connectionType: form.connectionType,
       ip: form.ip.trim() || undefined,
       port: form.port,
+      deviceName: form.deviceName.trim() || null,
       paperWidth: form.paperWidth,
       assignedModule: (form.assignedModule || null) as PrinterModule | null,
     }
@@ -456,6 +460,22 @@ export function PrintersConfig() {
                     className="bg-gray-800 border-gray-700 text-white font-mono text-sm"
                   />
                 </div>
+              </div>
+            )}
+
+            {/* Nombre en Windows (USB / Bluetooth) */}
+            {form.connectionType !== 'lan' && (
+              <div className="space-y-1.5">
+                <Label className="text-gray-300">Nombre de la impresora en Windows *</Label>
+                <Input
+                  placeholder="Ej: POS-80 Printer"
+                  value={form.deviceName}
+                  onChange={e => setForm(f => ({ ...f, deviceName: e.target.value }))}
+                  className="bg-gray-800 border-gray-700 text-white text-sm"
+                />
+                <p className="text-[11px] text-gray-500">
+                  Debe coincidir EXACTAMENTE con el nombre en Windows → Configuración → Impresoras y escáneres. El Agente de Impresión imprime a ese nombre.
+                </p>
               </div>
             )}
 

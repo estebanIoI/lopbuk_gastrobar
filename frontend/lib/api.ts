@@ -2655,6 +2655,7 @@ class ApiService {
     connectionType: 'lan' | 'usb' | 'bluetooth'
     ip?: string
     port?: number
+    deviceName?: string | null
     paperWidth?: 58 | 80
     assignedModule?: 'caja' | 'cocina' | 'bar' | 'factura' | 'cocina_bar' | null
   }) {
@@ -2669,6 +2670,7 @@ class ApiService {
     connectionType?: 'lan' | 'usb' | 'bluetooth'
     ip?: string
     port?: number
+    deviceName?: string | null
     paperWidth?: 58 | 80
     isActive?: boolean
     assignedModule?: 'caja' | 'cocina' | 'bar' | 'factura' | 'cocina_bar' | null
@@ -2868,6 +2870,10 @@ class ApiService {
   }
   async sendRestbarOrderToKitchen(orderId: string) {
     return this.request<any>(`/restbar/orders/${orderId}/send`, { method: 'POST' })
+  }
+  /** Imprime la pre-cuenta de la mesa en la impresora de Caja (agente). */
+  async printRestbarBill(orderId: string) {
+    return this.request<any>(`/restbar/orders/${orderId}/print-bill`, { method: 'POST' })
   }
   async getKitchenDisplay() {
     return this.request<any[]>('/restbar/kitchen')

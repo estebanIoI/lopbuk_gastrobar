@@ -4,6 +4,28 @@
 
 ---
 
+## [2026-07-12] — Fix Caja: botones duplicados + orden de mesas
+
+- `restbar.tsx` modo cajero: el toggle (Cobro/Cajero) y la barra de acciones estaban **duplicados** (dos bloques idénticos) → se veían dos veces. Eliminado el bloque repetido. Corregido typo "Andir" → "Añadir".
+- `restbar.service.ts` `getTables`: `ORDER BY t.number` ordenaba como TEXTO (Mesa 1, 10, 11, 2, 3…). Cambiado a `ORDER BY CAST(t.number AS UNSIGNED), t.number` → orden numérico natural (1, 2, 3 … 10, 11). `tsc` back 6 / front 8 base.
+
+## [2026-07-12] — Impresión USB (agente) + "Imprimir cuenta" en caja
+
+El agente ahora imprime también en impresoras **USB** (por el spooler de Windows), y el cajero tiene un botón "Imprimir cuenta" que saca la pre-cuenta en la impresora de Caja. Migración 0041. E2E 8/8.
+
+- **DB** (0041): `print_jobs` + `connection_type` (lan|usb), `printer_name` (nombre en Windows), `printer_ip` ahora nullable. `printers` + `device_name` (nombre exacto de la impresora en Windows para USB).
+- **Backend** `printers.service.ts`: `_enqueueJob` distingue LAN (ip) vs USB (device_name); nuevo `printBill(tenantId, data)` (resuelve la impresora de 'caja', arma ESC/POS `buildBillTicket` = PRE-CUENTA con ítems+total, encola; avisa si no hay agente). `Printer` + `deviceName` en tipo/mapRow/create/update.
+- **Backend** `restbar`: `restbarService.printBill` + `POST /restbar/orders/:id/print-bill` (WAITER+CASHIER).
+- **Agente** `print-agent-app/index.js`: `printRawWindows(printerName, buffer)` — imprime RAW por el spooler de Windows vía PowerShell (P/Invoke winspool.drv, sin deps nativas). `processJob` ramifica USB vs LAN. heartbeat entrega `connectionType`/`printerName`.
+- **Frontend**: campo "Nombre de la impresora en Windows" para USB en `printers.tsx` (+ validación, api.ts, types); botón **"Imprimir cuenta"** en el modo cajero de `restbar.tsx` (`api.printRestbarBill`).
+- `tsc` back 6 / front 8 base. **E2E 8/8**: crear comanda→ítem→sin caja=400→USB caja=200 encola job USB con device_name y ticket PRE-CUENTA.
+- **Pendiente redeploy**: requiere recompilar el agente (.exe) para que reconozca jobs USB.
+
+## [2026-07-12] — Ticket POS (notas/negrita) + mesero: nota sin guardar
+
+- **Ticket POS** (`printers.service.ts` `buildSaleTicket`): la nota del pedido se imprimía en una sola línea → se cortaba. Ahora usa `wrapText(str, cols)` (ajuste por palabras, parte palabras largas) bajo un rótulo "Nota:" en peso normal y alineada a la izquierda. Los **ítems** ahora salen en **negrita + doble alto** (más grandes y legibles). El ancho no cambia (doble alto no altera columnas) → alineación de precios intacta.
+- **Panel mesero** (`mesero-panel.tsx`): al salir del detalle de la comanda con una **nota de ítem escrita sin guardar**, ya no se pierde: `requestClose` detecta `noteText !== noteOriginal` (nuevo estado `noteOriginal`) y muestra un toast "Tienes una nota sin guardar" con acción **"Guardar y salir"**. El botón de cerrar del header ahora llama `requestClose`. `tsc` back 6 / front 8 base.
+
 ## [2026-07-12] — Fix: prueba de impresión LAN daba 500
 
 `printers.service.ts` `testPrint`: hacía TCP directo backend→impresora; en la nube no alcanza la IP privada → timeout → 500. Ahora, para impresoras **LAN**, **encola** un `print_job` (lo imprime el Agente local) y responde 200 con mensaje según haya o no un agente conectado (últimos 90s). USB/Bluetooth siguen con envío directo. `tsc` back 6 base. E2E 4/4.

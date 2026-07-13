@@ -316,6 +316,7 @@ function OrderModal({
   const [reassigningItem, setReassigningItem]   = useState<any>(null) // cart item being reassigned
   const [editingNote, setEditingNote]       = useState<string | null>(null)
   const [noteText, setNoteText]             = useState('')
+  const [noteOriginal, setNoteOriginal]     = useState('')
   const [savingNote, setSavingNote]         = useState(false)
   const [cancelStep, setCancelStep]         = useState<0 | 1>(0)
 
@@ -437,13 +438,28 @@ function OrderModal({
     setIsPerforming(false)
   }
 
-  const saveNote = async () => {
-    if (!order?.id || !editingNote) return
+  const saveNote = async (): Promise<boolean> => {
+    if (!order?.id || !editingNote) return true
     setSavingNote(true); setIsPerforming(true)
     const r = await api.updateRestbarOrderItem(order.id, editingNote, { itemNotes: noteText || undefined })
-    if (r.success) { onOrderUpdated(order.id); setEditingNote(null) }
+    if (r.success) { onOrderUpdated(order.id); setNoteOriginal(noteText); setEditingNote(null) }
     else toast.error(r.error ?? 'Error al guardar nota')
     setSavingNote(false); setIsPerforming(false)
+    return r.success
+  }
+
+  // Cierre protegido: si hay una nota de ítem escrita sin guardar, avisa y no la borra.
+  const hasUnsavedNote = editingNote !== null && noteText !== noteOriginal
+  const requestClose = () => {
+    if (hasUnsavedNote) {
+      toast.warning('Tienes una nota sin guardar', {
+        description: 'Guarda la nota del ítem antes de salir.',
+        action: { label: 'Guardar y salir', onClick: async () => { if (await saveNote()) onClose() } },
+        duration: 6000,
+      })
+      return
+    }
+    onClose()
   }
 
   const sendToKitchen = async () => {
@@ -482,7 +498,7 @@ function OrderModal({
 
       {/* ════ HEADER ════ */}
       <div className="shrink-0 bg-card border-b border-border px-4 py-3 flex items-center gap-3">
-        <button onClick={onClose}
+        <button onClick={requestClose}
           className="h-9 w-9 rounded-full flex items-center justify-center bg-accent text-muted-foreground shrink-0 active:scale-95 transition-transform">
           <ChevronLeft className="h-5 w-5" />
         </button>
@@ -887,14 +903,14 @@ function OrderModal({
                             <FileText className="h-3 w-3 text-amber-400 shrink-0" />
                             <span className="text-xs text-amber-400 flex-1">{item.itemNotes}</span>
                             {item.status === 'pendiente' && (
-                              <button onClick={() => { setEditingNote(item.id); setNoteText(item.itemNotes ?? '') }}>
+                              <button onClick={() => { setEditingNote(item.id); setNoteText(item.itemNotes ?? ''); setNoteOriginal(item.itemNotes ?? '') }}>
                                 <Edit2 className="h-3 w-3 text-amber-500" />
                               </button>
                             )}
                           </div>
                         ) : item.status === 'pendiente' ? (
                           <button
-                            onClick={() => { setEditingNote(item.id); setNoteText('') }}
+                            onClick={() => { setEditingNote(item.id); setNoteText(''); setNoteOriginal('') }}
                             className="pl-6 text-[11px] text-muted-foreground hover:text-amber-400 flex items-center gap-1 transition-colors">
                             <FileText className="h-3 w-3" /> Nota
                           </button>

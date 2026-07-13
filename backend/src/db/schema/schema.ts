@@ -2295,6 +2295,7 @@ export const printers = mysqlTable("printers", {
 	connectionType: mysqlEnum("connection_type", ['lan','usb','bluetooth']).default('usb').notNull(),
 	ip: varchar({ length: 45 }),
 	port: int().default(9100).notNull(),
+	deviceName: varchar("device_name", { length: 150 }), // USB: nombre exacto de la impresora en Windows
 	paperWidth: tinyint("paper_width").default(80).notNull(),
 	isActive: tinyint("is_active").default(1).notNull(),
 	assignedModule: mysqlEnum("assigned_module", ['caja','cocina','bar','factura','cocina_bar']),
@@ -2337,9 +2338,11 @@ export const printAgents = mysqlTable("print_agents", {
 export const printJobs = mysqlTable("print_jobs", {
 	id: varchar({ length: 36 }).notNull(),
 	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" }),
-	module: varchar({ length: 20 }).notNull(),          // cocina | bar | caja | factura
-	printerIp: varchar("printer_ip", { length: 45 }).notNull(),
+	module: varchar({ length: 20 }).notNull(),          // cocina | bar | caja | factura | cuenta
+	connectionType: varchar("connection_type", { length: 10 }).default('lan').notNull(), // lan | usb
+	printerIp: varchar("printer_ip", { length: 45 }),   // LAN: ip destino (null en USB)
 	printerPort: int("printer_port").default(9100).notNull(),
+	printerName: varchar("printer_name", { length: 150 }), // USB: nombre de la impresora en Windows
 	dataBase64: mediumtext("data_base64").notNull(),    // bytes ESC/POS en base64
 	status: mysqlEnum(['pending', 'sent', 'done', 'failed']).default('pending').notNull(),
 	attempts: int().default(0).notNull(),
