@@ -7,14 +7,15 @@ async function fetchFaq(storeSlug: string) {
   return json.success ? json.data : []
 }
 
-export default async function FaqPage({ params }: { params: { store: string } }) {
-  const data = await fetchFaq(params.store)
+export default async function FaqPage({ params }: { params: Promise<{ storeSlug: string }> }) {
+  const { storeSlug } = await params
+  const data = await fetchFaq(storeSlug)
   const categories = data || []
 
   return (
     <div className="min-h-screen bg-[#F6F5F2] py-8 px-4">
       <div className="max-w-3xl mx-auto">
-        <a href={`/s/${params.store}`} className="text-sm text-gray-500 hover:text-gray-800 mb-6 inline-block">
+        <a href={`/s/${storeSlug}`} className="text-sm text-gray-500 hover:text-gray-800 mb-6 inline-block">
           ← Volver a la tienda
         </a>
         <h1 className="text-3xl font-bold text-[#1A1A1A] mb-8">Preguntas Frecuentes</h1>

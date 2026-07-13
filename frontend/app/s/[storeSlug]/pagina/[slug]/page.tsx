@@ -9,14 +9,15 @@ async function fetchPage(storeSlug: string, pageSlug: string) {
   return json.success ? json.data : null
 }
 
-export default async function ContentPage({ params }: { params: { store: string; slug: string } }) {
-  const page = await fetchPage(params.store, params.slug)
+export default async function ContentPage({ params }: { params: Promise<{ storeSlug: string; slug: string }> }) {
+  const { storeSlug, slug } = await params
+  const page = await fetchPage(storeSlug, slug)
   if (!page) notFound()
 
   return (
     <div className="min-h-screen bg-[#F6F5F2] py-8 px-4">
       <div className="max-w-3xl mx-auto">
-        <a href={`/s/${params.store}`} className="text-sm text-gray-500 hover:text-gray-800 mb-6 inline-block">
+        <a href={`/s/${storeSlug}`} className="text-sm text-gray-500 hover:text-gray-800 mb-6 inline-block">
           ← Volver a la tienda
         </a>
         <article>
