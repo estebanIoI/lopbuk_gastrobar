@@ -1305,7 +1305,7 @@ class ApiService {
   async openCashSession(
     openingAmount: number,
     userName: string,
-    opts?: { shiftType?: 'mañana' | 'tarde' | 'unico'; shiftLabel?: string | null; employees?: { userId?: string | null; name: string; role?: string | null }[] }
+    opts?: { shiftType?: 'mañana' | 'tarde' | 'unico'; shiftLabel?: string | null; employees?: { userId?: string | null; name: string; role?: string | null; shiftValue?: number }[] }
   ) {
     return this.request<any>('/cash-sessions/open', {
       method: 'POST',
@@ -1317,10 +1317,10 @@ class ApiService {
   async getShiftEmployees(sessionId: string) {
     return this.request<any>(`/cash-sessions/${sessionId}/employees`)
   }
-  async addShiftEmployee(sessionId: string, data: { userId?: string | null; name: string; role?: string | null }) {
+  async addShiftEmployee(sessionId: string, data: { userId?: string | null; name: string; role?: string | null; shiftValue?: number }) {
     return this.request<any>(`/cash-sessions/${sessionId}/employees`, { method: 'POST', body: JSON.stringify(data) })
   }
-  async updateShiftEmployee(sessionId: string, empId: string, data: { role?: string | null; status?: 'activo' | 'baja'; bajaReason?: string | null }) {
+  async updateShiftEmployee(sessionId: string, empId: string, data: { role?: string | null; status?: 'activo' | 'baja'; bajaReason?: string | null; shiftValue?: number }) {
     return this.request<any>(`/cash-sessions/${sessionId}/employees/${empId}`, { method: 'PUT', body: JSON.stringify(data) })
   }
   async getCashDailySummary(date?: string) {
@@ -3817,7 +3817,7 @@ class ApiService {
   async updateHorma(id: string, data: any) { return this.request<any>(`/hormas/${id}`, { method: 'PUT', body: JSON.stringify(data) }) }
   async deleteHorma(id: string) { return this.request<any>(`/hormas/${id}`, { method: 'DELETE' }) }
   async getHormaColors(id: string) { return this.request<any[]>(`/hormas/${id}/colors`) }
-  async addHormaColor(id: string, data: { color: string; hex?: string; sortOrder?: number }) {
+  async addHormaColor(id: string, data: { color: string; hex?: string; sortOrder?: number; shelf?: string[] | null }) {
     return this.request<any>(`/hormas/${id}/colors`, { method: 'POST', body: JSON.stringify(data) })
   }
   async updateHormaColor(colorId: string, data: { shelf?: string[] | null; hex?: string | null }) {

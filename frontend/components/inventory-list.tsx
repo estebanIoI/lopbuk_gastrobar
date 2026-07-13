@@ -2929,7 +2929,7 @@ function ProductFormDialog({
 
   const fillAll = (hormaId: string, colors: string[], sizes: string[], val: string) => {
     setHormaMatrix(prev => {
-      const m = { ...prev, [hormaId]: {} }
+      const m: Record<string, Record<string, Record<string, string>>> = { ...prev, [hormaId]: {} }
       for (const c of colors) { m[hormaId][c] = {}; for (const sz of sizes) m[hormaId][c][sz] = val }
       return m
     })

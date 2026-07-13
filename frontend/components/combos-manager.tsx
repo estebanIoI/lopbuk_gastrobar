@@ -112,7 +112,7 @@ export function CombosManager() {
       </div>
 
       {combos.length === 0 ? (
-        <Card><CardContent className="flex flex-col items-center py-16 text-center">
+        <Card variant="glass"><CardContent className="flex flex-col items-center py-16 text-center">
           <Layers className="mb-3 h-12 w-12 text-muted-foreground/40" />
           <p className="font-medium text-muted-foreground">Sin combos aún</p>
           <p className="mb-4 text-sm text-muted-foreground">Crea tu primer combo por día</p>

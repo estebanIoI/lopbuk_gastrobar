@@ -43,6 +43,7 @@ import { RealEstate } from '@/components/realestate'
 import { Tapiceria } from '@/components/tapiceria'
 import { Merma } from '@/components/merma'
 import { GastrobarOps } from '@/components/gastrobar-ops'
+import { CombosManager } from '@/components/combos-manager'
 
 /**
  * Renderiza el componente correspondiente a la sección activa.
@@ -181,6 +182,8 @@ export function SectionRenderer() {
       return <Merma />
     case 'gastrobar-ops':
       return <GastrobarOps />
+    case 'combos':
+      return <CombosManager />
     default:
       return <Dashboard />
   }

@@ -13,7 +13,7 @@ RUN npm run build || true
 # PRINT_AGENT_API si el dominio de producción no es el de por defecto.
 # pkg descarga el binario base de Node para Windows (requiere red durante el build). Si falla,
 # NO rompe la imagen: /print-agent/download responderá 503 hasta que exista el .exe.
-ARG PRINT_AGENT_API=https://daimuz.alexsters.works/api
+ARG PRINT_AGENT_API=https://daimuz.com/api
 RUN mkdir -p /app/assets \
  && sed -i "s|https://daimuz.alexsters.works/api|${PRINT_AGENT_API}|" print-agent-app/index.js \
  && npm install -g pkg@5.8.1 \

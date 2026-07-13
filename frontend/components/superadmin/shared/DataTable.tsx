@@ -26,7 +26,7 @@ export function DataTable<T extends Record<string, any>>({
 }) {
   const alignCls = (a?: string) => a === 'right' ? 'text-right' : a === 'center' ? 'text-center' : 'text-left'
   return (
-    <Table>
+    <Table variant="glass">
       <TableHeader>
         <TableRow>
           {columns.map(c => (

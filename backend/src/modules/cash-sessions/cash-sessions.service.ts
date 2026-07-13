@@ -206,7 +206,7 @@ export class CashSessionsService {
     opts?: {
       shiftType?: 'mañana' | 'tarde' | 'unico';
       shiftLabel?: string | null;
-      employees?: { userId?: string | null; name: string; role?: string | null }[];
+      employees?: { userId?: string | null; name: string; role?: string | null; shiftValue?: number }[];
     }
   ): Promise<CashSession> {
     const connection = await db.getConnection();
@@ -233,14 +233,15 @@ export class CashSessionsService {
         [id, tenantId, userId, userName, openingAmount, shiftType, opts?.shiftLabel || null]
       );
 
-      // Empleados del turno (de cuenta o ad-hoc)
+      // Empleados del turno (de cuenta o ad-hoc), con su valor de turno (pago base)
       for (const e of (opts?.employees || [])) {
         const name = String(e?.name || '').trim();
         if (!name) continue;
+        const shiftValue = Math.max(0, Number(e?.shiftValue) || 0);
         await connection.execute<ResultSetHeader>(
-          `INSERT INTO shift_employees (id, tenant_id, session_id, user_id, employee_name, role_label, status)
-           VALUES (?, ?, ?, ?, ?, ?, 'activo')`,
-          [uuidv4(), tenantId, id, e.userId || null, name.slice(0, 100), e.role ? String(e.role).slice(0, 50) : null]
+          `INSERT INTO shift_employees (id, tenant_id, session_id, user_id, employee_name, role_label, shift_value, status)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 'activo')`,
+          [uuidv4(), tenantId, id, e.userId || null, name.slice(0, 100), e.role ? String(e.role).slice(0, 50) : null, shiftValue]
         );
       }
 
@@ -602,11 +603,18 @@ export class CashSessionsService {
   // ════════════════ EMPLEADOS DEL TURNO ════════════════
 
   private mapShiftEmployee(r: any) {
+    const shiftValue = Number(r.shift_value) || 0;
+    const bonuses = r.bonuses || [];
+    const bono = bonuses.filter((b: any) => b.type === 'bono').reduce((a: number, b: any) => a + Number(b.amount), 0);
+    const desc = bonuses.filter((b: any) => b.type === 'descuento').reduce((a: number, b: any) => a + Number(b.amount), 0);
     return {
       id: r.id, sessionId: r.session_id, userId: r.user_id || null,
       name: r.employee_name, role: r.role_label || null,
+      shiftValue,
       status: r.status, bajaReason: r.baja_reason || null, createdAt: r.created_at,
-      bonuses: r.bonuses || [],
+      bonuses,
+      // Total a pagar a este empleado por el turno = valor turno + bonos - descuentos.
+      toPay: Math.max(0, shiftValue + bono - desc),
     };
   }
 
@@ -627,17 +635,18 @@ export class CashSessionsService {
 
   async addShiftEmployee(
     tenantId: string, sessionId: string,
-    data: { userId?: string | null; name: string; role?: string | null }
+    data: { userId?: string | null; name: string; role?: string | null; shiftValue?: number }
   ): Promise<any> {
     const session = await this.findById(sessionId);
     if (session.status !== 'abierta') throw new AppError('La sesion de caja ya esta cerrada', 400);
     const name = String(data?.name || '').trim();
     if (!name) throw new AppError('El nombre del empleado es requerido', 400);
     const id = uuidv4();
+    const shiftValue = Math.max(0, Number(data?.shiftValue) || 0);
     await db.execute<ResultSetHeader>(
-      `INSERT INTO shift_employees (id, tenant_id, session_id, user_id, employee_name, role_label, status)
-       VALUES (?, ?, ?, ?, ?, ?, 'activo')`,
-      [id, tenantId, sessionId, data.userId || null, name.slice(0, 100), data.role ? String(data.role).slice(0, 50) : null]
+      `INSERT INTO shift_employees (id, tenant_id, session_id, user_id, employee_name, role_label, shift_value, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'activo')`,
+      [id, tenantId, sessionId, data.userId || null, name.slice(0, 100), data.role ? String(data.role).slice(0, 50) : null, shiftValue]
     );
     const [rows] = await db.execute<any[]>('SELECT * FROM shift_employees WHERE id = ?', [id]);
     return this.mapShiftEmployee({ ...rows[0], bonuses: [] });
@@ -645,10 +654,11 @@ export class CashSessionsService {
 
   async updateShiftEmployee(
     tenantId: string, empId: string,
-    data: { role?: string | null; status?: 'activo' | 'baja'; bajaReason?: string | null }
+    data: { role?: string | null; status?: 'activo' | 'baja'; bajaReason?: string | null; shiftValue?: number }
   ): Promise<any> {
     const sets: string[] = []; const params: any[] = [];
     if (data.role !== undefined) { sets.push('role_label = ?'); params.push(data.role ? String(data.role).slice(0, 50) : null); }
+    if (data.shiftValue !== undefined) { sets.push('shift_value = ?'); params.push(Math.max(0, Number(data.shiftValue) || 0)); }
     if (data.status !== undefined && ['activo', 'baja'].includes(data.status)) { sets.push('status = ?'); params.push(data.status); }
     if (data.bajaReason !== undefined) { sets.push('baja_reason = ?'); params.push(data.bajaReason ? String(data.bajaReason).slice(0, 255) : null); }
     if (!sets.length) throw new AppError('Sin cambios', 400);
@@ -671,12 +681,16 @@ export class CashSessionsService {
     );
 
     const shifts = [];
-    let totals = { opening: 0, cashSales: 0, cardSales: 0, transferSales: 0, fiadoSales: 0, expected: 0, actual: 0, difference: 0, bonuses: 0, discounts: 0, salesCount: 0 };
+    let totals = { opening: 0, cashSales: 0, cardSales: 0, transferSales: 0, fiadoSales: 0, expected: 0, actual: 0, difference: 0, bonuses: 0, discounts: 0, salesCount: 0, shiftValue: 0, payroll: 0 };
 
     for (const s of sessions) {
       const employees = await this.getShiftEmployees(s.id);
-      let bono = 0, desc = 0;
-      for (const e of employees) for (const b of e.bonuses) { if (b.type === 'bono') bono += b.amount; else desc += b.amount; }
+      let bono = 0, desc = 0, shiftValueTotal = 0, payroll = 0;
+      for (const e of employees) {
+        for (const b of e.bonuses) { if (b.type === 'bono') bono += b.amount; else desc += b.amount; }
+        shiftValueTotal += Number(e.shiftValue) || 0;
+        payroll += Number(e.toPay) || 0;  // valor turno + bonos - descuentos, por empleado
+      }
 
       shifts.push({
         id: s.id,
@@ -694,6 +708,8 @@ export class CashSessionsService {
         difference: Number(s.difference || 0),
         closingStatus: s.closing_status || null,
         bonusesTotal: bono, discountsTotal: desc,
+        shiftValueTotal,           // suma de valores de turno del turno
+        payrollTotal: payroll,     // total a pagar del turno (valor turno + bonos - descuentos)
         employees,
       });
 
@@ -707,6 +723,7 @@ export class CashSessionsService {
       totals.difference += Number(s.difference || 0);
       totals.salesCount += Number(s.total_sales_count || 0);
       totals.bonuses += bono; totals.discounts += desc;
+      totals.shiftValue += shiftValueTotal; totals.payroll += payroll;
     }
 
     return { date, shifts, totals };

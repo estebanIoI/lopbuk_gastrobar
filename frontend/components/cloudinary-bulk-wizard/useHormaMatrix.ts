@@ -118,7 +118,7 @@ export function useHormaMatrix() {
 
   const fillAll = useCallback((hormaId: string, colors: string[], sizes: string[], val: string) => {
     setHormaMatrix(prev => {
-      const m = { ...prev, [hormaId]: {} }
+      const m: HormaMatrix = { ...prev, [hormaId]: {} }
       for (const c of colors) {
         m[hormaId][c] = {}
         for (const sz of sizes) m[hormaId][c][sz] = val

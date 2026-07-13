@@ -86,7 +86,7 @@ export class CashSessionsController {
   async addEmployee(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const emp = await cashSessionsService.addShiftEmployee(req.user!.tenantId!, req.params.id, {
-        userId: req.body.userId, name: req.body.name, role: req.body.role,
+        userId: req.body.userId, name: req.body.name, role: req.body.role, shiftValue: req.body.shiftValue,
       });
       res.status(201).json({ success: true, data: emp });
     } catch (error) { next(error); }
@@ -95,7 +95,7 @@ export class CashSessionsController {
   async updateEmployee(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const emp = await cashSessionsService.updateShiftEmployee(req.user!.tenantId!, req.params.empId, {
-        role: req.body.role, status: req.body.status, bajaReason: req.body.bajaReason,
+        role: req.body.role, status: req.body.status, bajaReason: req.body.bajaReason, shiftValue: req.body.shiftValue,
       });
       res.json({ success: true, data: emp });
     } catch (error) { next(error); }

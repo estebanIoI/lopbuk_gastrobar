@@ -4,7 +4,7 @@ import { RowDataPacket, ResultSetHeader } from 'mysql2';
 import { v4 as uuidv4 } from 'uuid';
 
 interface ContentPageRow extends RowDataPacket {
-  id: number;
+  id: string;
   tenant_id: string;
   slug: string;
   title: string;
@@ -17,7 +17,7 @@ interface ContentPageRow extends RowDataPacket {
 }
 
 export interface ContentPageItem {
-  id: number;
+  id: string;
   slug: string;
   title: string;
   content: string;
@@ -51,7 +51,7 @@ export class ContentPagesService {
     return rows.map(this.mapItem.bind(this));
   }
 
-  async findById(tenantId: string, id: number): Promise<ContentPageItem> {
+  async findById(tenantId: string, id: string): Promise<ContentPageItem> {
     const [rows] = await db.execute<ContentPageRow[]>(
       'SELECT * FROM content_pages WHERE id = ? AND tenant_id = ?',
       [id, tenantId]
@@ -110,7 +110,7 @@ export class ContentPagesService {
     return this.mapItem(rows[0]);
   }
 
-  async update(tenantId: string, id: number, data: {
+  async update(tenantId: string, id: string, data: {
     slug?: string;
     title?: string;
     content?: string;
@@ -146,7 +146,7 @@ export class ContentPagesService {
     return this.mapItem({ ...current, slug, title, content, meta_title: metaTitle ?? null, meta_description: metaDescription ?? null, page_type: pageType, is_published: isPublished, sort_order: sortOrder });
   }
 
-  async delete(tenantId: string, id: number): Promise<void> {
+  async delete(tenantId: string, id: string): Promise<void> {
     const [result] = await db.execute<ResultSetHeader>(
       'DELETE FROM content_pages WHERE id = ? AND tenant_id = ?',
       [id, tenantId]

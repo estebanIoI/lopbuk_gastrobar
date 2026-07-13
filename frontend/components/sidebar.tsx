@@ -280,12 +280,12 @@ export function Sidebar() {
             return (
               <div key={group.key} className="mb-1">
                 {group.label && isExpanded && (
-                  <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-gray-400/80 select-none">
+                  <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground select-none">
                     {group.label}
                   </p>
                 )}
                 {group.label && !isExpanded && (
-                  <div className="mx-3 my-1 border-t border-black/[0.06]" />
+                  <div className="mx-3 my-1 border-t border-glass-border" />
                 )}
 
                 {items.map(item => {

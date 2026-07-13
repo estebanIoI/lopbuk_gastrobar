@@ -167,7 +167,7 @@ export function useCloudinaryBrowser() {
     const totalBytes = selected.reduce((acc, i) => acc + (i.bytes || 0), 0)
     const formats = [...new Set(selected.map(i => i.format).filter(Boolean))]
     return {
-      count: selected.size ?? selected.length,
+      count: selected.length,
       bytes: totalBytes,
       mb: (totalBytes / (1024 * 1024)).toFixed(1),
       formats,

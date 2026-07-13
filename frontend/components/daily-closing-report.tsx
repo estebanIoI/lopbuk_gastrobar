@@ -304,7 +304,7 @@ export function DailyClosingReport() {
       </div>
 
       {/* Date picker + generate */}
-      <Card className="border-border">
+      <Card variant="glass" className="border-glass-border">
         <CardContent className="p-4 flex items-end gap-3 flex-wrap">
           <div>
             <label className="text-xs font-medium text-muted-foreground block mb-1.5 flex items-center gap-1.5">
@@ -340,7 +340,7 @@ export function DailyClosingReport() {
       {report && (
         <>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <Card className="border-border">
+            <Card variant="glass" className="border-glass-border">
               <CardContent className="p-4 flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/30">
                   <ShoppingCart className="h-5 w-5 text-blue-600" />
@@ -351,7 +351,7 @@ export function DailyClosingReport() {
                 </div>
               </CardContent>
             </Card>
-            <Card className="border-border">
+            <Card variant="glass" className="border-glass-border">
               <CardContent className="p-4 flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800">
                   <CircleDollarSign className="h-5 w-5 text-gray-600" />
@@ -362,7 +362,7 @@ export function DailyClosingReport() {
                 </div>
               </CardContent>
             </Card>
-            <Card className="border-border">
+            <Card variant="glass" className="border-glass-border">
               <CardContent className="p-4 flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/30">
                   <CreditCard className="h-5 w-5 text-amber-600" />
@@ -388,7 +388,7 @@ export function DailyClosingReport() {
 
           {/* Sede columns */}
           {report.sedes.length === 0 ? (
-            <Card className="border-border">
+            <Card variant="glass" className="border-glass-border">
               <CardContent className="py-16 text-center">
                 <PackageSearch className="h-12 w-12 mx-auto mb-3 text-muted-foreground/40" />
                 <p className="text-lg font-medium text-muted-foreground">Sin ventas para esta fecha</p>
@@ -435,7 +435,7 @@ export function DailyClosingReport() {
       )}
 
       {!report && !isLoading && (
-        <Card className="border-border border-dashed">
+        <Card variant="glass" className="border-glass-border border-dashed">
           <CardContent className="py-16 text-center">
             <TrendingUp className="h-12 w-12 mx-auto mb-3 text-muted-foreground/30" />
             <p className="text-muted-foreground">Selecciona una fecha y haz clic en <strong>Generar Reporte</strong></p>

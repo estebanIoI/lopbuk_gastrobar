@@ -235,7 +235,7 @@ export function Credits() {
 
       {/* Stats */}
       <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
-        <Card>
+        <Card variant="glass">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total por Cobrar</CardTitle>
             <DollarSign className="h-4 w-4 text-destructive" />
@@ -245,7 +245,7 @@ export function Credits() {
             <p className="text-[10px] sm:text-xs text-muted-foreground hidden sm:block">Saldo pendiente</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card variant="glass">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Créditos Activos</CardTitle>
             <CreditCard className="h-4 w-4 text-muted-foreground" />
@@ -255,7 +255,7 @@ export function Credits() {
             <p className="text-[10px] sm:text-xs text-muted-foreground hidden sm:block">Ventas pendientes</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card variant="glass">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Vencidos</CardTitle>
             <Clock className="h-4 w-4 text-destructive" />
@@ -265,7 +265,7 @@ export function Credits() {
             <p className="text-[10px] sm:text-xs text-muted-foreground hidden sm:block">Fuera de plazo</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card variant="glass">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Sobre Límite</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
@@ -278,7 +278,7 @@ export function Credits() {
       </div>
 
       {/* Settings */}
-      <Card>
+      <Card variant="glass">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium">Parámetros de Fiado</CardTitle>
         </CardHeader>
@@ -310,7 +310,7 @@ export function Credits() {
       </Card>
 
       {/* Próximos Vencimientos */}
-      <Card>
+      <Card variant="glass">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium">Próximos vencimientos (7 días)</CardTitle>
         </CardHeader>
@@ -343,7 +343,7 @@ export function Credits() {
       </Card>
 
       {/* Filters */}
-      <Card>
+      <Card variant="glass">
         <CardContent className="pt-6">
           <div className="flex flex-col gap-4 sm:flex-row">
             <div className="relative flex-1">
@@ -371,7 +371,7 @@ export function Credits() {
       </Card>
 
       {/* Table */}
-      <Card>
+      <Card variant="glass">
         <CardContent className="p-0">
           {isLoading ? (
             <div className="flex items-center justify-center py-12">

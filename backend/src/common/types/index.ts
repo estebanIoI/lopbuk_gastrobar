@@ -27,6 +27,11 @@ export interface ProductVariant {
   isActive: boolean;
   preorderLimit?: number | null;  // cupo máximo de preventa (null = ilimitado)
   preorderCount?: number;         // unidades vendidas/reservadas en preventa
+  presale?: boolean;              // variante marcada como preventa
+  presaleDate?: string | null;    // fecha estimada de disponibilidad
+  presaleLimit?: number | null;   // cupo máximo de preventa (null = ilimitado)
+  presaleSold?: number;           // unidades vendidas/reservadas en preventa
+  presaleDepositPct?: number;     // % de anticipo requerido en preventa
   hormaId?: string | null;        // horma (silueta) de ESTA variante — un producto puede tener variantes en distintas hormas
   attributes?: Array<{ name: string; value: string }>; // ejes con nombre (ferretería/genérico): Diámetro, Ángulo, Presión…
   createdAt: Date;
@@ -176,6 +181,8 @@ export interface Product {
   reorderPoint: number;
   supplier?: string;
   supplierId?: string;
+  /** Horma (calzado): agrupa colores/tallas bajo una misma horma. */
+  hormaId?: string;
   entryDate: Date;
   imageUrl?: string;
   images?: string[];

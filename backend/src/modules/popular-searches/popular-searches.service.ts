@@ -1,9 +1,10 @@
 import { db } from '../../config';
 import { AppError } from '../../common/middleware';
 import { RowDataPacket, ResultSetHeader } from 'mysql2';
+import { v4 as uuidv4 } from 'uuid';
 
 interface PopularSearchRow extends RowDataPacket {
-  id: number;
+  id: string;
   tenant_id: string;
   term: string;
   sort_order: number;
@@ -11,7 +12,7 @@ interface PopularSearchRow extends RowDataPacket {
 }
 
 export interface PopularSearchItem {
-  id: number;
+  id: string;
   term: string;
   sortOrder: number;
   isActive: boolean;
@@ -37,20 +38,17 @@ export class PopularSearchesService {
 
   async create(tenantId: string, data: { term: string; sortOrder?: number }): Promise<PopularSearchItem> {
     const sortOrder = data.sortOrder ?? 0;
+    const id = uuidv4();
 
-    const [result] = await db.execute<ResultSetHeader>(
-      'INSERT INTO popular_searches (tenant_id, term, sort_order, is_active) VALUES (?, ?, ?, 1)',
-      [tenantId, data.term, sortOrder]
+    await db.execute<ResultSetHeader>(
+      'INSERT INTO popular_searches (id, tenant_id, term, sort_order, is_active) VALUES (?, ?, ?, ?, 1)',
+      [id, tenantId, data.term, sortOrder]
     );
 
-    const [rows] = await db.execute<PopularSearchRow[]>(
-      'SELECT * FROM popular_searches WHERE id = ?',
-      [result.insertId]
-    );
-    return this.mapItem(rows[0]);
+    return { id, term: data.term, sortOrder, isActive: true };
   }
 
-  async update(tenantId: string, id: number, data: { term?: string; sortOrder?: number }): Promise<PopularSearchItem> {
+  async update(tenantId: string, id: string, data: { term?: string; sortOrder?: number }): Promise<PopularSearchItem> {
     const [rows] = await db.execute<PopularSearchRow[]>(
       'SELECT * FROM popular_searches WHERE id = ? AND tenant_id = ?',
       [id, tenantId]
@@ -69,7 +67,7 @@ export class PopularSearchesService {
     return this.mapItem({ ...current, term, sort_order: sortOrder });
   }
 
-  async delete(tenantId: string, id: number): Promise<void> {
+  async delete(tenantId: string, id: string): Promise<void> {
     const [result] = await db.execute<ResultSetHeader>(
       'UPDATE popular_searches SET is_active = 0 WHERE id = ? AND tenant_id = ?',
       [id, tenantId]

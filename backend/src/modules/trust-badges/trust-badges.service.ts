@@ -1,9 +1,10 @@
 import { db } from '../../config';
 import { AppError } from '../../common/middleware';
 import { RowDataPacket, ResultSetHeader } from 'mysql2';
+import { v4 as uuidv4 } from 'uuid';
 
 interface TrustBadgeRow extends RowDataPacket {
-  id: number;
+  id: string;
   tenant_id: string;
   icon: string;
   title: string;
@@ -13,7 +14,7 @@ interface TrustBadgeRow extends RowDataPacket {
 }
 
 export interface TrustBadgeItem {
-  id: number;
+  id: string;
   icon: string;
   title: string;
   description: string;
@@ -47,20 +48,17 @@ export class TrustBadgesService {
       [tenantId]
     );
     const nextOrder = maxRow[0].nextOrder as number;
+    const id = uuidv4();
 
-    const [result] = await db.execute<ResultSetHeader>(
-      'INSERT INTO trust_badges (tenant_id, icon, title, description, sort_order, is_active) VALUES (?, ?, ?, ?, ?, 1)',
-      [tenantId, data.icon, data.title, data.description, nextOrder]
+    await db.execute<ResultSetHeader>(
+      'INSERT INTO trust_badges (id, tenant_id, icon, title, description, sort_order, is_active) VALUES (?, ?, ?, ?, ?, ?, 1)',
+      [id, tenantId, data.icon, data.title, data.description, nextOrder]
     );
 
-    const [rows] = await db.execute<TrustBadgeRow[]>(
-      'SELECT * FROM trust_badges WHERE id = ?',
-      [result.insertId]
-    );
-    return this.mapItem(rows[0]);
+    return { id, icon: data.icon, title: data.title, description: data.description, sortOrder: nextOrder, isActive: true };
   }
 
-  async update(tenantId: string, id: number, data: { icon?: string; title?: string; description?: string; sortOrder?: number }): Promise<TrustBadgeItem> {
+  async update(tenantId: string, id: string, data: { icon?: string; title?: string; description?: string; sortOrder?: number }): Promise<TrustBadgeItem> {
     const [rows] = await db.execute<TrustBadgeRow[]>(
       'SELECT * FROM trust_badges WHERE id = ? AND tenant_id = ?',
       [id, tenantId]
@@ -81,7 +79,7 @@ export class TrustBadgesService {
     return this.mapItem({ ...current, icon, title, description, sort_order: sortOrder });
   }
 
-  async delete(tenantId: string, id: number): Promise<void> {
+  async delete(tenantId: string, id: string): Promise<void> {
     const [result] = await db.execute<ResultSetHeader>(
       'UPDATE trust_badges SET is_active = 0 WHERE id = ? AND tenant_id = ?',
       [id, tenantId]

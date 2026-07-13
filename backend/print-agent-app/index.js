@@ -24,7 +24,7 @@ const { execFile } = require('child_process');
 const { URL } = require('url');
 
 // Base del API público. Se puede sobreescribir con la variable de entorno DAIMUZ_API.
-const API_BASE = process.env.DAIMUZ_API || 'https://daimuz.alexsters.works/api';
+const API_BASE = process.env.DAIMUZ_API || 'https://daimuz.com/api';
 const APP_NAME = 'DAIMUZ-Impresion';
 const HEARTBEAT_MS = 5000;
 

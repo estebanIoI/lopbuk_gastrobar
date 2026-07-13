@@ -34,6 +34,8 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      args:
+        PRINT_AGENT_API: ${PRINT_AGENT_API:-https://daimuz.com/api}
     restart: unless-stopped
     depends_on:
       db:

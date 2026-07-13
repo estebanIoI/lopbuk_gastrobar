@@ -15,6 +15,7 @@ import { CloudinaryUpload } from '@/components/ui/cloudinary-upload'
 import { PlatformThemeGenerator } from '@/components/platform-theme-generator'
 import { formatCOP } from '@/lib/utils'
 import { useLandingConfig } from '../hooks/useLandingConfig'
+import { PageBuilder } from '@/components/content-hub/PageBuilder'
 
 export function LandingConfigTab() {
   const {
@@ -184,6 +185,26 @@ export function LandingConfigTab() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Editor Visual de Secciones (Tema 3 · D1) */}
+      {homeTheme === 'theme3' && (
+        <Card className="border-border bg-card">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base lg:text-lg flex items-center gap-2">
+              <LayoutTemplate className="h-5 w-5 text-muted-foreground" />
+              Editor de Secciones (Tema 3 · D1)
+            </CardTitle>
+            <CardDescription>
+              Arrastra, ordena, activa/desactiva y configura cada sección del marketplace D1: hero, categorías, comercios destacados, insignias de confianza, newsletter y footer.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="h-[520px] overflow-hidden">
+              <PageBuilder />
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Carrusel del Hero (Página de Inicio · Tema 2) */}
       <Card className="border-border bg-card">

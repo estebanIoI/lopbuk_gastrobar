@@ -391,7 +391,7 @@ export function PrintersConfig() {
 
       {/* Create/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-md bg-gray-900 border-gray-700">
+        <DialogContent className="max-w-md glass-strong">
           <DialogHeader>
             <DialogTitle className="text-white flex items-center gap-2">
               <PrinterIcon className="h-5 w-5 text-blue-400" />

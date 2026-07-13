@@ -73,7 +73,10 @@ export interface BillTicketData {
   storeName: string;
   tableNumber: string;
   orderNumber: string;
-  items: Array<{ name: string; quantity: number; price: number }>;
+  waiterName?: string;
+  items: Array<{ name: string; quantity: number; price: number; notes?: string | null }>;
+  subtotal?: number;
+  tax?: number;
   total: number;
 }
 
@@ -108,8 +111,15 @@ class EscPos {
   right()  { this.buf.push(0x1b, 0x61, 0x02); return this; }
 
   // Style
-  bold(on: boolean)    { this.buf.push(0x1b, 0x45, on ? 0x01 : 0x00); return this; }
-  doubleH(on: boolean) { this.buf.push(0x1b, 0x21, on ? 0x10 : 0x00); return this; }
+  bold(on: boolean)        { this.buf.push(0x1b, 0x45, on ? 0x01 : 0x00); return this; }
+  doubleH(on: boolean)     { this.buf.push(0x1b, 0x21, on ? 0x10 : 0x00); return this; }
+  // Doble impacto (ESC G): imprime cada punto dos veces → negrilla GRUESA sin deformar
+  // el tamaño (no estira el alto como doubleH). Se combina con bold() para máximo grosor.
+  doubleStrike(on: boolean){ this.buf.push(0x1b, 0x47, on ? 0x01 : 0x00); return this; }
+  // Tamaño proporcional (GS !): 2x ancho + 2x alto — para títulos (no deforma, escala parejo).
+  size2x(on: boolean)      { this.buf.push(0x1d, 0x21, on ? 0x11 : 0x00); return this; }
+  // Negrilla gruesa = énfasis + doble impacto, tamaño normal (para ítems tipo factura).
+  thick(on: boolean)       { return this.bold(on).doubleStrike(on); }
 
   // Text
   text(str: string) {
@@ -213,22 +223,20 @@ function buildSaleTicket(data: PrintTicketData, paperWidth: PaperWidth): Buffer 
   const cols = paperWidth === 80 ? 42 : 32;
   const esc = new EscPos().init();
 
-  esc.center().bold(true).doubleH(true).line(data.storeName.substring(0, cols)).doubleH(false).bold(false);
+  esc.center().bold(true).size2x(true).line(data.storeName.substring(0, Math.floor(cols / 2))).size2x(false).bold(false);
   esc.separator(cols);
   esc.center().line(`Pedido #${data.invoiceNumber}`);
   esc.separator(cols);
   esc.left();
 
-  // Ítems en NEGRITA y un poco más grandes (doble alto) para lectura fácil.
-  esc.bold(true).doubleH(true);
+  // Ítems en NEGRILLA GRUESA, tamaño normal (legibles sin deformar).
   for (const item of data.items) {
     const qty = `${item.quantity}x`;
     const price = formatCurrency(item.price * item.quantity);
     const nameMaxLen = cols - qty.length - price.length - 2;
     const name = item.name.length > nameMaxLen ? item.name.substring(0, nameMaxLen) : padRight(item.name, nameMaxLen);
-    esc.line(`${qty} ${name} ${padLeft(price, price.length)}`);
+    esc.thick(true).line(`${qty} ${name} ${padLeft(price, price.length)}`).thick(false);
   }
-  esc.doubleH(false).bold(false);
 
   esc.separator(cols);
 
@@ -272,29 +280,33 @@ function buildKitchenTicket(data: KitchenTicketData, paperWidth: PaperWidth): Bu
   const cols = paperWidth === 80 ? 42 : 32;
   const esc = new EscPos().init();
 
-  esc.center().bold(true).doubleH(true).line(data.storeName.substring(0, cols)).doubleH(false).bold(false);
+  // Encabezado tipo factura: título proporcional (no deformado).
+  esc.center().bold(true).size2x(true).line(data.storeName.substring(0, Math.floor(cols / 2))).size2x(false).bold(false);
+  esc.center().bold(true).line(`COMANDA ${data.area}`).bold(false);
   esc.separator(cols);
-  esc.center().bold(true).line(`${data.area}  -  Comanda #${data.orderNumber}`).bold(false);
-  esc.line(`Mesa: ${data.tableNumber}  |  Mesero: ${data.waiterName}`);
+  esc.left();
+  esc.line(`Comanda #: ${data.orderNumber}`);
+  esc.line(`Mesa: ${data.tableNumber}`);
+  esc.line(`Mesero: ${data.waiterName}`);
+  const now = new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota', hour12: false });
+  esc.line(`Fecha: ${now}`);
   esc.separator(cols);
 
   for (const item of data.items) {
     const qtyText = `${item.qty}x`;
     const nameMax = cols - qtyText.length - 1;
     const name = item.name.length > nameMax ? item.name.substring(0, nameMax) : item.name;
-    // Ítem en NEGRITA + doble alto (grande y legible para la cocina).
-    esc.bold(true).doubleH(true).line(`${qtyText} ${name}`).doubleH(false).bold(false);
+    // Ítem en NEGRILLA GRUESA, tamaño normal (no estirado/deformado).
+    esc.thick(true).line(`${qtyText} ${name}`).thick(false);
     if (item.notes) {
-      // Nota en peso normal, con ajuste de línea (no se corta).
-      for (const l of wrapText(item.notes, cols - 3)) esc.line(`  > ${l}`);
+      // Notas en peso NORMAL, con ajuste de línea completo (nunca se cortan).
+      for (const l of wrapText(item.notes, cols - 2)) esc.line(`  ${l}`);
     }
   }
 
   esc.separator(cols);
-  const now = new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota', hour12: false });
-  esc.center().line(now);
-  esc.separator(cols);
-  esc.feed(2).cut();
+  esc.center().line(`${data.items.reduce((n, i) => n + i.qty, 0)} item(s)`);
+  esc.feed(3).cut();
 
   return esc.toBuffer();
 }
@@ -314,22 +326,29 @@ function buildCombinedKitchenTicket(
   const cols = paperWidth === 80 ? 42 : 32;
   const esc = new EscPos().init();
 
-  esc.center().bold(true).doubleH(true).line(data.storeName.substring(0, cols)).doubleH(false).bold(false);
+  esc.center().bold(true).size2x(true).line(data.storeName.substring(0, Math.floor(cols / 2))).size2x(false).bold(false);
+  esc.center().bold(true).line('COMANDA').bold(false);
   esc.separator(cols);
-  esc.center().bold(true).line(`Comanda #${data.orderNumber}`).bold(false);
-  esc.line(`Mesa: ${data.tableNumber}  |  Mesero: ${data.waiterName}`);
+  esc.left();
+  esc.line(`Comanda #: ${data.orderNumber}`);
+  esc.line(`Mesa: ${data.tableNumber}`);
+  esc.line(`Mesero: ${data.waiterName}`);
+  const now = new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota', hour12: false });
+  esc.line(`Fecha: ${now}`);
 
   const section = (title: string, items: Array<{ name: string; qty: number; notes: string | null }>) => {
     if (!items.length) return;
     esc.separator(cols);
-    esc.bold(true).line(`>> ${title}`).bold(false);
+    esc.center().bold(true).line(`== ${title} ==`).bold(false).left();
     for (const item of items) {
       const qtyText = `${item.qty}x`;
       const nameMax = cols - qtyText.length - 1;
       const name = item.name.length > nameMax ? item.name.substring(0, nameMax) : item.name;
-      esc.bold(true).doubleH(true).line(`${qtyText} ${name}`).doubleH(false).bold(false);
+      // Ítem en NEGRILLA GRUESA, tamaño normal.
+      esc.thick(true).line(`${qtyText} ${name}`).thick(false);
       if (item.notes) {
-        for (const l of wrapText(item.notes, cols - 3)) esc.line(`  > ${l}`);
+        // Notas normales, completas (sin cortar).
+        for (const l of wrapText(item.notes, cols - 2)) esc.line(`  ${l}`);
       }
     }
   };
@@ -337,41 +356,79 @@ function buildCombinedKitchenTicket(
   section('BAR', data.barItems);
 
   esc.separator(cols);
-  const now = new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota', hour12: false });
-  esc.center().line(now);
-  esc.separator(cols);
-  esc.feed(2).cut();
+  esc.feed(3).cut();
 
   return esc.toBuffer();
 }
 
-/** Ticket de PRE-CUENTA de mesa (para el cliente): ítems + total, sin ser factura. */
+/**
+ * CUENTA de mesa con estructura de factura POS (para que el cajero la entregue al cliente).
+ * No es un documento fiscal DIAN — lleva la nota aclaratoria al pie.
+ * Estructura ordenada: encabezado, datos, columnas, ítems (negrilla gruesa) con sus notas
+ * completas (sin cortar), totales y pie.
+ */
 function buildBillTicket(data: BillTicketData, paperWidth: PaperWidth): Buffer {
   const cols = paperWidth === 80 ? 42 : 32;
   const esc = new EscPos().init();
 
-  esc.center().bold(true).doubleH(true).line(data.storeName.substring(0, cols)).doubleH(false).bold(false);
+  // ── Encabezado ──
+  esc.center().bold(true).size2x(true).line(data.storeName.substring(0, Math.floor(cols / 2))).size2x(false).bold(false);
+  esc.center().line('CUENTA DE VENTA');
   esc.separator(cols);
-  esc.center().bold(true).line('PRE-CUENTA').bold(false);
-  esc.center().line(`Mesa: ${data.tableNumber}   ·   #${data.orderNumber}`);
-  esc.separator(cols);
+
+  // ── Datos ──
   esc.left();
+  const now = new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota', hour12: false });
+  esc.line(`Fecha: ${now}`);
+  esc.line(`Cuenta #: ${data.orderNumber}`);
+  esc.line(`Mesa: ${data.tableNumber}`);
+  if (data.waiterName) esc.line(`Atendido por: ${data.waiterName}`);
+  esc.separator(cols);
 
-  esc.bold(true).doubleH(true);
+  // ── Cabecera de columnas ──
+  esc.bold(true).line(padRight('CANT DESCRIPCION', cols - 10) + padLeft('VALOR', 10)).bold(false);
+  esc.separator(cols);
+
+  // ── Ítems ──
   for (const item of data.items) {
-    const qty = `${item.quantity}x`;
-    const price = formatCurrency(item.price * item.quantity);
-    const nameMaxLen = cols - qty.length - price.length - 2;
-    const name = item.name.length > nameMaxLen ? item.name.substring(0, nameMaxLen) : padRight(item.name, nameMaxLen);
-    esc.line(`${qty} ${name} ${padLeft(price, price.length)}`);
+    const lineTotal = formatCurrency(item.price * item.quantity);
+    const qty = `${item.quantity}`;
+    const nameMax = cols - 5 - lineTotal.length - 1; // "NN " + nombre + " " + valor
+    const name = item.name.length > nameMax ? item.name.substring(0, nameMax) : item.name;
+    const left = `${padRight(qty, 4)}${name}`;
+    // Ítem en NEGRILLA GRUESA, tamaño normal (estructura tipo factura, sin deformar).
+    esc.thick(true).line(padRight(left, cols - lineTotal.length) + lineTotal).thick(false);
+    if (item.notes) {
+      // Notas del ítem en peso NORMAL, completas (nunca se cortan).
+      for (const l of wrapText(item.notes, cols - 5)) esc.line(`    ${l}`);
+    }
   }
-  esc.doubleH(false).bold(false);
 
   esc.separator(cols);
-  const totalLabel = padRight('TOTAL:', cols - 12);
-  esc.bold(true).doubleH(true).line(`${totalLabel}${padLeft(formatCurrency(data.total), 12)}`).doubleH(false).bold(false);
+
+  // ── Totales ──
+  const money = (label: string, val: number, boldRow = false) => {
+    const l = padRight(label, cols - 12);
+    const line = `${l}${padLeft(formatCurrency(val), 12)}`;
+    if (boldRow) esc.thick(true).line(line).thick(false);
+    else esc.line(line);
+  };
+  if (data.subtotal !== undefined) money('Subtotal:', data.subtotal);
+  if (data.tax !== undefined && data.tax > 0) money('IVA:', data.tax);
+  money('TOTAL:', data.total, true);
+
   esc.separator(cols);
-  esc.center().line('Este documento no es factura').feed(3).cut();
+  esc.center().bold(true).line('DOCUMENTO NO VALIDO COMO FACTURA').bold(false);
+  esc.center().line('Solo para verificar su consumo');
+  esc.center().line('en el establecimiento.');
+  esc.feed(1);
+  esc.center().line('Gracias por su visita');
+  esc.separator(cols);
+  esc.center().bold(true).line('LOPBUK').bold(false);
+  esc.center().line('Gestion de comercios');
+  esc.center().line('Controla tu negocio');
+  esc.center().line('www.daimuz.com');
+  esc.feed(3).cut();
 
   return esc.toBuffer();
 }

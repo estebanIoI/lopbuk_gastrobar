@@ -16,7 +16,7 @@ export class ContentPagesController {
   async findById(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const tenantId = req.user!.tenantId!;
-      const page = await contentPagesService.findById(tenantId, parseInt(req.params.id));
+      const page = await contentPagesService.findById(tenantId, req.params.id);
       res.json({ success: true, data: page });
     } catch (error) {
       next(error);
@@ -36,7 +36,7 @@ export class ContentPagesController {
   async update(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const tenantId = req.user!.tenantId!;
-      const page = await contentPagesService.update(tenantId, parseInt(req.params.id), req.body);
+      const page = await contentPagesService.update(tenantId, req.params.id, req.body);
       res.json({ success: true, data: page, message: 'Página actualizada' });
     } catch (error) {
       next(error);
@@ -46,7 +46,7 @@ export class ContentPagesController {
   async delete(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const tenantId = req.user!.tenantId!;
-      await contentPagesService.delete(tenantId, parseInt(req.params.id));
+      await contentPagesService.delete(tenantId, req.params.id);
       res.json({ success: true, message: 'Página eliminada exitosamente' });
     } catch (error) {
       next(error);

@@ -101,7 +101,11 @@ export function PageBuilder() {
   useEffect(() => {
     api.getHomepageConfig().then(res => {
       if (res.success && res.data?.sections?.length > 0) {
-        setSections(res.data.sections)
+        const mapped = res.data.sections.map((s: any) => ({
+          ...s,
+          type: s.sectionType || s.type,
+        }))
+        setSections(mapped)
       }
     }).catch(() => {}).finally(() => setLoaded(true))
   }, [])
@@ -109,7 +113,15 @@ export function PageBuilder() {
   const handleSave = useCallback(async () => {
     setSaving(true)
     try {
-      const res = await api.saveHomepageConfig(sections)
+      const toSave = sections.map(s => ({
+        id: s.id,
+        sectionType: s.type,
+        title: s.title,
+        enabled: s.enabled,
+        config: s.config,
+        sortOrder: s.sortOrder,
+      }))
+      const res = await api.saveHomepageConfig(toSave)
       if (res.success) alert('Página guardada correctamente')
     } catch { alert('Error al guardar') }
     finally { setSaving(false) }

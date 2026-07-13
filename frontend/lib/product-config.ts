@@ -12,7 +12,7 @@ export interface ProductTypeConfig {
 export interface FieldDefinition {
   name: string
   label: string
-  type: 'text' | 'number' | 'date' | 'boolean' | 'select' | 'textarea'
+  type: 'text' | 'number' | 'date' | 'boolean' | 'select' | 'textarea' | 'location'
   required?: boolean
   placeholder?: string
   description?: string
