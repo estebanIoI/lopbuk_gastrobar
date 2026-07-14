@@ -26,8 +26,8 @@ interface OrderRow extends RowDataPacket {
 interface OrderItemRow extends RowDataPacket {
   id: string; order_id: string; menu_item_id: string; menu_item_name: string;
   preparation_area: string; quantity: number; unit_price: number;
-  subtotal: number; discount: number; status: string;
-  guest_number: number | null; item_notes: string | null;
+  original_price: number | null; subtotal: number; discount: number; status: string;
+  guest_number: number | null; course_number: number | null; item_notes: string | null;
   sent_to_kitchen_at: Date | null; ready_at: Date | null; delivered_at: Date | null;
 }
 
@@ -56,10 +56,12 @@ export interface CreateOrderData {
 
 export interface AddItemData {
   menuItemId: string; quantity: number; itemNotes?: string; guestNumber?: number;
+  courseNumber?: number; unitPrice?: number;
 }
 
 export interface UpdateItemData {
   quantity?: number; itemNotes?: string; guestNumber?: number | null;
+  courseNumber?: number | null; unitPrice?: number;
 }
 
 export interface ProcessPaymentData {
@@ -427,16 +429,18 @@ class RestbarService {
 
     const p = products[0];
     const itemId = uuidv4();
-    const unitPrice = Number(p.sale_price);
+    const originalPrice = Number(p.sale_price);
+    const unitPrice = data.unitPrice != null ? Math.min(Number(data.unitPrice), originalPrice) : originalPrice;
     const subtotal = unitPrice * data.quantity;
 
     await db.execute(
       `INSERT INTO rb_order_items
          (id, tenant_id, order_id, menu_item_id, menu_item_name, preparation_area,
-          quantity, unit_price, subtotal, item_notes, guest_number)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          quantity, unit_price, original_price, subtotal, item_notes, guest_number, course_number)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [itemId, tenantId, orderId, p.id, p.name, p.preparation_area ?? 'cocina',
-       data.quantity, unitPrice, subtotal, data.itemNotes ?? null, data.guestNumber ?? null]
+       data.quantity, unitPrice, originalPrice, subtotal,
+       data.itemNotes ?? null, data.guestNumber ?? null, data.courseNumber ?? null]
     );
 
     await this.recalcOrderTotals(orderId, tenantId);
@@ -457,12 +461,28 @@ class RestbarService {
     const fields: string[] = [];
     const values: unknown[] = [];
     if (data.quantity !== undefined) {
-      const subtotal = Number(items[0].unit_price) * data.quantity;
+      const price = Number(items[0].unit_price);
+      const subtotal = price * data.quantity;
       fields.push('quantity = ?', 'subtotal = ?');
       values.push(data.quantity, subtotal);
     }
+    if (data.unitPrice !== undefined) {
+      const original = Number(items[0].original_price ?? items[0].unit_price);
+      const capped = Math.min(Number(data.unitPrice), original);
+      fields.push('unit_price = ?');
+      values.push(capped);
+      if (data.quantity !== undefined || items[0].quantity) {
+        // subtotal already set if quantity also changed; else recompute
+        if (data.quantity === undefined) {
+          const subtotal = capped * items[0].quantity;
+          fields.push('subtotal = ?');
+          values.push(subtotal);
+        }
+      }
+    }
     if (data.itemNotes !== undefined)   { fields.push('item_notes = ?');   values.push(data.itemNotes); }
     if (data.guestNumber !== undefined) { fields.push('guest_number = ?'); values.push(data.guestNumber); }
+    if (data.courseNumber !== undefined) { fields.push('course_number = ?'); values.push(data.courseNumber); }
     if (fields.length === 0) throw new AppError('Nada que actualizar', 400);
     values.push(itemId);
     await db.execute(`UPDATE rb_order_items SET ${fields.join(', ')} WHERE id = ?`, values);
@@ -644,9 +664,10 @@ class RestbarService {
     const [item] = await db.execute<RowDataPacket[]>(
       `SELECT order_id FROM rb_order_items WHERE id = ?`, [itemId]
     );
-    if (item.length > 0) await this.checkOrderReadiness(tenantId, item[0].order_id);
+    const orderId = item.length > 0 ? item[0].order_id : null;
+    if (orderId) await this.checkOrderReadiness(tenantId, orderId);
 
-    return { itemId, status };
+    return { itemId, status, orderId };
   }
 
   // ── PAYMENT ───────────────────────────────────────────────────────────────
@@ -923,6 +944,134 @@ class RestbarService {
     };
   }
 
+  async sendSelectedItems(tenantId: string, orderId: string, itemIds: string[]) {
+    const [orders] = await db.execute<RowDataPacket[]>(
+      `SELECT status FROM rb_orders WHERE id = ? AND tenant_id = ?`,
+      [orderId, tenantId]
+    );
+    if (orders.length === 0) throw new AppError('Comanda no encontrada', 404);
+    if (!['abierta', 'en_proceso'].includes(orders[0].status))
+      throw new AppError('La comanda no está en estado válido para enviar', 409);
+
+    if (itemIds.length > 0) {
+      const placeholders = itemIds.map(() => '?').join(', ');
+      await db.execute(
+        `UPDATE rb_order_items
+         SET status = 'pendiente', sent_to_kitchen_at = NOW()
+         WHERE order_id = ? AND tenant_id = ? AND id IN (${placeholders})
+           AND status = 'pendiente' AND sent_to_kitchen_at IS NULL`,
+        [orderId, tenantId, ...itemIds]
+      );
+    }
+
+    await db.execute(
+      `UPDATE rb_orders SET status = 'en_proceso' WHERE id = ? AND tenant_id = ?`,
+      [orderId, tenantId]
+    );
+
+    this._printOrderToArea(tenantId, orderId).catch(() => {});
+
+    return this.getOrderById(tenantId, orderId);
+  }
+
+  async moveItemToOrder(tenantId: string, itemId: string, targetOrderId: string) {
+    const [items] = await db.execute<RowDataPacket[]>(
+      `SELECT oi.*, o.status AS order_status, o.id AS order_id
+       FROM rb_order_items oi
+       JOIN rb_orders o ON o.id = oi.order_id
+       WHERE oi.id = ? AND oi.tenant_id = ?`,
+      [itemId, tenantId]
+    );
+    if (items.length === 0) throw new AppError('Ítem no encontrado', 404);
+    if (items[0].status === 'entregado' || items[0].status === 'cancelado')
+      throw new AppError('No se puede mover un ítem entregado o cancelado', 409);
+
+    const [target] = await db.execute<RowDataPacket[]>(
+      `SELECT id, status FROM rb_orders WHERE id = ? AND tenant_id = ?`,
+      [targetOrderId, tenantId]
+    );
+    if (target.length === 0) throw new AppError('Comanda destino no encontrada', 404);
+    if (!['abierta', 'en_proceso'].includes(target[0].status))
+      throw new AppError('La comanda destino no está abierta', 409);
+
+    const sourceOrderId = items[0].order_id;
+    await db.execute(
+      `UPDATE rb_order_items SET order_id = ? WHERE id = ? AND tenant_id = ?`,
+      [targetOrderId, itemId, tenantId]
+    );
+
+    await this.recalcOrderTotals(sourceOrderId, tenantId);
+    await this.recalcOrderTotals(targetOrderId, tenantId);
+
+    return { itemId, sourceOrderId, targetOrderId };
+  }
+
+  async moveItemSeat(tenantId: string, itemId: string, guestNumber: number) {
+    const [items] = await db.execute<RowDataPacket[]>(
+      `SELECT id FROM rb_order_items WHERE id = ? AND tenant_id = ?`,
+      [itemId, tenantId]
+    );
+    if (items.length === 0) throw new AppError('Ítem no encontrado', 404);
+
+    await db.execute(
+      `UPDATE rb_order_items SET guest_number = ? WHERE id = ? AND tenant_id = ?`,
+      [guestNumber, itemId, tenantId]
+    );
+    return { itemId, guestNumber };
+  }
+
+  async duplicateItem(tenantId: string, orderId: string, itemId: string) {
+    const [items] = await db.execute<OrderItemRow[]>(
+      `SELECT oi.*, o.status AS order_status
+       FROM rb_order_items oi
+       JOIN rb_orders o ON o.id = oi.order_id
+       WHERE oi.id = ? AND oi.order_id = ? AND oi.tenant_id = ?`,
+      [itemId, orderId, tenantId]
+    );
+    if (items.length === 0) throw new AppError('Ítem no encontrado', 404);
+
+    const item = items[0];
+    const newId = uuidv4();
+    await db.execute(
+      `INSERT INTO rb_order_items
+         (id, tenant_id, order_id, menu_item_id, menu_item_name, preparation_area,
+          quantity, unit_price, original_price, subtotal, item_notes, guest_number, course_number)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [newId, tenantId, orderId, item.menu_item_id, item.menu_item_name, item.preparation_area,
+       item.quantity, item.unit_price, item.original_price, item.subtotal,
+       item.item_notes, item.guest_number, item.course_number]
+    );
+
+    await this.recalcOrderTotals(orderId, tenantId);
+    return this.getOrderById(tenantId, orderId);
+  }
+
+  async repeatLastOrder(tenantId: string, orderId: string) {
+    const [lastItems] = await db.execute<OrderItemRow[]>(
+      `SELECT * FROM rb_order_items WHERE order_id = ? AND tenant_id = ?
+       ORDER BY created_at ASC`,
+      [orderId, tenantId]
+    );
+    if (lastItems.length === 0) throw new AppError('No hay ítems para repetir', 400);
+
+    for (const item of lastItems) {
+      if (item.status === 'cancelado') continue;
+      const newId = uuidv4();
+      await db.execute(
+        `INSERT INTO rb_order_items
+           (id, tenant_id, order_id, menu_item_id, menu_item_name, preparation_area,
+            quantity, unit_price, original_price, subtotal, item_notes, guest_number, course_number)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [newId, tenantId, orderId, item.menu_item_id, item.menu_item_name, item.preparation_area,
+         item.quantity, item.unit_price, item.original_price, item.subtotal,
+         item.item_notes, item.guest_number, item.course_number]
+      );
+    }
+
+    await this.recalcOrderTotals(orderId, tenantId);
+    return this.getOrderById(tenantId, orderId);
+  }
+
   // ── PRIVATE HELPERS ───────────────────────────────────────────────────────
 
   private async recalcOrderTotals(orderId: string, tenantId: string) {
@@ -968,9 +1117,10 @@ class RestbarService {
     return {
       id: r.id, menuItemId: r.menu_item_id, menuItemName: r.menu_item_name,
       preparationArea: r.preparation_area, quantity: r.quantity,
-      unitPrice: Number(r.unit_price), subtotal: Number(r.subtotal),
+      unitPrice: Number(r.unit_price), originalPrice: r.original_price != null ? Number(r.original_price) : null,
+      subtotal: Number(r.subtotal),
       discount: Number(r.discount), status: r.status,
-      guestNumber: r.guest_number, itemNotes: r.item_notes,
+      guestNumber: r.guest_number, courseNumber: r.course_number, itemNotes: r.item_notes,
       sentToKitchenAt: r.sent_to_kitchen_at,
       readyAt: r.ready_at, deliveredAt: r.delivered_at,
     };

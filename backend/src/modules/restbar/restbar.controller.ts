@@ -1,6 +1,7 @@
 import { Response, NextFunction } from 'express';
 import { restbarService } from './restbar.service';
 import { AuthRequest } from '../../common/middleware';
+import { emitOrderChanged } from './restbar.socket';
 
 export class RestbarController {
 
@@ -108,6 +109,7 @@ export class RestbarController {
   async addItem(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const data = await restbarService.addItem(req.user!.tenantId!, req.params.id, req.body);
+      emitOrderChanged(req.params.id);
       res.json({ success: true, data, message: 'Ítem agregado' });
     } catch (err) { next(err); }
   }
@@ -117,6 +119,7 @@ export class RestbarController {
       const data = await restbarService.updateItem(
         req.user!.tenantId!, req.params.id, req.params.itemId, req.body
       );
+      emitOrderChanged(req.params.id);
       res.json({ success: true, data, message: 'Ítem actualizado' });
     } catch (err) { next(err); }
   }
@@ -126,6 +129,7 @@ export class RestbarController {
       const data = await restbarService.removeItem(
         req.user!.tenantId!, req.params.id, req.params.itemId
       );
+      emitOrderChanged(req.params.id);
       res.json({ success: true, data, message: 'Ítem eliminado' });
     } catch (err) { next(err); }
   }
@@ -133,6 +137,7 @@ export class RestbarController {
   async sendToKitchen(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const data = await restbarService.sendToKitchen(req.user!.tenantId!, req.params.id);
+      emitOrderChanged(req.params.id);
       res.json({ success: true, data, message: 'Pedido enviado a cocina/bar' });
     } catch (err) { next(err); }
   }
@@ -174,6 +179,7 @@ export class RestbarController {
       const data = await restbarService.updateItemStatus(
         req.user!.tenantId!, req.params.itemId, req.body.status
       );
+      if ((data as any).orderId) emitOrderChanged((data as any).orderId);
       res.json({ success: true, data });
     } catch (err) { next(err); }
   }
@@ -194,6 +200,53 @@ export class RestbarController {
     } catch (err) { next(err); }
   }
 
+  async sendSelectedItems(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const itemIds: string[] = req.body.itemIds ?? [];
+      const data = await restbarService.sendSelectedItems(req.user!.tenantId!, req.params.id, itemIds);
+      emitOrderChanged(req.params.id);
+      res.json({ success: true, data, message: 'Ítems enviados a cocina/bar' });
+    } catch (err) { next(err); }
+  }
+
+  async moveItemToOrder(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const data = await restbarService.moveItemToOrder(
+        req.user!.tenantId!, req.params.itemId, req.body.targetOrderId
+      );
+      emitOrderChanged((data as any).sourceOrderId);
+      emitOrderChanged((data as any).targetOrderId);
+      res.json({ success: true, data, message: 'Ítem movido a otra comanda' });
+    } catch (err) { next(err); }
+  }
+
+  async moveItemSeat(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const data = await restbarService.moveItemSeat(
+        req.user!.tenantId!, req.params.itemId, req.body.guestNumber
+      );
+      res.json({ success: true, data, message: 'Asiento actualizado' });
+    } catch (err) { next(err); }
+  }
+
+  async duplicateItem(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const data = await restbarService.duplicateItem(
+        req.user!.tenantId!, req.params.id, req.params.itemId
+      );
+      emitOrderChanged(req.params.id);
+      res.json({ success: true, data, message: 'Ítem duplicado' });
+    } catch (err) { next(err); }
+  }
+
+  async repeatLastOrder(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const data = await restbarService.repeatLastOrder(req.user!.tenantId!, req.params.id);
+      emitOrderChanged(req.params.id);
+      res.json({ success: true, data, message: 'Última orden repetida' });
+    } catch (err) { next(err); }
+  }
+
   async cancelOrder(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       await restbarService.cancelOrder(req.user!.tenantId!, req.params.id);
@@ -207,6 +260,7 @@ export class RestbarController {
       const data = await restbarService.processPayment(
         user.tenantId!, req.params.id, user.userId, user.name ?? user.email, req.body
       );
+      emitOrderChanged(req.params.id);
       res.json({ success: true, data, message: 'Pago procesado exitosamente' });
     } catch (err) { next(err); }
   }

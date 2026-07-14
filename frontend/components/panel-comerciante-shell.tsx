@@ -137,12 +137,18 @@ export function PanelComercianteShell() {
   const [metrics, setMetrics] = useState<any>(null)
   const [monthlyRevenue, setMonthlyRevenue] = useState<number>(0)
   const [receivable, setReceivable] = useState<number>(0)
+  // KPIs del día (ventas hoy, transacciones, ticket promedio, delta vs ayer)
+  const [today, setToday] = useState<{ sales: number; count: number; ticket: number; deltaPct: number | null }>({ sales: 0, count: 0, ticket: 0, deltaPct: null })
   const [pendingReviews, setPendingReviews] = useState<number>(0)
   const [staleCashDate, setStaleCashDate] = useState<string | null>(null)
   const [openMenu, setOpenMenu] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [showNotifs, setShowNotifs] = useState(false)
   const navRef = useRef<HTMLDivElement>(null)
+  // Hover-intent del mega-menú: abre al instante, cierra con retardo para dar tiempo a elegir.
+  const megaTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const openMega = (key: string) => { if (megaTimer.current) clearTimeout(megaTimer.current); setOpenMenu(key) }
+  const closeMegaSoon = () => { if (megaTimer.current) clearTimeout(megaTimer.current); megaTimer.current = setTimeout(() => setOpenMenu(null), 220) }
 
   const isHome = activeSection === 'dashboard'
 
@@ -161,6 +167,18 @@ export function PanelComercianteShell() {
     }).catch(() => {})
     api.getCreditsSummary().then(r => {
       if (r.success && r.data) setReceivable(Number((r.data as any).totalPending) || 0)
+    }).catch(() => {})
+    // KPIs del día: tendencia de 7 días → hoy (último) y ayer (penúltimo)
+    api.getSalesTrend(7).then(r => {
+      const arr = (r?.data as any[]) || []
+      if (!Array.isArray(arr) || arr.length === 0) return
+      const t = arr[arr.length - 1] || {}
+      const y = arr.length > 1 ? arr[arr.length - 2] : null
+      const sales = Number(t.total) || 0
+      const count = Number(t.count) || 0
+      const ySales = y ? Number(y.total) || 0 : 0
+      const deltaPct = ySales > 0 ? Math.round(((sales - ySales) / ySales) * 100) : (sales > 0 ? 100 : null)
+      setToday({ sales, count, ticket: count > 0 ? Math.round(sales / count) : 0, deltaPct })
     }).catch(() => {})
     // Reseñas pendientes de revisar
     api.getReviews({ status: 'pendiente' }).then(r => {
@@ -358,8 +376,8 @@ export function PanelComercianteShell() {
               <div
                 key={g.key}
                 className="pc-nav-cell"
-                onMouseEnter={() => hasChildren && setOpenMenu(g.key)}
-                onMouseLeave={() => hasChildren && setOpenMenu(prev => (prev === g.key ? null : prev))}
+                onMouseEnter={() => hasChildren && openMega(g.key)}
+                onMouseLeave={() => hasChildren && closeMegaSoon()}
               >
                 <button
                   className={`pc-nav-item ${active ? 'active' : ''}`}
@@ -374,7 +392,7 @@ export function PanelComercianteShell() {
                   {hasChildren && <ChevronDown size={12} className="pc-chev" />}
                 </button>
                 {hasChildren && openMenu === g.key && (
-                  <div className="pc-mega">
+                  <div className="pc-mega" onMouseEnter={() => openMega(g.key)} onMouseLeave={closeMegaSoon}>
                     {g.children!.map(c => {
                       const CIcon = c.icon as React.ComponentType<{ className?: string; size?: number }> | undefined
                       return (
@@ -416,7 +434,10 @@ export function PanelComercianteShell() {
           quick={visibleQuick}
           more={visibleMore}
           role={role}
+          userName={user?.name || 'Comerciante'}
           stats={{ totalProducts, lowStockCount, outOfStockCount, pending: Number(pendingOrdersCount || 0), monthlyRevenue }}
+          today={today}
+          receivable={receivable}
           attention={attention}
           alerts={alerts}
           navigateToInventory={navigateToInventory}
@@ -469,138 +490,158 @@ export function PanelComercianteShell() {
 // ──────────────────────────────────────────────────────────────
 // Vista HOME (hero + accesos + stats + stock bajo)
 // ──────────────────────────────────────────────────────────────
-function HomeView({ go, quick, more, stats, attention, alerts, navigateToInventory, role }: {
+function HomeView({ go, quick, more, stats, today, receivable, attention, alerts, navigateToInventory, role, userName }: {
   go: (id: string) => void
   quick: { id: string; label: string; icon: React.ElementType }[]
   more: { id: string; label: string; icon: React.ElementType }[]
   stats: { totalProducts: number; lowStockCount: number; outOfStockCount: number; pending: number; monthlyRevenue: number }
+  today: { sales: number; count: number; ticket: number; deltaPct: number | null }
+  receivable: number
   attention: any[]
   alerts: { key: string; icon: React.ElementType; label: string; tone: 'blue' | 'amber' | 'red' | 'green'; onClick: () => void }[]
   navigateToInventory: (filter?: string, q?: string) => void
   role: 'admin' | 'warehouse' | 'sales'
+  userName: string
 }) {
   const isAdmin = role === 'admin'
   const isWarehouse = role === 'warehouse'
-  return (
-    <>
-      {/* Encabezado según rol */}
-      {isAdmin ? (
-        <div className="pc-chart-wrap">
-          <SalesTrendChart />
-        </div>
-      ) : isWarehouse ? (
-        <div className="pc-welcome">
-          <Boxes size={20} />
-          <span>Tu inventario de un vistazo — revisa lo que necesita reabastecerse abajo.</span>
-        </div>
-      ) : (
-        <div className="pc-welcome">
-          <ShoppingCart size={20} />
-          <span>¡Listo para vender! Usa los accesos rápidos de abajo para empezar.</span>
-        </div>
-      )}
+  const now = new Date()
+  const h = now.getHours()
+  const saludo = h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches'
+  const dateLabel = now.toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase()
+  const dp = today.deltaPct
+  const deltaText = dp == null ? '— sin ventas ayer' : dp > 0 ? `▲ +${dp}% vs ayer` : dp < 0 ? `▼ ${dp}% vs ayer` : '— igual que ayer'
+  const deltaCls = dp != null && dp > 0 ? 'up' : dp != null && dp < 0 ? 'down' : 'flat'
 
-      {/* ACCESOS RÁPIDOS */}
-      <div className="pc-quick-head">Accesos rápidos</div>
-      <div className="pc-quick">
-        {quick.map(q => {
-          const QIcon = q.icon as React.ComponentType<{ className?: string; size?: number }>
-          return (
-            <button key={q.id} className="pc-quick-item" onClick={() => go(q.id)}>
-              <span className="pc-quick-icon"><QIcon size={18} /></span>
-            <span className="pc-quick-label">{q.label}</span>
-          </button>
-        )})}
-      </div>
-
-      {/* MAIN GRID */}
-      <div className={`pc-main ${role === 'sales' ? 'pc-main-solo' : ''}`}>
-        {/* Columna izquierda: stock que requiere atención */}
-        <div>
-          <div className="pc-section-label">Requiere tu atención</div>
-
-          {/* Alertas de servicios (pedidos, fiados, vencimientos…) */}
-          {alerts.length > 0 && (
-            <div className="pc-alerts">
-              {alerts.map(a => {
+  // Panel lateral: "Requiere tu atención" + "Accesos rápidos"
+  const sideCol = (
+    <aside className="pc-side">
+      <div className="pc-side-card">
+        <div className="pc-side-head"><AlertTriangle size={14} /> Requiere tu atención</div>
+        <div className="pc-side-body pc-attn">
+          {alerts.length === 0
+            ? <div className="pc-attn-ok"><Package size={16} /> Todo en orden</div>
+            : alerts.map(a => {
                 const AIcon = a.icon as React.ComponentType<{ className?: string; size?: number }>
                 return (
                   <button key={a.key} className={`pc-alert-row ${a.tone}`} onClick={a.onClick}>
                     <AIcon size={16} className="pc-alert-ic" />
-                  <span>{a.label}</span>
-                  <ArrowRight size={14} className="pc-alert-go" />
-                </button>
-              )})}
-            </div>
-          )}
-
-          {alerts.length === 0 && attention.length === 0 ? (
-            <div className="pc-empty">
-              <Package size={26} />
-              <p>Todo en orden: sin agotados, stock bajo ni pendientes.</p>
-            </div>
-          ) : attention.length > 0 ? (
-            <div className="pc-cards">
-              {attention.slice(0, 6).map((p: any) => {
-                const agotado = (p.stock ?? 0) <= 0
-                return (
-                  <button key={p.id} className="pc-card" onClick={() => navigateToInventory(agotado ? 'agotado' : 'bajo', p.name)}>
-                    <div className={`pc-card-img ${agotado ? 'agotado' : ''}`}>
-                      <Package size={22} />
-                      <span className={`pc-card-badge ${agotado ? 'agotado' : ''}`}>{agotado ? 'Agotado' : `${p.stock} uds`}</span>
-                    </div>
-                    <div className="pc-card-body">
-                      <div className={`pc-card-cat ${agotado ? 'agotado' : ''}`}>{agotado ? 'Agotado' : 'Stock bajo'}</div>
-                      <div className="pc-card-title">{p.name}</div>
-                    </div>
+                    <span>{a.label}</span>
+                    <ArrowRight size={14} className="pc-alert-go" />
                   </button>
                 )
               })}
-            </div>
-          ) : null}
-          {role === 'sales'
-            ? <button className="pc-more-btn" onClick={() => go('pos')}>Ir al Punto de Venta →</button>
-            : <button className="pc-more-btn" onClick={() => go('inventory')}>Ver todo el inventario →</button>}
         </div>
-
-        {/* Sidebar derecha — admin (negocio) o bodega (stock). Ventas no tiene sidebar. */}
-        {(isAdmin || isWarehouse) && (
-          <aside className="pc-side">
-            <div className="pc-side-card">
-              <div className="pc-side-head"><PieChart size={14} /> {isWarehouse ? 'Resumen de stock' : 'Resumen del mes'}</div>
-              <div className="pc-side-body">
-                <div className="pc-stats">
-                  <div className="pc-stat"><div className="pc-stat-num">{Number(stats.totalProducts).toLocaleString('es-CO')}</div><div className="pc-stat-lbl">Productos</div></div>
-                  {isAdmin && <div className="pc-stat"><div className="pc-stat-num">{stats.pending}</div><div className="pc-stat-lbl">Pedidos pend.</div></div>}
-                  <div className="pc-stat"><div className="pc-stat-num">{stats.lowStockCount}</div><div className="pc-stat-lbl">Stock bajo</div></div>
-                  <div className="pc-stat"><div className="pc-stat-num">{stats.outOfStockCount}</div><div className="pc-stat-lbl">Agotados</div></div>
-                </div>
-                {isAdmin && (
-                  <div className="pc-revenue">
-                    <div className="pc-revenue-lbl">Ventas del mes</div>
-                    <div className="pc-revenue-num">{formatCOP(stats.monthlyRevenue)}</div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {isAdmin && more.length > 0 && (
-              <div className="pc-side-card">
-                <div className="pc-side-head"><ArrowRight size={14} /> Más herramientas</div>
-                <div className="pc-side-body pc-side-links">
-                  {more.map(m => {
-                    const MIcon = m.icon as React.ComponentType<{ className?: string; size?: number }>
-                    return (
-                      <button key={m.id} className="pc-side-link" onClick={() => go(m.id)}>
-                        <MIcon size={14} /> {m.label}
-                    </button>
-                  )})}
-                </div>
-              </div>
-            )}
-          </aside>
-        )}
       </div>
+      <div className="pc-side-card">
+        <div className="pc-side-head"><Layers size={14} /> Accesos rápidos</div>
+        <div className="pc-side-body pc-quick-grid">
+          {quick.map(q => {
+            const QIcon = q.icon as React.ComponentType<{ className?: string; size?: number }>
+            return (
+              <button key={q.id} className="pc-qbtn" onClick={() => go(q.id)}>
+                <span className="pc-qbtn-ic"><QIcon size={16} /></span><span>{q.label}</span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    </aside>
+  )
+
+  return (
+    <>
+      {/* SALUDO */}
+      <div className="pc-greet">
+        <div className="pc-eyebrow">{dateLabel}</div>
+        <h1 className="pc-greet-title">{saludo}, {userName}. <span>Tu negocio está en marcha.</span></h1>
+      </div>
+
+      {/* KPIs del día (solo admin) */}
+      {isAdmin && (
+        <div className="pc-kpis">
+          <div className="pc-kpi">
+            <div className="pc-kpi-lbl"><span className="pc-kpi-ic"><TrendingUp size={14} /></span>Ventas hoy</div>
+            <div className="pc-kpi-val">{formatCOP(today.sales)}</div>
+            <div className={`pc-kpi-delta ${deltaCls}`}>{deltaText}</div>
+          </div>
+          <div className="pc-kpi">
+            <div className="pc-kpi-lbl"><span className="pc-kpi-ic"><Receipt size={14} /></span>Transacciones</div>
+            <div className="pc-kpi-val">{today.count}</div>
+            <div className={`pc-kpi-delta ${today.count > 0 ? 'up' : 'flat'}`}>{today.count > 0 ? `▲ +${today.count} hoy` : '— sin ventas'}</div>
+          </div>
+          <div className="pc-kpi">
+            <div className="pc-kpi-lbl"><span className="pc-kpi-ic"><Ticket size={14} /></span>Ticket promedio</div>
+            <div className="pc-kpi-val">{formatCOP(today.ticket)}</div>
+            <div className="pc-kpi-delta flat">— por venta</div>
+          </div>
+          <div className="pc-kpi">
+            <div className="pc-kpi-lbl"><span className="pc-kpi-ic"><CreditCard size={14} /></span>Fiados por cobrar</div>
+            <div className="pc-kpi-val">{formatCOP(receivable)}</div>
+            <div className={`pc-kpi-delta ${receivable > 0 ? 'amber' : 'flat'}`}>{receivable > 0 ? 'por cobrar' : '— sin pendientes'}</div>
+          </div>
+        </div>
+      )}
+
+      {/* GRID PRINCIPAL: gráfica + panel lateral */}
+      <div className={`pc-main ${role === 'sales' ? 'pc-main-solo' : ''}`}>
+        <div>
+          {isAdmin ? (
+            <div className="pc-chart-card">
+              <div className="pc-chart-title">Tendencia de ventas</div>
+              <SalesTrendChart />
+            </div>
+          ) : (
+            <div className="pc-welcome">
+              {isWarehouse
+                ? <><Boxes size={20} /><span>Tu inventario de un vistazo — revisa lo que necesita reabastecerse abajo.</span></>
+                : <><ShoppingCart size={20} /><span>¡Listo para vender! Usa los accesos rápidos.</span></>}
+            </div>
+          )}
+        </div>
+        {sideCol}
+      </div>
+
+      {/* PRODUCTOS CON STOCK BAJO */}
+      {attention.length > 0 && (
+        <section className="pc-stock-section">
+          <div className="pc-section-title">Productos con stock bajo</div>
+          <div className="pc-stock-grid">
+            {attention.slice(0, 4).map((p: any) => {
+              const agotado = (p.stock ?? 0) <= 0
+              return (
+                <button key={p.id} className="pc-card" onClick={() => navigateToInventory(agotado ? 'agotado' : 'bajo', p.name)}>
+                  <div className={`pc-card-img ${agotado ? 'agotado' : ''}`}>
+                    <Package size={22} />
+                    <span className={`pc-card-badge ${agotado ? 'agotado' : ''}`}>{agotado ? 'Agotado' : `${p.stock} uds`}</span>
+                  </div>
+                  <div className="pc-card-body">
+                    <div className={`pc-card-cat ${agotado ? 'agotado' : ''}`}>{agotado ? 'Agotado' : 'Stock bajo'}</div>
+                    <div className="pc-card-title">{p.name}</div>
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* MÁS HERRAMIENTAS (admin) */}
+      {isAdmin && more.length > 0 && (
+        <section className="pc-stock-section">
+          <div className="pc-section-title">Más herramientas</div>
+          <div className="pc-more-grid">
+            {more.map(m => {
+              const MIcon = m.icon as React.ComponentType<{ className?: string; size?: number }>
+              return (
+                <button key={m.id} className="pc-qbtn" onClick={() => go(m.id)}>
+                  <span className="pc-qbtn-ic"><MIcon size={16} /></span><span>{m.label}</span>
+                </button>
+              )
+            })}
+          </div>
+        </section>
+      )}
     </>
   )
 }
@@ -676,7 +717,11 @@ const PC_STYLES = `
 .pc-nav-item:hover{background:var(--pc-glass-soft);color:var(--pc-text);transform:translateY(-1px);}
 .pc-nav-item.active{background:linear-gradient(150deg,var(--pc-green),var(--pc-green-dark));color:#fff;box-shadow:var(--pc-shadow-sm);}
 .pc-chev{opacity:.55;}
-.pc-mega{position:absolute;left:0;top:calc(100% + 7px);min-width:214px;background:var(--pc-glass-strong);backdrop-filter:var(--pc-blur);-webkit-backdrop-filter:var(--pc-blur);border:1px solid var(--pc-border);border-radius:16px;box-shadow:var(--pc-shadow);z-index:70;padding:7px;}
+.pc-mega{position:absolute;left:0;top:100%;margin-top:7px;min-width:214px;background:var(--pc-glass-strong);backdrop-filter:var(--pc-blur);-webkit-backdrop-filter:var(--pc-blur);border:1px solid var(--pc-border);border-radius:16px;box-shadow:var(--pc-shadow);z-index:70;padding:7px;transform-origin:top left;animation:pcMegaIn .17s cubic-bezier(.2,.85,.3,1);}
+/* Puente invisible que cubre el gap pill↔menú para que el cursor no "salga" y se cierre. */
+.pc-mega::before{content:'';position:absolute;top:-9px;left:0;right:0;height:9px;}
+@keyframes pcMegaIn{from{opacity:0;transform:scaleY(.72) translateY(-6px);}to{opacity:1;transform:none;}}
+@media (prefers-reduced-motion:reduce){.pc-mega{animation:none;}}
 .pc-mega-item{display:flex;align-items:center;gap:9px;width:100%;text-align:left;padding:9px 11px;border:none;background:none;font-size:12.5px;color:var(--pc-text);border-radius:11px;}
 .pc-mega-item:hover{background:var(--pc-green-light);color:var(--pc-brand-text);}
 .pc-mega-item.active{background:var(--pc-green-light);color:var(--pc-brand-text);font-weight:600;}
@@ -704,6 +749,35 @@ const PC_STYLES = `
 .pc-main.pc-main-solo{grid-template-columns:1fr;}
 .pc-welcome{display:flex;align-items:center;gap:10px;background:var(--pc-glass);backdrop-filter:var(--pc-blur);-webkit-backdrop-filter:var(--pc-blur);border:1px solid var(--pc-border);border-radius:18px;color:var(--pc-brand-text);padding:15px 22px;font-size:14px;font-weight:600;max-width:1364px;margin:14px auto 0;width:calc(100% - 36px);box-shadow:var(--pc-shadow-sm);}
 @media (max-width:900px){.pc-main{grid-template-columns:1fr;}}
+
+/* ── HOME reorganizado (mockup): saludo · KPIs · gráfica-card · accesos · stock ── */
+.pc-greet{max-width:1364px;margin:16px auto 0;width:calc(100% - 36px);}
+.pc-eyebrow{font-size:11px;font-weight:700;letter-spacing:1.4px;color:var(--pc-green);text-transform:uppercase;}
+.pc-greet-title{font-size:26px;font-weight:700;letter-spacing:-.6px;margin-top:4px;color:var(--pc-text);}
+.pc-greet-title span{color:var(--pc-muted);font-weight:500;}
+.pc-kpis{max-width:1364px;margin:14px auto 0;width:calc(100% - 36px);display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
+@media (max-width:900px){.pc-kpis{grid-template-columns:1fr 1fr;}}
+.pc-kpi{background:var(--pc-glass);backdrop-filter:var(--pc-blur);-webkit-backdrop-filter:var(--pc-blur);border:1px solid var(--pc-border);border-radius:18px;padding:16px 17px;box-shadow:var(--pc-shadow-sm);}
+.pc-kpi-lbl{font-size:11.5px;font-weight:600;color:var(--pc-muted);display:flex;align-items:center;gap:7px;}
+.pc-kpi-ic{width:26px;height:26px;border-radius:9px;background:var(--pc-green-light);display:flex;align-items:center;justify-content:center;color:var(--pc-green);}
+.pc-kpi-val{font-size:25px;font-weight:800;letter-spacing:-.6px;margin-top:10px;color:var(--pc-text);}
+.pc-kpi-delta{font-size:12px;font-weight:700;margin-top:5px;}
+.pc-kpi-delta.up{color:#2E9E5B;} .pc-kpi-delta.down{color:#DC2626;} .pc-kpi-delta.flat{color:var(--pc-muted);} .pc-kpi-delta.amber{color:#D97706;}
+.pc-chart-card{background:var(--pc-glass);backdrop-filter:var(--pc-blur);-webkit-backdrop-filter:var(--pc-blur);border:1px solid var(--pc-border);border-radius:22px;box-shadow:var(--pc-shadow-sm);padding:6px 4px 4px;overflow:hidden;}
+.pc-chart-title{font-size:15.5px;font-weight:700;padding:12px 18px 0;color:var(--pc-text);}
+.pc-attn{display:flex;flex-direction:column;gap:8px;}
+.pc-attn-ok{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--pc-muted);padding:6px 2px;}
+.pc-quick-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;}
+.pc-qbtn{display:flex;align-items:center;gap:9px;padding:11px 12px;border-radius:14px;background:var(--pc-glass-soft);border:1px solid var(--pc-border);color:var(--pc-text);font-family:inherit;font-size:12.8px;font-weight:600;text-align:left;transition:transform .16s,box-shadow .16s,border-color .16s;}
+.pc-qbtn:hover{transform:translateY(-2px);box-shadow:var(--pc-shadow-sm);border-color:var(--pc-green);}
+.pc-qbtn-ic{width:30px;height:30px;border-radius:9px;flex-shrink:0;background:linear-gradient(150deg,rgba(63,183,122,.28),rgba(0,131,62,.14));display:flex;align-items:center;justify-content:center;color:var(--pc-green);}
+.pc-stock-section{max-width:1364px;margin:16px auto 0;width:calc(100% - 36px);}
+.pc-section-title{font-size:14px;font-weight:700;color:var(--pc-text);margin-bottom:12px;}
+.pc-stock-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+@media (max-width:900px){.pc-stock-grid{grid-template-columns:1fr 1fr;}}
+.pc-more-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;}
+@media (max-width:900px){.pc-more-grid{grid-template-columns:1fr 1fr;}}
+
 .pc-section-label{font-size:11px;font-weight:700;color:var(--pc-brand-text);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;display:flex;align-items:center;gap:8px;}
 .pc-section-label::after{content:'';flex:1;height:2px;background:var(--pc-green);opacity:.18;}
 .pc-alerts{display:flex;flex-direction:column;gap:8px;margin-bottom:12px;}

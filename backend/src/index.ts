@@ -9,6 +9,7 @@ import { config, testConnection } from './config';
 import { errorHandler, notFoundHandler } from './common/middleware';
 import { initScannerSocket } from './modules/scanner';
 import { initVaultSocket } from './modules/vault/vault.realtime';
+import { initRestbarSocket } from './modules/restbar/restbar.socket';
 
 // Importar rutas de modulos
 import { authRoutes } from './modules/auth';
@@ -324,6 +325,7 @@ const startServer = async () => {
     // Inicializar WebSocket handlers para escáner
     initScannerSocket(io);
     initVaultSocket(io);
+    initRestbarSocket(io);
     initDeliveryChatSocket(io);
 
     // Iniciar scheduler de sync offline→nube (solo si IS_LOCAL_INSTANCE=true)
