@@ -2,25 +2,12 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { Store, MapPin, Search, ShoppingCart, Truck, Shield, Phone, ExternalLink } from 'lucide-react'
-import { parsePlatformPalette } from '@/lib/platform-theme'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'
 
-const FALLBACK_ACCENT = '#E30613'
-const FALLBACK_DARK = '#A80410'
-
-function hexToRgb(hex: string): [number, number, number] {
-  let h = hex.trim().replace(/^#/, '')
-  if (h.length === 3) h = h.split('').map(c => c + c).join('')
-  const n = parseInt(h, 16)
-  return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
-}
-
-function darkenHex(hex: string, amount = 0.18): string {
-  const [r, g, b] = hexToRgb(hex)
-  const d = (v: number) => Math.max(0, Math.round(v * (1 - amount)))
-  return `#${d(r).toString(16).padStart(2, '0')}${d(g).toString(16).padStart(2, '0')}${d(b).toString(16).padStart(2, '0')}`
-}
+// Estética minimalista: monocromo negro/blanco (el acento es casi-negro).
+const FALLBACK_ACCENT = '#1A1A1A'
+const FALLBACK_DARK = '#000000'
 
 const BUSINESS_TYPE_ICONS: Record<string, string> = {
   'Gastronómico': '🍽️',
@@ -57,7 +44,7 @@ function StoreCardD1({ store, onClick }: { store: any; onClick: () => void }) {
           <Store size={40} color="#ccc" />
         )}
         {store.isVerified && (
-          <span className="absolute top-2 right-2 bg-[var(--dq-accent, #E30613)] text-white text-[9px] font-bold px-1.5 py-0.5 rounded">VERIFICADO</span>
+          <span className="absolute top-2 right-2 bg-[var(--dq-accent, #1A1A1A)] text-white text-[9px] font-bold px-1.5 py-0.5 rounded">VERIFICADO</span>
         )}
       </div>
       <div className="p-3 space-y-1">
@@ -78,10 +65,10 @@ function StoreCardD1({ store, onClick }: { store: any; onClick: () => void }) {
 /* ── Section renderers ── */
 function renderHero(config: Record<string, any>, storeCount: number, platformSettings: any) {
   return (
-    <section style={{ background: 'linear-gradient(120deg, rgba(227,6,19,0.60), rgba(168,4,16,0.52))', backdropFilter: 'blur(22px)', WebkitBackdropFilter: 'blur(22px)', border: '1px solid rgba(255,255,255,0.22)', boxShadow: '0 16px 50px rgba(168,4,16,0.22)', borderRadius: 14, color: '#fff', padding: '40px 36px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 24, marginBottom: 36, flexWrap: 'wrap' }}>
+    <section style={{ background: 'linear-gradient(120deg, rgba(24,24,24,0.80), rgba(0,0,0,0.68))', backdropFilter: 'blur(22px)', WebkitBackdropFilter: 'blur(22px)', border: '1px solid rgba(255,255,255,0.14)', boxShadow: '0 16px 50px rgba(0,0,0,0.26)', borderRadius: 14, color: '#fff', padding: '40px 36px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 24, marginBottom: 36, flexWrap: 'wrap' }}>
       <div style={{ maxWidth: 520 }}>
         {config.eyebrow && (
-          <span style={{ background: '#FFC629', color: '#1A1A1A', display: 'inline-block', padding: '4px 10px', borderRadius: 4, fontSize: 12, fontWeight: 800 }}>
+          <span style={{ background: '#fff', color: '#111', display: 'inline-block', padding: '4px 10px', borderRadius: 4, fontSize: 12, fontWeight: 800 }}>
             {config.eyebrow}
           </span>
         )}
@@ -93,7 +80,7 @@ function renderHero(config: Record<string, any>, storeCount: number, platformSet
         </p>
         {config.ctaText && (
           <button
-            style={{ background: '#FFC629', color: '#1A1A1A', border: 'none', padding: '12px 22px', borderRadius: 6, fontWeight: 800, cursor: 'pointer', fontSize: 14 }}
+            style={{ background: '#fff', color: '#111', border: 'none', padding: '12px 22px', borderRadius: 6, fontWeight: 800, cursor: 'pointer', fontSize: 14 }}
             onClick={() => document.getElementById('dq-stores-section')?.scrollIntoView({ behavior: 'smooth' })}
           >
             {config.ctaText}
@@ -101,7 +88,7 @@ function renderHero(config: Record<string, any>, storeCount: number, platformSet
         )}
       </div>
       {config.showCounter !== false && (
-        <div style={{ background: 'rgba(255,255,255,0.78)', backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)', border: '1px solid rgba(255,255,255,0.7)', color: 'var(--dq-accent, #E30613)', width: 130, height: 130, borderRadius: '50%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: 'Arial Black, sans-serif', boxShadow: '0 10px 30px rgba(0,0,0,.18)', flexShrink: 0 }}>
+        <div style={{ background: 'rgba(255,255,255,0.78)', backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)', border: '1px solid rgba(255,255,255,0.7)', color: 'var(--dq-accent, #1A1A1A)', width: 130, height: 130, borderRadius: '50%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: 'Arial Black, sans-serif', boxShadow: '0 10px 30px rgba(0,0,0,.18)', flexShrink: 0 }}>
           <span style={{ fontSize: 26, lineHeight: 1 }}>{storeCount}</span>
           <span style={{ fontSize: 11, fontWeight: 600 }}>COMERCIOS</span>
         </div>
@@ -119,7 +106,7 @@ function renderTrustBadges(badges: any[] | null) {
           const Icon = ICON_MAP[b.icon] || Shield
           return (
             <div key={b.id} className="dq-glass" style={{ borderRadius: 12, padding: 20 }}>
-              <Icon size={28} color="var(--dq-accent, #E30613)" style={{ marginBottom: 12 }} />
+              <Icon size={28} color="var(--dq-accent, #1A1A1A)" style={{ marginBottom: 12 }} />
               <h3 style={{ fontSize: 15, marginBottom: 6, color: 'var(--dq-text)', fontWeight: 700 }}>{b.title}</h3>
               <p style={{ fontSize: 13, color: 'var(--dq-muted)', lineHeight: 1.4 }}>{b.description}</p>
             </div>
@@ -143,7 +130,7 @@ function renderNewsletter(config: Record<string, any>) {
           placeholder={config.emailPlaceholder || 'Correo electrónico'}
           style={{ padding: '11px 14px', borderRadius: 6, border: 'none', width: 240, fontSize: 14, outline: 'none' }}
         />
-        <button style={{ background: '#FFC629', color: '#1A1A1A', border: 'none', padding: '11px 20px', borderRadius: 6, fontWeight: 800, cursor: 'pointer', fontSize: 14 }}>
+        <button style={{ background: '#fff', color: '#111', border: 'none', padding: '11px 20px', borderRadius: 6, fontWeight: 800, cursor: 'pointer', fontSize: 14 }}>
           {config.buttonText || 'Suscribirme'}
         </button>
       </div>
@@ -154,10 +141,10 @@ function renderNewsletter(config: Record<string, any>) {
 function renderFooter(config: Record<string, any>, platformSettings: any) {
   const cols: any[] = config.columns || []
   return (
-    <footer style={{ background: 'rgba(168,4,16,0.55)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderTop: '1px solid rgba(255,255,255,0.15)', color: '#fff', padding: '44px 20px 20px' }}>
+    <footer style={{ background: 'rgba(17,17,17,0.86)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderTop: '1px solid rgba(255,255,255,0.12)', color: '#fff', padding: '44px 20px 20px' }}>
       <div style={{ maxWidth: 1200, margin: '0 auto', display: 'grid', gridTemplateColumns: '1.5fr repeat(3, 1fr)', gap: 28 }}>
         <div>
-          <div style={{ background: '#fff', color: 'var(--dq-accent, #E30613)', fontFamily: 'Arial Black, sans-serif', fontSize: 26, padding: '4px 10px', borderRadius: 4, display: 'inline-block', marginBottom: 14 }}>D1</div>
+          <div style={{ background: '#fff', color: 'var(--dq-accent, #1A1A1A)', fontFamily: 'Arial Black, sans-serif', fontSize: 26, padding: '4px 10px', borderRadius: 4, display: 'inline-block', marginBottom: 14 }}>D1</div>
           <p style={{ fontSize: 12, opacity: 0.85, marginBottom: 8, lineHeight: 1.5 }}>
             {config.contactEmail && <>Atención al cliente<br />{config.contactEmail}</>}
           </p>
@@ -170,7 +157,7 @@ function renderFooter(config: Record<string, any>, platformSettings: any) {
           }) : []
           return (
             <div key={i}>
-              {col.title && <h4 style={{ fontSize: 13, marginBottom: 14, textTransform: 'uppercase', color: '#FFC629', fontWeight: 700 }}>{col.title}</h4>}
+              {col.title && <h4 style={{ fontSize: 13, marginBottom: 14, textTransform: 'uppercase', color: '#fff', fontWeight: 700, letterSpacing: '.04em' }}>{col.title}</h4>}
               <ul style={{ listStyle: 'none', padding: 0, fontSize: 12, opacity: 0.85, lineHeight: 2 }}>
                 {links.map((l: any, j: number) => (
                   <li key={j}><a href={l.href} style={{ color: 'inherit', textDecoration: 'none' }}>{l.label}</a></li>
@@ -197,13 +184,9 @@ export function MarketplaceHomeD1() {
   const [sections, setSections] = useState<any[]>([])
   const [trustBadges, setTrustBadges] = useState<any[] | null>(null)
 
-  const accent = useMemo(() => {
-    if (!platformSettings) return { primary: FALLBACK_ACCENT, dark: FALLBACK_DARK }
-    const palette = parsePlatformPalette(platformSettings.platform_theme_colors)
-    const c = palette?.colors?.admin_accent || palette?.colors?.primary
-    if (!c) return { primary: FALLBACK_ACCENT, dark: FALLBACK_DARK }
-    return { primary: c, dark: darkenHex(c) }
-  }, [platformSettings])
+  // Estética minimalista negro/blanco — el acento es siempre monocromo (casi-negro),
+  // independiente de la colorimetría de la plataforma.
+  const accent = useMemo(() => ({ primary: FALLBACK_ACCENT, dark: FALLBACK_DARK }), [])
 
   useEffect(() => {
     let cancelled = false
@@ -267,7 +250,7 @@ export function MarketplaceHomeD1() {
     return (
       <div style={{ background: '#F6F5F2', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ width: 48, height: 48, borderRadius: 8, background: 'var(--dq-accent, #E30613)', margin: '0 auto 16px' }} />
+          <div style={{ width: 48, height: 48, borderRadius: 8, background: 'var(--dq-accent, #1A1A1A)', margin: '0 auto 16px' }} />
           <p style={{ color: '#6B6660', fontSize: 14 }}>Cargando comercios...</p>
         </div>
       </div>
@@ -275,7 +258,7 @@ export function MarketplaceHomeD1() {
   }
 
   return (
-    <div className="dq-root" style={{ minHeight: '100vh', background: 'var(--dq-page)' }}>
+    <div className="dq-root" style={{ minHeight: '100vh', background: 'var(--dq-page)', backgroundAttachment: 'fixed' }}>
       <style>{`
         :root {
           --dq-accent: ${accent.primary};
@@ -289,9 +272,9 @@ export function MarketplaceHomeD1() {
           --dq-img: rgba(255,255,255,0.35);
           --dq-text: #1A1A1A;
           --dq-muted: #6B6660;
-          --dq-shadow: 0 8px 30px rgba(0,0,0,0.06);
-          --dq-shadow-hover: 0 16px 44px rgba(0,0,0,0.10);
-          --dq-page: radial-gradient(1100px 520px at 8% -6%, rgba(227,6,19,0.13), transparent 60%), radial-gradient(980px 500px at 100% 2%, rgba(255,198,41,0.20), transparent 55%), radial-gradient(900px 700px at 50% 120%, rgba(227,6,19,0.07), transparent 60%), #F4F2EE;
+          --dq-shadow: 0 12px 36px rgba(0,0,0,0.07);
+          --dq-shadow-hover: 0 22px 60px rgba(0,0,0,0.13);
+          --dq-page: radial-gradient(1100px 620px at 8% -8%, rgba(0,0,0,0.05), transparent 60%), radial-gradient(980px 560px at 100% 4%, rgba(0,0,0,0.035), transparent 55%), radial-gradient(1000px 780px at 55% 120%, rgba(0,0,0,0.045), transparent 60%), linear-gradient(150deg,#FAFAFA,#F3F3F3 60%,#F6F6F6);
         }
         /* Paleta oscura — next-themes usa la clase .dark */
         .dark .dq-root {
@@ -301,9 +284,9 @@ export function MarketplaceHomeD1() {
           --dq-img: rgba(255,255,255,0.05);
           --dq-text: #F1F5F9;
           --dq-muted: #94A3B8;
-          --dq-shadow: 0 8px 30px rgba(0,0,0,0.40);
-          --dq-shadow-hover: 0 16px 44px rgba(0,0,0,0.55);
-          --dq-page: radial-gradient(1100px 520px at 8% -6%, rgba(227,6,19,0.16), transparent 60%), radial-gradient(980px 500px at 100% 2%, rgba(255,198,41,0.10), transparent 55%), radial-gradient(900px 700px at 50% 120%, rgba(227,6,19,0.10), transparent 60%), #0F172A;
+          --dq-shadow: 0 12px 36px rgba(0,0,0,0.45);
+          --dq-shadow-hover: 0 22px 60px rgba(0,0,0,0.58);
+          --dq-page: radial-gradient(1100px 620px at 8% -8%, rgba(255,255,255,0.045), transparent 60%), radial-gradient(980px 560px at 100% 4%, rgba(255,255,255,0.03), transparent 55%), radial-gradient(1000px 780px at 55% 120%, rgba(255,255,255,0.035), transparent 60%), linear-gradient(150deg,#0E0E0E,#0A0A0A 60%,#101010);
         }
         .dq-glass {
           background: var(--dq-surface);
@@ -320,15 +303,15 @@ export function MarketplaceHomeD1() {
         }
       `}</style>
       {/* ── TOPBAR — shipping options ── */}
-      <div style={{ background: 'rgba(168,4,16,0.55)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', color: '#fff', fontSize: 12, padding: '6px 20px', display: 'flex', gap: 24, justifyContent: 'center', borderBottom: '1px solid rgba(255,255,255,0.12)' }}>
+      <div style={{ background: 'rgba(17,17,17,0.62)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', color: '#fff', fontSize: 12, padding: '6px 20px', display: 'flex', gap: 24, justifyContent: 'center', borderBottom: '1px solid rgba(255,255,255,0.10)' }}>
         <span>📦 Envío Programado</span>
         <span>⚡ Envío D1 Express</span>
       </div>
 
       {/* ── HEADER — glass tintado (rojo D1 translúcido) ── */}
-      <header style={{ background: 'rgba(227,6,19,0.62)', backdropFilter: 'blur(22px)', WebkitBackdropFilter: 'blur(22px)', position: 'sticky', top: 0, zIndex: 50, boxShadow: '0 8px 30px rgba(168,4,16,0.28)', borderBottom: '1px solid rgba(255,255,255,0.18)' }}>
+      <header style={{ background: 'rgba(17,17,17,0.74)', backdropFilter: 'blur(22px)', WebkitBackdropFilter: 'blur(22px)', position: 'sticky', top: 0, zIndex: 50, boxShadow: '0 8px 30px rgba(0,0,0,0.30)', borderBottom: '1px solid rgba(255,255,255,0.12)' }}>
         <div style={{ maxWidth: 1200, margin: '0 auto', padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 18 }}>
-          <div style={{ background: '#fff', color: 'var(--dq-accent, #E30613)', fontFamily: 'Arial Black, sans-serif', fontSize: 26, padding: '4px 10px', borderRadius: 4 }}>D1</div>
+          <div style={{ background: '#fff', color: 'var(--dq-accent, #1A1A1A)', fontFamily: 'Arial Black, sans-serif', fontSize: 26, padding: '4px 10px', borderRadius: 4 }}>D1</div>
           <div style={{ background: 'rgba(255,255,255,0.82)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.5)', borderRadius: 6, display: 'flex', alignItems: 'center', padding: '0 14px', height: 42, flex: 1 }}>
             <Search size={16} color="#6B6660" />
             <input
@@ -341,7 +324,7 @@ export function MarketplaceHomeD1() {
               <MapPin size={14} /> Dirección
             </span>
             <span style={{ cursor: 'pointer' }}>👤 Perfil</span>
-            <div style={{ background: '#FFC629', color: '#1A1A1A', borderRadius: 6, padding: '8px 12px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+            <div style={{ background: '#fff', color: '#111', borderRadius: 6, padding: '8px 12px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
               <ShoppingCart size={16} /> Carrito
             </div>
           </div>
@@ -353,14 +336,14 @@ export function MarketplaceHomeD1() {
         <div style={{ maxWidth: 1200, margin: '0 auto', padding: '10px 20px', display: 'flex', gap: 22, fontSize: 13, fontWeight: 600 }}>
           {businessTypes.length > 0 ? (
             <>
-              <a style={{ padding: '4px 0', borderBottom: '2px solid var(--dq-accent, #E30613)', color: 'var(--dq-accent, #E30613)', cursor: 'pointer' }}>{businessTypes[0]}</a>
+              <a style={{ padding: '4px 0', borderBottom: '2px solid var(--dq-accent, #1A1A1A)', color: 'var(--dq-accent, #1A1A1A)', cursor: 'pointer' }}>{businessTypes[0]}</a>
               {businessTypes.slice(1).map(type => (
                 <a key={type} style={{ padding: '4px 0', color: 'var(--dq-text)', cursor: 'pointer' }}>{type}</a>
               ))}
             </>
           ) : (
             <>
-              <a style={{ padding: '4px 0', borderBottom: '2px solid var(--dq-accent, #E30613)', color: 'var(--dq-accent, #E30613)', cursor: 'pointer' }}>Extraordinarios</a>
+              <a style={{ padding: '4px 0', borderBottom: '2px solid var(--dq-accent, #1A1A1A)', color: 'var(--dq-accent, #1A1A1A)', cursor: 'pointer' }}>Extraordinarios</a>
               <a style={{ padding: '4px 0', color: 'var(--dq-text)', cursor: 'pointer' }}>Alimentos y despensa</a>
               <a style={{ padding: '4px 0', color: 'var(--dq-text)', cursor: 'pointer' }}>Bebidas</a>
               <a style={{ padding: '4px 0', color: 'var(--dq-text)', cursor: 'pointer' }}>Lácteos y huevos</a>
@@ -392,7 +375,7 @@ export function MarketplaceHomeD1() {
                   className="dq-glass"
                   style={{ borderRadius: 12, padding: '18px 10px', textAlign: 'center', cursor: 'pointer' }}
                 >
-                  <div style={{ width: 56, height: 56, borderRadius: '50%', margin: '0 auto 10px', background: 'linear-gradient(135deg, #FFC629, var(--dq-accent, #E30613))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>
+                  <div style={{ width: 56, height: 56, borderRadius: '50%', margin: '0 auto 10px', background: 'linear-gradient(135deg, #EDEDED, #1A1A1A)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>
                     {BUSINESS_TYPE_ICONS[type] || '🏪'}
                   </div>
                   <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--dq-text)', lineHeight: 1.3 }}>{type}</p>
@@ -448,7 +431,7 @@ export function MarketplaceHomeD1() {
                   </div>
                   <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--dq-text)', lineHeight: 1.3, marginBottom: 4 }}>{product.name}</p>
                   {product.price && (
-                    <p style={{ fontSize: 13, fontWeight: 800, color: 'var(--dq-accent, #E30613)' }}>
+                    <p style={{ fontSize: 13, fontWeight: 800, color: 'var(--dq-accent, #1A1A1A)' }}>
                       ${Number(product.price).toLocaleString('es-CO')}
                     </p>
                   )}

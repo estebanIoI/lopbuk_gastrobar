@@ -701,7 +701,9 @@ export function MarketplaceHomeGovCo({
     const chipStyle = (selected: boolean): CSSProperties =>
       selected ? { background: GREEN, color: '#fff', borderColor: GREEN } : { color: '#4b5563', borderColor: '#d7dbe0', background: '#fff' }
     return (
-      <div ref={mTopRef} className="min-h-screen bg-gray-50 text-gray-800 flex flex-col pb-24" style={brandVars}>
+      <div ref={mTopRef} className="min-h-screen bg-gray-50 text-gray-800 flex flex-col pb-24 relative" style={brandVars}>
+        {/* Profundidad ambiental (en el verde/gold de la marca) — coherente con el sistema glass */}
+        <div aria-hidden className="fixed inset-0 pointer-events-none" style={{ zIndex: 0, background: 'radial-gradient(1000px 560px at 6% -6%, rgba(0,131,62,0.07), transparent 60%), radial-gradient(900px 520px at 100% 2%, rgba(240,165,0,0.08), transparent 55%)' }} />
         {/* ── TopBar: logo + búsqueda + acceder ── */}
         <header className="bg-white/95 backdrop-blur sticky top-0 z-40 border-b border-gray-200">
           <div className="px-4 py-2.5 flex items-center gap-2.5">
@@ -819,7 +821,9 @@ export function MarketplaceHomeGovCo({
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-800 flex flex-col" style={brandVars}>
+    <div className="min-h-screen bg-gray-50 text-gray-800 flex flex-col relative" style={brandVars}>
+      {/* Profundidad ambiental (en el verde/gold de la marca) — coherente con el sistema glass */}
+      <div aria-hidden className="fixed inset-0 pointer-events-none" style={{ zIndex: 0, background: 'radial-gradient(1000px 560px at 6% -6%, rgba(0,131,62,0.07), transparent 60%), radial-gradient(900px 520px at 100% 2%, rgba(240,165,0,0.08), transparent 55%)' }} />
       {/* ══ CAPA 1: TopBar informativa (se desplaza, no sticky) ══ */}
       <div className="hidden sm:flex items-center justify-center h-[34px] shrink-0 overflow-hidden" style={{ background: GREEN_DARK }}>
         <div className="flex items-center gap-5 text-white/85 text-[11px] font-medium tracking-wide select-none">

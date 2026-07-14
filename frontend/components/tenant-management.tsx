@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { api } from '@/lib/api'
+import { normalizeListResponse } from '@/lib/response-adapter'
 import type { Tenant, TenantPlan, TenantStatus } from '@/lib/types'
 import { formatCOP } from '@/lib/utils'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -263,8 +264,8 @@ export function TenantManagement() {
     setIsLoading(true)
     const result = await api.getTenants({ page, limit: 20, search: search || undefined })
     if (result.success && result.data) {
-      setTenants(Array.isArray(result.data) ? result.data : result.data.tenants || [])
-      if (result.data.totalPages) setTotalPages(result.data.totalPages)
+      setTenants(normalizeListResponse(result))
+      if (result.pagination?.totalPages) setTotalPages(result.pagination.totalPages)
     }
     setIsLoading(false)
   }, [page, search])
@@ -278,8 +279,8 @@ export function TenantManagement() {
     setIsLoadingUsers(true)
     const result = await api.getUsers({ page: usersPage, limit: 30 })
     if (result.success && result.data) {
-      setUsers(Array.isArray(result.data) ? result.data : result.data.users || [])
-      if (result.data.pagination?.totalPages) setUsersTotalPages(result.data.pagination.totalPages)
+      setUsers(normalizeListResponse(result))
+      if (result.pagination?.totalPages) setUsersTotalPages(result.pagination.totalPages)
     }
     setIsLoadingUsers(false)
   }, [usersPage])

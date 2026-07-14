@@ -2950,7 +2950,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   }
 
   return (
-    <div className={`min-h-screen ${textClass} overflow-x-hidden pb-16 md:pb-0`} style={{ scrollBehavior: 'smooth', backgroundColor: effectiveBgColor }}>
+    <div className={`min-h-screen ${textClass} overflow-x-hidden pb-16 md:pb-0 relative`} style={{ scrollBehavior: 'smooth', backgroundColor: effectiveBgColor }}>
+      {/* Profundidad ambiental (verde/gold de marca, sutil) — mismo lenguaje glass del sistema */}
+      <div aria-hidden style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', background: 'radial-gradient(1000px 560px at 6% -6%, rgba(0,131,62,0.06), transparent 60%), radial-gradient(900px 520px at 100% 2%, rgba(240,165,0,0.06), transparent 55%)' }} />
       {/* Dynamic background overrides */}
       <style>{`
         ${activeThemeColors ? `:root{

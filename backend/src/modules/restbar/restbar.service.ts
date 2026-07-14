@@ -741,6 +741,14 @@ class RestbarService {
 
       const paymentId = uuidv4();
 
+      const cashSessionId = data.cashSessionId || (await (async () => {
+        const [rows] = await connection.execute<RowDataPacket[]>(
+          'SELECT id FROM cash_sessions WHERE status = ? AND tenant_id = ? LIMIT 1',
+          ['abierta', tenantId]
+        );
+        return rows.length > 0 ? rows[0].id : null;
+      })());
+
       // 1. Registrar pago en rb_payments
       await connection.execute(
         `INSERT INTO rb_payments
@@ -749,7 +757,7 @@ class RestbarService {
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [paymentId, tenantId, orderId, data.guestNumber ?? null, data.paymentMethod,
          amount, data.amountPaid, changeAmount, cashierId, cashierName,
-         data.cashSessionId ?? null, data.notes ?? null]
+         cashSessionId, data.notes ?? null]
       );
 
       // 2. Generar número de factura
@@ -781,7 +789,7 @@ class RestbarService {
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'completada')`,
         [saleId, tenantId, invoiceNumber, amount, 0, 0,
          amount, pmMap[data.paymentMethod] ?? 'efectivo', data.amountPaid,
-         changeAmount, cashierId, cashierName, data.cashSessionId ?? null]
+         changeAmount, cashierId, cashierName, cashSessionId]
       );
 
       // 4. Crear sale_items + descontar inventario + marcar ítems como 'entregado'

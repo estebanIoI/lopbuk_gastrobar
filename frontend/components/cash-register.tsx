@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { api } from '@/lib/api'
+import { useState, useEffect } from 'react'
 import { useAuthStore } from '@/lib/auth-store'
+import { useCashStore } from '@/lib/cash-store'
 import { formatCOP } from '@/lib/utils'
-import type { CashSession, CashMovement, CashSessionTotals } from '@/lib/types'
+import type { CashSession } from '@/lib/types'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -61,12 +61,13 @@ export function CashRegister() {
   const { user } = useAuthStore()
   const isAdmin = user?.role === 'comerciante' || user?.role === 'superadmin'
 
-  // Session state
-  const [activeSession, setActiveSession] = useState<CashSession | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [liveTotals, setLiveTotals] = useState<CashSessionTotals | null>(null)
-  const [movements, setMovements] = useState<CashMovement[]>([])
-  const [sessionHistory, setSessionHistory] = useState<CashSession[]>([])
+  // Session state (centralized in cashStore)
+  const {
+    activeSession, totals: liveTotals, movements, sessionHistory, isLoading,
+    fetchActiveSession, fetchTotals, fetchMovements, fetchHistory,
+    openSession: storeOpenSession, closeSession: storeCloseSession,
+    addMovement: storeAddMovement, reset: resetStore,
+  } = useCashStore()
 
   // Opening form
   const [openingAmount, setOpeningAmount] = useState('')
@@ -143,38 +144,6 @@ export function CashRegister() {
     }
   }, [cierreDenomTotal, showCierreDenomCalc])
 
-  const fetchActiveSession = useCallback(async () => {
-    setIsLoading(true)
-    const result = await api.getActiveCashSession()
-    if (result.success) {
-      setActiveSession(result.data || null)
-    }
-    setIsLoading(false)
-  }, [])
-
-  const fetchTotals = useCallback(async () => {
-    if (!activeSession) return
-    const result = await api.getCashSessionTotals(activeSession.id)
-    if (result.success && result.data) {
-      setLiveTotals(result.data)
-    }
-  }, [activeSession])
-
-  const fetchMovements = useCallback(async () => {
-    if (!activeSession) return
-    const result = await api.getCashMovements(activeSession.id)
-    if (result.success && result.data) {
-      setMovements(Array.isArray(result.data) ? result.data : [])
-    }
-  }, [activeSession])
-
-  const fetchHistory = useCallback(async () => {
-    const result = await api.getCashSessions({ limit: 10, status: 'cerrada' })
-    if (result.success && result.data) {
-      setSessionHistory(Array.isArray(result.data) ? result.data : [])
-    }
-  }, [])
-
   useEffect(() => {
     fetchActiveSession()
     if (isAdmin) fetchHistory()
@@ -204,12 +173,11 @@ export function CashRegister() {
       return
     }
     setIsOpening(true)
-    const result = await api.openCashSession(amount, user?.name || 'Usuario', {
+    const result = await storeOpenSession(amount, user?.name || 'Usuario', {
       shiftType,
       employees: pickedEmployees,
     })
-    if (result.success && result.data) {
-      setActiveSession(result.data)
+    if (result.success) {
       setOpeningAmount('')
       setPickedEmployees([])
       setShiftType('unico')
@@ -231,7 +199,7 @@ export function CashRegister() {
       return
     }
     setIsSubmittingMovement(true)
-    const result = await api.addCashMovement(activeSession!.id, {
+    const result = await storeAddMovement({
       type: movementType,
       amount,
       reason: movementReason.trim(),
@@ -259,10 +227,8 @@ export function CashRegister() {
       return
     }
     setIsClosing(true)
-    const result = await api.closeCashSession(activeSession!.id, {
-      actualCash: amount,
+    const result = await storeCloseSession(amount, user?.name || 'Usuario', {
       observations: observations.trim() || undefined,
-      userName: user?.name,
       bonuses: closeBonuses.length ? closeBonuses : undefined,
     })
     if (result.success && result.data) {
@@ -283,9 +249,7 @@ export function CashRegister() {
     setObservations('')
     setShowCierreDenomCalc(false)
     resetCierreDenomCalc()
-    setActiveSession(null)
-    setLiveTotals(null)
-    setMovements([])
+    resetStore()
     if (isAdmin) fetchHistory()
   }
 
@@ -470,7 +434,7 @@ export function CashRegister() {
       </div>
 
       {/* Empleados del turno (solo si la sesión usa turnos) */}
-      {(activeSession as any).shiftType && (activeSession as any).shiftType !== 'unico' && (
+      {activeSession.shiftType && (
         <Card className="border-border bg-card">
           <CardContent className="pt-4">
             <ShiftEmployeeManager sessionId={activeSession.id} />
@@ -888,7 +852,7 @@ export function CashRegister() {
                 </div>
 
                 {/* Bonos y descuentos por empleado (si la sesión tiene turno) */}
-                {(activeSession as any).shiftType && (activeSession as any).shiftType !== 'unico' && (
+{activeSession.shiftType && (
                   <div className="border-t pt-3">
                     <BonusDiscountPanel sessionId={activeSession.id} onChange={setCloseBonuses} />
                   </div>

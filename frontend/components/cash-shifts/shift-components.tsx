@@ -7,6 +7,7 @@
  */
 import React, { useEffect, useState, useCallback } from 'react'
 import { api } from '@/lib/api'
+import { normalizeListResponse } from '@/lib/response-adapter'
 import { formatCOP } from '@/lib/utils'
 import {
   Sun, Sunset, Circle, UserPlus, Trash2, Pencil, Check, X, Loader2, Users,
@@ -55,8 +56,8 @@ export function EmployeePicker({ value, onChange }: { value: PickedEmployee[]; o
     let alive = true
     api.getUsers().then(r => {
       if (!alive) return
-      const users = (r?.data as any)?.users || (r as any)?.users || []
-      setRoster(users.map((u: any) => ({ id: u.id, name: u.name, role: u.cargoName || u.cargo_name || u.role || '' })))
+      const users = normalizeListResponse<{ id: string; name: string; cargoName?: string; cargo_name?: string; role?: string }>(r)
+      setRoster(users.map((u) => ({ id: u.id, name: u.name, role: u.cargoName || u.cargo_name || u.role || '' })))
     }).catch(() => {}).finally(() => { if (alive) setLoading(false) })
     return () => { alive = false }
   }, [])
