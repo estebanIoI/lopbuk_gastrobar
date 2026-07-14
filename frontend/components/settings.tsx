@@ -5,6 +5,7 @@ import { useTheme } from 'next-themes'
 import { useStore } from '@/lib/store'
 import { useAuthStore } from '@/lib/auth-store'
 import { api } from '@/lib/api'
+import { normalizeListResponse } from '@/lib/response-adapter'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -226,7 +227,7 @@ export function Settings() {
     setLoadingUsers(true)
     const result = await api.getUsers({ limit: 50 })
     if (result.success && result.data) {
-      const users = Array.isArray(result.data) ? result.data : (result.data as any).users || []
+      const users = normalizeListResponse<any>(result)
       setUsersList(users)
     }
     setLoadingUsers(false)

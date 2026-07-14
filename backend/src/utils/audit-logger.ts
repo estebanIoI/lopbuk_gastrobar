@@ -21,7 +21,14 @@ type AuditEventType =
   | 'admin_action'
   | 'user_created'
   | 'user_deleted'
-  | 'role_changed';
+  | 'role_changed'
+  | 'cash_session_opened'
+  | 'cash_session_closed'
+  | 'cash_movement'
+  | 'sale_created'
+  | 'sale_cancelled'
+  | 'stock_changed'
+  | 'payment_processed';
 
 interface AuditEvent {
   event: AuditEventType;
@@ -86,4 +93,26 @@ export const audit = {
 
   userDeleted: (adminId: string, deletedUserId: string) =>
     auditLog('warn', { event: 'user_deleted', userId: adminId, meta: { deletedUserId } }),
+
+  // ── Negocio ──────────────────────────────────────────────────────────────
+  cashSessionOpened: (userId: string, tenantId: string, sessionId: string, openingAmount: number, meta?: Record<string, unknown>) =>
+    auditLog('info', { event: 'cash_session_opened', userId, tenantId, meta: { sessionId, openingAmount, ...meta } }),
+
+  cashSessionClosed: (userId: string, tenantId: string, sessionId: string, expected: number, actual: number, diff: number, status: string) =>
+    auditLog('info', { event: 'cash_session_closed', userId, tenantId, meta: { sessionId, expected, actual, difference: diff, closingStatus: status } }),
+
+  cashMovement: (userId: string, tenantId: string, sessionId: string, type: string, amount: number, reason: string) =>
+    auditLog('info', { event: 'cash_movement', userId, tenantId, meta: { sessionId, type, amount, reason } }),
+
+  saleCreated: (userId: string, tenantId: string, saleId: string, total: number, paymentMethod: string, invoiceNumber?: string, meta?: Record<string, unknown>) =>
+    auditLog('info', { event: 'sale_created', userId, tenantId, meta: { saleId, total, paymentMethod, invoiceNumber, ...meta } }),
+
+  saleCancelled: (userId: string, tenantId: string, saleId: string, reason: string, originalTotal: number) =>
+    auditLog('warn', { event: 'sale_cancelled', userId, tenantId, meta: { saleId, reason, originalTotal } }),
+
+  stockChanged: (userId: string, tenantId: string, productId: string, from: number, to: number, delta: number, reason: string) =>
+    auditLog('info', { event: 'stock_changed', userId, tenantId, meta: { productId, previousStock: from, newStock: to, delta, reason } }),
+
+  paymentProcessed: (userId: string, tenantId: string, saleId: string, amount: number, paymentMethod: string, meta?: Record<string, unknown>) =>
+    auditLog('info', { event: 'payment_processed', userId, tenantId, meta: { saleId, amount, paymentMethod, ...meta } }),
 };

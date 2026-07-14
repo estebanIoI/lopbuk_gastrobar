@@ -5,6 +5,8 @@ import { AppError } from '../../common/middleware';
 import { TAX_RATE } from '../../utils';
 import { RowDataPacket, ResultSetHeader, PoolConnection } from 'mysql2/promise';
 import { financesService } from '../finances/finances.service';
+import { audit } from '../../utils/audit-logger';
+import { auditService } from '../audit/audit.service';
 
 interface SaleRow extends RowDataPacket {
   id: string;
@@ -789,6 +791,15 @@ export class SalesService {
 
       await connection.commit();
 
+      // Audit
+      audit.saleCreated(data.sellerId, tenantId, saleId, total, data.paymentMethod, invoiceNumber, {
+        itemsCount: data.items.length,
+      });
+      auditService.log({
+        tenantId, userId: data.sellerId, action: 'sale_created', entityType: 'sale', entityId: saleId,
+        details: { invoiceNumber, total, paymentMethod: data.paymentMethod, itemsCount: data.items.length, cashSessionId },
+      }).catch(() => {});
+
       // Registrar ingreso en finanzas (fire-and-forget, no bloquea la venta)
       // Se omite para fiado porque el dinero no se recibió aún
       if (data.paymentMethod !== 'fiado') {
@@ -892,6 +903,13 @@ export class SalesService {
       );
 
       await connection.commit();
+
+      audit.saleCancelled(userId, sale.tenant_id, id, 'Anulación manual', Number(sale.total));
+      auditService.log({
+        tenantId: sale.tenant_id, userId, action: 'sale_cancelled', entityType: 'sale', entityId: id,
+        severity: 'warning',
+        details: { invoiceNumber: sale.invoice_number, total: Number(sale.total), paymentMethod: sale.payment_method },
+      }).catch(() => {});
 
       return this.findById(id);
     } catch (error) {

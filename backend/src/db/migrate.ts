@@ -181,6 +181,13 @@ async function runCatchup(): Promise<void> {
   await renameColumnIfNeeded('storefront_order_items', 'is_preorder', 'is_presale', "TINYINT(1) NOT NULL DEFAULT 0")
   await renameColumnIfNeeded('storefront_order_items', 'preorder_ship_start', 'presale_ship_start', 'DATE NULL')
   await renameColumnIfNeeded('storefront_order_items', 'preorder_ship_end', 'presale_ship_end', 'DATE NULL')
+
+  // ── Caja por turnos ────────────────────────────────────────────────────────
+  // shift_type/shift_label viven en el baseline (marcado-no-ejecutado en prod vieja),
+  // así que una prod anterior a la feature de turnos no las tiene y el openSession
+  // (que inserta shift_type) daría 500. La migración 0043 crea shift_employees/bonuses.
+  await addColumnIfMissing('cash_sessions', 'shift_type', "ENUM('mañana','tarde','unico') NOT NULL DEFAULT 'unico'")
+  await addColumnIfMissing('cash_sessions', 'shift_label', 'VARCHAR(50) NULL')
 }
 
 // Aplica las migraciones pendientes (registradas en __drizzle_migrations).

@@ -3,6 +3,8 @@ import { db } from '../../config';
 import { CashSession, CashMovement, CashSessionStatus, ClosingStatus, PaginatedResponse } from '../../common/types';
 import { AppError } from '../../common/middleware';
 import { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
+import { audit } from '../../utils/audit-logger';
+import { auditService } from '../audit/audit.service';
 
 interface CashSessionRow extends RowDataPacket {
   id: string;
@@ -10,6 +12,8 @@ interface CashSessionRow extends RowDataPacket {
   opened_by_name: string;
   opening_amount: number;
   opened_at: Date;
+  shift_type: string | null;
+  shift_label: string | null;
   closed_by: string | null;
   closed_by_name: string | null;
   closed_at: Date | null;
@@ -97,6 +101,8 @@ export class CashSessionsService {
       openedByName: row.opened_by_name,
       openingAmount: Number(row.opening_amount),
       openedAt: row.opened_at,
+      shiftType: row.shift_type || undefined,
+      shiftLabel: row.shift_label || undefined,
       closedBy: row.closed_by || undefined,
       closedByName: row.closed_by_name || undefined,
       closedAt: row.closed_at || undefined,
@@ -247,6 +253,15 @@ export class CashSessionsService {
 
       await connection.commit();
 
+      audit.cashSessionOpened(userId, tenantId, id, openingAmount, {
+        shiftType: shiftType || 'unico',
+        employeeCount: (opts?.employees || []).length,
+      });
+      auditService.log({
+        tenantId, userId, action: 'cash_session_opened', entityType: 'cash_session', entityId: id,
+        details: { openingAmount, shiftType, employees: (opts?.employees || []).length },
+      }).catch(() => {});
+
       return this.findById(id);
     } catch (error) {
       await connection.rollback();
@@ -284,6 +299,12 @@ export class CashSessionsService {
       'SELECT * FROM cash_movements WHERE id = ?',
       [id]
     );
+
+    audit.cashMovement(userId, tenantId, sessionId, type, amount, reason);
+    auditService.log({
+      tenantId, userId, action: 'cash_movement', entityType: 'cash_session', entityId: sessionId,
+      details: { type, amount, reason },
+    }).catch(() => {});
 
     return this.mapMovement(rows[0]);
   }
@@ -590,6 +611,13 @@ export class CashSessionsService {
       }
 
       await connection.commit();
+
+      audit.cashSessionClosed(closedBy, sessionRows[0].tenant_id, sessionId, expectedCash, actualCash, difference, closingStatus);
+      auditService.log({
+        tenantId: sessionRows[0].tenant_id, userId: closedBy, action: 'cash_session_closed',
+        entityType: 'cash_session', entityId: sessionId,
+        details: { openingAmount, expectedCash, actualCash, difference, closingStatus, totalSales: totalCashSales + totalCardSales + totalTransferSales + totalFiadoSales, salesCount: totalSalesCount },
+      }).catch(() => {});
 
       return this.findById(sessionId);
     } catch (error) {

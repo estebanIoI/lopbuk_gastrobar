@@ -385,6 +385,8 @@ export interface CashSession {
   openedByName: string;
   openingAmount: number;
   openedAt: Date;
+  shiftType?: string;
+  shiftLabel?: string | null;
   closedBy?: string;
   closedByName?: string;
   closedAt?: Date;
