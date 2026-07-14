@@ -965,6 +965,13 @@ class RestbarService {
            AND status = 'pendiente' AND sent_to_kitchen_at IS NULL`,
         [orderId, tenantId, ...itemIds]
       );
+    } else {
+      await db.execute(
+        `UPDATE rb_order_items
+         SET status = 'pendiente', sent_to_kitchen_at = NOW()
+         WHERE order_id = ? AND tenant_id = ? AND status = 'pendiente' AND sent_to_kitchen_at IS NULL`,
+        [orderId, tenantId]
+      );
     }
 
     await db.execute(
