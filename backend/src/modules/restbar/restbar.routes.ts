@@ -265,6 +265,8 @@ router.post(
     body('quantity').isInt({ min: 1 }).withMessage('La cantidad debe ser mayor a 0'),
     body('itemNotes').optional().isString(),
     body('guestNumber').optional().isInt({ min: 1 }),
+    body('courseNumber').optional().isInt({ min: 1 }),
+    body('unitPrice').optional().isFloat({ min: 0 }),
     validateRequest,
   ],
   restbarController.addItem.bind(restbarController)
@@ -278,6 +280,8 @@ router.put(
     body('quantity').optional().isInt({ min: 1 }),
     body('itemNotes').optional().isString(),
     body('guestNumber').optional({ nullable: true }).isInt({ min: 1 }),
+    body('courseNumber').optional({ nullable: true }).isInt({ min: 1 }),
+    body('unitPrice').optional().isFloat({ min: 0 }),
     validateRequest,
   ],
   restbarController.updateItem.bind(restbarController)
@@ -290,11 +294,52 @@ router.delete(
   restbarController.removeItem.bind(restbarController)
 );
 
+// ── Item actions (move, duplicate, repeat) ──────────────────────────────────────
+router.patch(
+  '/orders/:id/items/:itemId/move',
+  authorize(...WAITER_ROLES),
+  [
+    param('id').notEmpty(), param('itemId').notEmpty(),
+    body('targetOrderId').notEmpty().withMessage('La comanda destino es requerida'),
+    validateRequest,
+  ],
+  restbarController.moveItemToOrder.bind(restbarController)
+);
+
+router.patch(
+  '/orders/:id/items/:itemId/seat',
+  authorize(...WAITER_ROLES),
+  [
+    param('id').notEmpty(), param('itemId').notEmpty(),
+    body('guestNumber').isInt({ min: 1 }).withMessage('Número de asiento requerido'),
+    validateRequest,
+  ],
+  restbarController.moveItemSeat.bind(restbarController)
+);
+
+router.post(
+  '/orders/:id/items/:itemId/duplicate',
+  authorize(...WAITER_ROLES),
+  [param('id').notEmpty(), param('itemId').notEmpty(), validateRequest],
+  restbarController.duplicateItem.bind(restbarController)
+);
+
+router.post(
+  '/orders/:id/repeat-last',
+  authorize(...WAITER_ROLES),
+  [param('id').notEmpty(), validateRequest],
+  restbarController.repeatLastOrder.bind(restbarController)
+);
+
 router.post(
   '/orders/:id/send',
   authorize(...WAITER_ROLES),
-  [param('id').notEmpty(), validateRequest],
-  restbarController.sendToKitchen.bind(restbarController)
+  [
+    param('id').notEmpty(),
+    body('itemIds').optional().isArray(),
+    validateRequest,
+  ],
+  restbarController.sendSelectedItems.bind(restbarController)
 );
 
 // Imprime la pre-cuenta de la mesa en la impresora de Caja (LAN o USB vía agente).

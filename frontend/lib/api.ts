@@ -2859,21 +2859,36 @@ class ApiService {
   async createRestbarOrder(data: { tableId: string; guestsCount?: number; notes?: string }) {
     return this.request<any>('/restbar/orders', { method: 'POST', body: JSON.stringify(data) })
   }
-  async addRestbarOrderItem(orderId: string, data: { menuItemId: string; quantity: number; itemNotes?: string; guestNumber?: number }) {
+  async addRestbarOrderItem(orderId: string, data: { menuItemId: string; quantity: number; itemNotes?: string; guestNumber?: number; courseNumber?: number; unitPrice?: number }) {
     return this.request<any>(`/restbar/orders/${orderId}/items`, { method: 'POST', body: JSON.stringify(data) })
   }
-  async updateRestbarOrderItem(orderId: string, itemId: string, data: { quantity?: number; itemNotes?: string; guestNumber?: number | null }) {
+  async updateRestbarOrderItem(orderId: string, itemId: string, data: { quantity?: number; itemNotes?: string; guestNumber?: number | null; courseNumber?: number | null; unitPrice?: number }) {
     return this.request<any>(`/restbar/orders/${orderId}/items/${itemId}`, { method: 'PUT', body: JSON.stringify(data) })
   }
   async removeRestbarOrderItem(orderId: string, itemId: string) {
     return this.request<any>(`/restbar/orders/${orderId}/items/${itemId}`, { method: 'DELETE' })
   }
-  async sendRestbarOrderToKitchen(orderId: string) {
-    return this.request<any>(`/restbar/orders/${orderId}/send`, { method: 'POST' })
+  async sendRestbarOrderToKitchen(orderId: string, itemIds?: string[]) {
+    return this.request<any>(`/restbar/orders/${orderId}/send`, { method: 'POST', body: JSON.stringify({ itemIds: itemIds ?? [] }) })
   }
   /** Imprime la pre-cuenta de la mesa en la impresora de Caja (agente). */
   async printRestbarBill(orderId: string) {
     return this.request<any>(`/restbar/orders/${orderId}/print-bill`, { method: 'POST' })
+  }
+  async moveRestbarItemToOrder(orderId: string, itemId: string, targetOrderId: string) {
+    return this.request<any>(`/restbar/orders/${orderId}/items/${itemId}/move`, { method: 'PATCH', body: JSON.stringify({ targetOrderId }) })
+  }
+  async moveRestbarItemSeat(orderId: string, itemId: string, guestNumber: number) {
+    return this.request<any>(`/restbar/orders/${orderId}/items/${itemId}/seat`, { method: 'PATCH', body: JSON.stringify({ guestNumber }) })
+  }
+  async duplicateRestbarOrderItem(orderId: string, itemId: string) {
+    return this.request<any>(`/restbar/orders/${orderId}/items/${itemId}/duplicate`, { method: 'POST' })
+  }
+  async repeatRestbarLastOrder(orderId: string) {
+    return this.request<any>(`/restbar/orders/${orderId}/repeat-last`, { method: 'POST' })
+  }
+  async payRestbarOrder(orderId: string, data: { paymentMethod: string; amountPaid: number; guestNumber?: number | null; cashSessionId?: string }) {
+    return this.request<any>(`/restbar/orders/${orderId}/pay`, { method: 'POST', body: JSON.stringify(data) })
   }
   async getKitchenDisplay() {
     return this.request<any[]>('/restbar/kitchen')

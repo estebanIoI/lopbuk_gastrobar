@@ -54,3 +54,23 @@ export function getVaultSocket(): Socket {
   }
   return vaultSocket
 }
+
+// ── RestBar / Terminal POS — multi-waiter real-time ──
+let restbarSocket: Socket | null = null
+
+export function getRestbarSocket(): Socket {
+  if (!restbarSocket) {
+    restbarSocket = io(`${SOCKET_URL}/restbar`, {
+      autoConnect: true,
+      transports: ['websocket', 'polling'],
+    })
+  }
+  return restbarSocket
+}
+
+export function disconnectRestbarSocket() {
+  if (restbarSocket) {
+    restbarSocket.disconnect()
+    restbarSocket = null
+  }
+}

@@ -18,6 +18,8 @@ import {
 import { Button } from '@/components/ui/button'
 import { RestBarReservations } from '@/components/restbar-reservations'
 import { RestBarFinanzas } from '@/components/restbar-finanzas'
+import { PosShell } from '@/components/restbar-pos/PosShell'
+import { Monitor } from 'lucide-react'
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 const formatCOP = (n: number) =>
@@ -57,6 +59,7 @@ export function RestBar() {
 
   const [tab, setTab] = useState<Tab>(defaultTab)
   const [pendingReservations, setPendingReservations] = useState(0)
+  const [posMode, setPosMode] = useState(false)
 
   useEffect(() => {
     if (!isAdmin) return
@@ -88,6 +91,11 @@ export function RestBar() {
     return true
   })
 
+  // Terminal POS táctil (pantalla completa) — reemplaza la vista de gestión mientras está activo.
+  if (posMode) {
+    return <PosShell onDone={() => setPosMode(false)} />
+  }
+
   return (
     <div className="flex flex-col h-full min-h-screen bg-background">
       {/* Header */}
@@ -100,6 +108,15 @@ export function RestBar() {
             <h1 className="text-lg font-bold text-foreground">RestBar</h1>
             <p className="text-xs text-muted-foreground">Gestión operativa del restaurante</p>
           </div>
+          <button
+            onClick={() => setPosMode(true)}
+            className="flex items-center gap-2 h-9 px-3 rounded-lg bg-emerald-600/10 hover:bg-emerald-600/20
+              border border-emerald-600/30 text-emerald-400 text-sm font-bold transition-all"
+            title="Abrir Terminal POS táctil"
+          >
+            <Monitor className="h-4 w-4" />
+            Terminal POS
+          </button>
         </div>
         {/* Tabs */}
         <div className="flex gap-1 overflow-x-auto scrollbar-thin">

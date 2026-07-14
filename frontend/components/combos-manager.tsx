@@ -50,7 +50,7 @@ export function CombosManager() {
     setLoading(true)
     const [cRes, pRes, catRes] = await Promise.all([api.getCombos(), api.getProducts({ limit: 1000 }), api.getCategories()])
     if (cRes.success) setCombos(cRes.data || [])
-    if (pRes.success) setProducts(pRes.data?.products || [])
+    if (pRes.success) setProducts(Array.isArray(pRes.data) ? pRes.data : [])
     if (catRes.success) setCategories((catRes.data || []).map((c: any) => ({ id: c.id, name: c.name })))
     setLoading(false)
   }, [])
