@@ -9,7 +9,7 @@ export function normalizeListResponse<T>(response: ApiResponse<any> | null | und
   if (Array.isArray(data)) return data as T[]
 
   if (data && typeof data === 'object') {
-    for (const key of ['users', 'items', 'data', 'records', 'results']) {
+    for (const key of ['users', 'items', 'products', 'data', 'records', 'results']) {
       if (Array.isArray(data[key])) return data[key] as T[]
     }
   }

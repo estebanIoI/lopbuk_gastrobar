@@ -12,6 +12,7 @@ interface TableRow extends RowDataPacket {
   notes: string | null; is_active: number;
   active_order_id: string | null; active_order_number: string | null;
   active_order_total: number | null; active_items_count: number | null;
+  active_order_opened_at: Date | null;
 }
 
 interface OrderRow extends RowDataPacket {
@@ -82,6 +83,7 @@ class RestbarService {
               o.id          AS active_order_id,
               o.order_number AS active_order_number,
               o.total       AS active_order_total,
+              o.opened_at   AS active_order_opened_at,
               (SELECT COUNT(*) FROM rb_order_items oi
                WHERE oi.order_id = o.id
                  AND oi.status NOT IN ('cancelado','entregado')) AS active_items_count
@@ -101,6 +103,7 @@ class RestbarService {
             orderNumber: r.active_order_number,
             total: r.active_order_total ?? 0,
             itemsCount: r.active_items_count ?? 0,
+            openedAt: r.active_order_opened_at ?? null,
           }
         : null,
       merge_group: (r as any).merge_group ?? null,

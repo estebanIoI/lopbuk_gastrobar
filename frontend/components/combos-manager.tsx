@@ -50,7 +50,8 @@ export function CombosManager() {
     setLoading(true)
     const [cRes, pRes, catRes] = await Promise.all([api.getCombos(), api.getProducts({ limit: 1000 }), api.getCategories()])
     if (cRes.success) setCombos(cRes.data || [])
-    if (pRes.success) setProducts(Array.isArray(pRes.data) ? pRes.data : [])
+    // getProducts devuelve { products, pagination } → tomar .products (no es un array directo).
+    if (pRes.success) setProducts(Array.isArray(pRes.data) ? pRes.data : ((pRes.data as any)?.products || []))
     if (catRes.success) setCategories((catRes.data || []).map((c: any) => ({ id: c.id, name: c.name })))
     setLoading(false)
   }, [])
@@ -87,6 +88,11 @@ export function CombosManager() {
     if (form.activeDays.length === 0) return setError('Elige al menos un día')
     if (sizes.length === 0 || sizes.some(s => s.price <= 0)) return setError('Cada tamaño necesita un precio')
     if (form.itemIds.length === 0) return setError('Elige los ítems que entran al combo')
+    // El cliente debe escoger `count` ítems distintos por tamaño → se necesitan al
+    // menos tantos ítems elegibles como el tamaño más grande, o el combo queda
+    // imposible de completar en la tienda.
+    const maxCount = Math.max(...sizes.map(s => s.count))
+    if (form.itemIds.length < maxCount) return setError(`Para el tamaño x${maxCount} necesitas al menos ${maxCount} ítems elegibles (tienes ${form.itemIds.length})`)
 
     setSaving(true)
     const payload = { name: form.name.trim(), activeDays: form.activeDays, sizes, includes: form.includes.trim() || undefined, imageUrl: form.imageUrl.trim() || undefined, itemIds: form.itemIds }

@@ -677,3 +677,27 @@ html {
   .nt-container:hover { transform: scale(0.74); }
   .nt-new { font-size: 18px; }
 }
+
+/* ── POS táctil — microanimaciones (Polish) ───────────────────────────────── */
+/* Entrada del ítem al ticket: slide + fade, se siente "vivo" al agregar. */
+@keyframes posTicketIn {
+  from { opacity: 0; transform: translateY(-8px) scale(0.985); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.pos-ticket-enter { animation: posTicketIn 220ms cubic-bezier(0.22, 1, 0.36, 1); }
+
+/* Skeleton shimmer para placeholders de carga del POS. */
+@keyframes posSkeleton {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.pos-skeleton {
+  background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.10) 37%, rgba(255,255,255,0.04) 63%);
+  background-size: 200% 100%;
+  animation: posSkeleton 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pos-ticket-enter { animation: none; }
+  .pos-skeleton { animation: none; }
+}
