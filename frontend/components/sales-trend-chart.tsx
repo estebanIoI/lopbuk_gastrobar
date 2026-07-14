@@ -76,7 +76,6 @@ export function SalesTrendChart() {
   const todaySales = (salesTrendData[salesTrendData.length - 1]?.ventas || 0) + (salesTrendData[salesTrendData.length - 1]?.fiados || 0)
   const yesterdaySales = (salesTrendData[salesTrendData.length - 2]?.ventas || 0) + (salesTrendData[salesTrendData.length - 2]?.fiados || 0)
   const salesChange = yesterdaySales > 0 ? ((todaySales - yesterdaySales) / yesterdaySales * 100) : 0
-  const rangeTotal = salesTrendData.reduce((sum, d) => sum + d.ventas + d.fiados, 0)
   const rangeFiados = salesTrendData.reduce((sum, d) => sum + d.fiados, 0)
   const rangeTransactions = salesTrendData.reduce((sum, d) => sum + d.transacciones, 0)
   const chartMinWidth = salesTrendData.length > 14 ? salesTrendData.length * 60 : undefined
@@ -101,9 +100,6 @@ export function SalesTrendChart() {
                 Ventas — {trendRange === 0 ? 'Histórico completo' : `Últimos ${rangeLabels[trendRange]}`}
               </p>
             </div>
-            <p className="text-2xl sm:text-3xl lg:text-4xl font-black text-foreground tracking-tight">
-              {formatCOP(rangeTotal)}
-            </p>
             <div className="flex items-center gap-3 flex-wrap">
               <span className="text-xs sm:text-sm text-muted-foreground">
                 {rangeTransactions} transacciones
@@ -123,16 +119,6 @@ export function SalesTrendChart() {
                   {salesChange >= 0 ? '+' : ''}{salesChange.toFixed(1)}% vs ayer
                 </span>
               )}
-            </div>
-          </div>
-          <div className="flex gap-4 sm:gap-6 sm:text-right">
-            <div>
-              <p className="text-xs text-muted-foreground">Hoy</p>
-              <p className="text-base sm:text-lg font-bold text-foreground">{formatCOP(todaySales)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Ayer</p>
-              <p className="text-base sm:text-lg font-bold text-muted-foreground">{formatCOP(yesterdaySales)}</p>
             </div>
           </div>
         </div>
