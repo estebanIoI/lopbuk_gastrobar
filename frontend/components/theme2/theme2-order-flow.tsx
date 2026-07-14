@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   X, ChevronRight, ChevronLeft, Search, MapPin, Clock, Plus, Minus,
-  ShoppingBag, Store, Trash2, Navigation, Loader2, Check,
+  ShoppingBag, Store, Trash2, Navigation, Loader2, Check, Sun, Moon,
 } from 'lucide-react'
 import { Theme2OrderSuccess, type OrderSuccessData } from '@/components/theme2/theme2-order-success'
 import { VariantSelector, type RawVariant, type SelectedVariant } from '@/components/variant-selector'
@@ -109,6 +109,24 @@ export function Theme2OrderFlow({
 
   const [products, setProducts] = useState<T2Product[]>([])
   const [loadingProducts, setLoadingProducts] = useState(false)
+  const [dark, setDark] = useState(true) // tema local claro/oscuro de la tienda (cliente)
+  const themeBtnRef = useRef<HTMLButtonElement>(null)
+  // Reveal circular (View Transitions API) — mismo efecto de expansión que el ThemeSwitch del panel.
+  const toggleTheme = () => {
+    const doc: any = document
+    if (!doc.startViewTransition || window.matchMedia('(prefers-reduced-motion: reduce)').matches) { setDark(d => !d); return }
+    const rect = themeBtnRef.current?.getBoundingClientRect()
+    const x = rect ? rect.left + rect.width / 2 : window.innerWidth - 40
+    const y = rect ? rect.top + rect.height / 2 : 40
+    const endRadius = Math.hypot(Math.max(x, window.innerWidth - x), Math.max(y, window.innerHeight - y))
+    const t = doc.startViewTransition(() => setDark(d => !d))
+    t.ready.then(() => {
+      document.documentElement.animate(
+        { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${endRadius}px at ${x}px ${y}px)`] },
+        { duration: 480, easing: 'ease-in-out', pseudoElement: '::view-transition-new(root)' },
+      )
+    }).catch(() => {})
+  }
   const [search, setSearch] = useState('')
   const [activeCat, setActiveCat] = useState<string>('all')
   const [activeFilter, setActiveFilter] = useState<'todos' | 'nuevo' | 'destacado' | 'populares' | 'descuento'>('todos')
@@ -530,17 +548,51 @@ export function Theme2OrderFlow({
   // ════════ MENÚ ════════
   const pageBg = cldImg(info.cardCoverUrl, 1920)
   return (
-    <div className={`fixed inset-0 z-[60] text-white overflow-y-auto bg-[#0a0a0a] ${pageBg ? 'md:bg-transparent' : ''}`}>
+    <div className={`t2-root ${dark ? '' : 't2-light'} fixed inset-0 z-[60] text-white overflow-y-auto bg-[#0a0a0a] ${pageBg ? 'md:bg-transparent' : ''}`}>
+      {/* ── Modo claro: redefine SOLO los tokens neutros (blancos/negros/bordes).
+             Los acentos (cian/verde/rojo/naranja) quedan intactos. Vidrio claro sobre la foto. ── */}
+      <style>{`
+        ::view-transition-old(root), ::view-transition-new(root) { animation:none; mix-blend-mode:normal; }
+        ::view-transition-new(root) { z-index:2147483646; }
+        ::view-transition-old(root) { z-index:1; }
+        .t2-light { color:#171717; }
+        .t2-light.bg-\\[\\#0a0a0a\\], .t2-light .bg-\\[\\#0a0a0a\\] { background-color:#f4f4f5 !important; }
+        .t2-light .bg-\\[\\#0a0a0a\\]\\/95 { background-color:rgba(244,244,245,0.85) !important; }
+        .t2-light .bg-\\[\\#161616\\] { background-color:rgba(0,0,0,0.05) !important; }
+        .t2-light .bg-\\[\\#0e0e0e\\] { background-color:#ffffff !important; }
+        .t2-light .bg-black\\/40 { background-color:rgba(255,255,255,0.55) !important; }
+        .t2-light .bg-black\\/35 { background-color:rgba(255,255,255,0.62) !important; }
+        .t2-light .bg-black\\/55 { background-color:rgba(255,255,255,0.42) !important; }
+        .t2-light .text-white { color:#171717 !important; }
+        .t2-light .t2-keep, .t2-light .t2-keep * { color:#ffffff !important; }
+        .t2-light .text-white\\/90 { color:rgba(0,0,0,0.85) !important; }
+        .t2-light .text-white\\/85 { color:rgba(0,0,0,0.80) !important; }
+        .t2-light .text-white\\/70 { color:rgba(0,0,0,0.65) !important; }
+        .t2-light .text-white\\/60 { color:rgba(0,0,0,0.55) !important; }
+        .t2-light .text-white\\/50 { color:rgba(0,0,0,0.50) !important; }
+        .t2-light .text-white\\/45 { color:rgba(0,0,0,0.48) !important; }
+        .t2-light .text-white\\/40 { color:rgba(0,0,0,0.45) !important; }
+        .t2-light .text-white\\/35 { color:rgba(0,0,0,0.42) !important; }
+        .t2-light .text-white\\/30 { color:rgba(0,0,0,0.40) !important; }
+        .t2-light .text-white\\/10 { color:rgba(0,0,0,0.22) !important; }
+        .t2-light .border-white\\/\\[0\\.06\\], .t2-light .border-white\\/\\[0\\.08\\], .t2-light .border-white\\/\\[0\\.05\\], .t2-light .border-white\\/\\[0\\.12\\], .t2-light .border-white\\/10 { border-color:rgba(0,0,0,0.12) !important; }
+        .t2-light .border-white\\/15, .t2-light .border-white\\/20, .t2-light .border-white\\/30 { border-color:rgba(0,0,0,0.20) !important; }
+        .t2-light .bg-white\\/\\[0\\.03\\], .t2-light .bg-white\\/\\[0\\.04\\], .t2-light .bg-white\\/\\[0\\.05\\], .t2-light .bg-white\\/\\[0\\.06\\], .t2-light .bg-white\\/\\[0\\.08\\], .t2-light .bg-white\\/5 { background-color:rgba(0,0,0,0.05) !important; }
+        .t2-light .bg-white\\/10, .t2-light .bg-white\\/15 { background-color:rgba(0,0,0,0.09) !important; }
+        .t2-light .divide-white\\/\\[0\\.05\\] > * + * { border-color:rgba(0,0,0,0.08) !important; }
+        .t2-light .placeholder-white\\/30::placeholder, .t2-light .placeholder-white\\/40::placeholder { color:rgba(0,0,0,0.40) !important; }
+        .t2-light .t2-fade { background:linear-gradient(to top, #f4f4f5, #f4f4f5, transparent) !important; }
+      `}</style>
       {/* Fondo de página (solo escritorio): portada/GIF del comercio detrás del contenido */}
       {pageBg && (
         <div className="hidden md:block fixed inset-0 -z-10 pointer-events-none">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={pageBg} alt="" className="w-full h-full object-cover" />
-          <div className="absolute inset-0 bg-black/75" />
+          <div className="absolute inset-0 bg-black/55" />
         </div>
       )}
       {/* Header */}
-      <div className="sticky top-0 z-20 bg-[#0a0a0a]/95 backdrop-blur border-b border-white/[0.06]">
+      <div className="sticky top-0 z-20 bg-black/40 backdrop-blur-2xl border-b border-white/10">
         <div className="flex items-center gap-3 px-4 py-3">
           <button
             onClick={() => sedes.length > 1 ? setStep('sede') : onClose()}
@@ -552,6 +604,16 @@ export function Theme2OrderFlow({
               {openState === 'closed' ? `Cerrado${nextOpenLabel ? ` · ${nextOpenLabel}` : ''}` : 'Abierto'}
             </p>
           </div>
+          <button
+            ref={themeBtnRef}
+            onClick={toggleTheme}
+            title={dark ? 'Modo claro' : 'Modo oscuro'}
+            aria-label="Cambiar tema"
+            className="relative inline-flex h-9 w-9 items-center justify-center rounded-full text-white/60 hover:text-white transition-colors shrink-0"
+          >
+            <Sun className={`absolute w-[18px] h-[18px] transition-all duration-300 ${dark ? 'opacity-0 rotate-90 scale-50' : 'opacity-100 rotate-0 scale-100'}`} />
+            <Moon className={`absolute w-[18px] h-[18px] transition-all duration-300 ${dark ? 'opacity-100 rotate-0 scale-100' : 'opacity-0 -rotate-90 scale-50'}`} />
+          </button>
           <button onClick={onClose} className="text-white/60 hover:text-white"><X className="w-5 h-5" /></button>
         </div>
         {/* Buscador */}
@@ -561,7 +623,7 @@ export function Theme2OrderFlow({
             <input
               value={search} onChange={e => setSearch(e.target.value)}
               placeholder="Buscar productos..."
-              className="w-full rounded-xl bg-[#161616] border border-white/[0.08] pl-9 pr-3 py-2.5 text-sm text-white placeholder-white/30 focus:border-cyan-400/50 focus:outline-none"
+              className="w-full rounded-xl bg-white/[0.08] backdrop-blur-sm border border-white/[0.12] pl-9 pr-3 py-2.5 text-sm text-white placeholder-white/40 focus:border-cyan-400/50 focus:outline-none"
             />
           </div>
           {/* Categorías */}
@@ -620,8 +682,8 @@ export function Theme2OrderFlow({
           <p className="text-center text-white/40 py-16 text-sm">No hay productos para mostrar.</p>
         ) : (
           filtered.map(p => (
-            <div key={p.id} className="flex gap-3 rounded-2xl bg-[#141414] border border-white/[0.06] p-3">
-              <button onClick={() => openDetail(p)} className="w-20 h-20 rounded-xl overflow-hidden bg-[#0e0e0e] shrink-0">
+            <div key={p.id} className="flex gap-3 rounded-2xl bg-black/35 backdrop-blur-xl border border-white/10 p-3 shadow-lg shadow-black/20">
+              <button onClick={() => openDetail(p)} className="w-20 h-20 rounded-xl overflow-hidden bg-white/[0.05] shrink-0">
                 {p.imageUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={cldImg(p.imageUrl, 400)} srcSet={cldSrcSet(p.imageUrl)} sizes="(max-width:640px) 50vw, (max-width:1024px) 33vw, 25vw" loading="lazy" decoding="async" alt={p.name} className="w-full h-full object-cover" />
@@ -658,7 +720,7 @@ export function Theme2OrderFlow({
         <button
           onClick={() => setShowCart(true)}
           aria-label={`Ver pedido, ${cartCount} ${cartCount === 1 ? 'producto' : 'productos'}, total ${COP(cartTotal)}`}
-          className="fixed bottom-5 left-1/2 -translate-x-1/2 z-30 flex items-center gap-3 whitespace-nowrap rounded-full bg-gradient-to-r from-cyan-500 to-teal-500 text-black pl-3.5 pr-5 py-2.5 shadow-2xl shadow-cyan-500/30 ring-1 ring-white/25 transition-transform active:scale-95"
+          className="t2-keep fixed bottom-5 left-1/2 -translate-x-1/2 z-30 flex items-center gap-3 whitespace-nowrap rounded-full bg-gradient-to-r from-cyan-500 to-teal-500 text-black pl-3.5 pr-5 py-2.5 shadow-2xl shadow-cyan-500/30 ring-1 ring-white/25 transition-transform active:scale-95"
         >
           <span className="relative flex items-center justify-center">
             <ShoppingBag className="w-5 h-5" />
@@ -801,7 +863,7 @@ export function Theme2OrderFlow({
             </div>
           </div>
           {/* Botón fijo Agregar */}
-          <div className="fixed bottom-0 inset-x-0 z-20 p-4 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a] to-transparent">
+          <div className="t2-fade fixed bottom-0 inset-x-0 z-20 p-4 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a] to-transparent">
             <button
               onClick={confirmDetail}
               disabled={detailMissing.length > 0 || variantPending}

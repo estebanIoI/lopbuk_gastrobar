@@ -11,6 +11,7 @@ import { SectionRenderer } from '@/components/section-renderer'
 import { NotificationsBell } from '@/components/notifications-bell'
 import { SalesTrendChart } from '@/components/sales-trend-chart'
 import { ThemeSwitch } from '@/components/theme-switch'
+import { ProfileModal } from '@/components/profile-modal'
 import {
   Home, Package, ShoppingCart, Store, Users, TrendingUp, Settings,
   Search, Bell, LogOut, ChevronDown, AlertTriangle, ShoppingBag,
@@ -144,6 +145,7 @@ export function PanelComercianteShell() {
   const [openMenu, setOpenMenu] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [showNotifs, setShowNotifs] = useState(false)
+  const [showProfile, setShowProfile] = useState(false)
   const navRef = useRef<HTMLDivElement>(null)
   // Hover-intent del mega-menú: abre al instante, cierra con retardo para dar tiempo a elegir.
   const megaTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -283,6 +285,7 @@ export function PanelComercianteShell() {
   return (
     <div className="pc-theme">
       <style>{PC_STYLES}</style>
+      <ProfileModal open={showProfile} onClose={() => setShowProfile(false)} />
 
       {/* ── HEADER ── */}
       <header className="pc-header">
@@ -319,45 +322,18 @@ export function PanelComercianteShell() {
             <span>Guía</span>
           </button>
 
-          {/* Notificaciones del comercio (comunidad, etc.) */}
+          {/* Notificaciones (una sola campana; las alertas de stock viven en el home "Requiere tu atención") */}
           <NotificationsBell />
 
-          {/* Alertas de stock */}
-          <div className="pc-notif-wrap">
-            <button className="pc-icon-btn" data-tour="notifications" onClick={() => setShowNotifs(v => !v)} aria-label="Alertas">
-              <Bell size={18} />
-              {alertCount > 0 && <span className="pc-badge">{alertCount}</span>}
-            </button>
-            {showNotifs && (
-              <div className="pc-notif-panel">
-                <div className="pc-notif-title">Notificaciones</div>
-                {outOfStockCount > 0 && (
-                  <button className="pc-notif-item" onClick={() => { navigateToInventory('agotado'); setShowNotifs(false) }}>
-                    <span className="pc-dot pc-dot-red" /> {outOfStockCount} producto(s) agotado(s)
-                  </button>
-                )}
-                {lowStockCount > 0 && (
-                  <button className="pc-notif-item" onClick={() => { navigateToInventory('bajo'); setShowNotifs(false) }}>
-                    <span className="pc-dot pc-dot-amber" /> {lowStockCount} con stock bajo
-                  </button>
-                )}
-                {isAdmin && pendingOrdersCount > 0 && (
-                  <button className="pc-notif-item" onClick={() => { navigateToPedidos(); setShowNotifs(false) }}>
-                    <span className="pc-dot pc-dot-blue" /> {pendingOrdersCount} pedido(s) pendiente(s)
-                  </button>
-                )}
-                {alertCount === 0 && <div className="pc-notif-empty">No hay alertas pendientes</div>}
-              </div>
-            )}
-          </div>
-
-          {/* Usuario */}
+          {/* Usuario — abre el perfil del comerciante (planes y más) */}
           <div className="pc-user">
-            <div className="pc-avatar">{user?.name?.charAt(0).toUpperCase() ?? '?'}</div>
-            <div className="pc-user-text">
-              <div className="pc-user-name">{user?.name ?? '—'}</div>
-              <div className="pc-user-role">{isSuperadmin ? 'Super Admin' : isAdmin ? 'Comerciante' : isWarehouse ? 'Bodega' : 'Vendedor'}</div>
-            </div>
+            <button className="pc-user-btn" onClick={() => setShowProfile(true)} title="Ver mi perfil y plan">
+              <span className="pc-avatar">{user?.name?.charAt(0).toUpperCase() ?? '?'}</span>
+              <span className="pc-user-text">
+                <span className="pc-user-name">{user?.name ?? '—'}</span>
+                <span className="pc-user-role">{isSuperadmin ? 'Super Admin' : isAdmin ? 'Comerciante' : isWarehouse ? 'Bodega' : 'Vendedor'}</span>
+              </span>
+            </button>
             <button className="pc-icon-btn pc-logout" onClick={logout} title="Cerrar sesión" aria-label="Cerrar sesión">
               <LogOut size={16} />
             </button>
@@ -658,6 +634,7 @@ const PC_STYLES = `
   --pc-glass:rgba(255,255,255,0.55);
   --pc-glass-soft:rgba(255,255,255,0.42);
   --pc-glass-strong:rgba(255,255,255,0.72);
+  --pc-menu-bg:rgba(255,255,255,0.97);
   --pc-content:#F4F7F2;
   --pc-footer-bg:rgba(14,59,46,0.80);
   --pc-shadow:0 22px 60px rgba(18,54,40,0.14);
@@ -675,12 +652,12 @@ const PC_STYLES = `
 .pc-theme *{box-sizing:border-box;}
 .pc-theme button{font-family:inherit;cursor:pointer;}
 
-/* HEADER — barra de vidrio flotante */
-.pc-header{background:var(--pc-glass-strong);backdrop-filter:var(--pc-blur);-webkit-backdrop-filter:var(--pc-blur);margin:16px 18px 0;padding:11px 18px;display:flex;align-items:center;justify-content:space-between;gap:16px;border:1px solid var(--pc-border);border-radius:22px;box-shadow:var(--pc-shadow-sm);flex-wrap:wrap;}
+/* HEADER — barra de vidrio flotante (z alto para que sus dropdowns queden sobre el navbar) */
+.pc-header{position:relative;z-index:60;background:var(--pc-glass-strong);backdrop-filter:var(--pc-blur);-webkit-backdrop-filter:var(--pc-blur);margin:16px 18px 0;padding:11px 18px;display:flex;align-items:center;justify-content:space-between;gap:16px;border:1px solid var(--pc-border);border-radius:22px;box-shadow:var(--pc-shadow-sm);flex-wrap:wrap;}
 .pc-brand{display:flex;align-items:center;gap:12px;cursor:pointer;}
-.pc-logo-mark{position:relative;width:44px;height:44px;background:linear-gradient(150deg,var(--pc-green),var(--pc-green-dark));border-radius:13px;display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;box-shadow:var(--pc-shadow-sm);}
-.pc-logo-mark img{width:100%;height:100%;object-fit:cover;position:relative;z-index:1;}
-.pc-logo-fallback{position:absolute;color:#fff;font-size:18px;font-weight:700;}
+.pc-logo-mark{position:relative;width:44px;height:44px;background:transparent;border-radius:12px;display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;}
+.pc-logo-mark img{width:100%;height:100%;object-fit:contain;position:relative;z-index:1;}
+.pc-logo-fallback{position:absolute;color:var(--pc-brand-text);font-size:18px;font-weight:800;}
 .pc-brand-name{font-size:15px;font-weight:700;color:var(--pc-brand-text);line-height:1.2;letter-spacing:-.2px;}
 .pc-brand-sub{font-size:11px;color:var(--pc-muted);}
 .pc-header-right{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
@@ -702,9 +679,12 @@ const PC_STYLES = `
 .pc-notif-empty{padding:14px;font-size:12px;color:var(--pc-muted);}
 .pc-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
 .pc-dot-red{background:#DC2626;} .pc-dot-amber{background:var(--pc-yellow);} .pc-dot-blue{background:#2563EB;}
-.pc-user{display:flex;align-items:center;gap:9px;padding:4px 6px 4px 4px;border-radius:14px;background:var(--pc-glass-soft);border:1px solid var(--pc-border);}
-.pc-avatar{width:34px;height:34px;border-radius:11px;background:linear-gradient(150deg,var(--pc-yellow),#C98526);color:#3a2a06;font-weight:800;display:flex;align-items:center;justify-content:center;font-size:14px;}
-.pc-user-name{font-size:12.5px;font-weight:600;line-height:1.2;}
+.pc-user{display:flex;align-items:center;gap:6px;padding:4px 6px 4px 4px;border-radius:14px;background:var(--pc-glass-soft);border:1px solid var(--pc-border);}
+.pc-user-btn{display:flex;align-items:center;gap:9px;background:transparent;border:none;padding:2px;border-radius:11px;cursor:pointer;text-align:left;transition:background .15s;}
+.pc-user-btn:hover{background:var(--pc-green-light);}
+.pc-avatar{width:34px;height:34px;border-radius:11px;background:linear-gradient(150deg,var(--pc-yellow),#C98526);color:#3a2a06;font-weight:800;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;}
+.pc-user-text{display:flex;flex-direction:column;line-height:1.15;}
+.pc-user-name{font-size:12.5px;font-weight:600;color:var(--pc-text);}
 .pc-user-role{font-size:10.5px;color:var(--pc-muted);}
 .pc-logout{background:transparent;border:none;}
 .pc-logout:hover{background:#FEE2E2;color:#DC2626;}
@@ -717,7 +697,7 @@ const PC_STYLES = `
 .pc-nav-item:hover{background:var(--pc-glass-soft);color:var(--pc-text);transform:translateY(-1px);}
 .pc-nav-item.active{background:linear-gradient(150deg,var(--pc-green),var(--pc-green-dark));color:#fff;box-shadow:var(--pc-shadow-sm);}
 .pc-chev{opacity:.55;}
-.pc-mega{position:absolute;left:0;top:100%;margin-top:7px;min-width:214px;background:var(--pc-glass-strong);backdrop-filter:var(--pc-blur);-webkit-backdrop-filter:var(--pc-blur);border:1px solid var(--pc-border);border-radius:16px;box-shadow:var(--pc-shadow);z-index:70;padding:7px;transform-origin:top left;animation:pcMegaIn .17s cubic-bezier(.2,.85,.3,1);}
+.pc-mega{position:absolute;left:0;top:100%;margin-top:7px;min-width:214px;background:var(--pc-menu-bg);backdrop-filter:var(--pc-blur);-webkit-backdrop-filter:var(--pc-blur);border:1px solid var(--pc-border);border-radius:16px;box-shadow:var(--pc-shadow);z-index:70;padding:7px;transform-origin:top left;animation:pcMegaIn .17s cubic-bezier(.2,.85,.3,1);}
 /* Puente invisible que cubre el gap pill↔menú para que el cursor no "salga" y se cierre. */
 .pc-mega::before{content:'';position:absolute;top:-9px;left:0;right:0;height:9px;}
 @keyframes pcMegaIn{from{opacity:0;transform:scaleY(.72) translateY(-6px);}to{opacity:1;transform:none;}}
@@ -845,6 +825,7 @@ const PC_STYLES = `
   --pc-glass:rgba(18,38,30,0.56);
   --pc-glass-soft:rgba(14,32,25,0.44);
   --pc-glass-strong:rgba(20,44,34,0.68);
+  --pc-menu-bg:rgba(17,30,24,0.97);
   --pc-content:#0F1A15;
   --pc-footer-bg:rgba(6,20,12,0.78);
   --pc-shadow:0 22px 60px rgba(0,0,0,0.50);

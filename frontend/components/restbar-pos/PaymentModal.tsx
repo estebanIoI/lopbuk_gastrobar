@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { Order } from './PosShell'
-import { X, Banknote, CreditCard, Smartphone, ArrowLeftRight } from 'lucide-react'
+import { api } from '@/lib/api'
+import { X, Banknote, CreditCard, Smartphone, ArrowLeftRight, Users } from 'lucide-react'
 
 interface PaymentModalProps {
   order: Order
@@ -21,12 +22,30 @@ const PAY_METHODS = [
 const formatCOP = (n: number) =>
   new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n)
 
+interface GuestBreakdown {
+  guestNumber: number
+  items: { name: string; qty: number; subtotal: number }[]
+  subtotal: number
+}
+
 export function PaymentModal({ order, onPay, onClose }: PaymentModalProps) {
   const [selectedMethod, setSelectedMethod] = useState<string>('efectivo')
   const [amountReceived, setAmountReceived] = useState('')
   const [processing, setProcessing] = useState(false)
+  const [showSplit, setShowSplit] = useState(false)
+  const [selectedGuest, setSelectedGuest] = useState<number | null>(null)
+  const [guestBreakdown, setGuestBreakdown] = useState<GuestBreakdown[]>([])
 
-  const total = order.total
+  useEffect(() => {
+    api.getRestbarGuestBreakdown(order.id).then(r => {
+      if (r.success && r.data) setGuestBreakdown(r.data)
+    })
+  }, [order.id])
+
+  const total = guestBreakdown.length > 0 && selectedGuest
+    ? guestBreakdown.find(g => g.guestNumber === selectedGuest)?.subtotal ?? order.total
+    : order.total
+
   const received = parseFloat(amountReceived) || 0
   const change = received - total
 
@@ -36,6 +55,7 @@ export function PaymentModal({ order, onPay, onClose }: PaymentModalProps) {
     await onPay({
       paymentMethod: selectedMethod,
       amountPaid: received,
+      guestNumber: selectedGuest,
     })
     setProcessing(false)
     onClose()
@@ -58,10 +78,50 @@ export function PaymentModal({ order, onPay, onClose }: PaymentModalProps) {
             <span>Mesa {order.tableNumber}</span>
             <span>{order.orderNumber}</span>
           </div>
-          <div className="text-2xl font-extrabold text-zinc-100 mt-1">
-            {formatCOP(total)}
+          <div className="flex items-center justify-between mt-1">
+            <div className="text-2xl font-extrabold text-zinc-100">
+              {formatCOP(total)}
+            </div>
+            {guestBreakdown.length > 0 && (
+              <button
+                onClick={() => { setShowSplit(!showSplit); setSelectedGuest(null) }}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors
+                  ${showSplit ? 'bg-amber-600/30 text-amber-400' : 'bg-zinc-700 text-zinc-400 hover:text-zinc-300'}`}>
+                <Users className="h-3 w-3" />
+                {selectedGuest ? `Seat ${selectedGuest}` : 'Dividir'}
+              </button>
+            )}
           </div>
         </div>
+
+        {/* Guest breakdown (split bill) */}
+        {showSplit && guestBreakdown.length > 0 && (
+          <div className="mb-4 space-y-1 max-h-48 overflow-auto">
+            <button
+              onClick={() => { setSelectedGuest(null); setShowSplit(false) }}
+              className={`w-full p-2.5 rounded-lg text-xs font-semibold transition-colors flex items-center justify-between
+                ${!selectedGuest ? 'bg-zinc-200 text-zinc-900' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-750'}`}>
+              <span>Toda la mesa</span>
+              <span>{formatCOP(order.total)}</span>
+            </button>
+            {guestBreakdown.map(g => (
+              <button
+                key={g.guestNumber}
+                onClick={() => { setSelectedGuest(g.guestNumber); setAmountReceived(String(g.subtotal)) }}
+                className={`w-full p-2.5 rounded-lg text-xs font-semibold transition-colors flex items-center justify-between
+                  ${selectedGuest === g.guestNumber ? 'bg-zinc-200 text-zinc-900' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-750'}`}>
+                <div className="flex items-center gap-2">
+                  <Users className="h-3 w-3" />
+                  <span>Seat {g.guestNumber}</span>
+                  <span className="text-[10px] text-zinc-500">
+                    ({g.items.map(i => `${i.qty}x ${i.name}`).join(', ')})
+                  </span>
+                </div>
+                <span>{formatCOP(g.subtotal)}</span>
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Payment methods */}
         <div className="grid grid-cols-3 gap-2 mb-4">
@@ -114,7 +174,9 @@ export function PaymentModal({ order, onPay, onClose }: PaymentModalProps) {
           disabled={received <= 0 || processing}
           className="w-full h-12 bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-700 disabled:text-zinc-500
             text-white rounded-xl text-sm font-bold transition-colors">
-          {processing ? 'Procesando...' : `Cobrar ${formatCOP(total)}`}
+          {processing ? 'Procesando...'
+            : selectedGuest ? `Cobrar Seat ${selectedGuest}: ${formatCOP(total)}`
+            : `Cobrar ${formatCOP(total)}`}
         </button>
       </div>
     </div>

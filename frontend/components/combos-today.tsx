@@ -12,7 +12,7 @@ import { api } from '@/lib/api'
 import { formatCOP } from '@/lib/utils'
 import { cldImg } from '@/utils/img'
 import type { ProductoCarrito } from '@/types'
-import { Flame, X, Check, Plus, Gift } from 'lucide-react'
+import { Flame, X, Check, Plus, Gift, Utensils } from 'lucide-react'
 
 type ComboItem = { id: string; name: string; price: number; imageUrl: string | null }
 type Combo = {
@@ -21,12 +21,14 @@ type Combo = {
 }
 
 export function CombosToday({
-  store, tenantId, storeName, onAdd,
+  store, tenantId, storeName, onAdd, isLightBg = false,
 }: {
   store: string
   tenantId?: string
   storeName?: string
   onAdd: (line: ProductoCarrito) => void
+  /** true si el fondo de la tienda es claro → título en negro; si no, en blanco. */
+  isLightBg?: boolean
 }) {
   const [combos, setCombos] = useState<Combo[]>([])
   const [active, setActive] = useState<Combo | null>(null)
@@ -36,7 +38,16 @@ export function CombosToday({
   const load = useCallback(async () => {
     if (!store || store === 'all') { setCombos([]); return }
     const res = await api.getPublicCombos(store)
-    if (res.success) setCombos((res.data || []) as Combo[])
+    if (res.success) {
+      // Solo mostramos combos completables: cada tamaño exige elegir `count` ítems
+      // distintos, así que un tamaño solo es válido si hay al menos `count` ítems
+      // elegibles. Se descartan tamaños imposibles y combos sin ningún tamaño válido
+      // (evita el modal trabado en "Elige N más" cuando faltan ítems).
+      const cleaned = ((res.data || []) as Combo[])
+        .map(c => ({ ...c, sizes: c.sizes.filter(s => s.count <= (c.items?.length || 0)) }))
+        .filter(c => c.sizes.length > 0 && (c.items?.length || 0) > 0)
+      setCombos(cleaned)
+    }
   }, [store])
   useEffect(() => { load() }, [load])
 
@@ -88,8 +99,7 @@ export function CombosToday({
     <div className="my-6">
       <div className="flex items-center gap-2 px-1 mb-3">
         <Flame className="h-5 w-5 text-orange-500" />
-        <h2 className="text-lg font-bold text-[var(--color-text-store,inherit)]">Combos de hoy</h2>
-        <span className="text-xs font-medium text-orange-600 bg-orange-500/10 rounded-full px-2 py-0.5">Solo por hoy</span>
+        <h2 className={`text-lg font-bold ${isLightBg ? 'text-black' : 'text-white'}`}>Combos de hoy</h2>
       </div>
 
       <div className="flex gap-3 overflow-x-auto pb-2 px-1 snap-x">
@@ -99,7 +109,7 @@ export function CombosToday({
             <button
               key={c.id}
               onClick={() => open(c)}
-              className="group relative shrink-0 snap-start w-56 text-left rounded-2xl overflow-hidden border border-black/5 bg-[var(--color-surface,#fff)] shadow-sm hover:shadow-md transition-shadow"
+              className="group relative shrink-0 snap-start w-56 text-left rounded-2xl overflow-hidden border border-black/5 bg-white shadow-sm hover:shadow-md transition-shadow"
             >
               <div className="relative h-32 w-full bg-gradient-to-br from-orange-400 to-red-500 overflow-hidden">
                 {(c.imageUrl || c.items[0]?.imageUrl) && (
@@ -115,13 +125,13 @@ export function CombosToday({
                 </span>
               </div>
               <div className="p-3 space-y-1">
-                <p className="font-semibold text-sm leading-tight line-clamp-2 text-[var(--color-text-store,inherit)]">{c.name}</p>
+                <p className="font-semibold text-sm leading-tight line-clamp-2 text-gray-900">{c.name}</p>
                 <div className="flex flex-wrap gap-1">
                   {c.sizes.map((s, i) => (
                     <span key={i} className="text-[10px] font-medium text-orange-700 bg-orange-500/10 rounded px-1.5 py-0.5">x{s.count}</span>
                   ))}
                 </div>
-                <p className="text-xs text-muted-foreground">Desde <span className="font-bold text-[var(--color-text-store,inherit)]">{formatCOP(from)}</span></p>
+                <p className="text-xs text-gray-500">Desde <span className="font-bold text-gray-900">{formatCOP(from)}</span></p>
               </div>
             </button>
           )
@@ -132,7 +142,7 @@ export function CombosToday({
       {active && (
         <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-black/60 p-0 sm:p-4" onClick={close}>
           <div
-            className="w-full sm:max-w-md bg-[var(--color-surface,#fff)] rounded-t-3xl sm:rounded-2xl max-h-[90vh] overflow-hidden flex flex-col"
+            className="w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-2xl max-h-[90vh] overflow-hidden flex flex-col"
             onClick={e => e.stopPropagation()}
           >
             <div className="relative h-36 bg-gradient-to-br from-orange-400 to-red-500 shrink-0">
@@ -149,14 +159,14 @@ export function CombosToday({
 
             <div className="p-4 space-y-4 overflow-y-auto">
               {active.includes && (
-                <p className="flex items-start gap-2 text-sm text-muted-foreground">
+                <p className="flex items-start gap-2 text-sm text-gray-600">
                   <Gift className="h-4 w-4 mt-0.5 text-orange-500 shrink-0" /> Incluye: {active.includes}
                 </p>
               )}
 
               {/* Tamaño */}
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Elige el tamaño</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Elige el tamaño</p>
                 <div className="flex flex-wrap gap-2">
                   {active.sizes.map(s => (
                     <button
@@ -164,7 +174,7 @@ export function CombosToday({
                       onClick={() => setSizeCount(s.count)}
                       className={`flex-1 min-w-[90px] rounded-xl border-2 px-3 py-2 text-center transition-colors ${sizeCount === s.count ? 'border-orange-500 bg-orange-500/5' : 'border-black/10 hover:border-orange-300'}`}
                     >
-                      <p className="font-bold text-[var(--color-text-store,inherit)]">Combo x{s.count}</p>
+                      <p className="font-bold text-gray-900">Combo x{s.count}</p>
                       <p className="text-sm text-orange-600 font-semibold">{formatCOP(s.price)}</p>
                     </button>
                   ))}
@@ -174,7 +184,7 @@ export function CombosToday({
               {/* Ítems */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Elige tus {sizeCount} ítems</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Elige tus {sizeCount} ítems</p>
                   <span className={`text-xs font-bold ${full ? 'text-emerald-600' : 'text-orange-600'}`}>{chosen.length}/{sizeCount}</span>
                 </div>
                 <div className="space-y-1.5">
@@ -188,10 +198,12 @@ export function CombosToday({
                         disabled={disabled}
                         className={`flex w-full items-center gap-3 rounded-xl border p-2 text-left transition-colors ${on ? 'border-orange-500 bg-orange-500/5' : disabled ? 'border-black/5 opacity-40' : 'border-black/10 hover:border-orange-300'}`}
                       >
-                        <div className="h-11 w-11 rounded-lg overflow-hidden bg-black/5 shrink-0">
-                          {it.imageUrl && <img src={cldImg(it.imageUrl, 120)} alt={it.name} loading="lazy" className="w-full h-full object-cover" />}
+                        <div className="h-11 w-11 rounded-lg overflow-hidden bg-black/5 shrink-0 flex items-center justify-center">
+                          {it.imageUrl
+                            ? <img src={cldImg(it.imageUrl, 120)} alt={it.name} loading="lazy" className="w-full h-full object-cover" />
+                            : <Utensils className="h-5 w-5 text-gray-400" />}
                         </div>
-                        <span className="flex-1 text-sm font-medium text-[var(--color-text-store,inherit)]">{it.name}</span>
+                        <span className="flex-1 text-sm font-medium text-gray-900">{it.name}</span>
                         <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${on ? 'border-orange-500 bg-orange-500 text-white' : 'border-black/20'}`}>
                           {on && <Check className="h-3 w-3" />}
                         </span>

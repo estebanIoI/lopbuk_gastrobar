@@ -8,22 +8,28 @@ import type { MenuItem } from './PosShell'
 interface MenuGridProps {
   items: MenuItem[]
   onItemClick: (item: MenuItem) => void
+  onItemDoubleClick?: (item: MenuItem) => void
+  onItemLongPress?: (item: MenuItem) => void
+  favoriteIds?: Set<string>
+  onToggleFavorite?: (itemId: string) => void
+  itemPopularity?: Record<string, number>
+  cols?: number
   seat: number
   course: number
 }
 
-const COLS = 4
-
-export function MenuGrid({ items, onItemClick, seat, course }: MenuGridProps) {
+export function MenuGrid({ items, onItemClick, onItemDoubleClick, onItemLongPress, favoriteIds, onToggleFavorite, itemPopularity, cols = 4, seat, course }: MenuGridProps) {
   const parentRef = useRef<HTMLDivElement>(null)
 
   const rows = useMemo(() => {
     const r: MenuItem[][] = []
-    for (let i = 0; i < items.length; i += COLS) {
-      r.push(items.slice(i, i + COLS))
+    for (let i = 0; i < items.length; i += cols) {
+      r.push(items.slice(i, i + cols))
     }
     return r
-  }, [items])
+  }, [items, cols])
+
+  const gridClass = cols === 6 ? 'grid-cols-6' : cols === 5 ? 'grid-cols-5' : 'grid-cols-4'
 
   const virtualizer = useVirtualizer({
     count: rows.length,
@@ -59,13 +65,18 @@ export function MenuGrid({ items, onItemClick, seat, course }: MenuGridProps) {
                 height: `${virtualRow.size}px`,
                 transform: `translateY(${virtualRow.start}px)`,
               }}
-              className="grid grid-cols-4 gap-2"
+              className={`grid ${gridClass} gap-2`}
             >
               {row.map(item => (
                 <MenuTile
                   key={item.id}
                   item={item}
                   onClick={() => onItemClick(item)}
+                  onDoubleClick={onItemDoubleClick ? () => onItemDoubleClick(item) : undefined}
+                  onLongPress={onItemLongPress ? () => onItemLongPress(item) : undefined}
+                  isFavorite={favoriteIds?.has(item.id)}
+                  onToggleFavorite={onToggleFavorite ? () => onToggleFavorite(item.id) : undefined}
+                  popularity={itemPopularity?.[item.id]}
                 />
               ))}
             </div>

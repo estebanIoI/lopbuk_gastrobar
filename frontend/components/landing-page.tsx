@@ -7650,6 +7650,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
           {!(showStoresView && selectedStore === 'all') && selectedStore !== 'all' && (
             <CombosToday
               store={selectedStore}
+              isLightBg={isLightBg}
               tenantId={stores.find(s => s.slug === selectedStore)?.id}
               storeName={stores.find(s => s.slug === selectedStore)?.name}
               onAdd={(line) => {
@@ -9413,19 +9414,24 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               </h2>
             </div>
 
-            {loadingAllOffers ? (
+            {/* Scoping por tienda: dentro de un comercio solo sus ofertas (offerProducts);
+                en el marketplace (todas las tiendas) usa allStoreOffers. */}
+            {(() => {
+              const offersScoped = selectedStore !== 'all' ? offerProducts : allStoreOffers
+              const offersLoading = selectedStore !== 'all' ? loadingOffers : loadingAllOffers
+              return offersLoading ? (
               <div className="text-center py-12">
                 <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
                 <p className="text-white/40 text-sm">Cargando ofertas...</p>
               </div>
-            ) : allStoreOffers.length === 0 ? (
+            ) : offersScoped.length === 0 ? (
               <div className="text-center py-12">
                 <Tag className="w-12 h-12 text-white/10 mx-auto mb-4" />
                 <p className="text-white/40 text-sm font-light">No hay ofertas disponibles</p>
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-3">
-                {allStoreOffers.map(product => {
+                {offersScoped.map(product => {
                   const discount = product.offerPrice ? Math.round(((product.salePrice - product.offerPrice) / product.salePrice) * 100) : 0
                   const inCart = carrito.find(c => c.id === product.id)
                   return (
@@ -9463,7 +9469,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   )
                 })}
               </div>
-            )}
+            )
+            })()}
           </div>
         </div>
       )}

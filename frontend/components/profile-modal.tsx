@@ -327,14 +327,6 @@ export function ProfileModal({ open, onClose }: Props) {
                         : 'Planes disponibles en la plataforma'}
                     </p>
                   </div>
-                  {isCommerciante && (
-                    <NewTransactionButton
-                      label="Nueva suscripción"
-                      onClick={handleNewTransaction}
-                      className="shrink-0"
-                      aria-label="Iniciar una nueva suscripción"
-                    />
-                  )}
                 </div>
 
                 <div className="grid grid-cols-3 gap-5 flex-1">

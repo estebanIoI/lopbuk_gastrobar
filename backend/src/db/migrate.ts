@@ -156,6 +156,10 @@ async function runCatchup(): Promise<void> {
   await addColumnIfMissing('storefront_orders', 'assigned_to', 'VARCHAR(36) NULL')
   await addColumnIfMissing('cash_sessions', 'shift_type', "ENUM('mañana','tarde','unico') NOT NULL DEFAULT 'unico'")
   await addColumnIfMissing('cash_sessions', 'shift_label', 'VARCHAR(50)')
+  // RestBar POS táctil: el service inserta original_price/course_number en rb_order_items,
+  // pero el baseline creó la tabla sin ellas → "Unknown column" (500) al agregar ítems.
+  await addColumnIfMissing('rb_order_items', 'original_price', 'DECIMAL(12,2) NULL')
+  await addColumnIfMissing('rb_order_items', 'course_number', 'TINYINT NULL')
 
   // ── Reconciliación preorden → precompra ───────────────────────────────────
   // El baseline 0000 conserva los nombres legacy (is_preorder, preorder_*) porque
