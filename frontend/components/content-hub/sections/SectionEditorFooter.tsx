@@ -70,7 +70,7 @@ export function SectionEditorFooter({ config, onChange }: SectionEditorProps) {
             id="copyright"
             value={config.copyright || ''}
             onChange={(e) => handleChange('copyright', e.target.value)}
-            placeholder="Ej: © 2026 Lopbuk. Todos los derechos reservados."
+            placeholder="Ej: © 2026 Daimuz. Todos los derechos reservados."
           />
         </div>
 

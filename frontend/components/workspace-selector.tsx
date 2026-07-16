@@ -2,7 +2,7 @@
 
 /**
  * workspace-selector.tsx — Selector de espacio estilo split-screen diagonal.
- * Para cuentas con doble acceso (comerciante + OS): elige "Panel Lopbuk" o "OS LEGEND".
+ * Para cuentas con doble acceso (comerciante + OS): elige "Panel Daimuz" o "OS LEGEND".
  * Desktop: dos mitades partidas en diagonal. Móvil: dos paneles apilados.
  */
 import { Store, Dumbbell, ChevronRight } from 'lucide-react'
@@ -33,7 +33,7 @@ export function WorkspaceSelector({ userName, onSelectMerchant, onSelectOS }: Wo
         {/* ───────── PANEL LOPBUK (comerciante) ───────── */}
         <button
           onClick={onSelectMerchant}
-          aria-label="Entrar al Panel Comerciante Lopbuk"
+          aria-label="Entrar al Panel Comerciante Daimuz"
           className="group relative flex-1 w-full md:absolute md:inset-0 overflow-hidden text-left
                      md:[clip-path:polygon(0_0,58%_0,42%_100%,0_100%)]"
         >
@@ -47,7 +47,7 @@ export function WorkspaceSelector({ userName, onSelectMerchant, onSelectOS }: Wo
           {/* Contenido */}
           <div className="relative z-10 h-full flex flex-col justify-center md:justify-end p-8 md:p-16 md:pb-20 md:pl-16 md:max-w-[46%]">
             <Store className="h-14 w-14 md:h-20 md:w-20 text-indigo-300/90 mb-4 transition-transform duration-500 group-hover:-translate-y-1" strokeWidth={1.2} />
-            <p className="text-[11px] uppercase tracking-[0.3em] text-indigo-300/70 mb-1">Lopbuk</p>
+            <p className="text-[11px] uppercase tracking-[0.3em] text-indigo-300/70 mb-1">Daimuz</p>
             <h2 className="text-3xl md:text-5xl font-extrabold tracking-tight">Panel Comerciante</h2>
             <p className="text-sm text-white/55 mt-2 max-w-xs">Gestiona tu negocio: ventas, inventario, pedidos y tu tienda en línea.</p>
             <span className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-200 opacity-80 group-hover:opacity-100 group-hover:gap-3 transition-all">

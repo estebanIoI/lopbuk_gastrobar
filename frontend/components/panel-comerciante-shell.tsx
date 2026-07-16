@@ -61,6 +61,7 @@ const NAV: NavGroup[] = [
       { id: 'cupones', label: 'Cupones', icon: Ticket, adminOnly: true },
       { id: 'reviews', label: 'Reseñas', icon: Star, adminOnly: true },
       { id: 'services', label: 'Servicios', icon: Scissors, adminOnly: true },
+      { id: 'eventos', label: 'Eventos', icon: Ticket, adminOnly: true },
     ],
   },
   {
@@ -296,7 +297,7 @@ export function PanelComercianteShell() {
             <span className="pc-logo-fallback">{(storeInfo?.name || 'L').charAt(0).toUpperCase()}</span>
           </div>
           <div className="pc-brand-text">
-            <div className="pc-brand-name">{storeInfo?.name || 'Lopbuk'}</div>
+            <div className="pc-brand-name">{storeInfo?.name || 'Daimuz'}</div>
             <div className="pc-brand-sub">Panel del comerciante</div>
           </div>
         </div>
@@ -428,7 +429,7 @@ export function PanelComercianteShell() {
       <footer className="pc-footer">
         <div className="pc-footer-grid">
           <div>
-            <div className="pc-footer-brand">{storeInfo?.name || 'Lopbuk'}</div>
+            <div className="pc-footer-brand">{storeInfo?.name || 'Daimuz'}</div>
             <div className="pc-footer-addr">
               {storeInfo?.address || 'Plataforma de gestión empresarial'}<br />
               {storeInfo?.phone && <>Tel: {storeInfo.phone}<br /></>}
@@ -456,7 +457,7 @@ export function PanelComercianteShell() {
           </div>
         </div>
         <div className="pc-footer-bottom">
-          © {new Date().getFullYear()} {storeInfo?.name || 'Lopbuk'}. Todos los derechos reservados.
+          © {new Date().getFullYear()} {storeInfo?.name || 'Daimuz'}. Todos los derechos reservados.
         </div>
       </footer>
     </div>

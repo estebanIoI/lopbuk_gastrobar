@@ -214,8 +214,9 @@ export default function DeliveryOSPage() {
   // Init Leaflet map
   useEffect(() => {
     if (tab !== 'operations') return
-    let cancelled = false;
-    (async () => {
+    let cancelled = false
+    let invalidateTimer: ReturnType<typeof setTimeout> | undefined
+    ;(async () => {
       if (typeof window === 'undefined' || !mapContainerRef.current) return
       try {
         await new Promise<void>(resolve => {
@@ -236,10 +237,10 @@ export default function DeliveryOSPage() {
         if (cancelled) { map.remove(); return }
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap', maxZoom: 19 }).addTo(map)
         mapRef.current = map
-        setTimeout(() => map.invalidateSize(), 300)
+        invalidateTimer = setTimeout(() => { if (!cancelled) map.invalidateSize() }, 300)
       } catch {}
     })()
-    return () => { cancelled = true }
+    return () => { cancelled = true; if (invalidateTimer) clearTimeout(invalidateTimer) }
   }, [tab])
 
   // Update markers when data changes

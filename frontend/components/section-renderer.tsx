@@ -44,6 +44,7 @@ import { Tapiceria } from '@/components/tapiceria'
 import { Merma } from '@/components/merma'
 import { GastrobarOps } from '@/components/gastrobar-ops'
 import { CombosManager } from '@/components/combos-manager'
+import EventBackoffice from '@/components/events/event-backoffice'
 
 /**
  * Renderiza el componente correspondiente a la sección activa.
@@ -118,6 +119,8 @@ export function SectionRenderer() {
       return <PurchaseInvoices />
     case 'services':
       return <ServicesManagement />
+    case 'eventos':
+      return <EventBackoffice />
     case 'gym':
       return <GymManagement />
     case 'analytics':

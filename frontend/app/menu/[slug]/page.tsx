@@ -499,7 +499,7 @@ export default function PublicMenuPage() {
 
       {/* ── Footer ── */}
       <div className="fixed bottom-0 inset-x-0 bg-zinc-950/90 backdrop-blur border-t border-white/8 py-3 text-center">
-        <p className="text-[11px] text-white/25 uppercase tracking-widest">Powered by Lopbuk</p>
+        <p className="text-[11px] text-white/25 uppercase tracking-widest">Powered by Daimuz</p>
       </div>
 
       {/* ── TikTok feed ── */}

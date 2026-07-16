@@ -271,6 +271,74 @@
   }
 }
 
+/* ── Drop loader (gota vibrante en agua quieta + ondas) ── */
+/* Escala con la pantalla (vmin). 5 anillos equidistantes, timing lineal =
+   ondas parejas. Núcleo con bloom + charco de luz para dar profundidad. */
+.drop-loader {
+  position: relative;
+  width: 72vmin;
+  height: 72vmin;
+  --c1: #5eeaff;   /* cyan claro brillante */
+  --c2: #18b4e8;   /* cyan */
+  --dl-max: 72vmin;
+  --dl-cycle: 3s;
+}
+/* Charco de luz (agua) — profundidad en el centro */
+.drop-loader::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 44%;
+  height: 44%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(94, 234, 255, 0.16), rgba(94, 234, 255, 0) 70%);
+}
+/* Orbe central con bloom (la gota que brilla) */
+.drop-loader .drop {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 24px;
+  height: 24px;
+  margin: -12px 0 0 -12px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 30%, #f4feff, var(--c1) 42%, var(--c2));
+  box-shadow: 0 0 12px rgba(94, 234, 255, 0.95), 0 0 30px rgba(94, 234, 255, 0.6), 0 0 60px rgba(24, 180, 232, 0.4);
+  animation: drop-pulse 1.6s ease-in-out infinite;
+}
+/* Ondas — brillantes con glow, expansión lineal uniforme. 5 anillos equidistantes. */
+.drop-loader .ripple {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 28px;
+  height: 28px;
+  border: 2px solid var(--c1);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 16px rgba(94, 234, 255, 0.5), inset 0 0 12px rgba(94, 234, 255, 0.28);
+  animation: drop-ripple var(--dl-cycle) linear infinite;
+}
+.drop-loader .ripple.r2 { animation-delay: calc(var(--dl-cycle) * -0.2); }
+.drop-loader .ripple.r3 { animation-delay: calc(var(--dl-cycle) * -0.4); }
+.drop-loader .ripple.r4 { animation-delay: calc(var(--dl-cycle) * -0.6); }
+.drop-loader .ripple.r5 { animation-delay: calc(var(--dl-cycle) * -0.8); }
+
+@keyframes drop-pulse {
+  0%, 100% { transform: translate(-50%, -50%) scale(0.82); opacity: 0.9; }
+  50%      { transform: translate(-50%, -50%) scale(1.18); opacity: 1; }
+}
+@keyframes drop-ripple {
+  0%   { width: 28px; height: 28px; opacity: 1; border-width: 3px; }
+  65%  { opacity: 0.38; }
+  100% { width: var(--dl-max); height: var(--dl-max); opacity: 0; border-width: 1px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .drop-loader .drop, .drop-loader .ripple { animation-duration: 4s; }
+}
+
 /* ── Glass scrollbar ── */
 .glass-scroll::-webkit-scrollbar {
   width: 5px;
@@ -700,4 +768,22 @@ html {
 @media (prefers-reduced-motion: reduce) {
   .pos-ticket-enter { animation: none; }
   .pos-skeleton { animation: none; }
+}
+
+/* ── Marketplace header — brillo sutil del botón IA (Fase 1) ───────────────── */
+.daimuz-ai-pulse { position: relative; }
+.daimuz-ai-pulse::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  pointer-events: none;
+  animation: daimuzAiPulse 3.4s ease-in-out infinite;
+}
+@keyframes daimuzAiPulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand-green, #00833E) 0%, transparent); }
+  50%      { box-shadow: 0 0 16px 2px color-mix(in srgb, var(--brand-green, #00833E) 40%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .daimuz-ai-pulse::after { animation: none; }
 }

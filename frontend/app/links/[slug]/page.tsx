@@ -768,7 +768,7 @@ export default function LinksPage() {
 
       {/* Footer */}
       <div className={`fixed bottom-0 inset-x-0 py-3 text-center backdrop-blur ${isTheme2 ? 'bg-black/80' : 'bg-gray-50/80'}`}>
-        <p className={`text-[11px] uppercase tracking-widest ${isTheme2 ? 'text-gray-600' : 'text-gray-300'}`}>Powered by Lopbuk</p>
+        <p className={`text-[11px] uppercase tracking-widest ${isTheme2 ? 'text-gray-600' : 'text-gray-300'}`}>Powered by Daimuz</p>
       </div>
     </div>
   )

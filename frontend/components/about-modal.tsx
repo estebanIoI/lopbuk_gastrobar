@@ -73,7 +73,7 @@ export function AboutModal() {
                 />
                 <div className="min-w-0">
                   <DialogTitle className="text-xl font-light text-white tracking-tight">
-                    Lopbuk
+                    Daimuz
                   </DialogTitle>
                   <DialogDescription className="text-[10px] uppercase tracking-[0.25em] text-white/30 font-light mt-0.5">
                     GastroBar & Tiendas — v2.1
@@ -185,7 +185,7 @@ export function AboutModal() {
           {/* ——— FOOTER ——— */}
           <div className="px-7 py-3.5 border-t border-white/[0.06]">
             <p className="text-center text-[9px] text-white/15 font-light uppercase tracking-widest">
-              DAIMUZ · © 2026 Lopbuk
+              DAIMUZ · © 2026 Daimuz
             </p>
           </div>
         </div>

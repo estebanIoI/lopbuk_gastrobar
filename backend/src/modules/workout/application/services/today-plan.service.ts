@@ -12,6 +12,8 @@
 import * as repo from '../../infrastructure/repositories/workout.repository';
 import { StartSessionInput, StartExerciseInput } from '../../shared/schema';
 import { MovementPattern } from '../../../progression';
+import pool from '../../../../config/database';
+import type { RowDataPacket } from 'mysql2';
 
 interface TemplateExercise {
   exerciseId: string;
@@ -56,6 +58,80 @@ function pickTemplate(sessionTitle: string): TemplateExercise[] {
   return FULL_BODY;
 }
 
+/** Patrón del ejercicio derivado del grupo muscular de la librería. */
+const LOWER_PARTS = new Set(['upper legs', 'lower legs']);
+function patternFor(bodyPart?: string | null): MovementPattern {
+  return bodyPart && LOWER_PARTS.has(String(bodyPart).toLowerCase()) ? 'lower' : 'upper';
+}
+
+/** Detecta el patrón buscado por el título (mismo criterio que pickTemplate). */
+function wantedPattern(sessionTitle: string): MovementPattern | null {
+  const t = (sessionTitle || '').toLowerCase();
+  if (/(inferior|lower|pierna|legs|leg)/.test(t)) return 'lower';
+  if (/(superior|upper|push|pull|pecho|espalda|torso|empuje|jal)/.test(t)) return 'upper';
+  return null;
+}
+
+/**
+ * Carga la rutina configurada desde el admin (arma sobre la librería de ejercicios).
+ * Devuelve null si todavía no hay rutinas/tabla → el caller cae al template hardcodeado.
+ * El `exerciseId` guardado es el id del dataset, así el front resuelve su imagen sola.
+ */
+async function loadRoutineTemplate(sessionTitle: string, routineId?: string): Promise<TemplateExercise[] | null> {
+  try {
+    // Solo versiones PUBLICADAS: un borrador en edición nunca afecta a quien entrena.
+    let versionId: string | undefined;
+    if (routineId) {
+      const [v] = await pool.query<RowDataPacket[]>(
+        "SELECT id FROM routine_versions WHERE routine_id = ? AND status = 'published' ORDER BY version DESC LIMIT 1",
+        [routineId],
+      );
+      if (v.length) versionId = String(v[0].id);
+    }
+    if (!versionId) {
+      const wanted = wantedPattern(sessionTitle);
+      const [rows] = wanted
+        ? await pool.query<RowDataPacket[]>(
+            `SELECT v.id FROM routine_versions v JOIN routines r ON r.id = v.routine_id
+             WHERE v.status = 'published' AND r.is_active = 1 AND v.movement_pattern = ?
+             ORDER BY r.sort_order ASC LIMIT 1`, [wanted])
+        : await pool.query<RowDataPacket[]>(
+            `SELECT v.id FROM routine_versions v JOIN routines r ON r.id = v.routine_id
+             WHERE v.status = 'published' AND r.is_active = 1
+             ORDER BY r.sort_order ASC LIMIT 1`);
+      if (!rows.length) return null;
+      versionId = String(rows[0].id);
+    }
+
+    const [exs] = await pool.query<RowDataPacket[]>(
+      `SELECT rex.exercise_id, rex.target_sets, rex.target_reps, rex.start_weight,
+              COALESCE(rex.display_name, t.name, ten.name) AS name,
+              e.body_part, e.movement_pattern
+       FROM routine_exercises rex
+       LEFT JOIN exercises e ON e.id = rex.exercise_id
+       LEFT JOIN exercise_translations t   ON t.exercise_id = e.id AND t.language = 'es'
+       LEFT JOIN exercise_translations ten ON ten.exercise_id = e.id AND ten.language = 'en'
+       WHERE rex.routine_version_id = ? ORDER BY rex.exercise_order ASC`,
+      [versionId],
+    );
+    if (!exs.length) return null;
+
+    return exs.map(r => {
+      const stored = r.movement_pattern as string | null;
+      return {
+        exerciseId: String(r.exercise_id),
+        name: String(r.name || r.exercise_id),
+        movementPattern: (stored === 'lower' || stored === 'upper') ? stored : patternFor(r.body_part as string | null),
+        targetSets: Number(r.target_sets) || 3,
+        targetReps: Number(r.target_reps) || 12,
+        startWeight: Number(r.start_weight) || 0,
+      };
+    });
+  } catch {
+    return null; // tablas aún no creadas o sin rutinas publicadas → fallback al template
+  }
+}
+
 /**
  * Construye el StartSessionInput de hoy: template + peso sugerido por el motor.
  * El peso preferido es el `nextWeight` del último snapshot (continuidad real).
@@ -65,7 +141,8 @@ export async function buildTodayPlan(
   sessionTitle: string,
   routineId?: string
 ): Promise<StartSessionInput> {
-  const template = pickTemplate(sessionTitle);
+  // Prioridad: rutina configurada desde el admin (librería). Si no hay, template base.
+  const template = (await loadRoutineTemplate(sessionTitle, routineId)) ?? pickTemplate(sessionTitle);
 
   const exercises: StartExerciseInput[] = [];
   for (let i = 0; i < template.length; i++) {

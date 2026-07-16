@@ -1163,12 +1163,10 @@ export default function PortfolioPage() {
   }, [data])
 
   const toggleTheme = useCallback(() => {
-    setIsDark(prev => {
-      const next = !prev
-      if (typeof localStorage !== 'undefined') localStorage.setItem('pf-theme', next ? 'dark' : 'light')
-      return next
-    })
-  }, [])
+    const next = !isDark
+    if (typeof localStorage !== 'undefined') localStorage.setItem('pf-theme', next ? 'dark' : 'light')
+    setIsDark(next)
+  }, [isDark])
 
   useEffect(() => {
     Promise.all([
@@ -1755,7 +1753,7 @@ export default function PortfolioPage() {
       {/* Footer */}
       <footer className="py-8 text-center border-t border-white/5" style={{ borderColor: 'var(--pf-border)' }}>
         <p className="text-xs uppercase tracking-widest" style={{ color: 'var(--pf-subtle)' }}>
-          {title} · {new Date().getFullYear()} · Powered by Lopbuk
+          {title} · {new Date().getFullYear()} · Powered by Daimuz
         </p>
       </footer>
     </div>

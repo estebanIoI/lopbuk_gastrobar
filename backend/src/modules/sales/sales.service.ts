@@ -817,6 +817,18 @@ export class SalesService {
         });
       }
 
+      // Emit engagement event (defensive fire-and-forget)
+      if (data.customerPhone) {
+        import('../customer-engagement/engagement-events').then(({ emitEngagementEvent }) =>
+          emitEngagementEvent(tenantId, null, 'sale_completed', {
+            saleId, invoiceNumber, total,
+            customerPhone: data.customerPhone,
+            customerName: data.customerName || null,
+            paymentMethod: data.paymentMethod,
+          })
+        ).catch(() => {});
+      }
+
       return this.findById(saleId);
     } catch (error) {
       await connection.rollback();

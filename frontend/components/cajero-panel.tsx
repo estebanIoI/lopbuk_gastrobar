@@ -183,7 +183,7 @@ function printReceipt({
   <hr/>
   ${storeInfo?.invoiceGreeting ? `<div class="center" style="margin-top:4px">${storeInfo.invoiceGreeting}</div>` : '<div class="center" style="margin-top:4px">¡Gracias por su visita!</div>'}
   ${storeInfo?.invoicePolicy ? `<div class="center" style="margin-top:2px;font-size:10px">${storeInfo.invoicePolicy}</div>` : ''}
-  <div class="center" style="margin-top:6px;font-size:9px;opacity:0.5">Powered by Lopbuk</div>
+  <div class="center" style="margin-top:6px;font-size:9px;opacity:0.5">Powered by Daimuz</div>
 </body>
 </html>`
 

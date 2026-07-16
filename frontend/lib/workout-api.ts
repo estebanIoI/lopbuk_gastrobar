@@ -86,7 +86,26 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   }
 }
 
+/** Historial y récords de un ejercicio (P5). */
+export interface ExerciseHistory {
+  exerciseId: string
+  lastWeight: number | null
+  lastReps: number | null
+  lastAt: string | null
+  prWeight: number | null
+  prReps: number | null
+  prAt: string | null
+  bestVolume: number | null
+  estimated1rm: number | null
+  sessions: number
+}
+
 export const workoutApi = {
+  /** Historial + PR por ejercicio (para mostrarlos al iniciar rutina). */
+  history(exerciseIds: string[]) {
+    const qs = encodeURIComponent(exerciseIds.join(','))
+    return request<Record<string, ExerciseHistory>>(`/workouts/history?exerciseIds=${qs}`)
+  },
   /** Inicia la sesión de hoy (backend ensambla plan + pesos sugeridos). */
   startToday(sessionTitle?: string, routineId?: string) {
     return request<WorkoutSession>('/workouts/start-today', {

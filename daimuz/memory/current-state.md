@@ -2,7 +2,21 @@
 
 > Actualiza este archivo después de cada sesión de trabajo significativa.
 
-## 🆕 [2026-07-12] Combos por día — Fases 3+4 completas (storefront + stock + visualización)
+## 🆕 [2026-07-15] Events Module — Beta RC1 — Arquitectura congelada
+
+> Módulo Events construido como bounded context completo. Detalle en [[modules/events/events]] y `changelog.md`.
+
+- ✅ **13 tablas** (migraciones 0044-0047): venues, seat_maps, merchant_events extendida (+14 cols), ticket_types, holds, bookings, booking_items, payment_transactions, coupons, transfers, waitlists, logs
+- ✅ **39 endpoints** (8 públicos sin auth): CRUD eventos/venues/tickets, hold, checkout, webhook, check-in, health, trace, timeline, analytics, superadmin stats
+- ✅ **6 engines de dominio**: EventBus (32 eventos), StateMachine (3), PolicyEngine, CapacityEngine, Scheduler (4 jobs), NotificationOrchestrator (4 canales)
+- ✅ **Observabilidad**: TraceID, event_logs (23 acciones tipadas), health check, timeline, product funnel metrics
+- ✅ **Blindajes**: webhook idempotencia, venta atómica (affectedRows), QR HMAC, ticket_version, FOR UPDATE check-in, hold cleaner 60s
+- ✅ **Integración pagos**: context `'event_booking'` en `payments.service.ts` (createCheckout + onApproved)
+- ✅ **Frontend**: Backoffice Premium (`/panel/eventos`), Landing Pública (`/evento/[slug]`), Ticket Digital (`/evento/ticket/[code]`)
+- ✅ `tsc` backend 0 errores, frontend 0 errores en archivos propios
+- 🟡 **Beta Operativa Controlada**: pendiente aplicar 4 migraciones en BD, probar E2E con Wompi real, validar con comercios piloto
+- 🔵 **Experience Core**: preparado pero no extraído — esperar ≥2 consumidores reales de los engines
+- 🔵 **Seat Builder, Wallet, Marketplace, POS**: siguientes fases post-beta
 
 > Cierre del módulo de combos (4/4 fases). Detalle en `changelog.md`.
 

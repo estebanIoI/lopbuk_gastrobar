@@ -50,9 +50,13 @@ export async function earnPoints(tenantId: string, phone: string, name: string |
   const acct = await ensureAccount(tenantId, phone, name);
   const points = Math.floor((amount / 1000) * cfg.pointsPerThousand);
   if (points <= 0) return { points: 0, balance: acct.points_balance, accountId: acct.id };
-  await pool.query('UPDATE loyalty_accounts SET points_balance = points_balance + ?, total_earned = total_earned + ? WHERE id = ?', [points, points, acct.id]);
+  await pool.query('UPDATE loyalty_accounts SET points_balance = points_balance + ?, total_earned = total_earned + ?, visits = visits + 1, last_visit = NOW(), total_spent = total_spent + ? WHERE id = ?', [points, points, amount, acct.id]);
   await pool.query('INSERT INTO loyalty_transactions (id, tenant_id, account_id, type, points, reason, order_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
     [uuidv4(), tenantId, acct.id, 'earn', points, `Consumo ${amount.toLocaleString('es-CO')}`, orderId || null]);
+  // Emit engagement event
+  import('../customer-engagement/engagement-events').then(({ emitEngagementEvent }) =>
+    emitEngagementEvent(tenantId, acct.id, 'points_earned', { amount, points, orderId })
+  ).catch(() => {});
   return { points, balance: acct.points_balance + points, accountId: acct.id };
 }
 

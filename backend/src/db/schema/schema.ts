@@ -1854,8 +1854,19 @@ export const loyaltyAccounts = mysqlTable("loyalty_accounts", {
 	tenantId: varchar("tenant_id", { length: 36 }).notNull(),
 	customerName: varchar("customer_name", { length: 120 }),
 	customerPhone: varchar("customer_phone", { length: 40 }).notNull(),
+	customerEmail: varchar("customer_email", { length: 255 }),
 	pointsBalance: int("points_balance").default(0).notNull(),
 	totalEarned: int("total_earned").default(0).notNull(),
+	level: mysqlEnum(['bronze','silver','gold','platinum']).default('bronze').notNull(),
+	visits: int("visits").default(0).notNull(),
+	lastVisit: timestamp("last_visit", { mode: 'string' }),
+	totalSpent: decimal("total_spent", { precision: 14, scale: 2 }).default('0.00').notNull(),
+	walletId: varchar("wallet_id", { length: 255 }),
+	walletProvider: varchar("wallet_provider", { length: 50 }).default('google'),
+	walletStatus: mysqlEnum("wallet_status", ['active','expired','revoked']).default('active'),
+	birthday: date("birthday"),
+	acquisitionChannel: varchar("acquisition_channel", { length: 100 }),
+	favoriteCategoryId: varchar("favorite_category_id", { length: 36 }),
 	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
@@ -1863,6 +1874,7 @@ export const loyaltyAccounts = mysqlTable("loyalty_accounts", {
 	return {
 		loyaltyAccountsId: primaryKey({ columns: [table.id], name: "loyalty_accounts_id"}),
 		idxLoyaltyAcct: unique("idx_loyalty_acct").on(table.tenantId, table.customerPhone),
+		idxLoyaltyLevel: index("idx_loyalty_level").on(table.tenantId, table.level),
 	}
 });
 
@@ -1870,6 +1882,14 @@ export const loyaltyConfig = mysqlTable("loyalty_config", {
 	tenantId: varchar("tenant_id", { length: 36 }).notNull(),
 	enabled: tinyint().default(1).notNull(),
 	pointsPerThousand: decimal("points_per_thousand", { precision: 8, scale: 2 }).default('1.00').notNull(),
+	walletEnabled: tinyint("wallet_enabled").default(0).notNull(),
+	walletLogoUrl: varchar("wallet_logo_url", { length: 500 }),
+	walletPrimaryColor: varchar("wallet_primary_color", { length: 7 }).default('#000000'),
+	walletBusinessName: varchar("wallet_business_name", { length: 120 }),
+	walletShortDescription: varchar("wallet_short_description", { length: 300 }),
+	geoRadiusMeters: int("geo_radius_meters").default(300),
+	geoPushEnabled: tinyint("geo_push_enabled").default(0).notNull(),
+	geoPushMessage: varchar("geo_push_message", { length: 300 }),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
 (table) => {
@@ -1884,6 +1904,9 @@ export const loyaltyRewards = mysqlTable("loyalty_rewards", {
 	name: varchar({ length: 120 }).notNull(),
 	description: varchar({ length: 300 }),
 	pointsCost: int("points_cost").notNull(),
+	rewardType: mysqlEnum("reward_type", ['points','purchase_count','spend_amount','cashback','streak','referral']).default('points').notNull(),
+	conditionValue: decimal("condition_value", { precision: 12, scale: 2 }),
+	streakDays: int("streak_days"),
 	isActive: tinyint("is_active").default(1).notNull(),
 	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 },
@@ -1908,6 +1931,108 @@ export const loyaltyTransactions = mysqlTable("loyalty_transactions", {
 	return {
 		idxLoyaltyTx: index("idx_loyalty_tx").on(table.tenantId, table.accountId, table.createdAt),
 		loyaltyTransactionsId: primaryKey({ columns: [table.id], name: "loyalty_transactions_id"}),
+	}
+});
+
+// ───────────────────── Customer Engagement Platform ══════════════════
+
+export const engagementCampaigns = mysqlTable("engagement_campaigns", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+	name: varchar({ length: 120 }).notNull(),
+	description: varchar({ length: 500 }),
+	objective: mysqlEnum(['increase_sales','recover_inactive','reward_loyal','promote_product','anniversary','birthday','custom']).default('increase_sales').notNull(),
+	audienceFilter: json("audience_filter"),
+	offerType: mysqlEnum("offer_type", ['percentage','fixed','free_item','points_multiplier','free_delivery']),
+	offerValue: decimal("offer_value", { precision: 10, scale: 2 }),
+	channels: json().notNull(),
+	scheduledAt: timestamp("scheduled_at", { mode: 'string' }),
+	sentCount: int("sent_count").default(0).notNull(),
+	openedCount: int("opened_count").default(0).notNull(),
+	convertedCount: int("converted_count").default(0).notNull(),
+	status: mysqlEnum(['draft','scheduled','active','completed','cancelled']).default('draft').notNull(),
+	isActive: tinyint("is_active").default(1).notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
+},
+(table) => {
+	return {
+		engagementCampaignsId: primaryKey({ columns: [table.id], name: "engagement_campaigns_id"}),
+		idxCampaignTenant: index("idx_campaign_tenant").on(table.tenantId, table.status),
+	}
+});
+
+export const engagementAutomations = mysqlTable("engagement_automations", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+	name: varchar({ length: 120 }).notNull(),
+	description: varchar({ length: 500 }),
+	triggerType: mysqlEnum("trigger_type", [
+		'sale_completed','points_earned','level_up',
+		'inactive_7d','inactive_30d','birthday','geo_enter',
+		'time_of_day','near_reward','visit_streak','first_purchase'
+	]).notNull(),
+	triggerConfig: json("trigger_config"),
+	actionType: mysqlEnum("action_type", ['push','whatsapp','notification','coupon','wallet_update','email']).notNull(),
+	actionConfig: json("action_config"),
+	isActive: tinyint("is_active").default(1).notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
+},
+(table) => {
+	return {
+		engagementAutomationsId: primaryKey({ columns: [table.id], name: "engagement_automations_id"}),
+		idxAutomationTenant: index("idx_automation_tenant").on(table.tenantId, table.isActive),
+	}
+});
+
+export const engagementEvents = mysqlTable("engagement_events", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+	accountId: varchar("account_id", { length: 36 }),
+	eventType: varchar("event_type", { length: 50 }).notNull(),
+	eventData: json("event_data"),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+},
+(table) => {
+	return {
+		engagementEventsId: primaryKey({ columns: [table.id], name: "engagement_events_id"}),
+		idxEngEventType: index("idx_eng_event_type").on(table.tenantId, table.eventType, table.createdAt),
+		idxEngEventAcct: index("idx_eng_event_acct").on(table.accountId),
+	}
+});
+
+export const engagementSegments = mysqlTable("engagement_segments", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+	name: varchar({ length: 120 }).notNull(),
+	description: varchar({ length: 300 }),
+	rules: json().notNull(),
+	customerCount: int("customer_count").default(0).notNull(),
+	isDynamic: tinyint("is_dynamic").default(1).notNull(),
+	isActive: tinyint("is_active").default(1).notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
+},
+(table) => {
+	return {
+		engagementSegmentsId: primaryKey({ columns: [table.id], name: "engagement_segments_id"}),
+		idxSegmentTenant: index("idx_segment_tenant").on(table.tenantId, table.isActive),
+	}
+});
+
+export const engagementNotes = mysqlTable("engagement_notes", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+	accountId: varchar("account_id", { length: 36 }).notNull(),
+	note: varchar({ length: 1000 }).notNull(),
+	createdBy: varchar("created_by", { length: 120 }),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+},
+(table) => {
+	return {
+		engagementNotesId: primaryKey({ columns: [table.id], name: "engagement_notes_id"}),
+		idxNoteAccount: index("idx_note_account").on(table.tenantId, table.accountId),
 	}
 });
 
@@ -1949,16 +2074,72 @@ export const menuLikes = mysqlTable("menu_likes", {
 	}
 });
 
+// ─── Events Platform — Core ───────────────────────
+
+export const eventVenues = mysqlTable("event_venues", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" }),
+	name: varchar({ length: 255 }).notNull(),
+	description: text(),
+	address: varchar({ length: 500 }),
+	city: varchar({ length: 100 }),
+	latitude: decimal("latitude", { precision: 10, scale: 7 }),
+	longitude: decimal("longitude", { precision: 10, scale: 7 }),
+	contactPhone: varchar("contact_phone", { length: 20 }),
+	contactEmail: varchar("contact_email", { length: 255 }),
+	capacity: int().default(0),
+	isActive: tinyint("is_active").default(1).notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
+},
+(table) => {
+	return {
+		idxEvTenant: index("idx_ev_tenant").on(table.tenantId, table.isActive),
+		eventVenuesId: primaryKey({ columns: [table.id], name: "event_venues_id"}),
+	}
+});
+
+export const eventSeatMaps = mysqlTable("event_seat_maps", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" }),
+	venueId: varchar("venue_id", { length: 36 }).notNull().references(() => eventVenues.id, { onDelete: "cascade" }),
+	name: varchar({ length: 255 }).notNull(),
+	layout: json().notNull(),
+	isActive: tinyint("is_active").default(1).notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
+},
+(table) => {
+	return {
+		idxEsmVenue: index("idx_esm_venue").on(table.venueId),
+		eventSeatMapsId: primaryKey({ columns: [table.id], name: "event_seat_maps_id"}),
+	}
+});
+
 export const merchantEvents = mysqlTable("merchant_events", {
 	id: varchar({ length: 36 }).notNull(),
 	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" } ),
+	venueId: varchar("venue_id", { length: 36 }),
+	seatMapId: varchar("seat_map_id", { length: 36 }),
 	title: varchar({ length: 255 }).notNull(),
 	description: text(),
+	shortDescription: varchar("short_description", { length: 500 }),
 	eventDate: datetime("event_date", { mode: 'string'}).notNull(),
+	endDate: datetime("end_date", { mode: 'string'}),
 	location: varchar({ length: 255 }),
 	coverImage: varchar("cover_image", { length: 800 }),
+	gallery: json(),
+	videoUrl: varchar("video_url", { length: 500 }),
+	category: varchar({ length: 50 }),
+	tags: json(),
 	ticketPrice: decimal("ticket_price", { precision: 14, scale: 2 }),
 	capacity: int(),
+	status: varchar({ length: 20 }).default('draft').notNull(),
+	refundPolicy: varchar("refund_policy", { length: 20 }).default('none').notNull(),
+	minAge: int("min_age").default(0),
+	maxTicketsPerUser: int("max_tickets_per_user").default(10),
+	isFeatured: tinyint("is_featured").default(0),
+	eventType: varchar("event_type", { length: 20 }).default('general').notNull(),
 	isActive: tinyint("is_active").default(1).notNull(),
 	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
@@ -1966,7 +2147,204 @@ export const merchantEvents = mysqlTable("merchant_events", {
 (table) => {
 	return {
 		idxMeventTenant: index("idx_mevent_tenant").on(table.tenantId, table.isActive, table.eventDate),
+		idxMeventStatus: index("idx_mevent_status").on(table.status, table.isActive),
 		merchantEventsId: primaryKey({ columns: [table.id], name: "merchant_events_id"}),
+	}
+});
+
+export const eventTicketTypes = mysqlTable("event_ticket_types", {
+	id: varchar({ length: 36 }).notNull(),
+	eventId: varchar("event_id", { length: 36 }).notNull().references(() => merchantEvents.id, { onDelete: "cascade" }),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id),
+	name: varchar({ length: 100 }).notNull(),
+	description: text(),
+	price: decimal({ precision: 14, scale: 2 }).notNull(),
+	capacity: int().default(0),
+	ticketsSold: int("tickets_sold").default(0),
+	maxPerOrder: int("max_per_order").default(10),
+	sortOrder: int("sort_order").default(0),
+	isActive: tinyint("is_active").default(1).notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+},
+(table) => {
+	return {
+		idxEttEvent: index("idx_ett_event").on(table.eventId, table.isActive),
+		eventTicketTypesId: primaryKey({ columns: [table.id], name: "event_ticket_types_id"}),
+	}
+});
+
+export const eventSeatHolds = mysqlTable("event_seat_holds", {
+	id: varchar({ length: 36 }).notNull(),
+	eventId: varchar("event_id", { length: 36 }).notNull().references(() => merchantEvents.id, { onDelete: "cascade" }),
+	ticketTypeId: varchar("ticket_type_id", { length: 36 }),
+	seatId: varchar("seat_id", { length: 36 }),
+	holdToken: varchar("hold_token", { length: 128 }).notNull(),
+	quantity: int().default(1),
+	customerIp: varchar("customer_ip", { length: 45 }),
+	customerSession: varchar("customer_session", { length: 255 }),
+	traceId: varchar("trace_id", { length: 64 }),
+	expiresAt: datetime("expires_at", { mode: 'string'}).notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+},
+(table) => {
+	return {
+		idxEshExpires: index("idx_esh_expires").on(table.expiresAt),
+		idxEshToken: index("idx_esh_token").on(table.holdToken),
+		eventSeatHoldsId: primaryKey({ columns: [table.id], name: "event_seat_holds_id"}),
+	}
+});
+
+export const eventBookings = mysqlTable("event_bookings", {
+	id: varchar({ length: 36 }).notNull(),
+	eventId: varchar("event_id", { length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+	userId: varchar("user_id", { length: 36 }),
+	customerName: varchar("customer_name", { length: 255 }).notNull(),
+	customerEmail: varchar("customer_email", { length: 255 }),
+	customerPhone: varchar("customer_phone", { length: 20 }),
+	customerDocument: varchar("customer_document", { length: 20 }),
+	status: varchar({ length: 20 }).default('pending').notNull(),
+	totalAmount: decimal("total_amount", { precision: 14, scale: 2 }).notNull(),
+	quantity: int().default(1).notNull(),
+	holdToken: varchar("hold_token", { length: 128 }),
+	couponId: varchar("coupon_id", { length: 36 }),
+	traceId: varchar("trace_id", { length: 64 }),
+	notes: text(),
+	isActive: tinyint("is_active").default(1).notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
+},
+(table) => {
+	return {
+		idxEbEvent: index("idx_eb_event").on(table.eventId, table.status),
+		idxEbTenant: index("idx_eb_tenant").on(table.tenantId),
+		eventBookingsId: primaryKey({ columns: [table.id], name: "event_bookings_id"}),
+	}
+});
+
+export const eventBookingItems = mysqlTable("event_booking_items", {
+	id: varchar({ length: 36 }).notNull(),
+	bookingId: varchar("booking_id", { length: 36 }).notNull().references(() => eventBookings.id, { onDelete: "cascade" }),
+	ticketTypeId: varchar("ticket_type_id", { length: 36 }),
+	zoneId: varchar("zone_id", { length: 36 }),
+	seatLabel: varchar("seat_label", { length: 50 }),
+	rowLabel: varchar("row_label", { length: 50 }),
+	price: decimal({ precision: 14, scale: 2 }).notNull(),
+	ticketCode: varchar("ticket_code", { length: 64 }),
+	qrData: text("qr_data"),
+	ticketVersion: int("ticket_version").default(1).notNull(),
+	status: varchar({ length: 20 }).default('active').notNull(),
+	ticketPdfUrl: varchar("ticket_pdf_url", { length: 800 }),
+	ticketWalletUrl: varchar("ticket_wallet_url", { length: 800 }),
+	guestName: varchar("guest_name", { length: 255 }),
+	checkedInAt: datetime("checked_in_at", { mode: 'string'}),
+	checkedInBy: varchar("checked_in_by", { length: 36 }),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+},
+(table) => {
+	return {
+		idxEbiBooking: index("idx_ebi_booking").on(table.bookingId),
+		idxEbiCode: index("idx_ebi_code").on(table.ticketCode),
+		eventBookingItemsId: primaryKey({ columns: [table.id], name: "event_booking_items_id"}),
+	}
+});
+
+export const eventPaymentTransactions = mysqlTable("event_payment_transactions", {
+	id: varchar({ length: 36 }).notNull(),
+	bookingId: varchar("booking_id", { length: 36 }).notNull().references(() => eventBookings.id),
+	gateway: varchar({ length: 30 }).notNull(),
+	status: varchar({ length: 20 }).default('pending').notNull(),
+	externalReference: varchar("external_reference", { length: 255 }),
+	transactionId: varchar("transaction_id", { length: 255 }),
+	amount: decimal({ precision: 14, scale: 2 }).notNull(),
+	currency: varchar({ length: 3 }).default('COP'),
+	payload: json(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+},
+(table) => {
+	return {
+		idxEptBooking: index("idx_ept_booking").on(table.bookingId),
+		eventPaymentTransactionsId: primaryKey({ columns: [table.id], name: "event_payment_transactions_id"}),
+	}
+});
+
+export const eventCoupons = mysqlTable("event_coupons", {
+	id: varchar({ length: 36 }).notNull(),
+	eventId: varchar("event_id", { length: 36 }).notNull().references(() => merchantEvents.id, { onDelete: "cascade" }),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id),
+	code: varchar({ length: 50 }).notNull(),
+	discountType: varchar("discount_type", { length: 20 }).notNull(),
+	discountValue: decimal("discount_value", { precision: 14, scale: 2 }).notNull(),
+	maxUses: int("max_uses").default(0),
+	usesCount: int("uses_count").default(0),
+	minTickets: int("min_tickets").default(1),
+	appliesToTicketTypeId: varchar("applies_to_ticket_type_id", { length: 36 }),
+	startsAt: datetime("starts_at", { mode: 'string'}),
+	endsAt: datetime("ends_at", { mode: 'string'}),
+	isActive: tinyint("is_active").default(1).notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+},
+(table) => {
+	return {
+		idxEcCode: index("idx_ec_code").on(table.code),
+		eventCouponsId: primaryKey({ columns: [table.id], name: "event_coupons_id"}),
+	}
+});
+
+export const eventTransfers = mysqlTable("event_transfers", {
+	id: varchar({ length: 36 }).notNull(),
+	bookingItemId: varchar("booking_item_id", { length: 36 }).notNull().references(() => eventBookingItems.id, { onDelete: "cascade" }),
+	fromUserId: varchar("from_user_id", { length: 36 }),
+	toName: varchar("to_name", { length: 255 }).notNull(),
+	toEmail: varchar("to_email", { length: 255 }),
+	oldTicketCode: varchar("old_ticket_code", { length: 64 }).notNull(),
+	newTicketCode: varchar("new_ticket_code", { length: 64 }).notNull(),
+	status: varchar({ length: 20 }).default('pending').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+},
+(table) => {
+	return {
+		etNewCode: unique("et_new_code").on(table.newTicketCode),
+		eventTransfersId: primaryKey({ columns: [table.id], name: "event_transfers_id"}),
+	}
+});
+
+export const eventLogs = mysqlTable("event_logs", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+	eventId: varchar("event_id", { length: 36 }),
+	bookingId: varchar("booking_id", { length: 36 }),
+	traceId: varchar("trace_id", { length: 64 }),
+	action: varchar({ length: 50 }).notNull(),
+	actor: varchar({ length: 100 }),
+	metadata: json(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+},
+(table) => {
+	return {
+		idxElogTrace: index("idx_elog_trace").on(table.traceId),
+		idxElogBooking: index("idx_elog_booking").on(table.bookingId),
+		idxElogEvent: index("idx_elog_event").on(table.eventId, table.action),
+		eventLogsId: primaryKey({ columns: [table.id], name: "event_logs_id"}),
+	}
+});
+
+export const eventWaitlists = mysqlTable("event_waitlists", {
+	id: varchar({ length: 36 }).notNull(),
+	eventId: varchar("event_id", { length: 36 }).notNull().references(() => merchantEvents.id, { onDelete: "cascade" }),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id),
+	customerName: varchar("customer_name", { length: 255 }).notNull(),
+	customerPhone: varchar("customer_phone", { length: 20 }),
+	customerEmail: varchar("customer_email", { length: 255 }),
+	quantity: int().default(1),
+	notifiedAt: datetime("notified_at", { mode: 'string'}),
+	expiresAt: datetime("expires_at", { mode: 'string'}),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+},
+(table) => {
+	return {
+		idxEwlEvent: index("idx_ewl_event").on(table.eventId, table.notifiedAt),
+		eventWaitlistsId: primaryKey({ columns: [table.id], name: "event_waitlists_id"}),
 	}
 });
 
@@ -5007,6 +5385,141 @@ export const workOrders = mysqlTable("work_orders", {
 		idxWoTenantStatus: index("idx_wo_tenant_status").on(table.tenantId, table.status),
 		workOrdersId: primaryKey({ columns: [table.id], name: "work_orders_id"}),
 		idxWoNumber: unique("idx_wo_number").on(table.tenantId, table.orderNumber),
+	}
+});
+
+// ── Librería de ejercicios normalizada (P1) ──────────────────────────────────
+// Núcleo sin texto ni urls: las traducciones y la media viven aparte, así se
+// agregan idiomas/formatos sin tocar esta tabla.
+export const exercises = mysqlTable("exercises", {
+	id: varchar({ length: 36 }).notNull(),
+	datasetId: varchar("dataset_id", { length: 10 }),
+	slug: varchar({ length: 180 }),
+	source: varchar({ length: 20 }).default('dataset').notNull(),
+	bodyPart: varchar("body_part", { length: 40 }),
+	equipment: varchar({ length: 60 }),
+	target: varchar({ length: 60 }),
+	muscleGroup: varchar("muscle_group", { length: 60 }),
+	secondaryMuscles: json("secondary_muscles"),
+	movementPattern: varchar("movement_pattern", { length: 10 }),
+	difficulty: varchar({ length: 20 }),
+	experienceLevel: varchar("experience_level", { length: 20 }),
+	isActive: tinyint("is_active").default(1).notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+},
+(table) => {
+	return {
+		ukExDataset: unique("uk_ex_dataset").on(table.datasetId),
+		idxExBody: index("idx_ex_body").on(table.bodyPart, table.isActive),
+		idxExEquipment: index("idx_ex_equipment").on(table.equipment),
+		idxExPattern: index("idx_ex_pattern").on(table.movementPattern),
+		exercisesId: primaryKey({ columns: [table.id], name: "exercises_id"}),
+	}
+});
+
+export const exerciseTranslations = mysqlTable("exercise_translations", {
+	id: varchar({ length: 36 }).notNull(),
+	exerciseId: varchar("exercise_id", { length: 36 }).notNull(),
+	language: varchar({ length: 5 }).notNull(),
+	name: varchar({ length: 200 }),
+	instructions: text(),
+	steps: json(),
+	tips: text(),
+	mistakes: text(),
+},
+(table) => {
+	return {
+		ukExtr: unique("uk_extr").on(table.exerciseId, table.language),
+		idxExtrLang: index("idx_extr_lang").on(table.language),
+		exerciseTranslationsId: primaryKey({ columns: [table.id], name: "exercise_translations_id"}),
+	}
+});
+
+export const exerciseMedia = mysqlTable("exercise_media", {
+	id: varchar({ length: 36 }).notNull(),
+	exerciseId: varchar("exercise_id", { length: 36 }).notNull(),
+	kind: varchar({ length: 20 }).notNull(),
+	url: varchar({ length: 220 }).notNull(),
+	width: int(),
+	height: int(),
+	attribution: varchar({ length: 220 }),
+	sortOrder: int("sort_order").default(0).notNull(),
+},
+(table) => {
+	return {
+		idxExmedEx: index("idx_exmed_ex").on(table.exerciseId, table.kind),
+		exerciseMediaId: primaryKey({ columns: [table.id], name: "exercise_media_id"}),
+	}
+});
+
+export const exerciseTags = mysqlTable("exercise_tags", {
+	exerciseId: varchar("exercise_id", { length: 36 }).notNull(),
+	tag: varchar({ length: 60 }).notNull(),
+},
+(table) => {
+	return {
+		idxExtagTag: index("idx_extag_tag").on(table.tag),
+		exerciseTagsId: primaryKey({ columns: [table.exerciseId, table.tag], name: "exercise_tags_id"}),
+	}
+});
+
+// ── Rutinas versionadas (P2) ─────────────────────────────────────────────────
+// routines = identidad estable · routine_versions = contenido congelado por
+// versión (draft → published) · routine_exercises = ejercicios de esa versión.
+export const routines = mysqlTable("routines", {
+	id: varchar({ length: 36 }).notNull(),
+	name: varchar({ length: 160 }).notNull(),
+	description: text(),
+	goal: varchar({ length: 24 }).default('hypertrophy').notNull(),
+	isActive: tinyint("is_active").default(1).notNull(),
+	sortOrder: int("sort_order").default(0).notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+},
+(table) => {
+	return {
+		idxRtActive: index("idx_rt_active").on(table.isActive, table.sortOrder),
+		routinesId: primaryKey({ columns: [table.id], name: "routines_id"}),
+	}
+});
+
+export const routineVersions = mysqlTable("routine_versions", {
+	id: varchar({ length: 36 }).notNull(),
+	routineId: varchar("routine_id", { length: 36 }).notNull(),
+	version: int().default(1).notNull(),
+	status: varchar({ length: 12 }).default('draft').notNull(),
+	movementPattern: varchar("movement_pattern", { length: 10 }),
+	notes: text(),
+	publishedAt: datetime("published_at", { mode: 'string' }),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+},
+(table) => {
+	return {
+		ukRv: unique("uk_rv").on(table.routineId, table.version),
+		idxRvStatus: index("idx_rv_status").on(table.routineId, table.status),
+		routineVersionsId: primaryKey({ columns: [table.id], name: "routine_versions_id"}),
+	}
+});
+
+export const routineExercises = mysqlTable("routine_exercises", {
+	id: varchar({ length: 36 }).notNull(),
+	routineVersionId: varchar("routine_version_id", { length: 36 }).notNull(),
+	exerciseId: varchar("exercise_id", { length: 36 }).notNull(),
+	displayName: varchar("display_name", { length: 160 }),
+	exerciseOrder: int("exercise_order").default(0).notNull(),
+	groupId: varchar("group_id", { length: 10 }),
+	executionType: varchar("execution_type", { length: 12 }).default('NORMAL').notNull(),
+	targetSets: int("target_sets").default(3).notNull(),
+	targetReps: int("target_reps").default(12).notNull(),
+	startWeight: decimal("start_weight", { precision: 8, scale: 2 }).default('0.00').notNull(),
+	rpe: decimal({ precision: 3, scale: 1 }),
+	rir: int(),
+	tempo: varchar({ length: 16 }),
+	restSeconds: int("rest_seconds"),
+},
+(table) => {
+	return {
+		idxRexVersion: index("idx_rex_version").on(table.routineVersionId, table.exerciseOrder),
+		routineExercisesId: primaryKey({ columns: [table.id], name: "routine_exercises_id"}),
 	}
 });
 

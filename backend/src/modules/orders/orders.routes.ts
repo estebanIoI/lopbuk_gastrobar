@@ -1949,6 +1949,18 @@ router.put(
 
       await connection.commit();
 
+      // Emit engagement event on delivery confirmation
+      if (status === 'entregado' && order.customerPhone) {
+        import('../customer-engagement/engagement-events').then(({ emitEngagementEvent }) =>
+          emitEngagementEvent(tenantId, null, 'sale_completed', {
+            orderId, invoiceNumber, total: order.total,
+            customerPhone: order.customerPhone,
+            customerName: order.customerName || null,
+            paymentMethod: status,
+          })
+        ).catch(() => {});
+      }
+
       // Si se canceló, liberar reservas de variante (en 'entregado' ya las consumió el asiento)
       if (status === 'cancelado') {
         await variantsService.releaseForOrder(orderId, tenantId).catch(() => {});

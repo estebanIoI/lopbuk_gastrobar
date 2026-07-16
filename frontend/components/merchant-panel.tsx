@@ -56,6 +56,7 @@ import { RealEstate } from '@/components/realestate'
 import { Tapiceria } from '@/components/tapiceria'
 import { Merma } from '@/components/merma'
 import { GastrobarOps } from '@/components/gastrobar-ops'
+import EventBackoffice from '@/components/events/event-backoffice'
 import { ContentHub } from '@/components/content-hub/ContentHub'
 import { applyAdminAccent } from '@/lib/theme-vars'
 import { applyPlatformAccentDefault } from '@/lib/platform-theme'
@@ -189,6 +190,8 @@ export function MerchantPanel() {
         return <PurchaseInvoices />
       case 'services':
         return <ServicesManagement />
+      case 'eventos':
+        return <EventBackoffice />
       case 'combos':
         return <CombosManager />
       case 'gym':

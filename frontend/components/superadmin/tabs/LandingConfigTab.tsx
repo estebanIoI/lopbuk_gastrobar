@@ -26,10 +26,12 @@ export function LandingConfigTab() {
     panelTheme, isSavingTheme, handleSavePanelTheme,
     homeTheme, isSavingHomeTheme, handleSaveHomeTheme,
     heroSlides, isSavingSlides, addSlide, updateSlide, removeSlide, moveSlide, handleSaveHeroSlides,
+    heroInterval, setHeroInterval,
     heroSplit, heroRight, isSavingHeroLayout, handleSaveHeroSplit, handleSaveHeroRight,
     welcomeEnabled, setWelcomeEnabled, welcomeTitle, setWelcomeTitle, welcomeSubtitle, setWelcomeSubtitle, isSavingWelcome, handleSaveWelcome,
     promoCards, promoCatalog, isSavingPromos, addPromoCard, removePromoCard, updatePromoLabel, movePromoCard, handleSavePromoCards,
     offers, isLoadingOffers, fetchOffers,
+    offersLimit, setOffersLimit, handleSaveOffersLimit,
     drops, isLoadingDrops, fetchDrops,
     isDropDialogOpen, setIsDropDialogOpen,
     editingDrop, dropForm, setDropForm,
@@ -225,6 +227,26 @@ export function LandingConfigTab() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Velocidad de rotación (ajuste global del carrusel) */}
+          <div className="rounded-lg border border-border bg-background p-4">
+            <div className="flex items-center justify-between mb-2">
+              <Label className="text-xs font-medium">Velocidad de cambio</Label>
+              <span className="text-xs font-semibold text-foreground tabular-nums">cada {heroInterval}s</span>
+            </div>
+            <input
+              type="range" min={2} max={10} step={1}
+              value={heroInterval}
+              onChange={(e) => setHeroInterval(Number(e.target.value))}
+              className="w-full accent-primary cursor-pointer"
+              aria-label="Velocidad de cambio del carrusel"
+            />
+            <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
+              <span>Más rápido · 2s</span>
+              <span>Más lento · 10s</span>
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-2">Se aplica al guardar el carrusel.</p>
+          </div>
+
           {heroSlides.length === 0 && (
             <div className="flex flex-col items-center justify-center py-8 text-muted-foreground border border-dashed border-border rounded-lg">
               <GalleryHorizontal className="h-9 w-9 mb-2 opacity-40" />
@@ -412,7 +434,7 @@ export function LandingConfigTab() {
               {([
                 { value: 'producto', title: 'Producto destacado', desc: 'Muestra el producto destacado/oferta principal.' },
                 { value: 'comercio', title: 'Comercio destacado', desc: 'Muestra un comercio verificado.' },
-                { value: 'cta', title: 'Solo CTA', desc: 'Llamado a la acción "Únete a Lopbuk".' },
+                { value: 'cta', title: 'Solo CTA', desc: 'Llamado a la acción "Únete a Daimuz".' },
               ] as const).map(opt => {
                 const selected = heroRight === opt.value
                 return (
@@ -583,6 +605,17 @@ export function LandingConfigTab() {
           </div>
         </CardHeader>
         <CardContent>
+          <div className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-border bg-background p-3">
+            <Label className="text-xs font-medium shrink-0">Ofertas a rotar en la home</Label>
+            <Input
+              type="number" min={1} max={60}
+              value={offersLimit}
+              onChange={(e) => setOffersLimit(Math.min(60, Math.max(1, Number(e.target.value) || 1)))}
+              className="w-20 h-8"
+            />
+            <Button size="sm" variant="outline" onClick={() => handleSaveOffersLimit(offersLimit)}>Guardar</Button>
+            <span className="text-[11px] text-muted-foreground">Cuántos productos en oferta se muestran y rotan en “Ofertas Activas”.</span>
+          </div>
           {isLoadingOffers ? (
             <div className="flex items-center justify-center py-10">
               <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />

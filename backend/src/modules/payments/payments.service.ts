@@ -15,7 +15,7 @@ import { encrypt, decrypt } from '../../utils/crypto';
 import { minimizeGatewayPayload } from '../../utils/redact';
 
 export type WompiEnv = 'sandbox' | 'production';
-export type PayContext = 'subscription' | 'package' | 'order' | 'coach_booking' | 'drop' | 'legend_subscription' | 'cartilla';
+export type PayContext = 'subscription' | 'package' | 'order' | 'coach_booking' | 'drop' | 'legend_subscription' | 'cartilla' | 'event_booking';
 
 const CHECKOUT_URL = 'https://checkout.wompi.co/p/';
 export const apiBase = (env: WompiEnv) =>
@@ -198,6 +198,21 @@ export async function createCheckout(params: {
     amount = Math.round(Number(cc.precio) * 100); // pesos → centavos
     params.tenantId = cc.tenant_id;
   }
+  if (params.context === 'event_booking') {
+    // Compra de entradas a evento. contextId = event_bookings.id. Monto del server.
+    const ref = String(params.contextId || '');
+    if (!ref) throw new AppError('Falta el booking del evento', 400);
+    const [rows] = await db.query(
+      `SELECT eb.total_amount, eb.status, eb.tenant_id
+       FROM event_bookings eb WHERE eb.id = ? LIMIT 1`,
+      [ref]
+    ) as any;
+    const eb = rows?.[0];
+    if (!eb) throw new AppError('Reserva de evento no encontrada', 404);
+    if (eb.status !== 'pending') throw new AppError('Esta reserva ya no está pendiente de pago', 409);
+    amount = Math.round(Number(eb.total_amount) * 100);
+    params.tenantId = eb.tenant_id;
+  }
   if (!Number.isFinite(amount) || amount <= 0) throw new AppError('Monto inválido', 400);
   const currency = (params.currency || 'COP').toUpperCase();
 
@@ -344,6 +359,14 @@ async function onApproved(reference: string): Promise<void> {
     const { confirmarCompra } = await import('../cartillas/cartillas.service');
     await confirmarCompra(txn.context_id, txn.wompi_id ?? undefined).catch((e) => console.error('confirmarCompra error:', e));
     console.log(`[payments] Cartilla habilitada por pago Wompi compra=${txn.context_id} ref=${reference}`);
+    return;
+  }
+
+  // Compra de entradas a evento: confirma el booking + genera QR.
+  if (txn.context === 'event_booking' && txn.context_id) {
+    const { eventsBookingService } = await import('../events/events.booking.service');
+    await eventsBookingService.confirmBooking(txn.context_id, txn.reference, txn.wompi_id ?? null);
+    console.log(`[payments] Evento confirmado por pago Wompi booking=${txn.context_id} ref=${reference}`);
     return;
   }
 

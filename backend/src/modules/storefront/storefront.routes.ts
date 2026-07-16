@@ -540,6 +540,7 @@ router.get('/stores', async (req: Request, res: Response) => {
     const [stores] = await pool.query(
       `SELECT t.id, t.name, t.slug, t.business_type as businessType,
               si.logo_url as logoUrl, si.address, si.latitude, si.longitude,
+              si.schedule,
               si.municipality, si.department,
               si.municipality as city,
               si.card_cover_url as coverUrl,
@@ -1615,6 +1616,7 @@ router.get('/customization', authenticate, requirePlan('empresarial'), async (re
                 si.social_instagram as socialInstagram, si.social_facebook as socialFacebook,
                 si.social_tiktok as socialTiktok, si.social_whatsapp as socialWhatsapp,
                 si.department, si.municipality,
+                si.latitude, si.longitude,
                 si.product_card_style as productCardStyle,
                 si.product_detail_style as productDetailStyle,
                 si.allow_contraentrega as allowContraentrega,
@@ -2033,8 +2035,12 @@ router.put('/store-extended-info', authenticate, requirePlan('empresarial'), asy
       department, municipality, productCardStyle, productDetailStyle, allowContraentrega,
       allowWompi, contraentregaLabel, contraentregaDesc,
       showInfoModule, infoModuleDescription, metaPixelId,
+      latitude, longitude,
     } = req.body;
 
+    // Punto de ubicación del comercio (para el mapa de comercios del marketplace).
+    const latNum = (latitude != null && latitude !== '' && Number.isFinite(Number(latitude))) ? Number(latitude) : null;
+    const lngNum = (longitude != null && longitude !== '' && Number.isFinite(Number(longitude))) ? Number(longitude) : null;
     const allowCod = allowContraentrega === false ? 0 : 1;
     const allowWompiVal = allowWompi === false ? 0 : 1;
     const ceLabel = (contraentregaLabel && String(contraentregaLabel).trim().slice(0, 60)) || 'Contra entrega';
@@ -2051,7 +2057,8 @@ router.put('/store-extended-info', authenticate, requirePlan('empresarial'), asy
           social_tiktok = ?, social_whatsapp = ?,
           department = ?, municipality = ?, product_card_style = ?, product_detail_style = ?, allow_contraentrega = ?,
           allow_wompi = ?, contraentrega_label = ?, contraentrega_desc = ?,
-          show_info_module = ?, info_module_description = ?, meta_pixel_id = ?
+          show_info_module = ?, info_module_description = ?, meta_pixel_id = ?,
+          latitude = ?, longitude = ?
          WHERE tenant_id = ?`,
         [
           logoUrl || null, logoSizeNum, schedule || null, locationMapUrl || null, termsContent || null, privacyContent || null, shippingTerms || null,
@@ -2060,6 +2067,7 @@ router.put('/store-extended-info', authenticate, requirePlan('empresarial'), asy
           department || null, municipality || null, productCardStyle || 'style1', productDetailStyle || 'default', allowCod,
           allowWompiVal, ceLabel, ceDesc,
           infoModule, infoModuleDescription || null, metaPixelId || null,
+          latNum, lngNum,
           tenantId,
         ]
       ) as any;

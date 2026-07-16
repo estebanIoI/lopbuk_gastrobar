@@ -124,13 +124,13 @@ export function ContactModal({ className }: { className?: string }) {
                 Contáctanos
               </h2>
               <p className="text-emerald-100/80 text-sm mt-1">
-                Aplicativo de gestión <span className="font-semibold text-white">Lopbuk</span>
+                Aplicativo de gestión <span className="font-semibold text-white">Daimuz</span>
               </p>
             </div>
           </div>
 
           <p className="relative z-10 mt-4 text-white/75 text-sm leading-relaxed">
-            Somos el equipo <span className="text-white font-semibold">DAIMUZ</span>, creadores del aplicativo <span className="text-white font-semibold">Lopbuk</span>. No somos el comercio — resolvemos cualquier situación: pedidos, funcionalidades del aplicativo y todo lo que necesites sacar el máximo provecho de la plataforma.
+            Somos el equipo <span className="text-white font-semibold">DAIMUZ</span>, creadores del aplicativo <span className="text-white font-semibold">Daimuz</span>. No somos el comercio — resolvemos cualquier situación: pedidos, funcionalidades del aplicativo y todo lo que necesites sacar el máximo provecho de la plataforma.
           </p>
         </div>
 
