@@ -8,6 +8,7 @@ import { authenticate, authorize, AuthRequest } from '../../common/middleware';
 import * as sessionSvc from './application/services/workout-session.service';
 import * as setSvc from './application/services/set-tracking.service';
 import { buildTodayPlan } from './application/services/today-plan.service';
+import * as historySvc from './application/services/exercise-history.service';
 import { WorkoutValidationError } from './shared/schema';
 import { InvalidSessionTransitionError } from './domain/state-machine/session-state-machine';
 
@@ -43,6 +44,15 @@ router.post('/start-today', async (req: AuthRequest, res) => {
 router.get('/', async (req: AuthRequest, res) => {
   try { ok(res, await sessionSvc.listSessions(req.user!.userId, Number(req.query.limit) || undefined)); }
   catch (e) { fail(res, e, 'Error al listar sesiones'); }
+});
+
+// Historial y récords por ejercicio (P5).
+// OJO: debe ir ANTES de '/:id' o Express la captura como un id de sesión.
+router.get('/history', async (req: AuthRequest, res) => {
+  try {
+    const ids = String(req.query.exerciseIds || '').split(',').map(s => s.trim()).filter(Boolean);
+    ok(res, await historySvc.getExerciseHistory(req.user!.userId, ids));
+  } catch (e) { fail(res, e, 'Error al obtener el historial'); }
 });
 
 // Detalle de una sesión (con ejercicios y sets)

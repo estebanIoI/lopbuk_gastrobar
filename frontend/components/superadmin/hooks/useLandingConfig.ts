@@ -56,6 +56,8 @@ export function useLandingConfig() {
   // Slides del carrusel del Hero (Página de Inicio, Tema 2)
   const [heroSlides, setHeroSlides] = useState<HeroSlide[]>([])
   const [isSavingSlides, setIsSavingSlides] = useState(false)
+  // Velocidad de rotación del carrusel del hero (segundos entre slides)
+  const [heroInterval, setHeroInterval] = useState(5)
 
   // Layout del hero del Tema 2 (proporción del split + contenido panel derecho)
   const [heroSplit, setHeroSplit] = useState<'70-30' | '60-40' | '50-50'>('60-40')
@@ -76,6 +78,8 @@ export function useLandingConfig() {
   // Offers
   const [offers, setOffers] = useState<any[]>([])
   const [isLoadingOffers, setIsLoadingOffers] = useState(false)
+  // Cuántos productos en oferta rotan en la home ("Ofertas Activas")
+  const [offersLimit, setOffersLimit] = useState(10)
 
   // Drops
   const [drops, setDrops] = useState<Drop[]>([])
@@ -106,6 +110,8 @@ export function useLandingConfig() {
           if (Array.isArray(parsed)) setHeroSlides(parsed as HeroSlide[])
         } catch { /* JSON inválido */ }
       }
+      if (result.data.home_hero_interval) setHeroInterval(Math.min(30, Math.max(1, Number(result.data.home_hero_interval) || 5)))
+      if (result.data.home_offers_limit) setOffersLimit(Math.min(60, Math.max(1, Number(result.data.home_offers_limit) || 10)))
       if (['70-30', '60-40', '50-50'].includes(result.data.home_hero_split)) {
         setHeroSplit(result.data.home_hero_split as '70-30' | '60-40' | '50-50')
       }
@@ -307,10 +313,21 @@ export function useLandingConfig() {
         subtitle: s.subtitle?.trim() || undefined,
       }))
     setIsSavingSlides(true)
-    const result = await api.updatePlatformSetting('home_hero_slides', JSON.stringify(clean))
-    if (result.success) toast.success('Carrusel del hero actualizado')
-    else toast.error(result.error || 'Error al guardar el carrusel')
+    const results = await Promise.all([
+      api.updatePlatformSetting('home_hero_slides', JSON.stringify(clean)),
+      api.updatePlatformSetting('home_hero_interval', String(Math.min(30, Math.max(1, heroInterval)))),
+    ])
+    if (results.every(r => r.success)) toast.success('Carrusel del hero actualizado')
+    else toast.error('Error al guardar el carrusel')
     setIsSavingSlides(false)
+  }
+
+  const handleSaveOffersLimit = async (value: number) => {
+    const v = Math.min(60, Math.max(1, Math.round(value) || 10))
+    setOffersLimit(v)
+    const result = await api.updatePlatformSetting('home_offers_limit', String(v))
+    if (result.success) toast.success('Ofertas a rotar actualizado')
+    else toast.error(result.error || 'Error al guardar')
   }
 
   const openCreateDrop = () => { setEditingDrop(null); setDropForm(emptyDrop()); setIsDropDialogOpen(true) }
@@ -363,6 +380,7 @@ export function useLandingConfig() {
     // home theme + carrusel hero
     homeTheme, isSavingHomeTheme, handleSaveHomeTheme,
     heroSlides, isSavingSlides, addSlide, updateSlide, removeSlide, moveSlide, handleSaveHeroSlides,
+    heroInterval, setHeroInterval,
     // layout del hero (split + panel derecho)
     heroSplit, heroRight, isSavingHeroLayout, handleSaveHeroSplit, handleSaveHeroRight,
     welcomeEnabled, setWelcomeEnabled, welcomeTitle, setWelcomeTitle, welcomeSubtitle, setWelcomeSubtitle, isSavingWelcome, handleSaveWelcome,
@@ -370,6 +388,7 @@ export function useLandingConfig() {
     promoCards, promoCatalog, isSavingPromos, addPromoCard, removePromoCard, updatePromoLabel, movePromoCard, handleSavePromoCards,
     // offers
     offers, isLoadingOffers, fetchOffers,
+    offersLimit, setOffersLimit, handleSaveOffersLimit,
     // drops
     drops, isLoadingDrops, fetchDrops,
     isDropDialogOpen, setIsDropDialogOpen,

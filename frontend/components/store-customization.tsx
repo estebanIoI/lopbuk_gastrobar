@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { api } from '@/lib/api'
+import { LocationPicker } from '@/components/checkout/LocationPicker'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -109,6 +110,8 @@ interface StoreExtendedInfo {
   showInfoModule: boolean
   infoModuleDescription: string
   metaPixelId: string
+  latitude: number | null
+  longitude: number | null
 }
 
 interface AnnouncementBar {
@@ -154,6 +157,7 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
     department: '', municipality: '', productCardStyle: 'style1', productDetailStyle: 'default',
     allowContraentrega: true, allowWompi: true, contraentregaLabel: 'Contra entrega', contraentregaDesc: 'Paga en efectivo cuando recibas tu pedido',
     showInfoModule: false, infoModuleDescription: '', metaPixelId: '',
+    latitude: null, longitude: null,
   })
 
   // Chatbot config
@@ -279,6 +283,8 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
             showInfoModule: !!result.data.storeInfo.showInfoModule,
             infoModuleDescription: result.data.storeInfo.infoModuleDescription || '',
             metaPixelId: result.data.storeInfo.metaPixelId || '',
+            latitude: result.data.storeInfo.latitude != null ? Number(result.data.storeInfo.latitude) : null,
+            longitude: result.data.storeInfo.longitude != null ? Number(result.data.storeInfo.longitude) : null,
           })
         }
       }
@@ -1547,6 +1553,36 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
                         <option key={mun} value={mun}>{mun}</option>
                       ))}
                     </select>
+                  </div>
+
+                  {/* Punto exacto en el mapa (alimenta el mapa de comercios del marketplace) */}
+                  <div className="mt-4">
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-sm font-medium flex items-center gap-1">
+                        <MapPin className="h-3 w-3 text-emerald-600" />
+                        Punto en el mapa
+                      </label>
+                      {storeInfo.latitude != null && storeInfo.longitude != null && (
+                        <button
+                          type="button"
+                          onClick={() => setStoreInfo(prev => ({ ...prev, latitude: null, longitude: null }))}
+                          className="text-xs text-destructive hover:underline"
+                        >Quitar ubicación</button>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground mb-2">
+                      Marca tu ubicación exacta (usa el botón de GPS o arrastra el pin). Con esto tu comercio aparece en el <strong>mapa de comercios</strong> del marketplace.
+                    </p>
+                    <LocationPicker
+                      latitude={storeInfo.latitude}
+                      longitude={storeInfo.longitude}
+                      onChange={(lat, lng) => setStoreInfo(prev => ({ ...prev, latitude: lat, longitude: lng }))}
+                    />
+                    {storeInfo.latitude != null && storeInfo.longitude != null && (
+                      <p className="text-[11px] text-muted-foreground mt-1">
+                        Lat {storeInfo.latitude.toFixed(5)}, Lng {storeInfo.longitude.toFixed(5)}
+                      </p>
+                    )}
                   </div>
                 </div>
               </CardContent>

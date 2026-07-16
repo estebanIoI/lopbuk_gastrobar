@@ -1,36 +1,25 @@
 'use client'
 
-// ══ Daimuz Video Loader ══
-// Loader de marca por video, usado en TODA la plataforma. Reemplaza el antiguo loader
-// de partículas (Three.js). Mismo overlay full-screen y fondo que el anterior (#050816),
-// así que todos los usos de <BoxLoader /> / <FullPageLoader /> siguen funcionando igual.
+// ══ Daimuz Loader ══
+// Loader de marca full-screen usado en TODA la plataforma. Reemplaza el video mp4
+// por la animación de gota vibrante que cae en agua quieta (<DropLoader />).
+// Mismo overlay full-screen y backdrop (#050816), así que todos los usos de
+// <BoxLoader /> / <FullPageLoader /> siguen funcionando igual.
 
-const LOADER_SRC = '/loader-daimuz.mp4'
+import { DropLoader } from '@/components/drop-loader'
 
-function VideoLoader() {
+function FullScreenLoader() {
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden" style={{ background: '#050816' }}>
-      {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-      <video
-        src={LOADER_SRC}
-        autoPlay
-        muted
-        loop
-        playsInline
-        preload="auto"
-        aria-label="Cargando"
-        // Llena la pantalla en ambos formatos (móvil vertical / escritorio horizontal):
-        // object-cover recorta lo mínimo para cubrir sin franjas negras.
-        className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none"
-      />
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden" style={{ background: '#050816' }}>
+      <DropLoader />
     </div>
   )
 }
 
 export function BoxLoader() {
-  return <VideoLoader />
+  return <FullScreenLoader />
 }
 
 export function FullPageLoader() {
-  return <VideoLoader />
+  return <FullScreenLoader />
 }

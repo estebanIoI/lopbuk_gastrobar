@@ -93,6 +93,9 @@ import communityRoutes from './modules/community/community.routes';
 import notificationsRoutes from './modules/notifications/notifications.routes';
 import theme4Routes from './modules/theme4/theme4.routes';
 import cloudinaryBrowserRoutes from './modules/cloudinary-browser/cloudinary-browser.routes';
+import { eventsRoutes } from './modules/events';
+import { exercisesRoutes } from './modules/exercises';
+import { routinesRoutes } from './modules/routines';
 import { recipePagesRoutes } from './modules/recipe-pages';
 import { faqRoutes } from './modules/faq';
 import { newsletterRoutes } from './modules/newsletter';
@@ -100,6 +103,7 @@ import { trustBadgesRoutes } from './modules/trust-badges';
 import { contentPagesRoutes } from './modules/content-pages';
 import { popularSearchesRoutes } from './modules/popular-searches';
 import { homepageRoutes } from './modules/homepage';
+import { engagementRoutes } from './modules/customer-engagement';
 
 const app = express();
 
@@ -249,6 +253,8 @@ app.use(`${apiPrefix}/cartillas`, cartillasRoutes);
 app.use(`${apiPrefix}/profile`, profileRoutes);
 app.use(`${apiPrefix}/community`, communityRoutes);
 app.use(`${apiPrefix}/notifications`, notificationsRoutes);
+app.use(`${apiPrefix}/loyalty`, loyaltyRoutes);
+app.use(`${apiPrefix}/engagement`, engagementRoutes);
 app.use(`${apiPrefix}/theme4`, theme4Routes);
 app.use(`${apiPrefix}/cloudinary`, cloudinaryBrowserRoutes);
 app.use(`${apiPrefix}/recipe-pages`, recipePagesRoutes);
@@ -257,6 +263,9 @@ app.use(`${apiPrefix}/newsletter`, newsletterRoutes);
 app.use(`${apiPrefix}/trust-badges`, trustBadgesRoutes);
 app.use(`${apiPrefix}/content-pages`, contentPagesRoutes);
 app.use(`${apiPrefix}/popular-searches`, popularSearchesRoutes);
+app.use(`${apiPrefix}/events`, eventsRoutes);
+app.use(`${apiPrefix}/exercises`, exercisesRoutes);
+app.use(`${apiPrefix}/routines`, routinesRoutes);
 app.use(`${apiPrefix}/homepage`, homepageRoutes);
 
 // Variantes + Proveedores + Hormas + Hidden-access + Locations
@@ -345,6 +354,33 @@ const startServer = async () => {
       startFleetAlertsJob();
     } catch (e) {
       console.error('Fleet alerts job no iniciado:', e);
+    }
+
+    // Event Scheduler: hold cleaner, reminders, waitlist, stale bookings, close events
+    try {
+      const { startScheduler } = await import('./modules/events/events.scheduler');
+      const { notificationOrchestrator } = await import('./modules/events/events.notifications');
+      const { analyticsEngine } = await import('./modules/events/events.analytics-engine');
+      notificationOrchestrator.init();
+      analyticsEngine.init();
+      startScheduler();
+    } catch (e) {
+      console.error('Event scheduler no iniciado:', e);
+    }
+
+    // Customer Engagement — event bus + automation scheduler
+    try {
+      const { initEngagementEventHandlers } = await import('./modules/customer-engagement');
+      initEngagementEventHandlers();
+      // Automation scheduler: runs every 15 minutes (time_of_day triggers)
+      setInterval(async () => {
+        try {
+          const { runTimeOfDayAutomations } = await import('./modules/customer-engagement/customer-engagement.service');
+          await runTimeOfDayAutomations();
+        } catch { /* defensive */ }
+      }, 15 * 60 * 1000);
+    } catch (e) {
+      console.error('Engagement engine no iniciado:', e);
     }
 
     httpServer.listen(config.port, () => {

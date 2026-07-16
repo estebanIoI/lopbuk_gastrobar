@@ -442,7 +442,7 @@ export function AccountingReport() {
         {/* Encabezado para impresión */}
         <div className="hidden print:block mb-6 border-b-2 border-black pb-4">
           <div className="text-center">
-            <h1 className="text-2xl font-bold">{storeInfo.name || 'Lopbuk'}</h1>
+            <h1 className="text-2xl font-bold">{storeInfo.name || 'Daimuz'}</h1>
             <p className="text-sm">{storeInfo.address}</p>
             <p className="text-sm">NIT: {storeInfo.taxId || 'No configurado'} | Tel: {storeInfo.phone}</p>
             <p className="text-sm">{storeInfo.email}</p>
@@ -1896,7 +1896,7 @@ function ResumenEjecutivo({ periodLabel, storeInfo, completedSales, cancelledSal
           Resumen Ejecutivo Contable — {periodLabel}
         </h3>
         <p className="text-xs text-muted-foreground">
-          Informe consolidado para el contador — Datos de {storeInfo.name || 'Lopbuk'}
+          Informe consolidado para el contador — Datos de {storeInfo.name || 'Daimuz'}
         </p>
       </div>
 

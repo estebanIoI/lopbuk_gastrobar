@@ -170,9 +170,11 @@
 |---|---|---|
 | [[modules/storefront/storefront]] | Tienda online pública | [[modules/storefront/compressed]] |
 | [[modules/product-templates/product-templates]] | 🧩 Plantillas dinámicas de producto (tipo Shopify) | [[modules/product-templates/compressed]] |
+| [[modules/events/events]] | 🎫 Experience Platform: eventos, entradas, QR, check-in, trazabilidad | [[modules/events/compressed]] |
 | [[modules/delivery/delivery]] | Delivery y flota | [[modules/delivery/compressed]] |
 | [[modules/whatsapp/whatsapp]] | Mensajería WhatsApp | [[modules/whatsapp/compressed]] |
 | [[modules/agent/agent]] | Agente IA con RAG | [[modules/agent/compressed]] |
+| [[modules/customer-engagement/customer-engagement]] | ⭐ Customer Engagement Platform: CRM 360°, Wallet, Automatizaciones, Campañas, Segmentación, AI Insights | [[modules/customer-engagement/compressed]] |
 
 ---
 

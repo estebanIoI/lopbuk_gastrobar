@@ -8,7 +8,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ChevronLeft, Loader2, Flag } from 'lucide-react'
-import { workoutApi, type WorkoutSession, type WorkoutSummary as Summary } from '@/lib/workout-api'
+import { workoutApi, type WorkoutSession, type WorkoutSummary as Summary, type ExerciseHistory } from '@/lib/workout-api'
 import ExerciseCard from './ExerciseCard'
 import RestTimer from './RestTimer'
 import WorkoutSummaryView from './WorkoutSummary'
@@ -24,6 +24,7 @@ export default function WorkoutSessionScreen({ sessionId }: { sessionId: string 
   const [summary, setSummary] = useState<Summary | null>(null)
   const [finishing, setFinishing] = useState(false)
   const [elapsed, setElapsed] = useState(0)
+  const [history, setHistory] = useState<Record<string, ExerciseHistory>>({})
 
   useEffect(() => {
     let on = true
@@ -35,6 +36,15 @@ export default function WorkoutSessionScreen({ sessionId }: { sessionId: string 
     })
     return () => { on = false }
   }, [sessionId])
+
+  // Historial + PR de los ejercicios de la sesión (P5). No bloquea la carga.
+  useEffect(() => {
+    const ids = session?.exercises?.map(e => e.exerciseId).filter(Boolean) ?? []
+    if (!ids.length) return
+    let on = true
+    workoutApi.history(ids).then(r => { if (on && r.success && r.data) setHistory(r.data) })
+    return () => { on = false }
+  }, [session?.id, session?.exercises?.length])
 
   // Cronómetro de sesión
   useEffect(() => {
@@ -114,9 +124,15 @@ export default function WorkoutSessionScreen({ sessionId }: { sessionId: string 
       {/* Ejercicios */}
       <div className="px-4 pt-4 space-y-3 max-w-md mx-auto">
         {session.exercises.map((ex, i) => (
-          <ExerciseCard key={ex.id} exercise={ex} index={i} onSetComplete={onSetComplete} />
+          <ExerciseCard key={ex.id} exercise={ex} index={i} onSetComplete={onSetComplete} history={history[ex.exerciseId]} />
         ))}
       </div>
+
+      {/* Atribución de la media (requisito de licencia — © Gym visual) */}
+      <p className="text-center text-[10px] text-white/25 px-4 pt-4 pb-32">
+        Demos de ejercicios ©{' '}
+        <a href="https://gymvisual.com/" target="_blank" rel="noopener noreferrer" className="underline hover:text-white/40">Gym visual</a>
+      </p>
 
       {/* CTA finalizar */}
       <div className="fixed bottom-0 inset-x-0 z-30 bg-gradient-to-t from-slate-950 via-slate-950/95 to-transparent px-4 pt-6 pb-5">

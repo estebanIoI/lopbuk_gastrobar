@@ -66,11 +66,13 @@
 | `whatsapp` | Evolution API v2, envío/recepción mensajes | `whatsapp.service.ts` |
 | `agent` | Agente IA RAG + function calling + WhatsApp | `agent.service.ts`, `agent.rag.ts`, `agent.tools.ts` |
 | `chatbot` | Config del chatbot por tenant (superadmin activa/desactiva) | `chatbot.routes.ts`, `ChatWidget.tsx` |
+| `events` | 🎫 Experience Platform: eventos, entradas, QR, check-in, trazabilidad | `events.service.ts`, `events.booking.service.ts`, `event-backoffice.tsx` |
 | `scanner` | Escáner código de barras → buscar producto en POS | `barcode-scanner.tsx`, `scanner.socket.ts` |
 | `scanner-remote` | Escáner remoto: móvil como barcode reader vía QR | `remote-scanner.tsx`, `app/scanner-remote/[sessionId]/page.tsx` |
 | `services` | Catálogo citas/asesorías + disponibilidad + bookings storefront | `services.service.ts`, `services-management.tsx` |
 | `portfolio` | Portafolio público de la marca (singleton) | `portfolio.routes.ts`, `app/portfolio/page.tsx` |
 | `media-library` | Subida imágenes a Cloudinary | `media-library.routes.ts`, `ui/cloudinary-upload.tsx` |
+| `customer-engagement` | ⭐ Customer Engagement Platform: CRM 360°, Wallet, Automatizaciones, Campañas, Segmentación, AI Insights, Event Bus | `customer-engagement.service.ts`, `automation-engine.ts`, `customer-360.tsx` |
 | `dev-requests` | Solicitudes de nuevas funcionalidades enviadas por tenants | `dev-requests.service.ts`, `developer-requests.tsx` |
 ## Consumidor (cross-comercio, role cliente)
 

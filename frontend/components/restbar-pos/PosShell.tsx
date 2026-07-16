@@ -361,7 +361,11 @@ export function PosShell({ initialTableId, onDone }: PosShellProps) {
     if (!selectedOrder) return
     const itemsToSend = (selectedOrder.items || [])
       .filter((i: OrderItem) => i.status === 'pendiente' && !i.sentToKitchenAt)
-      .filter((i: OrderItem) => i.preparationArea === area || i.preparationArea === 'ambos')
+      .filter((i: OrderItem) => {
+        const a = (i.preparationArea || '').trim()
+        // Cocina también toma los ítems sin área definida (default), para no descartarlos.
+        return a === area || a === 'ambos' || (area === 'cocina' && a === '')
+      })
     if (itemsToSend.length === 0) {
       toast.error(`No hay ítems pendientes para ${area}`)
       return

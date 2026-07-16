@@ -8,7 +8,7 @@ import { useStore } from '@/lib/store'
 const STEPS: Step[] = [
   {
     target: '[data-tour="sidebar-logo"]',
-    title: '¡Bienvenido a Lopbuk!',
+    title: '¡Bienvenido a Daimuz!',
     content: 'Tu sistema de gestión todo en uno. En 2 minutos te mostramos todo lo que puedes hacer.',
     placement: 'right',
     skipBeacon: true,

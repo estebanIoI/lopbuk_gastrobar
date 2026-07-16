@@ -31,10 +31,10 @@ const STEPS: GuideStep[] = [
     id: 'welcome',
     icon: BookOpen,
     color: 'from-violet-500 to-indigo-600',
-    title: '¡Bienvenido a Lopbuk!',
+    title: '¡Bienvenido a Daimuz!',
     subtitle: 'Tu sistema de gestión todo en uno',
     description:
-      'Lopbuk te permite administrar tu negocio completo: inventario, ventas, tienda online, clientes y más — desde un solo lugar. Esta guía te explica cada módulo para que saques el máximo provecho.',
+      'Daimuz te permite administrar tu negocio completo: inventario, ventas, tienda online, clientes y más — desde un solo lugar. Esta guía te explica cada módulo para que saques el máximo provecho.',
     features: [
       { icon: Zap,    text: 'Gestión de inventario en tiempo real' },
       { icon: Store,  text: 'Tienda online integrada con pedidos' },

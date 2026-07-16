@@ -19,6 +19,8 @@ import {
 } from 'lucide-react'
 import { VariantSelector, type RawVariant, type SelectedVariant } from '@/components/variant-selector'
 import { qtyPromoOptions, hasQtyPromo, type QtyPromo, type QtyPromoOption } from '@/lib/qty-promo'
+import { emitPdpEvent } from '@/lib/pdp/pdp-analytics'
+import { ProductDetailProvider, type PdpContextValue } from '@/lib/pdp/product-detail-context'
 import { StoreCardML } from '@/components/theme-ml/store-card-ml'
 
 // ── Tipos públicos ────────────────────────────────────────────────────────────
@@ -203,6 +205,7 @@ export function ProductDetailML({
     setPromoQty(o.qty)
     setQty(o.qty)
     onPromoSelect?.(o.qty === 1 ? null : o.unitPrice, o.qty)
+    emitPdpEvent('CHANGE_PACK', { productId: product.id, qty: o.qty, unitPrice: o.unitPrice })
   }
   const clearPromo = () => { setPromoQty(1); onPromoSelect?.(null, qty) }
   // Si cambia la variante (y con ella el precio base), re-aplica el combinado.
@@ -231,10 +234,28 @@ export function ProductDetailML({
   const ratingAvg = product.rating ?? (reviews.length ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length : 5)
   const ratingCount = product.ratingCount ?? reviews.length
 
+  // ── Motor de PDP · instrumentación del PurchaseFlow ──
+  useEffect(() => { emitPdpEvent('VIEW_PRODUCT', { productId: product.id }) }, [product.id])
+  useEffect(() => {
+    if (variant) emitPdpEvent('SELECT_VARIANT', { productId: product.id, variantId: (variant as { id?: string })?.id ?? null })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [variant])
+
   const accent = accentColor
   const styleVars = { ['--ml-accent' as string]: accent } as CSSProperties
+  // ── ProductDetailContext · estado único (solo-lectura por ahora) ──
+  const pdpValue: PdpContextValue = {
+    productId: product.id,
+    productName: product.name,
+    unitPrice, basePrice, onOffer, discountPct,
+    available, lowStock,
+    ratingAvg, ratingCount, soldText,
+    hasVariants, quantity: qty,
+    purchaseState: hasVariants && !variant ? 'configuring' : 'ready',
+  }
 
   return (
+    <ProductDetailProvider value={pdpValue}>
     <div className="ml-detail bg-white text-[#333] min-h-full" style={styleVars}>
       {/* Barra superior */}
       <div className="mx-auto max-w-[1200px] px-4 pt-4 flex items-center justify-between text-xs text-[#3483fa]">
@@ -452,7 +473,7 @@ export function ProductDetailML({
 
             {/* CTAs */}
             <button
-              onClick={() => onBuyNow?.(qty, variant)}
+              onClick={() => { emitPdpEvent('BUY_NOW', { productId: product.id, qty }); onBuyNow?.(qty, variant) }}
               disabled={hasVariants && !variant}
               className="mt-4 w-full rounded-md py-3 text-sm font-medium text-white disabled:opacity-50"
               style={{ backgroundColor: accent }}
@@ -460,7 +481,7 @@ export function ProductDetailML({
               Comprar ahora
             </button>
             <button
-              onClick={() => onAddToCart?.(qty, variant)}
+              onClick={() => { emitPdpEvent('ADD_TO_CART', { productId: product.id, qty }); onAddToCart?.(qty, variant) }}
               disabled={hasVariants && !variant}
               className="mt-2 w-full rounded-md py-3 text-sm font-medium disabled:opacity-50"
               style={{ backgroundColor: '#e3edfb', color: accent }}
@@ -621,6 +642,7 @@ export function ProductDetailML({
         </div>
       )}
     </div>
+    </ProductDetailProvider>
   )
 }
 

@@ -474,7 +474,7 @@ export default function InmobiliariaPublicPage() {
 
       {/* Footer */}
       <footer className="text-center py-6 text-xs text-gray-400 border-t mt-8">
-        Portal gestionado con <span className="text-blue-500 font-medium">Lopbuk</span>
+        Portal gestionado con <span className="text-blue-500 font-medium">Daimuz</span>
       </footer>
 
       {/* Modals */}

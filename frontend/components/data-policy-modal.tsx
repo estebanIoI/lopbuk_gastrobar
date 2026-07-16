@@ -90,12 +90,12 @@ export function DataPolicyModal() {
                   Tratamiento de Datos
                 </DialogTitle>
                 <DialogDescription className="text-blue-100 text-base">
-                  Política de privacidad y seguridad de Lopbuk
+                  Política de privacidad y seguridad de Daimuz
                 </DialogDescription>
               </div>
             </div>
             <p className="text-white/80 text-sm leading-relaxed max-w-xl">
-              En Lopbuk nos tomamos muy en serio la seguridad de tu información.
+              En Daimuz nos tomamos muy en serio la seguridad de tu información.
               Conoce cómo manejamos, protegemos y resguardamos los datos de tu negocio.
             </p>
           </DialogHeader>
@@ -125,7 +125,7 @@ export function DataPolicyModal() {
             <div className="space-y-2">
               <h3 className="text-base font-bold text-foreground">Tu base de datos está en buenas manos</h3>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                La base de datos de Lopbuk es gestionada y administrada por nuestro equipo técnico 
+                La base de datos de Daimuz es gestionada y administrada por nuestro equipo técnico 
                 especializado. Nos encargamos del mantenimiento, optimización, seguridad y respaldos 
                 para que tú solo te preocupes por hacer crecer tu negocio. Toda tu información está 
                 protegida bajo los más altos estándares de seguridad.
@@ -226,7 +226,7 @@ export function DataPolicyModal() {
           {/* Footer */}
           <div className="text-center pt-2 pb-2 border-t border-border">
             <p className="text-xs text-muted-foreground">
-              Lopbuk — Política de Tratamiento de Datos © 2026
+              Daimuz — Política de Tratamiento de Datos © 2026
             </p>
           </div>
         </div>

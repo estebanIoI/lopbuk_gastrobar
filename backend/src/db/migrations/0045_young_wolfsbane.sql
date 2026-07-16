@@ -1,0 +1,1 @@
+ALTER TABLE `event_booking_items` ADD `ticket_version` int DEFAULT 1 NOT NULL;

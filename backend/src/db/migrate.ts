@@ -42,6 +42,40 @@ async function ensureBaselineForExistingDb(): Promise<void> {
   console.log(`Drizzle: BD existente detectada → baseline "${baseline.tag}" marcado como aplicado (no se recreó nada).`)
 }
 
+// Reconcilia las migraciones de eventos (0044–0047): si sus tablas YA existen pero
+// no están registradas en __drizzle_migrations, márcalas como aplicadas (mismo criterio
+// que el baseline) para que migrate() no intente recrearlas y aborte. Los gaps reales de
+// esas migraciones (trace_id, event_logs, event_waitlists, ticket_version) los rellena
+// runCatchup() de forma idempotente. No-op si no hay tablas de eventos (BD fresca → migrate
+// las crea normalmente) o si ya están registradas.
+async function ensureEventsMigrationsMarked(): Promise<void> {
+  const [t]: any = await pool.query(
+    "SELECT COUNT(*) AS n FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'event_booking_items'"
+  )
+  if (Number(t[0].n) === 0) return // sin tablas de eventos → que migrate() las cree
+
+  await pool.query(
+    'CREATE TABLE IF NOT EXISTS `__drizzle_migrations` (`id` bigint unsigned NOT NULL AUTO_INCREMENT, `hash` text NOT NULL, `created_at` bigint DEFAULT NULL, PRIMARY KEY (`id`))'
+  )
+  const journal = JSON.parse(readFileSync(resolve(MIGRATIONS_DIR, 'meta', '_journal.json'), 'utf8'))
+  const eventsTags = ['0044_fast_killmonger', '0045_young_wolfsbane', '0046_nosy_paladin', '0047_flowery_shocker']
+  for (const tag of eventsTags) {
+    const entry = journal.entries?.find((e: any) => e.tag === tag)
+    if (!entry) continue
+    const [exists]: any = await pool.query(
+      'SELECT COUNT(*) AS n FROM `__drizzle_migrations` WHERE `created_at` = ?', [entry.when]
+    )
+    if (Number(exists[0].n) > 0) continue // ya registrada
+    const hash = createHash('sha256')
+      .update(readFileSync(resolve(MIGRATIONS_DIR, `${tag}.sql`), 'utf8'))
+      .digest('hex')
+    await pool.query(
+      'INSERT INTO `__drizzle_migrations` (`hash`, `created_at`) VALUES (?, ?)', [hash, entry.when]
+    )
+    console.log(`Drizzle: migración de eventos "${tag}" marcada como aplicada (tablas ya existen).`)
+  }
+}
+
 // ── Catch-up idempotente ──────────────────────────────────────────────────────
 // Rellena gaps de esquema en BD existentes que fueron auto-marcadas con el baseline
 // (que NO se re-ejecuta) y por eso no tienen tablas/columnas que viven dentro del
@@ -192,11 +226,147 @@ async function runCatchup(): Promise<void> {
   // (que inserta shift_type) daría 500. La migración 0043 crea shift_employees/bonuses.
   await addColumnIfMissing('cash_sessions', 'shift_type', "ENUM('mañana','tarde','unico') NOT NULL DEFAULT 'unico'")
   await addColumnIfMissing('cash_sessions', 'shift_label', 'VARCHAR(50) NULL')
+
+  // ── Eventos: gaps de las migraciones 0045–0047 ─────────────────────────────
+  // Estado parcial típico: las tablas base de eventos (0044) existen pero migrate()
+  // abortó antes de aplicar los ALTER/CREATE de 0045–0047 (trace_id, event_logs,
+  // ticket_version, event_waitlists). Idempotente: solo agrega lo que falte.
+  await addColumnIfMissing('event_seat_holds', 'trace_id', 'VARCHAR(64) NULL')
+  await addColumnIfMissing('event_bookings', 'trace_id', 'VARCHAR(64) NULL')
+  await addColumnIfMissing('event_booking_items', 'ticket_version', 'INT NOT NULL DEFAULT 1')
+  await pool.query(
+    `CREATE TABLE IF NOT EXISTS event_logs (
+      id VARCHAR(36) NOT NULL PRIMARY KEY, tenant_id VARCHAR(36) NOT NULL,
+      event_id VARCHAR(36) NULL, booking_id VARCHAR(36) NULL, trace_id VARCHAR(64) NULL,
+      action VARCHAR(50) NOT NULL, actor VARCHAR(100) NULL, metadata JSON NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_elog_trace (trace_id), INDEX idx_elog_booking (booking_id),
+      INDEX idx_elog_event (event_id, action)
+    ) ENGINE=InnoDB DEFAULT CHARSET=${charset} COLLATE=${collation}`
+  )
+  await pool.query(
+    `CREATE TABLE IF NOT EXISTS event_waitlists (
+      id VARCHAR(36) NOT NULL PRIMARY KEY, event_id VARCHAR(36) NOT NULL, tenant_id VARCHAR(36) NOT NULL,
+      customer_name VARCHAR(255) NOT NULL, customer_phone VARCHAR(20) NULL, customer_email VARCHAR(255) NULL,
+      quantity INT DEFAULT 1, notified_at DATETIME NULL, expires_at DATETIME NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_ewl_event (event_id, notified_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=${charset} COLLATE=${collation}`
+  )
+
+  // ── Gym · P1: librería normalizada (núcleo + traducciones + media + tags) ──
+  // El núcleo no guarda texto ni urls: eso vive en sus tablas hijas, así se agregan
+  // idiomas y formatos de media sin tocar la tabla principal.
+  await pool.query(
+    `CREATE TABLE IF NOT EXISTS exercises (
+      id VARCHAR(36) NOT NULL PRIMARY KEY,
+      dataset_id VARCHAR(10) NULL,
+      slug VARCHAR(180) NULL,
+      source VARCHAR(20) NOT NULL DEFAULT 'dataset',
+      body_part VARCHAR(40) NULL,
+      equipment VARCHAR(60) NULL,
+      target VARCHAR(60) NULL,
+      muscle_group VARCHAR(60) NULL,
+      secondary_muscles JSON NULL,
+      movement_pattern VARCHAR(10) NULL,
+      difficulty VARCHAR(20) NULL,
+      experience_level VARCHAR(20) NULL,
+      is_active TINYINT NOT NULL DEFAULT 1,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY uk_ex_dataset (dataset_id),
+      INDEX idx_ex_body (body_part, is_active),
+      INDEX idx_ex_equipment (equipment),
+      INDEX idx_ex_pattern (movement_pattern)
+    ) ENGINE=InnoDB DEFAULT CHARSET=${charset} COLLATE=${collation}`
+  )
+  await pool.query(
+    `CREATE TABLE IF NOT EXISTS exercise_translations (
+      id VARCHAR(36) NOT NULL PRIMARY KEY,
+      exercise_id VARCHAR(36) NOT NULL,
+      language VARCHAR(5) NOT NULL,
+      name VARCHAR(200) NULL,
+      instructions TEXT NULL,
+      steps JSON NULL,
+      tips TEXT NULL,
+      mistakes TEXT NULL,
+      UNIQUE KEY uk_extr (exercise_id, language),
+      INDEX idx_extr_lang (language)
+    ) ENGINE=InnoDB DEFAULT CHARSET=${charset} COLLATE=${collation}`
+  )
+  await pool.query(
+    `CREATE TABLE IF NOT EXISTS exercise_media (
+      id VARCHAR(36) NOT NULL PRIMARY KEY,
+      exercise_id VARCHAR(36) NOT NULL,
+      kind VARCHAR(20) NOT NULL,
+      url VARCHAR(220) NOT NULL,
+      width INT NULL,
+      height INT NULL,
+      attribution VARCHAR(220) NULL,
+      sort_order INT NOT NULL DEFAULT 0,
+      INDEX idx_exmed_ex (exercise_id, kind)
+    ) ENGINE=InnoDB DEFAULT CHARSET=${charset} COLLATE=${collation}`
+  )
+  await pool.query(
+    `CREATE TABLE IF NOT EXISTS exercise_tags (
+      exercise_id VARCHAR(36) NOT NULL,
+      tag VARCHAR(60) NOT NULL,
+      PRIMARY KEY (exercise_id, tag),
+      INDEX idx_extag_tag (tag)
+    ) ENGINE=InnoDB DEFAULT CHARSET=${charset} COLLATE=${collation}`
+  )
+
+  // ── Gym · P2: rutinas versionadas (identidad → versión inmutable → ejercicios) ──
+  await pool.query(
+    `CREATE TABLE IF NOT EXISTS routines (
+      id VARCHAR(36) NOT NULL PRIMARY KEY,
+      name VARCHAR(160) NOT NULL,
+      description TEXT NULL,
+      goal VARCHAR(24) NOT NULL DEFAULT 'hypertrophy',
+      is_active TINYINT NOT NULL DEFAULT 1,
+      sort_order INT NOT NULL DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_rt_active (is_active, sort_order)
+    ) ENGINE=InnoDB DEFAULT CHARSET=${charset} COLLATE=${collation}`
+  )
+  await pool.query(
+    `CREATE TABLE IF NOT EXISTS routine_versions (
+      id VARCHAR(36) NOT NULL PRIMARY KEY,
+      routine_id VARCHAR(36) NOT NULL,
+      version INT NOT NULL DEFAULT 1,
+      status VARCHAR(12) NOT NULL DEFAULT 'draft',
+      movement_pattern VARCHAR(10) NULL,
+      notes TEXT NULL,
+      published_at DATETIME NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY uk_rv (routine_id, version),
+      INDEX idx_rv_status (routine_id, status)
+    ) ENGINE=InnoDB DEFAULT CHARSET=${charset} COLLATE=${collation}`
+  )
+  await pool.query(
+    `CREATE TABLE IF NOT EXISTS routine_exercises (
+      id VARCHAR(36) NOT NULL PRIMARY KEY,
+      routine_version_id VARCHAR(36) NOT NULL,
+      exercise_id VARCHAR(36) NOT NULL,
+      display_name VARCHAR(160) NULL,
+      exercise_order INT NOT NULL DEFAULT 0,
+      group_id VARCHAR(10) NULL,
+      execution_type VARCHAR(12) NOT NULL DEFAULT 'NORMAL',
+      target_sets INT NOT NULL DEFAULT 3,
+      target_reps INT NOT NULL DEFAULT 12,
+      start_weight DECIMAL(8,2) NOT NULL DEFAULT 0.00,
+      rpe DECIMAL(3,1) NULL,
+      rir INT NULL,
+      tempo VARCHAR(16) NULL,
+      rest_seconds INT NULL,
+      INDEX idx_rex_version (routine_version_id, exercise_order)
+    ) ENGINE=InnoDB DEFAULT CHARSET=${charset} COLLATE=${collation}`
+  )
 }
 
 // Aplica las migraciones pendientes (registradas en __drizzle_migrations).
 export async function runMigrations(): Promise<void> {
   await ensureBaselineForExistingDb()
+  await ensureEventsMigrationsMarked()
   await migrate(db, { migrationsFolder: MIGRATIONS_DIR })
   await runCatchup()
 }

@@ -22,12 +22,14 @@ import { DaimuzWelcomeFrame } from '@/components/daimuz-welcome-frame'
 import { FlameButton } from '@/components/ui/flame-button'
 import { useIsDesktop } from '@/components/consumer/hooks/useIsDesktop'
 import { cldImg, cldSrcSet } from '@/utils/img'
+import { StoresSection } from '@/components/stores-map'
 import {
   ChevronLeft, ChevronRight, Store, UtensilsCrossed, Zap, Tag, Package,
   Sparkles, ShoppingBag, Pill, Apple, Wrench, Scissors, Dog, Wine,
   Croissant, Coffee, Shirt, Gem, Flower2, ArrowRight, Search,
   ChevronDown, MapPin, Flame, Bell, Facebook, Instagram, Phone,
   Mail, TrendingUp, X, Menu, Compass, User as UserIcon, Home as HomeIcon,
+  ShoppingCart,
 } from 'lucide-react'
 
 // ── Paleta institucional ────────────────────────────────────────────────────
@@ -158,6 +160,10 @@ export interface MarketStore {
   cardDescription?: string | null
   city?: string | null
   address?: string | null
+  department?: string | null
+  schedule?: string | null
+  latitude?: number | null
+  longitude?: number | null
   isVerified?: number | boolean
   openState?: 'open' | 'closed'
   nextOpenLabel?: string | null
@@ -504,6 +510,7 @@ export function MarketplaceHomeGovCo({
   featured,
   offers,
   heroSlides,
+  heroIntervalMs,
   businessTypeFilter,
   onSelectBusinessType,
   onOpenStore,
@@ -528,6 +535,7 @@ export function MarketplaceHomeGovCo({
   featured: MarketProduct[]
   offers: MarketProduct[]
   heroSlides: HeroSlide[]
+  heroIntervalMs?: number
   businessTypeFilter: string
   onSelectBusinessType: (t: string) => void
   onOpenStore: (s: MarketStore) => void
@@ -556,6 +564,9 @@ export function MarketplaceHomeGovCo({
   const [query, setQuery] = useState('')
   const [tab, setTab] = useState<MainTab>('comercios')
   const [megaOpen, setMegaOpen] = useState(false)
+  const [catMenuOpen, setCatMenuOpen] = useState(false) // mega-catálogo de productos (izquierda)
+  const [catSel, setCatSel] = useState<string | null>(null)
+  const [showStoresMap, setShowStoresMap] = useState(false) // mapa interactivo de comercios
   const [mobileNav, setMobileNav] = useState(false)
   const [alertOpen, setAlertOpen] = useState(true)
   const [scrolled, setScrolled] = useState(false)
@@ -566,6 +577,20 @@ export function MarketplaceHomeGovCo({
     const onScroll = () => setScrolled(window.scrollY > 20)
     window.addEventListener('scroll', onScroll, { passive: true })
     return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
+  // Placeholder rotativo del buscador — comunica el alcance del ecosistema DAIMUZ.
+  const SEARCH_HINTS = [
+    'Buscar comercios, productos o categorías…',
+    'Buscar restaurantes cerca de ti…',
+    'Buscar servicios: técnicos, salud, belleza…',
+    'Buscar ofertas y novedades del día…',
+    'Pregúntale a la IA qué necesitas hoy…',
+  ]
+  const [hintIdx, setHintIdx] = useState(0)
+  useEffect(() => {
+    const t = setInterval(() => setHintIdx(i => (i + 1) % SEARCH_HINTS.length), 3200)
+    return () => clearInterval(t)
   }, [])
 
   // ── Branch responsive (Fase 1 rediseño móvil) ──────────────────────────────
@@ -624,6 +649,23 @@ export function MarketplaceHomeGovCo({
     return Array.from(counts.entries()).map(([type, count]) => ({ type, count })).sort((a, b) => b.count - a.count)
   }, [stores])
 
+  // Catálogo global: agrupa TODOS los productos (de todas las tiendas) por categoría.
+  const allCategories = useMemo(() => {
+    const map = new Map<string, MarketProduct[]>()
+    for (const p of products) {
+      const c = (p.category || '').trim() || 'Otros'
+      if (!map.has(c)) map.set(c, [])
+      map.get(c)!.push(p)
+    }
+    return Array.from(map.entries())
+      .map(([name, items]) => ({ name, items, count: items.length }))
+      .sort((a, b) => b.count - a.count)
+  }, [products])
+  const catActive = catSel ?? allCategories[0]?.name ?? null
+  const catProducts = useMemo(
+    () => allCategories.find(c => c.name === catActive)?.items.slice(0, 12) ?? [],
+    [allCategories, catActive])
+
   // Filtro por búsqueda + rubro
   const q = query.trim().toLowerCase()
   const visibleStores = useMemo(() =>
@@ -641,6 +683,15 @@ export function MarketplaceHomeGovCo({
     [featured, products, q])
 
   const scrollToGrid = () => gridRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+
+  // Volver a Inicio (lo hace el logo): resetea filtros y sube al tope.
+  const goHome = () => {
+    setTab('comercios'); onSelectBusinessType('all'); setQuery(''); setShowStoresMap(false)
+    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  // Verticales del ecosistema DAIMUZ (nav único, estilo de la página).
+  const DAIMUZ_VERTICALS = ['Restaurantes', 'Delivery', 'Supermercado', 'Tecnología', 'Moda', 'Belleza', 'Salud', 'Servicios', 'Ferretería', 'Mascotas', 'Eventos', 'Hoteles', 'Automotriz']
 
   const pickRubro = (type: string) => {
     onSelectBusinessType(type)
@@ -716,7 +767,7 @@ export function MarketplaceHomeGovCo({
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Buscar productos o tiendas"
+                placeholder={SEARCH_HINTS[hintIdx]}
                 className="w-full pl-9 pr-3 py-2 rounded-xl bg-gray-100 text-sm focus:outline-none focus:ring-2 focus:bg-white"
                 style={{ ['--tw-ring-color' as any]: GREEN }}
               />
@@ -738,7 +789,7 @@ export function MarketplaceHomeGovCo({
           {/* ── Hero único ── */}
           <section>
             {heroHasSlides ? (
-              <div className="rounded-2xl overflow-hidden"><HomeHeroCarousel slides={heroSlides} isMobile intervalMs={5000} /></div>
+              <div className="rounded-2xl overflow-hidden"><HomeHeroCarousel slides={heroSlides} isMobile intervalMs={heroIntervalMs ?? 5000} /></div>
             ) : (
               <div className="relative rounded-2xl overflow-hidden p-6 min-h-[200px] flex flex-col justify-end text-white" style={{ background: `linear-gradient(135deg, ${GREEN_DARK}, ${GREEN})` }}>
                 <h1 className="text-xl font-extrabold leading-tight max-w-[220px]">{heroTitle || 'Tu marketplace local'}</h1>
@@ -824,16 +875,16 @@ export function MarketplaceHomeGovCo({
     <div className="min-h-screen bg-gray-50 text-gray-800 flex flex-col relative" style={brandVars}>
       {/* Profundidad ambiental (en el verde/gold de la marca) — coherente con el sistema glass */}
       <div aria-hidden className="fixed inset-0 pointer-events-none" style={{ zIndex: 0, background: 'radial-gradient(1000px 560px at 6% -6%, rgba(0,131,62,0.07), transparent 60%), radial-gradient(900px 520px at 100% 2%, rgba(240,165,0,0.08), transparent 55%)' }} />
-      {/* ══ CAPA 1: TopBar informativa (se desplaza, no sticky) ══ */}
+      {/* ══ CAPA 1: Top Info Bar — panel vivo de métricas del ecosistema ══ */}
       <div className="hidden sm:flex items-center justify-center h-[34px] shrink-0 overflow-hidden" style={{ background: GREEN_DARK }}>
         <div className="flex items-center gap-5 text-white/85 text-[11px] font-medium tracking-wide select-none">
-          <span className="flex items-center gap-1.5"><Zap className="w-3 h-3 opacity-80" /> Comercios activos</span>
+          <span className="flex items-center gap-1.5"><Zap className="w-3 h-3 text-amber-300" /> <b className="text-white font-bold">{stores.length}</b> comercios activos</span>
           <span className="w-px h-3 bg-white/20" />
-          <span className="flex items-center gap-1.5"><Sparkles className="w-3 h-3 opacity-80" /> IA asistencial para negocios</span>
+          <span className="flex items-center gap-1.5"><Tag className="w-3 h-3 text-amber-300" /> <b className="text-white font-bold">{offers.length}</b> ofertas hoy</span>
           <span className="w-px h-3 bg-white/20" />
-          <span className="flex items-center gap-1.5"><Tag className="w-3 h-3 opacity-80" /> Descubre ofertas exclusivas</span>
+          <span className="flex items-center gap-1.5"><Sparkles className="w-3 h-3 text-amber-300" /> IA disponible <b className="text-white font-bold">24/7</b></span>
           <span className="w-px h-3 bg-white/20" />
-          <button onClick={onGoToLogin} className="underline underline-offset-2 hover:text-white transition-colors">Acceder al OS →</button>
+          <button onClick={onGoToLogin} className="flex items-center gap-1 font-semibold text-white/90 hover:text-white transition-colors">Acceder al OS <span aria-hidden>→</span></button>
         </div>
       </div>
 
@@ -850,8 +901,8 @@ export function MarketplaceHomeGovCo({
         }}
       >
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 h-full flex items-center gap-3 sm:gap-4">
-          {/* Logo */}
-          <button onClick={scrollToGrid} className="flex items-center gap-2.5 shrink-0 group">
+          {/* Logo — vuelve a Inicio */}
+          <button onClick={goHome} className="flex items-center gap-2.5 shrink-0 group" title="Ir a inicio">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={brandLogo} alt={BRAND.name}
@@ -866,13 +917,84 @@ export function MarketplaceHomeGovCo({
             </span>
           </button>
 
+          {/* Categorías — mega-catálogo global de productos (izquierda) */}
+          <div className="relative shrink-0 hidden md:block">
+            <button
+              onClick={() => setCatMenuOpen(v => !v)}
+              className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl text-sm font-semibold border transition-all duration-200 hover:-translate-y-0.5"
+              style={{ borderColor: 'rgba(0,0,0,0.12)', color: GREEN_DARK, background: catMenuOpen ? 'color-mix(in srgb, var(--brand-green,#00833E) 8%, white)' : '#fff' }}
+            >
+              <Menu className="w-4 h-4" /> Categorías
+              <ChevronDown className={`w-3.5 h-3.5 opacity-60 transition-transform ${catMenuOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {catMenuOpen && allCategories.length > 0 && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setCatMenuOpen(false)} />
+                <div
+                  className="absolute left-0 top-full mt-2 z-50 w-[min(94vw,900px)] max-h-[74vh] overflow-hidden rounded-2xl bg-white shadow-2xl border border-gray-100 flex"
+                  onMouseLeave={() => setCatMenuOpen(false)}
+                >
+                  {/* Izquierda: lista de categorías */}
+                  <div className="w-[42%] max-w-[320px] border-r border-gray-100 overflow-y-auto py-2">
+                    {allCategories.map(c => {
+                      const on = c.name === catActive
+                      return (
+                        <button
+                          key={c.name}
+                          onMouseEnter={() => setCatSel(c.name)}
+                          onClick={() => { setQuery(c.name); setCatMenuOpen(false); setTimeout(scrollToGrid, 50) }}
+                          className="w-full flex items-center gap-2.5 px-4 py-2.5 text-left text-sm transition-colors"
+                          style={on ? { background: 'color-mix(in srgb, var(--brand-green,#00833E) 8%, white)', color: GREEN_DARK, fontWeight: 600, boxShadow: `inset 3px 0 0 var(--brand-green,#00833E)` } : { color: '#374151' }}
+                        >
+                          <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: 'color-mix(in srgb, var(--brand-green,#00833E) 12%, white)', color: GREEN_DARK }}><Tag className="w-3.5 h-3.5" /></span>
+                          <span className="flex-1 min-w-0 truncate">{c.name}</span>
+                          <span className="text-[10px] text-gray-400 shrink-0">{c.count}</span>
+                          <ChevronRight className="w-3.5 h-3.5 opacity-40 shrink-0" />
+                        </button>
+                      )
+                    })}
+                  </div>
+                  {/* Derecha: productos de la categoría activa */}
+                  <div className="flex-1 overflow-y-auto p-4 min-w-0">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="font-extrabold text-gray-800 truncate">{catActive}</h3>
+                      <button
+                        onClick={() => { if (catActive) setQuery(catActive); setCatMenuOpen(false); setTimeout(scrollToGrid, 50) }}
+                        className="text-xs font-bold underline underline-offset-2 shrink-0" style={{ color: GREEN_DARK }}
+                      >Ver todo →</button>
+                    </div>
+                    <div className="grid grid-cols-2 lg:grid-cols-3 gap-1.5">
+                      {catProducts.map(p => (
+                        <button
+                          key={p.id}
+                          onClick={() => { onOpenProduct(p); setCatMenuOpen(false) }}
+                          className="flex items-center gap-2 p-2 rounded-xl hover:bg-gray-50 text-left transition-colors"
+                        >
+                          <span className="w-10 h-10 rounded-lg bg-gray-100 overflow-hidden shrink-0 flex items-center justify-center">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            {p.imageUrl ? <img src={cldImg(p.imageUrl, 80)} alt="" className="w-full h-full object-cover" loading="lazy" /> : <Package className="w-4 h-4 text-gray-300" />}
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block text-xs font-medium text-gray-800 truncate">{p.name}</span>
+                            <span className="block text-[11px] font-bold" style={{ color: GREEN_DARK }}>{fmtCOP((p.isOnOffer && p.offerPrice) ? p.offerPrice : p.salePrice)}</span>
+                          </span>
+                        </button>
+                      ))}
+                      {catProducts.length === 0 && <p className="text-sm text-gray-400 col-span-full py-8 text-center">Sin productos en esta categoría.</p>}
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
           {/* Search — protagonista */}
           <div className="relative flex-1 max-w-2xl group">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-green-600 transition-colors pointer-events-none" />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Buscar comercios, productos o categorías…"
+              placeholder={SEARCH_HINTS[hintIdx]}
               className="w-full pl-10 pr-16 rounded-2xl border text-sm bg-gray-50/80 focus:bg-white focus:outline-none transition-all duration-200"
               style={{
                 height: scrolled ? '38px' : '44px',
@@ -889,9 +1011,9 @@ export function MarketplaceHomeGovCo({
             </span>
           </div>
 
-          {/* AI Action Button */}
+          {/* Comercios — abre el mapa interactivo */}
           <button
-            onClick={onGoToLogin}
+            onClick={() => setShowStoresMap(true)}
             className="hidden lg:flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-semibold shrink-0 transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0"
             style={{
               background: `linear-gradient(135deg, var(--brand-green,#00833E), var(--brand-green-dark,#005C2A))`,
@@ -899,18 +1021,30 @@ export function MarketplaceHomeGovCo({
               boxShadow: '0 4px 14px color-mix(in srgb, var(--brand-green,#00833E) 35%, transparent)',
             }}
           >
-            <Sparkles className="w-3.5 h-3.5" />
-            Buscar con IA
+            <MapPin className="w-3.5 h-3.5" />
+            Comercios
           </button>
 
-          {/* Entrar — premium pill */}
+          {/* Perfil */}
           <button
             onClick={onGoToLogin}
-            className="hidden sm:flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-semibold shrink-0 border transition-all duration-200 hover:bg-gray-50 hover:-translate-y-0.5 active:translate-y-0"
-            style={{ borderColor: 'rgba(0,0,0,0.12)', color: GREEN_DARK }}
+            title="Perfil"
+            className="hidden sm:flex flex-col items-center justify-center px-2 shrink-0 transition-transform duration-200 hover:-translate-y-0.5"
+            style={{ color: GREEN_DARK }}
           >
-            <UserIcon className="w-4 h-4" />
-            Entrar
+            <UserIcon className="w-5 h-5" />
+            <span className="text-[10px] font-semibold mt-0.5 leading-none">Perfil</span>
+          </button>
+
+          {/* Carrito */}
+          <button
+            onClick={onGoToLogin}
+            title="Carrito"
+            className="hidden sm:flex flex-col items-center justify-center px-2 shrink-0 transition-transform duration-200 hover:-translate-y-0.5"
+            style={{ color: GREEN_DARK }}
+          >
+            <ShoppingCart className="w-5 h-5" />
+            <span className="text-[10px] font-semibold mt-0.5 leading-none">$ 0.00</span>
           </button>
 
           {/* Mobile hamburger */}
@@ -933,46 +1067,7 @@ export function MarketplaceHomeGovCo({
         }}
       >
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
-          <div className={`${mobileNav ? 'flex' : 'hidden'} sm:flex flex-col sm:flex-row sm:items-center gap-0.5 py-2 overflow-x-auto scrollbar-hide`}>
-            {/* Inicio */}
-            <button
-              onClick={() => { setTab('comercios'); onSelectBusinessType('all'); setMobileNav(false); setTimeout(scrollToGrid, 50) }}
-              className="shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-200 hover:-translate-y-0.5 text-left"
-              style={tab === 'comercios' && !query
-                ? { background: `var(--brand-green,#00833E)`, color: '#fff' }
-                : { color: '#374151' }}
-            >
-              Inicio
-            </button>
-
-            {/* Mega-menú categorías */}
-            <div className="relative shrink-0" onMouseEnter={() => setMegaOpen(true)} onMouseLeave={() => setMegaOpen(false)}>
-              <button
-                onClick={() => setMegaOpen(v => !v)}
-                className="flex items-center gap-1 px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-200 hover:-translate-y-0.5"
-                style={{ color: '#374151' }}
-              >
-                Categorías <ChevronDown className="w-3.5 h-3.5 opacity-60" />
-              </button>
-              {megaOpen && rubros.length > 0 && (
-                <div className="absolute left-0 top-full mt-1 z-40 w-[min(92vw,640px)] bg-white text-gray-800 rounded-2xl shadow-2xl border border-gray-100 p-4">
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    <button onClick={() => pickRubro('all')} className="flex items-center gap-2 p-2.5 rounded-xl hover:bg-gray-50 text-sm transition-colors">
-                      <span className="w-8 h-8 rounded-lg flex items-center justify-center text-white shrink-0" style={{ background: `var(--brand-green,#00833E)` }}><Store className="w-4 h-4" /></span>
-                      Todos los comercios
-                    </button>
-                    {rubros.map(({ type, count }) => (
-                      <button key={type} onClick={() => pickRubro(type)} className="flex items-center gap-2 p-2.5 rounded-xl hover:bg-gray-50 text-sm capitalize transition-colors">
-                        <span className="w-8 h-8 rounded-lg flex items-center justify-center text-white shrink-0" style={{ background: `var(--brand-green,#00833E)` }}><span className="w-4 h-4 inline-flex">{rubroIcon(type)}</span></span>
-                        <span className="min-w-0 truncate">{type}</span>
-                        <span className="ml-auto text-[10px] text-gray-400 shrink-0">{count}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
+          <div className={`${mobileNav ? 'flex' : 'hidden'} sm:flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-1.5 py-2`}>
             {/* Tabs de contenido como chips */}
             {navItems.filter(n => n.key !== 'comercios').map(item => {
               const active = tab === item.key
@@ -981,9 +1076,31 @@ export function MarketplaceHomeGovCo({
                   key={item.key}
                   onClick={() => { setTab(item.key as MainTab); setMobileNav(false); setTimeout(scrollToGrid, 50) }}
                   className="shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-200 hover:-translate-y-0.5 text-left"
-                  style={active ? { background: `var(--brand-green,#00833E)`, color: '#fff' } : { color: '#374151' }}
+                  style={active
+                    ? { background: `var(--brand-green,#00833E)`, color: '#fff', border: '1px solid transparent', boxShadow: '0 2px 8px rgba(0,131,62,0.25)' }
+                    : { color: '#374151', background: 'rgba(255,255,255,0.6)', border: '1px solid rgba(0,0,0,0.08)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}
                 >
                   {item.label}
+                </button>
+              )
+            })}
+
+            {/* Verticales del ecosistema DAIMUZ (mismo estilo del nav) */}
+            {DAIMUZ_VERTICALS.map(v => {
+              const active = query.toLowerCase() === v.toLowerCase()
+              return (
+                <button
+                  key={v}
+                  onClick={() => {
+                    if (v === 'Eventos') { window.location.href = '/evento'; return }
+                    setTab('comercios'); onSelectBusinessType('all'); setQuery(v); setMobileNav(false); setTimeout(scrollToGrid, 50)
+                  }}
+                  className="shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-200 hover:-translate-y-0.5 text-left"
+                  style={active
+                    ? { background: `var(--brand-green,#00833E)`, color: '#fff', border: '1px solid transparent', boxShadow: '0 2px 8px rgba(0,131,62,0.25)' }
+                    : { color: '#374151', background: 'rgba(255,255,255,0.6)', border: '1px solid rgba(0,0,0,0.08)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}
+                >
+                  {v}
                 </button>
               )
             })}
@@ -994,13 +1111,24 @@ export function MarketplaceHomeGovCo({
               target="_blank"
               rel="noopener noreferrer"
               className="shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-200 hover:-translate-y-0.5"
-              style={{ color: '#374151' }}
+              style={{ color: '#374151', background: 'rgba(255,255,255,0.6)', border: '1px solid rgba(0,0,0,0.08)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}
             >
               Contacto
             </a>
           </div>
         </div>
       </nav>
+
+      {/* ══ Sección "Comercios" — mapa interactivo inline (botón "Comercios") ══ */}
+      {showStoresMap && (
+        <StoresSection
+          stores={stores.map(s => ({ id: s.id, name: s.name, slug: s.slug, logoUrl: s.logoUrl, city: s.city, address: s.address, department: s.department, schedule: s.schedule, openState: s.openState, nextOpenLabel: s.nextOpenLabel, latitude: s.latitude, longitude: s.longitude }))}
+          brandColor={GREEN}
+          brandDark={GREEN_DARK}
+          onClose={() => setShowStoresMap(false)}
+          onOpenStore={(slug) => { const st = stores.find(x => x.slug === slug); if (st) onOpenStore(st as any) }}
+        />
+      )}
 
       {/* ══ Banner de bienvenida (activable + editable desde superadmin) ══ */}
       {welcomeEnabled && alertOpen && (() => {
@@ -1030,7 +1158,7 @@ export function MarketplaceHomeGovCo({
             {/* Columna izquierda */}
             <div className="min-w-0">
               {heroSlides.filter(s => s.url).length > 0 ? (
-                <HomeHeroCarousel slides={heroSlides} intervalMs={4000} />
+                <HomeHeroCarousel slides={heroSlides} intervalMs={heroIntervalMs ?? 4000} />
               ) : (
                 <section className="relative rounded-xl overflow-hidden p-8 sm:p-12 text-white h-full min-h-[240px] flex flex-col justify-center" style={{ background: `linear-gradient(120deg, ${GREEN_DARK}, ${GREEN})` }}>
                   <h1 className="text-2xl sm:text-4xl font-extrabold max-w-2xl">{heroTitle || 'Tu marketplace de comercios locales'}</h1>

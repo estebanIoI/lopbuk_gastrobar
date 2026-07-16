@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useMemo } from 'react'
+import { useTheme } from 'next-themes'
 
 const formatCOP = (value: number) =>
   new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value)
@@ -11,6 +12,7 @@ import { ProductDetailML, type MLProduct } from '@/components/theme-ml/product-d
 import { CheckoutWizardML } from '@/components/theme-ml/checkout-wizard-ml'
 import { parseQtyPromo } from '@/lib/qty-promo'
 import { HomeHeroCarousel, HomeCategoryRail, MarketplaceHomeGovCo, type HeroSlide, type PromoCardConfig } from '@/components/home-theme2'
+import { EventsShowcase } from '@/components/events/events-showcase'
 import { MarketplaceHomeD1 } from '@/components/marketplace-home-d1'
 import { WhatsAppFloatingWidget } from '@/components/whatsapp-floating-widget'
 import { BoxLoader } from '@/components/box-loader'
@@ -90,6 +92,7 @@ import { DataRightsModal } from '@/components/consent/DataRightsModal'
 import { hasMarketingConsent, CONSENT_CHANGED_EVENT, type ConsentState } from '@/lib/consent'
 import { DEFAULT_PRIVACY_POLICY, DEFAULT_TERMS, DEFAULT_COOKIES_POLICY, fillTemplate } from '@/lib/legal-templates'
 import { SectionRenderer, type TemplateSection } from '@/components/product-template/SectionRenderer'
+import { emitPdpEvent } from '@/lib/pdp/pdp-analytics'
 import type { ProductoCarrito, PedidoForm, PedidoConfirmado, CuponValidacion } from '@/types'
 
 interface LandingPageProps {
@@ -227,15 +230,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   const [isMobile, setIsMobile] = useState(false)
   useEffect(() => { setIsMobile(window.innerWidth < 640) }, [])
   // Theme
-  let theme = 'dark';
-  try {
-    // next-themes puede usarse en client
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const useTheme = require('next-themes').useTheme;
-    if (typeof window !== 'undefined') {
-      theme = useTheme().theme || 'dark';
-    }
-  } catch {}
+  const { theme: _theme = 'dark' } = useTheme()
 
   // ====== CATALOG FILTER STATE ======
   const [catalogSpecialFilter, setCatalogSpecialFilter] = useState<'all' | 'trending' | 'featured' | 'offers'>('all')
@@ -255,7 +250,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [loadingProducts, setLoadingProducts] = useState(false)
-  const [stores, setStores] = useState<{ id: string; name: string; slug: string; businessType: string | null; logoUrl: string | null; address: string | null; productCount: number; coverUrl?: string | null; cardDescription?: string | null; city?: string | null; isVerified?: number | boolean; openState?: 'open' | 'closed'; nextOpenLabel?: string | null; sedeCount?: number; theme?: string }[]>([])
+  const [stores, setStores] = useState<{ id: string; name: string; slug: string; businessType: string | null; logoUrl: string | null; address: string | null; department?: string | null; schedule?: string | null; latitude?: number | null; longitude?: number | null; productCount: number; coverUrl?: string | null; cardDescription?: string | null; city?: string | null; isVerified?: number | boolean; openState?: 'open' | 'closed'; nextOpenLabel?: string | null; sedeCount?: number; theme?: string }[]>([])
   const [selectedStore, setSelectedStore] = useState<string>(() => {
     return getStoreSlugFromUrl() || 'all'
   })
@@ -314,6 +309,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   const [homeTheme, setHomeTheme] = useState<'theme1' | 'theme2' | 'theme3'>('theme1')
   const [settingsLoaded, setSettingsLoaded] = useState(false)
   const [homeHeroSlides, setHomeHeroSlides] = useState<HeroSlide[]>([])
+  const [homeHeroInterval, setHomeHeroInterval] = useState(5000)
+  const [homeOffersLimit, setHomeOffersLimit] = useState(10)
   const [homeHeroSplit, setHomeHeroSplit] = useState('60-40')
   const [homeHeroRight, setHomeHeroRight] = useState('producto')
   const [homePromoCards, setHomePromoCards] = useState<PromoCardConfig[]>([])
@@ -1234,6 +1231,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               if (Array.isArray(parsed)) setHomeHeroSlides(parsed as HeroSlide[])
             } catch { /* JSON inválido, se ignora */ }
           }
+          if (json.data.home_hero_interval) setHomeHeroInterval(Math.max(1, Number(json.data.home_hero_interval) || 5) * 1000)
+          if (json.data.home_offers_limit) setHomeOffersLimit(Math.min(60, Math.max(1, Number(json.data.home_offers_limit) || 10)))
           if (json.data.home_hero_split) setHomeHeroSplit(json.data.home_hero_split)
           if (json.data.home_hero_right) setHomeHeroRight(json.data.home_hero_right)
           if (json.data.home_welcome_enabled !== undefined) setHomeWelcomeEnabled(json.data.home_welcome_enabled !== 'false')
@@ -2923,6 +2922,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         featured={platformFeatured as any}
         offers={offerProducts as any}
         heroSlides={homeHeroSlides}
+        heroIntervalMs={homeHeroInterval}
         businessTypeFilter={businessTypeFilter}
         onSelectBusinessType={setBusinessTypeFilter}
         onOpenStore={(store) => goToStore(store as any)}
@@ -3729,6 +3729,22 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 {/* Product name */}
                 <h1 className={`text-2xl font-semibold leading-tight ${isLightBg ? 'text-black' : 'text-white'}`}>{selectedProduct.name}</h1>
 
+                {/* Rating summary (Motor de PDP · prueba social arriba) */}
+                {!reviewsLoading && productReviews.length > 0 && (() => {
+                  const avg = productReviews.reduce((s: number, r: any) => s + r.rating, 0) / productReviews.length
+                  return (
+                    <div className="flex items-center gap-2 -mt-1">
+                      <span className={`text-sm font-semibold ${isLightBg ? 'text-black/80' : 'text-white/80'}`}>{avg.toFixed(1)}</span>
+                      <div className="flex gap-0.5">
+                        {[1, 2, 3, 4, 5].map(n => (
+                          <Star key={n} size={13} className={n <= Math.round(avg) ? 'fill-amber-400 text-amber-400' : (isLightBg ? 'text-black/15' : 'text-white/15')} />
+                        ))}
+                      </div>
+                      <span className={`text-xs ${isLightBg ? 'text-black/45' : 'text-white/45'}`}>· {productReviews.length} {productReviews.length === 1 ? 'opinión' : 'opiniones'}</span>
+                    </div>
+                  )
+                })()}
+
                 {/* Price */}
                 <div>
                   {(() => {
@@ -3937,7 +3953,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         <p className="text-center text-[11px] text-red-400">Elige: {t1Missing.map((g: any) => g.name).join(', ')}</p>
                       )}
                       <button
-                        onClick={() => { if (!canBuy) return; addFromModal() }}
+                        onClick={() => { if (!canBuy) return; emitPdpEvent('ADD_TO_CART', { productId: selectedProduct.id, qty: productQuantity }); addFromModal() }}
                         disabled={!canBuy}
                         style={canBuy ? { backgroundColor: isLightBg ? '#111111' : '#ffffff', color: isLightBg ? '#ffffff' : '#000000' } : undefined}
                         className={`w-full py-4 flex items-center justify-center gap-2.5 text-sm uppercase tracking-[0.15em] font-medium rounded-xl transition-opacity ${
@@ -3954,6 +3970,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           addingToCartRef.current = true
                           setIsAddingToCart(true)
                           try {
+                            emitPdpEvent('BUY_NOW', { productId: selectedProduct.id, qty: productQuantity })
                             addFromModal()
                             setShowCart(false)
                             handleIrAlCheckout()
@@ -4003,6 +4020,45 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     </div>
                   )
                 })()}
+
+                {/* ── Confianza + métodos de pago (Motor de PDP) ── */}
+                <div className={`py-4 border-t ${isLightBg ? 'border-black/10' : 'border-white/8'} space-y-3`}>
+                  <div className="grid grid-cols-2 gap-2">
+                    {paymentConfig.contraentrega && (
+                      <div className={`flex items-center gap-2 rounded-xl px-3 py-2.5 ${isLightBg ? 'bg-black/[0.03] border border-black/8' : 'bg-white/[0.04] border border-white/8'}`}>
+                        <CheckCircle className="w-4 h-4 shrink-0 text-emerald-500" />
+                        <span className={`text-xs font-medium ${isLightBg ? 'text-black/70' : 'text-white/70'}`}>{paymentConfig.contraentregaLabel || 'Pago contra entrega'}</span>
+                      </div>
+                    )}
+                    <div className={`flex items-center gap-2 rounded-xl px-3 py-2.5 ${isLightBg ? 'bg-black/[0.03] border border-black/8' : 'bg-white/[0.04] border border-white/8'}`}>
+                      <Truck className="w-4 h-4 shrink-0 text-emerald-500" />
+                      <span className={`text-xs font-medium ${isLightBg ? 'text-black/70' : 'text-white/70'}`}>{DELIVERY_FREE_MIN > 0 ? `Envío gratis desde ${formatCOP(DELIVERY_FREE_MIN)}` : 'Envío a todo el país'}</span>
+                    </div>
+                    <div className={`flex items-center gap-2 rounded-xl px-3 py-2.5 ${isLightBg ? 'bg-black/[0.03] border border-black/8' : 'bg-white/[0.04] border border-white/8'}`}>
+                      <ShieldCheck className="w-4 h-4 shrink-0 text-emerald-500" />
+                      <span className={`text-xs font-medium ${isLightBg ? 'text-black/70' : 'text-white/70'}`}>Garantía de satisfacción</span>
+                    </div>
+                    <div className={`flex items-center gap-2 rounded-xl px-3 py-2.5 ${isLightBg ? 'bg-black/[0.03] border border-black/8' : 'bg-white/[0.04] border border-white/8'}`}>
+                      <RotateCcw className="w-4 h-4 shrink-0 text-emerald-500" />
+                      <span className={`text-xs font-medium ${isLightBg ? 'text-black/70' : 'text-white/70'}`}>Cambios y devoluciones</span>
+                    </div>
+                  </div>
+                  {(() => {
+                    const pill = `text-[10px] font-semibold px-2 py-1 rounded-md border ${isLightBg ? 'text-black/60 border-black/15 bg-black/[0.02]' : 'text-white/60 border-white/15 bg-white/[0.03]'}`
+                    const methods: string[] = []
+                    if (wompiAvailable && paymentConfig.wompiEnabled !== false) methods.push('Tarjetas')
+                    if (paymentConfig.addi) methods.push('Addi')
+                    if (paymentConfig.sistecredito) methods.push('Sistecrédito')
+                    if (paymentConfig.contraentrega) methods.push('Contra entrega')
+                    if (methods.length === 0) return null
+                    return (
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className={`text-[10px] uppercase tracking-widest mr-1 ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>Pagas con</span>
+                        {methods.map(m => <span key={m} className={pill}>{m}</span>)}
+                      </div>
+                    )
+                  })()}
+                </div>
 
                 {/* Verified store info */}
                 {selectedProduct.storeName && (
@@ -4596,7 +4652,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           <div className="space-y-3 mt-2">
                             <div ref={ctaRef} className="flex gap-3">
                               <button
-                                onClick={() => { if (!canBuy) return; addFromModal() }}
+                                onClick={() => { if (!canBuy) return; emitPdpEvent('ADD_TO_CART', { productId: selectedProduct.id, qty: productQuantity }); addFromModal() }}
                                 disabled={!canBuy}
                                 style={canBuy ? { backgroundColor: isLightBg ? '#f5f5f5' : '#1a1a1a', color: isLightBg ? '#111111' : '#ffffff', border: `1px solid ${isLightBg ? '#d1d5db' : '#333333'}` } : undefined}
                                 className={`flex-1 py-4 text-xs uppercase tracking-[0.1em] font-medium transition-all duration-200 flex items-center justify-center gap-2 rounded-xl ${
@@ -6317,7 +6373,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       {/* ========== HERO 1 — TEMA 2 (Carrusel marketplace) ========== */}
       {isHomeTheme2 && homeHeroSlides.length > 0 ? (
         <div style={{ marginTop: storeConfig?.announcementBar?.isActive ? '104px' : '64px' }}>
-          <HomeHeroCarousel slides={homeHeroSlides} isMobile={isMobile} />
+          <HomeHeroCarousel slides={homeHeroSlides} isMobile={isMobile} intervalMs={homeHeroInterval} />
         </div>
       ) : (
       /* ========== HERO 1 — Banner Principal (Editable, Tema 1) ========== */
@@ -7314,7 +7370,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     </button>
                   </div>
                   <div className="flex gap-4 overflow-x-auto scrollbar-hide scroll-smooth">
-                    {offerProducts.slice(0, 10).map(product => {
+                    {offerProducts.slice(0, homeOffersLimit).map(product => {
                       const inCart = carrito.find(c => c.id === product.id)
                       const discount = product.offerPrice ? Math.round(((product.salePrice - product.offerPrice) / product.salePrice) * 100) : 0
                       return (
@@ -7667,6 +7723,10 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 setShowCart(true)
               }}
             />
+          )}
+          {/* Eventos del comercio — descubribilidad (se auto-oculta si no hay) */}
+          {selectedStore !== 'all' && (
+            <EventsShowcase slug={selectedStore} dark title="Eventos" className="mb-6 sm:mb-10" />
           )}
           {/* Category filter — only when a store is selected */}
           {!(showStoresView && selectedStore === 'all') && categories.length > 0 && (

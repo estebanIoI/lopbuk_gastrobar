@@ -255,7 +255,7 @@ export default function ReservationPage() {
           Tu solicitud está <span className="text-amber-400 font-semibold">pendiente de confirmación</span>.<br />
           Te contactaremos al {reservation.customerPhone} para confirmar.
         </p>
-        <p className="text-[11px] text-white/20 uppercase tracking-widest">Powered by Lopbuk</p>
+        <p className="text-[11px] text-white/20 uppercase tracking-widest">Powered by Daimuz</p>
       </div>
     </div>
   )

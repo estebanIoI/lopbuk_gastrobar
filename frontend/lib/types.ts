@@ -698,3 +698,77 @@ export interface PrintTicketData {
   notes?: string
   footerText?: string
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Customer Engagement Platform (P1)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export type LoyaltyLevel = 'bronze' | 'silver' | 'gold' | 'platinum'
+
+export interface LoyaltyAccount {
+  id: string
+  name: string | null
+  phone: string
+  email: string | null
+  balance: number
+  totalEarned: number
+  level: LoyaltyLevel
+  visits: number
+  lastVisit: string | null
+  totalSpent: number
+  walletId: string | null
+  walletProvider: string
+  walletStatus: 'active' | 'expired' | 'revoked'
+  walletSaveUrl: string | null
+  levelColor: string
+  birthday: string | null
+  acquisitionChannel: string | null
+  createdAt: string
+}
+
+export interface LoyaltyReward {
+  id: string
+  name: string
+  description: string | null
+  pointsCost: number
+  rewardType: 'points' | 'purchase_count' | 'spend_amount' | 'cashback' | 'streak' | 'referral'
+  conditionValue: number | null
+  streakDays: number | null
+  isActive: boolean
+}
+
+export interface EngagementAnalytics {
+  totalCustomers: number
+  activeCustomers: number
+  recurrentCustomers: number
+  lostCustomers: number
+  churnRate: string
+  retentionRate: string
+  byLevel: Record<string, number>
+  walletInstalls: number
+  walletConversion: string
+  redemptions30d: number
+  pushEvents30d: number
+}
+
+export interface EngagementCampaign {
+  id: string
+  name: string
+  description: string | null
+  objective: string
+  channels: string[]
+  sentCount: number
+  openedCount: number
+  convertedCount: number
+  status: string
+  scheduledAt: string | null
+}
+
+export interface EngagementSegment {
+  id: string
+  name: string
+  description: string | null
+  rules: Record<string, any>
+  customerCount: number
+  isDynamic: boolean
+}

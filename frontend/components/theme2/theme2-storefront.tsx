@@ -8,6 +8,7 @@ import {
 import { Theme2OrderFlow } from '@/components/theme2/theme2-order-flow'
 import { BoxLoader } from '@/components/box-loader'
 import { Theme2ReserveFlow } from '@/components/theme2/theme2-reserve-flow'
+import { EventsShowcase } from '@/components/events/events-showcase'
 import { cldImg, cldSrcSet } from '@/utils/img'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'
@@ -381,6 +382,9 @@ export function Theme2Storefront({ slug }: { slug: string }) {
           </div>
         </section>
       )}
+
+      {/* ═══ EVENTOS ═══ */}
+      <EventsShowcase slug={slug} dark title="Próximos eventos" className="px-5 sm:px-10 py-8 max-w-6xl mx-auto" />
 
       {/* ═══ NUESTRA HISTORIA ═══ */}
       <section className="px-5 sm:px-10 py-16 max-w-6xl mx-auto">

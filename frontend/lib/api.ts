@@ -1,4 +1,4 @@
-import type { DailyReportData } from './types'
+import type { DailyReportData, LoyaltyAccount, LoyaltyReward, EngagementAnalytics, EngagementCampaign, EngagementSegment } from './types'
 
 export interface CloudinaryImage {
   public_id: string
@@ -1812,6 +1812,7 @@ class ApiService {
     allowContraentrega?: boolean; allowWompi?: boolean; contraentregaLabel?: string; contraentregaDesc?: string;
     showInfoModule?: boolean; infoModuleDescription?: string;
     metaPixelId?: string;
+    latitude?: number | null; longitude?: number | null;
     contactPageEnabled?: boolean; contactPageTitle?: string; contactPageDescription?: string;
     contactPageImage?: string; contactPageProducts?: string[]; contactPageLinks?: { label: string; url: string }[];
   }) {
@@ -2935,6 +2936,104 @@ class ApiService {
   }
   async loyaltyAdjust(accountId: string, points: number, reason?: string) {
     return this.request<any>(`/loyalty/accounts/${accountId}/adjust`, { method: 'POST', body: JSON.stringify({ points, reason }) })
+  }
+
+  // ── Customer Engagement Platform (P1) ───────────────────────────────────
+  async engagementRegister(data: { phone: string; name?: string; email?: string; storeSlug: string }) {
+    return this.request<any>(`/engagement/register`, { method: 'POST', body: JSON.stringify(data) })
+  }
+  async engagementLookup(phone: string, storeSlug: string) {
+    return this.request<{ found: boolean; name?: string; balance?: number; level?: string }>(`/engagement/lookup?phone=${encodeURIComponent(phone)}&storeSlug=${encodeURIComponent(storeSlug)}`)
+  }
+  async getMyWallet(phone: string) {
+    return this.request<LoyaltyAccount>(`/engagement/me/wallet?phone=${encodeURIComponent(phone)}`)
+  }
+  async getWalletPass(data: { phone: string; name?: string; email?: string; storeSlug?: string }) {
+    return this.request<{ saveUrl: string; accountId: string }>(`/engagement/me/pass`, { method: 'POST', body: JSON.stringify(data) })
+  }
+  async redeemEngagementReward(data: { phone: string; rewardId: string; name?: string }) {
+    return this.request<any>(`/engagement/me/redeem`, { method: 'POST', body: JSON.stringify(data) })
+  }
+  async reportLocation(data: { lat: number; lng: number; phone?: string }) {
+    return this.request<{ near: boolean; message: string | null }>(`/engagement/me/location`, { method: 'POST', body: JSON.stringify(data) })
+  }
+  async getEngagementConfig() {
+    return this.request<any>(`/engagement/config`)
+  }
+  async updateEngagementConfig(data: any) {
+    return this.request<any>(`/engagement/config`, { method: 'PUT', body: JSON.stringify(data) })
+  }
+  async getEngagementCustomers(params?: { search?: string; level?: string; sort?: string; limit?: number; offset?: number }) {
+    const qs = new URLSearchParams()
+    if (params?.search) qs.set('search', params.search)
+    if (params?.level) qs.set('level', params.level)
+    if (params?.sort) qs.set('sort', params.sort)
+    if (params?.limit) qs.set('limit', String(params.limit))
+    if (params?.offset) qs.set('offset', String(params.offset))
+    return this.request<{ customers: any[]; total: number }>(`/engagement/customers?${qs.toString()}`)
+  }
+  async getEngagementCustomerDetail(id: string) {
+    return this.request<any>(`/engagement/customers/${id}`)
+  }
+  async getEngagementCustomer360(id: string) {
+    return this.request<any>(`/engagement/customers/${id}/360`)
+  }
+  async getEngagementCustomerTimeline(id: string, limit = 50) {
+    return this.request<{ timeline: any[] }>(`/engagement/customers/${id}/timeline?limit=${limit}`)
+  }
+  async addEngagementCustomerNote(id: string, note: string) {
+    return this.request<any>(`/engagement/customers/${id}/notes`, { method: 'POST', body: JSON.stringify({ note }) })
+  }
+  async getEngagementAnalytics() {
+    return this.request<EngagementAnalytics>(`/engagement/analytics`)
+  }
+  async getEngagementLiveActivity(limit = 20) {
+    return this.request<{ activity: any[] }>(`/engagement/live-activity?limit=${limit}`)
+  }
+  async getEngagementAIInsights() {
+    return this.request<{ insights: any[] }>(`/engagement/ai-insights`)
+  }
+  async getEngagementRevenueAttribution(days = 30) {
+    return this.request<any>(`/engagement/revenue-attribution?days=${days}`)
+  }
+  async engagementCopilotChat(message: string, history: { role: string; content: string }[] = []) {
+    return this.request<{ reply: string; actions: any[] }>(`/engagement/copilot`, { method: 'POST', body: JSON.stringify({ message, history }) })
+  }
+  async getEngagementRewards() {
+    return this.request<{ rewards: LoyaltyReward[] }>(`/engagement/rewards`)
+  }
+  async getEngagementCampaigns() {
+    return this.request<{ campaigns: EngagementCampaign[] }>(`/engagement/campaigns`)
+  }
+  async createEngagementCampaign(data: any) {
+    return this.request<any>(`/engagement/campaigns`, { method: 'POST', body: JSON.stringify(data) })
+  }
+  async getEngagementSegments() {
+    return this.request<{ segments: EngagementSegment[] }>(`/engagement/segments`)
+  }
+  async createEngagementSegment(data: any) {
+    return this.request<any>(`/engagement/segments`, { method: 'POST', body: JSON.stringify(data) })
+  }
+  async getEngagementAutomations() {
+    return this.request<{ automations: any[] }>(`/engagement/automations`)
+  }
+  async createEngagementAutomation(data: any) {
+    return this.request<any>(`/engagement/automations`, { method: 'POST', body: JSON.stringify(data) })
+  }
+  async updateEngagementAutomation(id: string, data: any) {
+    return this.request<any>(`/engagement/automations/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
+  }
+  async deleteEngagementAutomation(id: string) {
+    return this.request<any>(`/engagement/automations/${id}`, { method: 'DELETE' })
+  }
+  async getEngagementStreak(phone: string) {
+    return this.request<{ streak: number; accountId: string }>(`/engagement/me/streak?phone=${encodeURIComponent(phone)}`)
+  }
+  async claimDailyReward(phone: string) {
+    return this.request<{ streak: number; bonus: number }>(`/engagement/me/daily-reward`, { method: 'POST', body: JSON.stringify({ phone }) })
+  }
+  async recomputeSegments() {
+    return this.request<any>(`/engagement/segments/recompute`, { method: 'POST' })
   }
 
   // ── Reportes de restaurante (Fase 4) ────────────────────────────────────

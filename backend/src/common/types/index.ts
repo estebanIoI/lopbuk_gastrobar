@@ -422,3 +422,138 @@ export interface CashMovement {
   createdByName: string;
   createdAt: Date;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Customer Engagement Platform (P1)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export type LoyaltyLevel = 'bronze' | 'silver' | 'gold' | 'platinum';
+
+export interface LoyaltyAccount {
+  id: string;
+  tenantId: string;
+  customerName: string | null;
+  customerPhone: string;
+  customerEmail: string | null;
+  pointsBalance: number;
+  totalEarned: number;
+  level: LoyaltyLevel;
+  visits: number;
+  lastVisit: string | null;
+  totalSpent: number;
+  walletId: string | null;
+  walletProvider: string;
+  walletStatus: 'active' | 'expired' | 'revoked';
+  birthday: string | null;
+  acquisitionChannel: string | null;
+  favoriteCategoryId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LoyaltyConfig {
+  enabled: boolean;
+  pointsPerThousand: number;
+  walletEnabled: boolean;
+  walletLogoUrl: string | null;
+  walletPrimaryColor: string;
+  walletBusinessName: string | null;
+  walletShortDescription: string | null;
+  geoRadiusMeters: number;
+  geoPushEnabled: boolean;
+  geoPushMessage: string | null;
+}
+
+export interface LoyaltyReward {
+  id: string;
+  tenantId: string;
+  name: string;
+  description: string | null;
+  pointsCost: number;
+  rewardType: 'points' | 'purchase_count' | 'spend_amount' | 'cashback' | 'streak' | 'referral';
+  conditionValue: number | null;
+  streakDays: number | null;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export type EngagementCampaignObjective =
+  | 'increase_sales' | 'recover_inactive' | 'reward_loyal'
+  | 'promote_product' | 'anniversary' | 'birthday' | 'custom';
+
+export type EngagementCampaignStatus =
+  | 'draft' | 'scheduled' | 'active' | 'completed' | 'cancelled';
+
+export type EngagementOfferType =
+  | 'percentage' | 'fixed' | 'free_item' | 'points_multiplier' | 'free_delivery';
+
+export interface EngagementCampaign {
+  id: string;
+  tenantId: string;
+  name: string;
+  description: string | null;
+  objective: EngagementCampaignObjective;
+  audienceFilter: Record<string, any> | null;
+  offerType: EngagementOfferType | null;
+  offerValue: number | null;
+  channels: string[];
+  scheduledAt: string | null;
+  sentCount: number;
+  openedCount: number;
+  convertedCount: number;
+  status: EngagementCampaignStatus;
+}
+
+export type AutomationTrigger =
+  | 'sale_completed' | 'points_earned' | 'level_up'
+  | 'inactive_7d' | 'inactive_30d' | 'birthday' | 'geo_enter'
+  | 'time_of_day' | 'near_reward' | 'visit_streak' | 'first_purchase';
+
+export type AutomationAction =
+  | 'push' | 'whatsapp' | 'notification' | 'coupon' | 'wallet_update' | 'email';
+
+export interface EngagementAutomation {
+  id: string;
+  tenantId: string;
+  name: string;
+  description: string | null;
+  triggerType: AutomationTrigger;
+  triggerConfig: Record<string, any> | null;
+  actionType: AutomationAction;
+  actionConfig: Record<string, any> | null;
+  isActive: boolean;
+}
+
+export interface EngagementEvent {
+  id: string;
+  tenantId: string;
+  accountId: string | null;
+  eventType: string;
+  eventData: Record<string, any> | null;
+  createdAt: string;
+}
+
+export interface EngagementSegment {
+  id: string;
+  tenantId: string;
+  name: string;
+  description: string | null;
+  rules: Record<string, any>;
+  customerCount: number;
+  isDynamic: boolean;
+  isActive: boolean;
+}
+
+export const LEVEL_THRESHOLDS: Record<LoyaltyLevel, { minVisits: number; minSpent: number; color: string; label: string }> = {
+  bronze:   { minVisits: 0,  minSpent: 0,      color: '#CD7F32', label: 'Bronce' },
+  silver:   { minVisits: 5,  minSpent: 150000,  color: '#C0C0C0', label: 'Plata' },
+  gold:     { minVisits: 15, minSpent: 500000,  color: '#FFD700', label: 'Oro' },
+  platinum: { minVisits: 40, minSpent: 1500000, color: '#E5E4E2', label: 'Platino' },
+};
+
+export function computeLevel(visits: number, totalSpent: number): LoyaltyLevel {
+  if (visits >= LEVEL_THRESHOLDS.platinum.minVisits && totalSpent >= LEVEL_THRESHOLDS.platinum.minSpent) return 'platinum';
+  if (visits >= LEVEL_THRESHOLDS.gold.minVisits && totalSpent >= LEVEL_THRESHOLDS.gold.minSpent) return 'gold';
+  if (visits >= LEVEL_THRESHOLDS.silver.minVisits && totalSpent >= LEVEL_THRESHOLDS.silver.minSpent) return 'silver';
+  return 'bronze';
+}

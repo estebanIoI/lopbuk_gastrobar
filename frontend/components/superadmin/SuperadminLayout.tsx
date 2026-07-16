@@ -30,11 +30,13 @@ const ChallengesTab     = dynamic(() => import('./tabs/ChallengesTab').then(m =>
 const UsersRolesTab      = dynamic(() => import('./tabs/UsersRolesTab').then(m => ({ default: m.UsersRolesTab })), { loading: () => <TabLoader /> })
 const CloudinaryImportTab = dynamic(() => import('./tabs/CloudinaryImportTab').then(m => ({ default: m.CloudinaryImportTab })), { loading: () => <TabLoader /> })
 const CouriersTab       = dynamic(() => import('./tabs/CouriersTab').then(m => ({ default: m.CouriersTab })), { loading: () => <TabLoader /> })
+const ExercisesTab      = dynamic(() => import('./tabs/ExercisesTab').then(m => ({ default: m.ExercisesTab })), { loading: () => <TabLoader /> })
+const RoutinesTab       = dynamic(() => import('./tabs/RoutinesTab').then(m => ({ default: m.RoutinesTab })), { loading: () => <TabLoader /> })
 const ShareLinksTab     = dynamic(() => import('./tabs/ShareLinksTab').then(m => ({ default: m.ShareLinksTab })), { loading: () => <TabLoader /> })
 
 // ── Tab definitions ───────────────────────────────────────────────────────────
 
-type TabId = 'pedidos' | 'pagina' | 'comercios' | 'timeline' | 'destacados' | 'integraciones' | 'pagos' | 'pasarela' | 'portafolio' | 'solicitudes' | 'comunidad' | 'legend' | 'coaches' | 'vault' | 'drops' | 'retos' | 'usuarios' | 'cloudinary' | 'lopbuk' | 'repartidores' | 'links'
+type TabId = 'pedidos' | 'pagina' | 'comercios' | 'timeline' | 'destacados' | 'integraciones' | 'pagos' | 'pasarela' | 'portafolio' | 'solicitudes' | 'comunidad' | 'legend' | 'coaches' | 'vault' | 'drops' | 'retos' | 'usuarios' | 'cloudinary' | 'lopbuk' | 'repartidores' | 'links' | 'ejercicios' | 'rutinas'
 
 const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
   { id: 'pedidos',       label: 'Pedidos',          icon: ShoppingBag },
@@ -53,6 +55,8 @@ const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
   { id: 'comunidad',     label: 'Comunidad',        icon: Sparkles },
   { id: 'legend',        label: 'LEGEND',           icon: Crown },
   { id: 'coaches',       label: 'Coaches',          icon: Dumbbell },
+  { id: 'ejercicios',    label: 'Ejercicios',       icon: Dumbbell },
+  { id: 'rutinas',       label: 'Rutinas',          icon: Target },
   { id: 'vault',         label: 'Vault',            icon: KeyRound },
   { id: 'drops',         label: 'Drops',            icon: Flame },
   { id: 'retos',         label: 'Retos',            icon: Target },
@@ -131,6 +135,8 @@ export function SuperadminLayout() {
       {activeTab === 'retos'         && <ChallengesTab />}
       {activeTab === 'cloudinary'    && <CloudinaryImportTab />}
       {activeTab === 'solicitudes'   && <DevRequestsTab />}
+      {activeTab === 'ejercicios'    && <ExercisesTab />}
+      {activeTab === 'rutinas'       && <RoutinesTab />}
     </div>
   )
 }

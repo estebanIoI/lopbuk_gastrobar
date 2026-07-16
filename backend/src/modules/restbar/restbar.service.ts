@@ -435,13 +435,20 @@ class RestbarService {
     const originalPrice = Number(p.sale_price);
     const unitPrice = data.unitPrice != null ? Math.min(Number(data.unitPrice), originalPrice) : originalPrice;
     const subtotal = unitPrice * data.quantity;
+    // Normaliza el área: si el producto no tiene un área válida (null, '' o un valor
+    // desconocido), se enruta a 'cocina' por defecto. Sin esto, un producto con
+    // preparation_area='' quedaba fuera del KDS ('' no cae en el `?? 'cocina'`) y el
+    // ítem nunca llegaba a cocina/bar.
+    const prepArea = ['cocina', 'bar', 'ambos'].includes(String(p.preparation_area ?? '').trim())
+      ? String(p.preparation_area).trim()
+      : 'cocina';
 
     await db.execute(
       `INSERT INTO rb_order_items
          (id, tenant_id, order_id, menu_item_id, menu_item_name, preparation_area,
           quantity, unit_price, original_price, subtotal, item_notes, guest_number, course_number)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [itemId, tenantId, orderId, p.id, p.name, p.preparation_area ?? 'cocina',
+      [itemId, tenantId, orderId, p.id, p.name, prepArea,
        data.quantity, unitPrice, originalPrice, subtotal,
        data.itemNotes ?? null, data.guestNumber ?? null, data.courseNumber ?? null]
     );
@@ -583,8 +590,10 @@ class RestbarService {
   // ── KITCHEN / BAR DISPLAY ─────────────────────────────────────────────────
 
   async getAreaDisplay(tenantId: string, area: 'cocina' | 'bar') {
+    // Cocina es la estación por defecto: además de 'cocina'/'ambos', recoge los ítems
+    // sin área definida (NULL o '') para que ninguno quede huérfano fuera del KDS.
     const areaFilter = area === 'cocina'
-      ? `AND oi.preparation_area IN ('cocina','ambos')`
+      ? `AND (oi.preparation_area IN ('cocina','ambos') OR oi.preparation_area IS NULL OR oi.preparation_area = '')`
       : `AND oi.preparation_area IN ('bar','ambos')`;
 
     // Resiliente a entornos donde aún no existe la columna rb_orders.priority.
@@ -899,6 +908,14 @@ class RestbarService {
       }
 
       await connection.commit();
+      // Emit engagement event (restbar order completed)
+      import('../customer-engagement/engagement-events').then(({ emitEngagementEvent }) =>
+        emitEngagementEvent(tenantId, null, 'sale_completed', {
+          orderId, invoiceNumber, amount,
+          paymentMethod: data.paymentMethod,
+          tableId: order.tableId, tableNumber: order.tableNumber,
+        })
+      ).catch(() => {});
       return { paymentId, saleId, invoiceNumber, changeAmount, orderId, closed: allDone, amount };
     } catch (err) {
       await connection.rollback();
