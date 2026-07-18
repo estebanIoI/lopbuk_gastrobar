@@ -33,6 +33,7 @@ export const SECTION_TO_SLUG: Record<string, string> = {
   'cash-register': 'caja',
   'invoices': 'facturacion',
   'customers': 'clientes',
+  'engagement': 'engagement',
   'fiados': 'fiados',
   'vendedores': 'empleados',
   'fleet': 'flota',

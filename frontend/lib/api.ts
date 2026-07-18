@@ -3876,6 +3876,21 @@ class ApiService {
   async gymCheckIn(userId: string) { return this.request<any>(`/gym/members/${userId}/checkin`, { method: 'POST' }) }
   async gymCheckOut(asistenciaId: string) { return this.request<any>(`/gym/asistencia/${asistenciaId}/checkout`, { method: 'PATCH' }) }
 
+  // ── Módulo GIMNASIO v3 — Dominio Personas (members) ──
+  async getGymObjectives() { return this.request<any[]>('/gym/objectives') }
+  async listGymMembers(filters?: Record<string, string>) {
+    const qs = filters ? '?' + new URLSearchParams(filters).toString() : ''
+    return this.request<{ rows: any[]; total: number }>(`/gym/members${qs}`)
+  }
+  async createGymMember(data: any) { return this.request<any>('/gym/members', { method: 'POST', body: JSON.stringify(data) }) }
+  async getGymMemberFull(memberId: string) { return this.request<any>(`/gym/members/${memberId}`) }
+  async updateGymMember(memberId: string, data: any) { return this.request<any>(`/gym/members/${memberId}`, { method: 'PUT', body: JSON.stringify(data) }) }
+  async getGymMemberProfile(memberId: string) { return this.request<any>(`/gym/members/${memberId}/profile`) }
+  async updateGymMemberProfile(memberId: string, data: any) { return this.request<any>(`/gym/members/${memberId}/profile`, { method: 'PUT', body: JSON.stringify(data) }) }
+  async changeGymMemberStatus(memberId: string, status: string) { return this.request<any>(`/gym/members/${memberId}/status`, { method: 'PUT', body: JSON.stringify({ status }) }) }
+  async reassignGymTrainer(memberId: string, trainerId: string | null) { return this.request<any>(`/gym/members/${memberId}/trainer`, { method: 'PUT', body: JSON.stringify({ trainerId }) }) }
+  async getMyGymProfile() { return this.request<any>('/gym/me/profile') }
+
   // ── Variantes ──────────────────────────────────────────────────────────────
   async getVariantsSummary() { return this.request<any[]>('/variants/summary') }
   async getVariantsByProduct(productId: string) { return this.request<any[]>(`/products/${productId}/variants`) }

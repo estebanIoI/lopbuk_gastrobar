@@ -17,6 +17,7 @@ import { SalesHistory } from '@/components/sales-history'
 import { Invoicing } from '@/components/invoicing'
 import { Settings } from '@/components/settings'
 import { Customers } from '@/components/customers'
+import { EngagementModule } from '@/components/engagement/engagement-module'
 import { Fiados } from '@/components/fiados'
 import { CashRegister } from '@/components/cash-register'
 import { TenantManagement } from '@/components/tenant-management'
@@ -184,6 +185,8 @@ export function MerchantPanel() {
         return <Invoicing />
       case 'customers':
         return <Customers />
+      case 'engagement':
+        return <EngagementModule />
       case 'fiados':
         return <Fiados />
       case 'purchases':

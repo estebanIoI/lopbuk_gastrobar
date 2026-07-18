@@ -21,6 +21,15 @@ const nextConfig: NextConfig = {
       { protocol: 'https', hostname: '**' },
     ],
   },
+  async redirects() {
+    return [
+      // Engagement vive como sección nativa del panel (/panel/engagement), igual que
+      // Clientes o Empleados. Estas dos rutas cortas existen para links y bookmarks:
+      // /fidelizacion es el nombre viejo del módulo y no se puede romper.
+      { source: '/engagement', destination: '/panel/engagement', permanent: true },
+      { source: '/fidelizacion', destination: '/panel/engagement', permanent: true },
+    ];
+  },
   async rewrites() {
     return [
       {

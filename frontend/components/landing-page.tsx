@@ -10,9 +10,10 @@ import { VariantSelector, type RawVariant, type SelectedVariant } from '@/compon
 import { WholesalePriceBar, resolveActiveTier } from '@/components/wholesale-price-bar'
 import { ProductDetailML, type MLProduct } from '@/components/theme-ml/product-detail-ml'
 import { CheckoutWizardML } from '@/components/theme-ml/checkout-wizard-ml'
-import { parseQtyPromo } from '@/lib/qty-promo'
+import { parseQtyPromo, hasQtyPromo, qtyPromoOptions } from '@/lib/qty-promo'
 import { HomeHeroCarousel, HomeCategoryRail, MarketplaceHomeGovCo, type HeroSlide, type PromoCardConfig } from '@/components/home-theme2'
 import { EventsShowcase } from '@/components/events/events-showcase'
+import { ProductInfoTabs } from '@/components/theme-classic/product-info-tabs'
 import { MarketplaceHomeD1 } from '@/components/marketplace-home-d1'
 import { WhatsAppFloatingWidget } from '@/components/whatsapp-floating-widget'
 import { BoxLoader } from '@/components/box-loader'
@@ -374,6 +375,32 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   const [t1ModsLoading, setT1ModsLoading] = useState(false)
   // Promo de cantidad (tema ML): precio unitario combinado elegido en el detalle.
   const [promoUnitPrice, setPromoUnitPrice] = useState<number | null>(null)
+
+  // Escucha el scroll del modal de producto: alimenta la barra sticky (#4) y emite
+  // SCROLL_50 / SCROLL_100 una sola vez por apertura (PurchaseFlow).
+  useEffect(() => {
+    if (!showProductModal || !selectedProduct) { setPdpScrolled(false); return }
+    pdpDepthRef.current = { d50: false, d100: false }
+    const el = productDetailScrollRef.current
+    if (!el) return
+    const pid = selectedProduct.id
+    const onScroll = () => {
+      setPdpScrolled(el.scrollTop > 320)
+      const max = el.scrollHeight - el.clientHeight
+      if (max <= 0) return
+      const pct = (el.scrollTop / max) * 100
+      if (pct >= 50 && !pdpDepthRef.current.d50) {
+        pdpDepthRef.current.d50 = true
+        emitPdpEvent('SCROLL_50', { productId: pid })
+      }
+      if (pct >= 98 && !pdpDepthRef.current.d100) {
+        pdpDepthRef.current.d100 = true
+        emitPdpEvent('SCROLL_100', { productId: pid })
+      }
+    }
+    el.addEventListener('scroll', onScroll, { passive: true })
+    return () => el.removeEventListener('scroll', onScroll)
+  }, [showProductModal, selectedProduct?.id])
   const [t1Sel, setT1Sel] = useState<Record<string, Set<string>>>({})
   const [activeImageIdx, setActiveImageIdx] = useState(0)
   // Al cambiar de variante (color), vuelve a la imagen principal de su galería propia y resetea tier price.
@@ -383,6 +410,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   // Contenedor scrolleable del detalle de producto (clásico y ML): al cambiar de
   // producto (ej. desde "Productos relacionados") se vuelve arriba, a la imagen principal.
   const productDetailScrollRef = useRef<HTMLDivElement>(null)
+  // ── PDP (Motor): scroll del modal → barra sticky de compra + profundidad de scroll ──
+  const [pdpScrolled, setPdpScrolled] = useState(false)
+  const pdpDepthRef = useRef({ d50: false, d100: false })
   // Plantilla dinámica del producto (secciones JSON asignadas desde el panel)
   const [templatePage, setTemplatePage] = useState<{ sections: TemplateSection[]; pageContent: any } | null>(null)
   const [ctaVisible, setCtaVisible] = useState(false)
@@ -3530,9 +3560,17 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
         // ── Plantilla dinámica del producto (secciones JSON debajo del hero) ──
         const templateHasRelated = !!templatePage?.sections.some(s => s.type === 'related' && s.visible !== false)
-        const renderTemplateSections = (light: boolean) => templatePage ? (
+        // `only` / `exclude` permiten repartir las secciones por el layout sin duplicarlas
+        // (ej. subir los beneficios sobre la descripción en móvil y excluirlos del bloque final).
+        const renderTemplateSections = (light: boolean, only?: string[], exclude?: string[]) => {
+          if (!templatePage) return null
+          let secs = templatePage.sections
+          if (only) secs = secs.filter(s => only.includes(s.type))
+          if (exclude) secs = secs.filter(s => !exclude.includes(s.type))
+          if (!secs.length) return null
+          return (
           <SectionRenderer
-            sections={templatePage.sections}
+            sections={secs}
             ctx={{
               product: {
                 name: selectedProduct.name,
@@ -3574,7 +3612,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               accentColor: (activeThemeColors as any)?.primary || undefined,
             }}
           />
-        ) : null
+          )
+        }
 
         // Color name → CSS color mapper
         const colorToCss = (name: string): string | null => {
@@ -3679,7 +3718,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
             {/* ══════════════════════════════════════════
                 MOBILE LAYOUT
             ══════════════════════════════════════════ */}
-            <div className="sm:hidden relative" style={{ paddingBottom: '24px' }}>
+            <div className="sm:hidden relative" style={{ paddingBottom: pdpScrolled ? '88px' : '24px' }}>
               {/* Close button */}
               <button
                 onClick={closeProductModal}
@@ -3750,6 +3789,19 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   {(() => {
                     const basePrice = selectedVariant?.price ?? (selectedProduct.isOnOffer && selectedProduct.offerPrice ? selectedProduct.offerPrice : selectedProduct.salePrice)
                     const hasTierDiscount = tierResolvedPrice != null && tierResolvedPrice < basePrice
+                    // El pack manda sobre el tier — mismo orden que aplica addFromModal,
+                    // así lo que se ve es exactamente lo que se cobra.
+                    if (promoUnitPrice != null) {
+                      return (
+                        <div className="space-y-0.5">
+                          <div className="flex items-end gap-2 flex-wrap">
+                            <span className="text-2xl font-bold text-emerald-400">{formatCOP(promoUnitPrice)}</span>
+                            <span className={`text-base line-through pb-0.5 ${isLightBg ? 'text-black/30' : 'text-white/30'}`}>{formatCOP(basePrice)}</span>
+                          </div>
+                          <p className="text-xs text-emerald-400/80">Precio por unidad · pack de {productQuantity}</p>
+                        </div>
+                      )
+                    }
                     if (hasTierDiscount) {
                       return (
                         <div className="space-y-0.5">
@@ -3778,6 +3830,58 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     return <span className={`text-2xl font-bold ${isLightBg ? 'text-black' : 'text-white'}`}>{formatCOP(selectedProduct.salePrice)}</span>
                   })()}
                 </div>
+
+                {/* Packs / promo de cantidad (Motor de PDP · #2).
+                    El unitPrice del pack va a `promoUnitPrice`, que addFromModal ya
+                    respeta y prioriza sobre el precio mayorista — mismo mecanismo del tema ML. */}
+                {(() => {
+                  const promo = parseQtyPromo((selectedProduct as any).qtyPromo)
+                  if (!hasQtyPromo(promo)) return null
+                  const unitBase = selectedVariant?.price
+                    ?? (selectedProduct.isOnOffer && selectedProduct.offerPrice ? selectedProduct.offerPrice : selectedProduct.salePrice)
+                  const opts = qtyPromoOptions(unitBase, promo)
+                  if (opts.length <= 1) return null
+                  return (
+                    <div className="space-y-2">
+                      <p className={`text-[11px] uppercase tracking-widest ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>Aprovecha y ahorra</p>
+                      {opts.map(o => {
+                        const active = productQuantity === o.qty
+                        return (
+                          <button
+                            key={o.qty}
+                            onClick={() => {
+                              setProductQuantity(o.qty)
+                              setPromoUnitPrice(o.qty === 1 ? null : o.unitPrice)
+                            }}
+                            className={`w-full text-left rounded-xl border-2 p-3 transition-all ${
+                              active
+                                ? 'border-emerald-500 bg-emerald-500/[0.07]'
+                                : isLightBg ? 'border-black/10 hover:border-black/25' : 'border-white/10 hover:border-white/25'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <span className={`w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center ${active ? 'border-emerald-500' : isLightBg ? 'border-black/25' : 'border-white/25'}`}>
+                                  {active && <span className="w-2 h-2 rounded-full bg-emerald-500" />}
+                                </span>
+                                <div className="min-w-0">
+                                  <p className={`text-sm font-medium ${isLightBg ? 'text-black' : 'text-white'}`}>{o.label}</p>
+                                  {o.sublabel && (
+                                    <span className="inline-block mt-0.5 text-[10px] font-bold text-white px-1.5 py-0.5 rounded bg-emerald-600">{o.sublabel}</span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="text-right shrink-0">
+                                <div className={`text-sm font-bold ${isLightBg ? 'text-black' : 'text-white'}`}>{formatCOP(o.total)}</div>
+                                {o.savings > 0 && <div className="text-[11px] font-semibold text-emerald-500">Ahorras {formatCOP(o.savings)}</div>}
+                              </div>
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )
+                })()}
 
                 {/* Viewers count */}
                 <div className={`flex items-center gap-2 text-sm ${isLightBg ? 'text-black/50' : 'text-white/50'}`}>
@@ -3897,7 +4001,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center">
                         <button
-                          onClick={() => setProductQuantity(q => Math.max(1, q - 1))}
+                          onClick={() => { setPromoUnitPrice(null); setProductQuantity(q => Math.max(1, q - 1)) }}
                           disabled={productQuantity <= 1}
                           className={`w-11 h-11 flex items-center justify-center border rounded-l-xl transition-colors ${isLightBg ? 'border-black/20 text-black/60 hover:bg-black/5 disabled:opacity-30' : 'border-white/20 text-white/60 hover:bg-white/5 disabled:opacity-30'}`}
                         >
@@ -3905,7 +4009,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         </button>
                         <span className={`w-12 h-11 flex items-center justify-center border-y text-base font-light ${isLightBg ? 'border-black/20 text-black' : 'border-white/20 text-white'}`}>{productQuantity}</span>
                         <button
-                          onClick={() => setProductQuantity(q => _isPresale ? q + 1 : Math.min(Math.max(selectedProduct.stock, 1), q + 1))}
+                          onClick={() => { setPromoUnitPrice(null); setProductQuantity(q => _isPresale ? q + 1 : Math.min(Math.max(selectedProduct.stock, 1), q + 1)) }}
                           disabled={!_isPresale && _outOfStock}
                           className={`w-11 h-11 flex items-center justify-center border rounded-r-xl transition-colors ${isLightBg ? 'border-black/20 text-black/60 hover:bg-black/5 disabled:opacity-30' : 'border-white/20 text-white/60 hover:bg-white/5 disabled:opacity-30'}`}
                         >
@@ -4083,24 +4187,59 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   </div>
                 )}
 
-                {/* Description */}
-                {selectedProduct.description && (
-                  <div className={`py-4 border-t ${isLightBg ? 'border-black/10' : 'border-white/8'}`}>
-                    <h4 className={`text-[10px] uppercase tracking-widest mb-3 ${isLightBg ? 'text-black/40' : 'text-white/40'}`}>Descripción</h4>
-                    <div className="space-y-2">
-                      {selectedProduct.description.split(/\n+/).map(l => l.trim()).filter(Boolean).map((line, i) => {
-                        const isBullet = /^[-•*►▸→✓✔·]\s/.test(line)
-                        const cleanLine = isBullet ? line.replace(/^[-•*►▸→✓✔·]\s*/, '') : line
-                        return isBullet ? (
-                          <div key={i} className="flex items-start gap-2">
-                            <span className="mt-[5px] shrink-0 w-1.5 h-1.5 rounded-full bg-white/70" />
-                            <p className={`text-sm font-light leading-relaxed ${isLightBg ? 'text-black/70' : 'text-white/60'}`}>{cleanLine}</p>
-                          </div>
-                        ) : <p key={i} className={`text-sm font-light leading-relaxed ${isLightBg ? 'text-black/70' : 'text-white/60'}`}>{line}</p>
-                      })}
-                    </div>
-                  </div>
-                )}
+                {/* Beneficios ANTES de la descripción (Motor de PDP · #3).
+                    El comprador decide con beneficios, no con prosa: la descripción
+                    es consecuencia. Se excluyen del bloque final para no duplicarlos. */}
+                {renderTemplateSections(isLightBg, ['benefits'])}
+
+                {/* Tabs en lenguaje de comprador (Motor de PDP · #5).
+                    Cada pestaña aparece solo si tiene contenido real. */}
+                {(() => {
+                  // La horma vive en la variante: usa la elegida, si no la primera que tenga.
+                  const vs: any[] = (selectedProduct.variants as any[]) || []
+                  const hormaId: string | null = (() => {
+                    if (selectedVariant) {
+                      const v = vs.find(x => String(x.id) === String(selectedVariant.id))
+                      if (v?.hormaId) return String(v.hormaId)
+                    }
+                    return (vs.find(x => x?.hormaId)?.hormaId as string) || null
+                  })()
+
+                  // "Envíos" con datos reales del comercio (no texto inventado).
+                  const shipping = (DELIVERY_FREE_MIN > 0 || paymentConfig.contraentrega) ? (
+                    <ul className="space-y-2">
+                      {DELIVERY_FREE_MIN > 0 && (
+                        <li className={`flex gap-2 text-sm font-light ${isLightBg ? 'text-black/70' : 'text-white/60'}`}>
+                          <Truck className="w-4 h-4 shrink-0 mt-0.5 text-emerald-500" />
+                          Domicilio gratis desde <b className={isLightBg ? 'text-black' : 'text-white'}>{formatCOP(DELIVERY_FREE_MIN)}</b>
+                        </li>
+                      )}
+                      {paymentConfig.contraentrega && (
+                        <li className={`flex gap-2 text-sm font-light ${isLightBg ? 'text-black/70' : 'text-white/60'}`}>
+                          <CheckCircle className="w-4 h-4 shrink-0 mt-0.5 text-emerald-500" />
+                          {paymentConfig.contraentregaDesc || 'Paga en efectivo cuando recibas tu pedido'}
+                        </li>
+                      )}
+                      {selectedProduct.storeName && (
+                        <li className={`flex gap-2 text-sm font-light ${isLightBg ? 'text-black/70' : 'text-white/60'}`}>
+                          <Store className="w-4 h-4 shrink-0 mt-0.5 text-emerald-500" />
+                          Enviado por {selectedProduct.storeName} · Envíos a todo Colombia
+                        </li>
+                      )}
+                    </ul>
+                  ) : null
+
+                  return (
+                    <ProductInfoTabs
+                      isLightBg={isLightBg}
+                      productId={selectedProduct.id}
+                      description={selectedProduct.description}
+                      hormaId={hormaId}
+                      materials={renderTemplateSections(isLightBg, ['rich_text'])}
+                      shipping={shipping}
+                    />
+                  )
+                })()}
 
                 {/* Mobile reviews */}
                 <div className={`pt-6 border-t ${isLightBg ? 'border-black/8' : 'border-white/8'}`}>
@@ -4337,12 +4476,68 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 </div>
               </div>
 
-              {/* ── Plantilla dinámica (secciones JSON) — móvil ── */}
+              {/* ── Plantilla dinámica (secciones JSON) — móvil ──
+                  Sin `benefits` (subieron sobre la descripción, #3) ni `rich_text`
+                  (vive en la tab "Materiales", #5) para no duplicarlos. */}
               {templatePage && (
                 <div className="px-4 mt-10">
-                  {renderTemplateSections(isLightBg)}
+                  {renderTemplateSections(isLightBg, undefined, ['benefits', 'rich_text'])}
                 </div>
               )}
+
+              {/* ── Barra sticky de compra (Motor de PDP · #4) ──
+                  Principio 4: el CTA nunca desaparece. Reusa el mismo canBuy y los
+                  mismos handlers del CTA principal — no duplica lógica de compra. */}
+              {pdpScrolled && (() => {
+                const _isPresale = Boolean(selectedProduct.isPresale || selectedProduct.isPreorder)
+                const _outOfStock = selectedProduct.stock === 0 && !_isPresale
+                const canBuy = !_outOfStock && t1Missing.length === 0 && !variantPending && !isAddingToCart
+                const unit = promoUnitPrice
+                  ?? tierResolvedPrice
+                  ?? selectedVariant?.price
+                  ?? (selectedProduct.isOnOffer && selectedProduct.offerPrice ? selectedProduct.offerPrice : selectedProduct.salePrice)
+                return (
+                  <div className={`fixed bottom-0 left-0 right-0 z-[160] sm:hidden border-t backdrop-blur-xl ${isLightBg ? 'bg-white/95 border-black/10' : 'bg-black/90 border-white/10'}`}>
+                    <div className="flex items-center gap-2 px-3 py-2.5" style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom))' }}>
+                      <div className="min-w-0 flex-shrink">
+                        <p className={`text-[10px] leading-none ${isLightBg ? 'text-black/45' : 'text-white/45'}`}>
+                          {productQuantity > 1 ? `Pack de ${productQuantity}` : 'Total'}
+                        </p>
+                        <p className={`text-base font-bold leading-tight ${isLightBg ? 'text-black' : 'text-white'}`}>
+                          {formatCOP(unit * productQuantity)}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => { if (!canBuy) return; emitPdpEvent('ADD_TO_CART', { productId: selectedProduct.id, qty: productQuantity, from: 'sticky' }); addFromModal() }}
+                        disabled={!canBuy}
+                        className={`flex-1 py-3 rounded-xl text-[11px] uppercase tracking-widest font-medium border transition-opacity ${!canBuy ? 'opacity-30 cursor-not-allowed' : 'hover:opacity-80'} ${isLightBg ? 'border-black/25 text-black' : 'border-white/25 text-white'}`}
+                      >
+                        Añadir
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (!canBuy || isAddingToCart || addingToCartRef.current) return
+                          addingToCartRef.current = true
+                          setIsAddingToCart(true)
+                          try {
+                            emitPdpEvent('BUY_NOW', { productId: selectedProduct.id, qty: productQuantity, from: 'sticky' })
+                            addFromModal()
+                            setShowCart(false)
+                            handleIrAlCheckout()
+                          } finally {
+                            setTimeout(() => { setIsAddingToCart(false); addingToCartRef.current = false }, 1500)
+                          }
+                        }}
+                        disabled={!canBuy}
+                        style={canBuy ? { backgroundColor: isLightBg ? '#111111' : '#ffffff', color: isLightBg ? '#ffffff' : '#000000' } : undefined}
+                        className={`flex-1 py-3 rounded-xl text-[11px] uppercase tracking-widest font-semibold transition-opacity ${!canBuy ? 'opacity-30 cursor-not-allowed bg-black/10 text-white/30' : 'hover:opacity-85'}`}
+                      >
+                        {isAddingToCart ? 'Procesando…' : _outOfStock ? 'Agotado' : 'Comprar'}
+                      </button>
+                    </div>
+                  </div>
+                )
+              })()}
             </div>
 
             {/* ══════════════════════════════════════════
