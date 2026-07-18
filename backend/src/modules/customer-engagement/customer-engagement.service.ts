@@ -415,6 +415,25 @@ export async function getAIInsights(tenantId: string): Promise<any[]> {
 
 // ──────────────────────────── Points / Loyalty ────────────────────────────
 
+/**
+ * Ubicaciones del negocio para el geofence de Google Wallet. Con esto el pase
+ * aparece solo en la pantalla de bloqueo cuando el cliente está cerca del local.
+ * Sin coordenadas cargadas devuelve [] y el pase se crea igual, pero sin
+ * notificación por proximidad.
+ */
+export async function getWalletLocations(
+  tenantId: string,
+): Promise<Array<{ latitude: number; longitude: number }>> {
+  const [rows] = (await pool.query(
+    'SELECT latitude, longitude FROM store_info WHERE tenant_id = ? AND latitude IS NOT NULL AND longitude IS NOT NULL LIMIT 10',
+    [tenantId],
+  )) as any;
+  return (rows || [])
+    .map((r: any) => ({ latitude: Number(r.latitude), longitude: Number(r.longitude) }))
+    .filter((l: any) => Number.isFinite(l.latitude) && Number.isFinite(l.longitude)
+      && !(l.latitude === 0 && l.longitude === 0));
+}
+
 export async function getLoyaltyConfig(tenantId: string): Promise<any> {
   const [rows] = (await pool.query(
     'SELECT * FROM loyalty_config WHERE tenant_id = ?', [tenantId],
@@ -540,6 +559,8 @@ export async function getOrCreatePass(
       shortDescription: cfg.wallet_short_description || 'Programa de fidelización',
       qrPayload: account.customer_phone,
       storeUrl: `${process.env.FRONTEND_URL || 'https://daimuz.alexsters.works'}/${storeSlug}`,
+      // Geofence: el pase se muestra al acercarse el cliente al local
+      locations: await getWalletLocations(tenantId),
     }, tenantId);
 
     await pool.query(

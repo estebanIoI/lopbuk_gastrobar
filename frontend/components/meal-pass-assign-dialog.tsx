@@ -36,15 +36,21 @@ interface Pass {
 
 const fmt = (n: number) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(n || 0)
 
-export function MealPassAssignDialog({ orderId, items, onClose, onAssigned }: {
+export function MealPassAssignDialog({ orderId, items, preselectedIds, onClose, onAssigned }: {
   orderId: string
   items: OrderItem[]
+  /** Ítems ya seleccionados en el POS (llegan premarcados). */
+  preselectedIds?: string[]
   onClose: () => void
   onAssigned: () => void
 }) {
   // Solo ítems aún no pagados/cancelados
   const assignable = items.filter(i => i.status !== 'cancelado' && i.status !== 'entregado')
-  const [selected, setSelected] = useState<Set<string>>(() => new Set(assignable.filter(i => i.mealPassId).map(i => i.id)))
+  const [selected, setSelected] = useState<Set<string>>(() =>
+    preselectedIds?.length
+      ? new Set(preselectedIds)
+      : new Set(assignable.filter(i => i.mealPassId).map(i => i.id))
+  )
   const [passes, setPasses] = useState<Pass[]>([])
   const [search, setSearch] = useState('')
   const [pickedPass, setPickedPass] = useState<string | null>(null)

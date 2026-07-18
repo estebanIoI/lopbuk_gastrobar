@@ -13,6 +13,8 @@ import { MenuGrid } from './MenuGrid'
 import { CategoryTabs } from './CategoryTabs'
 import { OrderTicket } from './OrderTicket'
 import { PaymentModal } from './PaymentModal'
+import { MealPassAssignDialog } from '@/components/meal-pass-assign-dialog'
+import { MergeTablesDialog } from './MergeTablesDialog'
 import { TableTabs } from './TableTabs'
 import { QuickFilters, type QuickFilter } from './QuickFilters'
 import { LobbyDashboard } from './LobbyDashboard'
@@ -78,6 +80,8 @@ export function PosShell({ initialTableId, onDone }: PosShellProps) {
   const [showPayment, setShowPayment] = useState(false)
   const [openingTable, setOpeningTable] = useState(false)
   const [sentFlash, setSentFlash] = useState<{ area: 'cocina' | 'bar'; ts: number } | null>(null) // feedback "enviado"
+  const [showMealPass, setShowMealPass] = useState(false) // Tiquetera (Fase 5)
+  const [showMergeTables, setShowMergeTables] = useState(false) // Unir mesas (Fase 6)
   const [recoverOrder, setRecoverOrder] = useState<{ id: string; tableNumber: string } | null>(null) // comanda recuperable tras recarga
   const [showCancelConfirm, setShowCancelConfirm] = useState(false) // modal de "Cerrar mesa"
   const [cancelling, setCancelling] = useState(false)
@@ -662,6 +666,7 @@ export function PosShell({ initialTableId, onDone }: PosShellProps) {
           onMoveToTable={handleMoveItemToTable}
           onSendSelected={() => handleSendSelected()}
           onDeleteSelected={handleDeleteSelected}
+          onAssignMealPass={() => setShowMealPass(true)}
         />
         <div className="flex-1 flex flex-col min-w-0">
           {selectedOrder ? (
@@ -709,6 +714,7 @@ export function PosShell({ initialTableId, onDone }: PosShellProps) {
                 tables={tables}
                 activeTableId={selectedOrder.tableId}
                 onSelect={openTable}
+                onMergeTables={() => setShowMergeTables(true)}
               />
               <QuickFilters
                 active={quickFilter}
@@ -789,6 +795,28 @@ export function PosShell({ initialTableId, onDone }: PosShellProps) {
           order={selectedOrder}
           onPay={handlePay}
           onClose={() => setShowPayment(false)}
+        />
+      )}
+
+      {/* Tiquetera (Fase 5): con ítems seleccionados vienen premarcados; sin
+          selección, el diálogo permite elegir o cargar toda la mesa. */}
+      {showMealPass && selectedOrder && (
+        <MealPassAssignDialog
+          orderId={selectedOrder.id}
+          items={(selectedOrder.items ?? []) as any}
+          preselectedIds={selectedItems.size > 0 ? [...selectedItems] : undefined}
+          onClose={() => setShowMealPass(false)}
+          onAssigned={async () => { setShowMealPass(false); setSelectedItems(new Set()); await loadOrder(selectedOrder.id) }}
+        />
+      )}
+
+      {/* Unir / separar mesas (Fase 6) */}
+      {showMergeTables && (
+        <MergeTablesDialog
+          tables={tables}
+          currentTableId={selectedOrder?.tableId ?? null}
+          onClose={() => setShowMergeTables(false)}
+          onDone={async () => { setShowMergeTables(false); await loadTables() }}
         />
       )}
       {showCancelConfirm && selectedOrder && (() => {

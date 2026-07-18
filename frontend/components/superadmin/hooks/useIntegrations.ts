@@ -27,6 +27,12 @@ export interface IntegrationsState {
   openaiModel: string
   visionProvider: 'gemini' | 'openai' | 'groq'
   visionModel: string
+  // Google Wallet: la clave privada nunca vuelve del servidor. Solo se sabe si
+  // está configurada (y el issuerId, que no es sensible). El textarea es de
+  // entrada: se escribe el JSON del service account y se envía al guardar.
+  googleWalletSet: boolean
+  googleWalletIssuerId: string
+  googleWalletCredentialsInput: string
 }
 
 const INITIAL_INTEGRATIONS: IntegrationsState = {
@@ -49,6 +55,9 @@ const INITIAL_INTEGRATIONS: IntegrationsState = {
   openaiModel: '',
   visionProvider: 'gemini',
   visionModel: '',
+  googleWalletSet: false,
+  googleWalletIssuerId: '',
+  googleWalletCredentialsInput: '',
 }
 
 export function useIntegrations() {
@@ -93,6 +102,9 @@ export function useIntegrations() {
         openaiModel: result.data.openaiModel || '',
         visionProvider: result.data.visionProvider || 'gemini',
         visionModel: result.data.visionModel || '',
+        googleWalletSet: !!result.data.googleWalletSet,
+        googleWalletIssuerId: result.data.googleWalletIssuerId || '',
+        googleWalletCredentialsInput: '', // nunca se precarga: el JSON no vuelve
       })
     }
     const pa = await api.getPlatformAssistant()
@@ -118,10 +130,15 @@ export function useIntegrations() {
       ...integrations,
       cloudinaryApiKey: integrations.cloudinaryApiKeyInput || undefined,
       cloudinaryApiSecret: integrations.cloudinaryApiSecretInput || undefined,
+      // Solo se manda si el admin pegó algo (si no, no se toca lo guardado)
+      googleWalletCredentials: integrations.googleWalletCredentialsInput?.trim() || undefined,
     }
     const result = await api.updateSuperadminIntegrations(payload)
     if (result.success) {
       clearCloudinaryCache()
+      // Limpiar el textarea y refrescar el estado "configurada"
+      setIntegrations(p => ({ ...p, googleWalletCredentialsInput: '' }))
+      fetchIntegrations()
       setIntegrationsMsg({ type: 'ok', text: 'Integraciones guardadas correctamente' })
     } else {
       setIntegrationsMsg({ type: 'error', text: result.error || 'Error al guardar' })

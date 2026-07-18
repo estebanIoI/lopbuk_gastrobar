@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Bot, Check, Eye, EyeOff, ImageIcon, RefreshCw, Rocket, Save, Sparkles, Brain, Cpu, Gauge } from 'lucide-react'
+import { Bot, Check, Eye, EyeOff, ImageIcon, RefreshCw, Rocket, Save, Sparkles, Brain, Cpu, Gauge, Wallet } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -495,6 +495,59 @@ export function IntegrationsTab() {
                 : `Falta la API Key de ${integrations.visionProvider} arriba para que la visión funcione`}
             </span>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Google Wallet — pases de fidelización */}
+      <Card className="border-border bg-card">
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Wallet className="h-5 w-5 text-muted-foreground" />
+            Google Wallet
+            {integrations.googleWalletSet && (
+              <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-green-500/15 text-green-500">Configurada</span>
+            )}
+          </CardTitle>
+          <p className="text-xs text-muted-foreground mt-1">
+            Permite emitir las tarjetas de fidelización en Google Wallet. Sin esto, el Wallet Designer
+            de los comercios solo funciona como vista previa: no se crea ningún pase.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {integrations.googleWalletSet && (
+            <div className="text-xs text-muted-foreground">
+              Issuer ID actual: <span className="font-mono text-foreground">{integrations.googleWalletIssuerId || '—'}</span>
+            </div>
+          )}
+          <div>
+            <label className="text-sm font-medium mb-1.5 block">
+              JSON del service account {integrations.googleWalletSet && <span className="text-muted-foreground font-normal">(pega uno nuevo solo si quieres reemplazarlo)</span>}
+            </label>
+            <textarea
+              value={integrations.googleWalletCredentialsInput}
+              onChange={e => set('googleWalletCredentialsInput', e.target.value)}
+              rows={6}
+              spellCheck={false}
+              placeholder={'{\n  "issuerId": "3388000000012345678",\n  "client_email": "xxx@proyecto.iam.gserviceaccount.com",\n  "private_key": "-----BEGIN PRIVATE KEY-----\\n...\\n-----END PRIVATE KEY-----\\n"\n}'}
+              className="w-full rounded-md border border-border bg-background px-3 py-2 font-mono text-xs resize-y"
+            />
+            <p className="text-[11px] text-muted-foreground mt-1.5">
+              Descarga el JSON del service account en Google Cloud y <b>agrégale el campo <code>issuerId</code></b> que
+              obtienes en Google Pay &amp; Wallet Console. Se guarda cifrado y no vuelve a mostrarse.
+            </p>
+          </div>
+          {integrations.googleWalletSet && (
+            <button
+              type="button"
+              onClick={() => set('googleWalletCredentialsInput', '__CLEAR__')}
+              className="text-xs text-red-400 hover:text-red-300 underline"
+            >
+              Quitar credenciales (se aplica al guardar)
+            </button>
+          )}
+          {integrations.googleWalletCredentialsInput === '__CLEAR__' && (
+            <p className="text-xs text-red-400">Se eliminarán las credenciales al guardar. Los comercios dejarán de emitir pases.</p>
+          )}
         </CardContent>
       </Card>
 
