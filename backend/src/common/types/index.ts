@@ -407,8 +407,17 @@ export interface CashSession {
   status: CashSessionStatus;
   closingStatus?: ClosingStatus;
   observations?: string;
+  /** Libro de ventas del turno (snapshot por producto al cerrar). */
+  salesBook?: SalesBookEntry[];
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface SalesBookEntry {
+  productId: string;
+  name: string;
+  quantity: number;
+  total: number;
 }
 
 export interface CashMovement {

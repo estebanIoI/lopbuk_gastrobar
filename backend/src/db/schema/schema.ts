@@ -752,6 +752,10 @@ export const cashSessions = mysqlTable("cash_sessions", {
 	status: mysqlEnum(['abierta','cerrada']).default('abierta').notNull(),
 	closingStatus: mysqlEnum("closing_status", ['cuadrado','sobrante','faltante']),
 	observations: text(),
+	// Libro de ventas del turno (Fase 1 GastroBar): snapshot del desglose por
+	// producto al cerrar → [{ productId, name, quantity, total }]. Permite revisar
+	// un cierre viejo y buscar un producto sin recalcular.
+	salesBook: json("sales_book"),
 	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 	shiftType: mysqlEnum("shift_type", ['ma??ana','tarde','unico']).default('unico').notNull(),
@@ -3009,6 +3013,9 @@ export const products = mysqlTable("products", {
 	updatedBy: varchar("updated_by", { length: 50 }),
 	isMenuItem: tinyint("is_menu_item").default(0).notNull(),
 	isIngredient: tinyint("is_ingredient").default(0).notNull(),
+	// Smart Checkout (Fase 5): productos que valen 1 cupo de tiquetera (almuerzos).
+	// Solo estos se pueden asignar a una meal pass en el cobro.
+	isMeal: tinyint("is_meal").default(0).notNull(),
 	preparationArea: mysqlEnum("preparation_area", ['bar','cocina','ambos']),
 	prepTimeMinutes: int("prep_time_minutes"),
 	availableInMenu: tinyint("available_in_menu").default(1).notNull(),
@@ -3060,6 +3067,244 @@ export const productTemplates = mysqlTable("product_templates", {
 	return {
 		idxPtplTenantStatus: index("idx_ptpl_tenant_status").on(table.tenantId, table.status),
 		productTemplatesId: primaryKey({ columns: [table.id], name: "product_templates_id"}),
+	}
+});
+
+// Versionado de plantillas (Fase 1.5) — mismo patrón que routine_versions.
+// El contenido vive aquí; product_templates.sections queda como ESPEJO de la
+// versión publicada para que el endpoint público siga sirviéndola sin cambios.
+// Invariante: como máximo una versión 'draft' y una 'published' por plantilla.
+export const productTemplateVersions = mysqlTable("product_template_versions", {
+	id: varchar({ length: 36 }).notNull(),
+	templateId: varchar("template_id", { length: 36 }).notNull(),
+	version: int().default(1).notNull(),
+	sections: json().notNull(),
+	status: varchar({ length: 12 }).default('draft').notNull(),
+	publishedAt: datetime("published_at", { mode: 'string' }),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+},
+(table) => {
+	return {
+		ukPtv: unique("uk_ptv").on(table.templateId, table.version),
+		idxPtvStatus: index("idx_ptv_status").on(table.templateId, table.status),
+		productTemplateVersionsId: primaryKey({ columns: [table.id], name: "product_template_versions_id"}),
+	}
+});
+
+// Product Bundle Builder (Fase 3) — combos de ecommerce (NO es CombosManager del
+// restaurante). Un bundle agrupa productos/variantes con un descuento y se ofrece
+// en el PDP del producto ancla. El precio y el ahorro se calculan en runtime desde
+// los precios reales; el bundle guarda ESTRUCTURA (qué productos, qué descuento),
+// nunca precios literales del producto.
+export const productBundles = mysqlTable("product_bundles", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" }),
+	name: varchar({ length: 160 }).notNull(),
+	description: varchar({ length: 400 }),
+	imageUrl: varchar("image_url", { length: 500 }),
+	label: varchar({ length: 60 }),
+	// fixed_total = precio final fijo · percent = % sobre la suma · amount_off = $ sobre la suma
+	discountType: mysqlEnum("discount_type", ['fixed_total', 'percent', 'amount_off']).default('percent').notNull(),
+	discountValue: decimal("discount_value", { precision: 12, scale: 2 }).default('0.00').notNull(),
+	// PDP donde aparece el bundle. NULL = aparece en el PDP de cualquier producto incluido.
+	anchorProductId: varchar("anchor_product_id", { length: 36 }),
+	status: mysqlEnum(['draft', 'published', 'archived']).default('draft').notNull(),
+	isActive: tinyint("is_active").default(1).notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
+},
+(table) => {
+	return {
+		idxPbTenantStatus: index("idx_pb_tenant_status").on(table.tenantId, table.status),
+		idxPbAnchor: index("idx_pb_anchor").on(table.anchorProductId),
+		productBundlesId: primaryKey({ columns: [table.id], name: "product_bundles_id"}),
+	}
+});
+
+export const productBundleItems = mysqlTable("product_bundle_items", {
+	id: varchar({ length: 36 }).notNull(),
+	bundleId: varchar("bundle_id", { length: 36 }).notNull(),
+	productId: varchar("product_id", { length: 36 }).notNull(),
+	variantId: varchar("variant_id", { length: 36 }),
+	quantity: int().default(1).notNull(),
+	sortOrder: int("sort_order").default(0).notNull(),
+},
+(table) => {
+	return {
+		idxPbiBundle: index("idx_pbi_bundle").on(table.bundleId, table.sortOrder),
+		productBundleItemsId: primaryKey({ columns: [table.id], name: "product_bundle_items_id"}),
+	}
+});
+
+// Checkout Experience (Fase 4) — capa de PERSONALIZACIÓN sobre el checkout, no lo
+// reemplaza. Una fila por tenant con la config (JSON): encabezado, CTA, mensaje
+// inferior, bloques informativos y overrides de campos (label/placeholder/visible/
+// obligatorio). Sin fila → el checkout se ve como hoy (compatibilidad total).
+export const checkoutExperiences = mysqlTable("checkout_experiences", {
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" }),
+	config: json().notNull(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
+},
+(table) => {
+	return {
+		checkoutExperiencesTenantId: primaryKey({ columns: [table.tenantId], name: "checkout_experiences_tenant_id"}),
+	}
+});
+
+// ── Gimnasio: membresías, planes, progreso y asistencia ──────────────────────
+// Estas 5 tablas las consultaba `gym.service.ts` desde siempre, pero no estaban
+// definidas en ninguna parte del repo (ni schema, ni migraciones, ni el esquema
+// legacy archivado) → todos esos endpoints fallaban con "table doesn't exist".
+// El esquema se derivó de las consultas reales del servicio.
+
+export const gymMembresias = mysqlTable("gym_membresias", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" }),
+	userId: varchar("user_id", { length: 36 }).notNull().references(() => users.id, { onDelete: "cascade" }),
+	planName: varchar("plan_name", { length: 160 }),
+	status: varchar({ length: 20 }).default('activa').notNull(),
+	price: decimal({ precision: 12, scale: 2 }).default('0.00').notNull(),
+	paymentCycle: varchar("payment_cycle", { length: 20 }).default('mensual').notNull(),
+	autoRenew: tinyint("auto_renew").default(0).notNull(),
+	startDate: date("start_date", { mode: 'string' }),
+	endDate: date("end_date", { mode: 'string' }),
+	lastPaymentAt: datetime("last_payment_at", { mode: 'string' }),
+	nextPaymentAt: datetime("next_payment_at", { mode: 'string' }),
+	notes: text(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
+},
+(table) => {
+	return {
+		// Una membresía por usuario y tenant (el servicio hace upsert por esa clave)
+		ukGymMembresia: unique("uk_gym_membresia").on(table.tenantId, table.userId),
+		idxGymMembStatus: index("idx_gym_memb_status").on(table.tenantId, table.status),
+		gymMembresiasId: primaryKey({ columns: [table.id], name: "gym_membresias_id"}),
+	}
+});
+
+export const gymPlanesEntrenamiento = mysqlTable("gym_planes_entrenamiento", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" }),
+	memberUserId: varchar("member_user_id", { length: 36 }).notNull(),
+	name: varchar({ length: 200 }).notNull(),
+	description: text(),
+	daysPerWeek: int("days_per_week"),
+	isActive: tinyint("is_active").default(1).notNull(),
+	createdBy: varchar("created_by", { length: 36 }),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+},
+(table) => {
+	return {
+		idxGymPlanMember: index("idx_gym_plan_member").on(table.tenantId, table.memberUserId),
+		gymPlanesEntrenamientoId: primaryKey({ columns: [table.id], name: "gym_planes_entrenamiento_id"}),
+	}
+});
+
+export const gymEjercicios = mysqlTable("gym_ejercicios", {
+	id: varchar({ length: 36 }).notNull(),
+	planId: varchar("plan_id", { length: 36 }).notNull().references(() => gymPlanesEntrenamiento.id, { onDelete: "cascade" }),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+	dayLabel: varchar("day_label", { length: 60 }),
+	name: varchar({ length: 200 }).notNull(),
+	sets: int(),
+	reps: varchar({ length: 40 }),
+	weightKg: decimal("weight_kg", { precision: 8, scale: 2 }),
+	restSeconds: int("rest_seconds"),
+	notes: text(),
+	sortOrder: int("sort_order").default(0).notNull(),
+},
+(table) => {
+	return {
+		idxGymEjPlan: index("idx_gym_ej_plan").on(table.planId, table.sortOrder),
+		gymEjerciciosId: primaryKey({ columns: [table.id], name: "gym_ejercicios_id"}),
+	}
+});
+
+export const gymProgreso = mysqlTable("gym_progreso", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" }),
+	memberUserId: varchar("member_user_id", { length: 36 }).notNull(),
+	logDate: date("log_date", { mode: 'string' }).notNull(),
+	weightKg: decimal("weight_kg", { precision: 6, scale: 2 }),
+	bodyFatPct: decimal("body_fat_pct", { precision: 5, scale: 2 }),
+	muscleMassKg: decimal("muscle_mass_kg", { precision: 6, scale: 2 }),
+	measurements: json(),
+	notes: text(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+},
+(table) => {
+	return {
+		idxGymProgMember: index("idx_gym_prog_member").on(table.tenantId, table.memberUserId, table.logDate),
+		gymProgresoId: primaryKey({ columns: [table.id], name: "gym_progreso_id"}),
+	}
+});
+
+export const gymAsistencia = mysqlTable("gym_asistencia", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" }),
+	memberUserId: varchar("member_user_id", { length: 36 }).notNull(),
+	checkedInAt: timestamp("checked_in_at", { mode: 'string' }).default(sql`(now())`).notNull(),
+	checkedOutAt: timestamp("checked_out_at", { mode: 'string' }),
+	notes: text(),
+},
+(table) => {
+	return {
+		idxGymAsisTenantDay: index("idx_gym_asis_tenant_day").on(table.tenantId, table.checkedInAt),
+		idxGymAsisMember: index("idx_gym_asis_member").on(table.memberUserId, table.checkedOutAt),
+		gymAsistenciaId: primaryKey({ columns: [table.id], name: "gym_asistencia_id"}),
+	}
+});
+
+// Tiqueteras / Meal Pass (Fase 4 GastroBar) — un cliente compra N almuerzos por
+// adelantado y los consume hasta agotarse. El saldo (`remaining`) se decrementa
+// transaccionalmente con cada consumo; cada movimiento queda en meal_pass_movements
+// con `balance_after` para auditoría. La integración con el POS/cobro es F5.
+export const mealPasses = mysqlTable("meal_passes", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" }),
+	customerName: varchar("customer_name", { length: 255 }).notNull(),
+	document: varchar({ length: 50 }),
+	phone: varchar({ length: 50 }),
+	convenio: varchar({ length: 160 }),
+	empresa: varchar({ length: 160 }),
+	totalMeals: int("total_meals").default(0).notNull(),   // comprados (histórico de recargas)
+	remaining: int().default(0).notNull(),                 // saldo restante
+	purchasedAt: date("purchased_at", { mode: 'string' }),
+	expiresAt: date("expires_at", { mode: 'string' }),
+	status: mysqlEnum(['activa', 'agotada', 'vencida', 'anulada']).default('activa').notNull(),
+	isActive: tinyint("is_active").default(1).notNull(),
+	notes: varchar({ length: 400 }),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
+},
+(table) => {
+	return {
+		idxMpTenantStatus: index("idx_mp_tenant_status").on(table.tenantId, table.status),
+		idxMpDoc: index("idx_mp_doc").on(table.tenantId, table.document),
+		idxMpPhone: index("idx_mp_phone").on(table.tenantId, table.phone),
+		mealPassesId: primaryKey({ columns: [table.id], name: "meal_passes_id"}),
+	}
+});
+
+export const mealPassMovements = mysqlTable("meal_pass_movements", {
+	id: varchar({ length: 36 }).notNull(),
+	mealPassId: varchar("meal_pass_id", { length: 36 }).notNull().references(() => mealPasses.id, { onDelete: "cascade" }),
+	type: mysqlEnum(['recarga', 'consumo', 'ajuste', 'anulacion']).notNull(),
+	meals: int().notNull(),                                // + recarga / − consumo
+	balanceAfter: int("balance_after").notNull(),
+	orderId: varchar("order_id", { length: 36 }),          // rb_orders del consumo (F5)
+	orderItemId: varchar("order_item_id", { length: 36 }), // ítem específico (F5)
+	tableNumber: varchar("table_number", { length: 20 }),
+	employeeId: varchar("employee_id", { length: 36 }),
+	employeeName: varchar("employee_name", { length: 255 }),
+	note: varchar({ length: 255 }),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+},
+(table) => {
+	return {
+		idxMpmPass: index("idx_mpm_pass").on(table.mealPassId, table.createdAt),
+		mealPassMovementsId: primaryKey({ columns: [table.id], name: "meal_pass_movements_id"}),
 	}
 });
 
@@ -3266,6 +3511,12 @@ export const rbOrderItems = mysqlTable("rb_order_items", {
 	sentToKitchenAt: timestamp("sent_to_kitchen_at", { mode: 'string' }),
 	readyAt: timestamp("ready_at", { mode: 'string' }),
 	deliveredAt: timestamp("delivered_at", { mode: 'string' }),
+	// Smart Checkout (Fase 5 GastroBar): ítem asignado a una tiquetera. Al cobrar
+	// se consume del saldo (no suma al efectivo). NULL = pago normal.
+	mealPassId: varchar("meal_pass_id", { length: 36 }),
+	// Mesa General (Fase 6): mesa de la que vino el ítem al unir mesas. Permite
+	// devolverlo a su comanda original al desunir, sin ambigüedad.
+	originTableId: varchar("origin_table_id", { length: 36 }),
 	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
@@ -3312,6 +3563,10 @@ export const rbOrders = mysqlTable("rb_orders", {
 	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 	priority: mysqlEnum(['normal','urgente']).default('normal').notNull(),
+	// Mesa General (Fase 6): esta comanda fue absorbida por otra al unir mesas.
+	// Sus ítems viven en la comanda principal; se oculta de los listados activos
+	// y se restaura al desunir. NULL = comanda normal.
+	mergedIntoOrderId: varchar("merged_into_order_id", { length: 36 }),
 },
 (table) => {
 	return {
@@ -5916,6 +6171,488 @@ export const homepageSections = mysqlTable("homepage_sections", {
 		idxHpSectionsTenant: index("idx_hp_sections_tenant").on(table.tenantId),
 		idxHpSectionsType: index("idx_hp_sections_type").on(table.tenantId, table.sectionType),
 		homepageSectionsId: primaryKey({ columns: [table.id], name: "homepage_sections_id"}),
+	}
+});
+
+// ════════════════════════════════════════════════════════════════════
+// MÓDULO GIMNASIO — Entidad raíz: el miembro (no la membresía)
+// ════════════════════════════════════════════════════════════════════
+export const gymMembers = mysqlTable("gym_members", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" } ),
+	userId: varchar("user_id", { length: 36 }).notNull().references(() => users.id, { onDelete: "cascade" } ),
+	memberNumber: varchar("member_number", { length: 20 }).notNull(),
+	photoUrl: varchar("photo_url", { length: 500 }),
+	coverPhotoUrl: varchar("cover_photo_url", { length: 500 }),
+	avatarColor: varchar("avatar_color", { length: 7 }).default('#8b5cf6').notNull(),
+	status: mysqlEnum(['activo','inactivo','congelado','lesionado','dado_de_baja']).default('activo').notNull(),
+	joinDate: date("join_date"),
+	trainerId: varchar("trainer_id", { length: 36 }).references(() => users.id, { onDelete: "set null" } ),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
+},
+(table) => {
+	return {
+		idxGymMemberTenant: index("idx_gym_member_tenant").on(table.tenantId),
+		idxGymMemberUser: index("idx_gym_member_user").on(table.userId),
+		idxGymMemberStatus: index("idx_gym_member_status").on(table.status),
+		idxGymMemberTrainer: index("idx_gym_member_trainer").on(table.trainerId),
+		gymMembersId: primaryKey({ columns: [table.id], name: "gym_members_id"}),
+		gymMembersNumber: unique("gym_member_number").on(table.memberNumber),
+		gymMembersUserTenant: unique("gym_member_user_tenant").on(table.tenantId, table.userId),
+	}
+});
+
+export const gymMemberProfiles = mysqlTable("gym_member_profiles", {
+	id: varchar({ length: 36 }).notNull(),
+	memberId: varchar("member_id", { length: 36 }).notNull().references(() => gymMembers.id, { onDelete: "cascade" } ),
+	birthDate: date("birth_date"),
+	sex: mysqlEnum("sex", ['M','F','otro']),
+	heightCm: decimal("height_cm", { precision: 5, scale: 1 }),
+	initialWeightKg: decimal("initial_weight_kg", { precision: 5, scale: 1 }),
+	bloodType: varchar("blood_type", { length: 5 }),
+	objectiveId: varchar("objective_id", { length: 36 }),
+	level: mysqlEnum("level", ['principiante','intermedio','avanzado','elite']).default('principiante').notNull(),
+	occupation: varchar({ length: 100 }),
+	emergencyContact: varchar("emergency_contact", { length: 100 }),
+	emergencyPhone: varchar("emergency_phone", { length: 20 }),
+	medicalNotes: text("medical_notes"),
+	allergies: json(),
+	conditions: json(),
+	medications: json(),
+	socialInstagram: varchar("social_instagram", { length: 50 }),
+	socialFacebook: varchar("social_facebook", { length: 100 }),
+	socialTiktok: varchar("social_tiktok", { length: 50 }),
+	observations: text(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
+},
+(table) => {
+	return {
+		idxGymProfileMember: index("idx_gym_profile_member").on(table.memberId),
+		idxGymProfileObjective: index("idx_gym_profile_objective").on(table.objectiveId),
+		gymMemberProfilesId: primaryKey({ columns: [table.id], name: "gym_member_profiles_id"}),
+		gymMemberProfilesMember: unique("gym_profile_member").on(table.memberId),
+	}
+});
+
+export const gymObjectives = mysqlTable("gym_objectives", {
+	id: varchar({ length: 36 }).notNull(),
+	key: varchar({ length: 50 }).notNull(),
+	name: varchar({ length: 100 }).notNull(),
+	icon: varchar({ length: 50 }).notNull(),
+	isActive: tinyint("is_active").default(1).notNull(),
+	sortOrder: int("sort_order").default(0).notNull(),
+},
+(table) => {
+	return {
+		gymObjectivesId: primaryKey({ columns: [table.id], name: "gym_objectives_id"}),
+		gymObjectivesKey: unique("gym_objectives_key").on(table.key),
+	}
+});
+
+export const gymMemberTimeline = mysqlTable("gym_member_timeline", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" } ),
+	memberId: varchar("member_id", { length: 36 }).notNull().references(() => gymMembers.id, { onDelete: "cascade" } ),
+	eventType: varchar("event_type", { length: 50 }).notNull(),
+	eventLabel: varchar("event_label", { length: 255 }).notNull(),
+	entityType: varchar("entity_type", { length: 50 }),
+	entityId: varchar("entity_id", { length: 36 }),
+	metadata: json(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+},
+(table) => {
+	return {
+		idxTimelineMember: index("idx_timeline_member").on(table.memberId, table.createdAt),
+		idxTimelineTenant: index("idx_timeline_tenant").on(table.tenantId),
+		idxTimelineEvent: index("idx_timeline_event").on(table.memberId, table.eventType),
+		gymMemberTimelineId: primaryKey({ columns: [table.id], name: "gym_member_timeline_id"}),
+	}
+});
+
+// ════════════════════════════════════════════════════════════════════
+// MÓDULO GIMNASIO — Dominio Training
+// ════════════════════════════════════════════════════════════════════
+
+export const gymExerciseCategories = mysqlTable("gym_exercise_categories", {
+	id: varchar({ length: 36 }).notNull(),
+	name: varchar({ length: 80 }).notNull(),
+	icon: varchar({ length: 50 }),
+	sortOrder: int("sort_order").default(0).notNull(),
+},
+(table) => {
+	return {
+		gymExerciseCategoriesId: primaryKey({ columns: [table.id], name: "gym_exercise_categories_id"}),
+		gymExerciseCategoriesName: unique("gym_ex_cat_name").on(table.name),
+	}
+});
+
+export const gymExerciseLibrary = mysqlTable("gym_exercise_library", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" } ),
+	categoryId: varchar("category_id", { length: 36 }).references(() => gymExerciseCategories.id, { onDelete: "set null" } ),
+	name: varchar({ length: 120 }).notNull(),
+	slug: varchar({ length: 180 }),
+	description: text(),
+	muscleGroup: varchar("muscle_group", { length: 60 }).notNull(),
+	secondaryMuscles: json("secondary_muscles"),
+	equipment: varchar({ length: 60 }),
+	difficulty: mysqlEnum("difficulty", ['principiante','intermedio','avanzado']).default('intermedio').notNull(),
+	movementPattern: varchar("movement_pattern", { length: 20 }),
+	tips: text(),
+	commonErrors: text("common_errors"),
+	alternatives: json(),
+	rpeRecommendation: decimal("rpe_recommendation", { precision: 2, scale: 1 }),
+	tempo: varchar({ length: 10 }),
+	restSeconds: int("rest_seconds"),
+	estimatedKcal: int("estimated_kcal"),
+	estimatedSeconds: int("estimated_seconds"),
+	isActive: tinyint("is_active").default(1).notNull(),
+	popularity: int({ unsigned: true }).default(0).notNull(),
+	createdBy: varchar("created_by", { length: 36 }).references(() => users.id, { onDelete: "set null" } ),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
+},
+(table) => {
+	return {
+		idxExLibTenant: index("idx_exlib_tenant").on(table.tenantId),
+		idxExLibCategory: index("idx_exlib_category").on(table.categoryId),
+		idxExLibMuscle: index("idx_exlib_muscle").on(table.muscleGroup),
+		idxExLibDifficulty: index("idx_exlib_difficulty").on(table.difficulty),
+		idxExLibActive: index("idx_exlib_active").on(table.isActive, table.popularity),
+		gymExerciseLibraryId: primaryKey({ columns: [table.id], name: "gym_exercise_library_id"}),
+	}
+});
+
+export const gymExerciseMedia = mysqlTable("gym_exercise_media", {
+	id: varchar({ length: 36 }).notNull(),
+	exerciseId: varchar("exercise_id", { length: 36 }).notNull().references(() => gymExerciseLibrary.id, { onDelete: "cascade" } ),
+	kind: mysqlEnum(['gif','video','image']).notNull(),
+	url: varchar({ length: 500 }).notNull(),
+	thumbnailUrl: varchar("thumbnail_url", { length: 500 }),
+	width: int({ unsigned: true }),
+	height: int({ unsigned: true }),
+	attribution: varchar({ length: 200 }),
+	sortOrder: int("sort_order").default(0).notNull(),
+},
+(table) => {
+	return {
+		idxExMediaExercise: index("idx_exmedia_exercise").on(table.exerciseId, table.kind),
+		gymExerciseMediaId: primaryKey({ columns: [table.id], name: "gym_exercise_media_id"}),
+	}
+});
+
+export const gymExerciseFavorites = mysqlTable("gym_exercise_favorites", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" } ),
+	exerciseId: varchar("exercise_id", { length: 36 }).notNull().references(() => gymExerciseLibrary.id, { onDelete: "cascade" } ),
+	staffUserId: varchar("staff_user_id", { length: 36 }).notNull().references(() => users.id, { onDelete: "cascade" } ),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+},
+(table) => {
+	return {
+		idxExFavTenant: index("idx_exfav_tenant").on(table.tenantId, table.staffUserId),
+		gymExerciseFavoritesId: primaryKey({ columns: [table.id], name: "gym_exercise_favorites_id"}),
+		gymExFavUnique: unique("gym_ex_fav_unique").on(table.tenantId, table.exerciseId, table.staffUserId),
+	}
+});
+
+export const gymWorkoutTemplates = mysqlTable("gym_workout_templates", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" } ),
+	name: varchar({ length: 120 }).notNull(),
+	description: text(),
+	category: varchar({ length: 50 }),
+	weeks: tinyint({ unsigned: true }).default(4).notNull(),
+	daysPerWeek: tinyint("days_per_week", { unsigned: true }),
+	isActive: tinyint("is_active").default(1).notNull(),
+	createdBy: varchar("created_by", { length: 36 }).references(() => users.id, { onDelete: "set null" } ),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
+},
+(table) => {
+	return {
+		idxWtplTenant: index("idx_wtpl_tenant").on(table.tenantId),
+		idxWtplCategory: index("idx_wtpl_category").on(table.tenantId, table.category),
+		gymWorkoutTemplatesId: primaryKey({ columns: [table.id], name: "gym_workout_templates_id"}),
+	}
+});
+
+export const gymWorkoutTemplateExercises = mysqlTable("gym_workout_template_exercises", {
+	id: varchar({ length: 36 }).notNull(),
+	templateId: varchar("template_id", { length: 36 }).notNull().references(() => gymWorkoutTemplates.id, { onDelete: "cascade" } ),
+	exerciseId: varchar("exercise_id", { length: 36 }).notNull().references(() => gymExerciseLibrary.id, { onDelete: "cascade" } ),
+	weekNumber: tinyint("week_number", { unsigned: true }).default(1).notNull(),
+	dayNumber: tinyint("day_number", { unsigned: true }).notNull(),
+	dayLabel: varchar({ length: 40 }),
+	targetSets: tinyint("target_sets", { unsigned: true }).default(3).notNull(),
+	targetReps: varchar("target_reps", { length: 30 }),
+	startWeight: decimal("start_weight", { precision: 6, scale: 2 }),
+	rpeTarget: decimal("rpe_target", { precision: 2, scale: 1 }),
+	tempo: varchar({ length: 10 }),
+	restSeconds: int("rest_seconds"),
+	progressionType: mysqlEnum("progression_type", ['linear','double_progression','wave','rpe','manual']).default('linear').notNull(),
+	progressionConfig: json("progression_config"),
+	notes: text(),
+	sortOrder: int("sort_order").default(0).notNull(),
+},
+(table) => {
+	return {
+		idxWtexTemplate: index("idx_wtex_template").on(table.templateId, table.weekNumber, table.dayNumber),
+		gymWorkoutTemplateExercisesId: primaryKey({ columns: [table.id], name: "gym_workout_template_exercises_id"}),
+	}
+});
+
+export const gymWorkoutAssignments = mysqlTable("gym_workout_assignments", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" } ),
+	templateId: varchar("template_id", { length: 36 }).notNull().references(() => gymWorkoutTemplates.id, { onDelete: "cascade" } ),
+	memberId: varchar("member_id", { length: 36 }).notNull().references(() => gymMembers.id, { onDelete: "cascade" } ),
+	startDate: date("start_date"),
+	startWeek: tinyint("start_week", { unsigned: true }).default(1).notNull(),
+	status: mysqlEnum(['activo','completado','abandonado','pausado']).default('activo').notNull(),
+	assignedBy: varchar("assigned_by", { length: 36 }).references(() => users.id, { onDelete: "set null" } ),
+	completedAt: timestamp("completed_at", { mode: 'string' }),
+	notes: text(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
+},
+(table) => {
+	return {
+		idxWassTenant: index("idx_wass_tenant").on(table.tenantId),
+		idxWassMember: index("idx_wass_member").on(table.memberId, table.status),
+		idxWassTemplate: index("idx_wass_template").on(table.templateId),
+		gymWorkoutAssignmentsId: primaryKey({ columns: [table.id], name: "gym_workout_assignments_id"}),
+	}
+});
+
+export const gymWorkoutSessions = mysqlTable("gym_workout_sessions", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" } ),
+	memberId: varchar("member_id", { length: 36 }).notNull().references(() => gymMembers.id, { onDelete: "cascade" } ),
+	assignmentId: varchar("assignment_id", { length: 36 }).references(() => gymWorkoutAssignments.id, { onDelete: "set null" } ),
+	weekNumber: tinyint("week_number", { unsigned: true }),
+	dayNumber: tinyint("day_number", { unsigned: true }),
+	dayLabel: varchar({ length: 40 }),
+	startedAt: timestamp("started_at", { mode: 'string' }).default(sql`(now())`),
+	endedAt: timestamp("ended_at", { mode: 'string' }),
+	durationMin: int("duration_min", { unsigned: true }),
+	perceivedEffort: tinyint("perceived_effort", { unsigned: true }),
+	notes: text(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+},
+(table) => {
+	return {
+		idxWsesMember: index("idx_wses_member").on(table.memberId, table.startedAt),
+		idxWsesTenant: index("idx_wses_tenant").on(table.tenantId, table.startedAt),
+		gymWorkoutSessionsId: primaryKey({ columns: [table.id], name: "gym_workout_sessions_id"}),
+	}
+});
+
+export const gymWorkoutSessionExercises = mysqlTable("gym_workout_session_exercises", {
+	id: varchar({ length: 36 }).notNull(),
+	sessionId: varchar("session_id", { length: 36 }).notNull().references(() => gymWorkoutSessions.id, { onDelete: "cascade" } ),
+	exerciseId: varchar("exercise_id", { length: 36 }).references(() => gymExerciseLibrary.id, { onDelete: "set null" } ),
+	exerciseName: varchar("exercise_name", { length: 120 }).notNull(),
+	sortOrder: int("sort_order").default(0).notNull(),
+	notes: text(),
+},
+(table) => {
+	return {
+		idxWseseSession: index("idx_wsese_session").on(table.sessionId),
+		gymWorkoutSessionExercisesId: primaryKey({ columns: [table.id], name: "gym_workout_session_exercises_id"}),
+	}
+});
+
+export const gymWorkoutSets = mysqlTable("gym_workout_sets", {
+	id: varchar({ length: 36 }).notNull(),
+	sessionExerciseId: varchar("session_exercise_id", { length: 36 }).notNull().references(() => gymWorkoutSessionExercises.id, { onDelete: "cascade" } ),
+	setNumber: tinyint("set_number", { unsigned: true }).notNull(),
+	weightKg: decimal("weight_kg", { precision: 6, scale: 2 }),
+	reps: smallint({ unsigned: true }),
+	rpe: decimal({ precision: 2, scale: 1 }),
+	isWarmup: tinyint("is_warmup").default(0).notNull(),
+	isFailure: tinyint("is_failure").default(0).notNull(),
+	isSkipped: tinyint("is_skipped").default(0).notNull(),
+	isExtra: tinyint("is_extra").default(0).notNull(),
+	restSeconds: int("rest_seconds", { unsigned: true }),
+	durationSeconds: int("duration_seconds", { unsigned: true }),
+	notes: text(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+},
+(table) => {
+	return {
+		idxWsetSession: index("idx_wset_session").on(table.sessionExerciseId),
+		gymWorkoutSetsId: primaryKey({ columns: [table.id], name: "gym_workout_sets_id"}),
+	}
+});
+
+export const gymPersonalRecords = mysqlTable("gym_personal_records", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" } ),
+	memberId: varchar("member_id", { length: 36 }).notNull().references(() => gymMembers.id, { onDelete: "cascade" } ),
+	exerciseId: varchar("exercise_id", { length: 36 }).references(() => gymExerciseLibrary.id, { onDelete: "set null" } ),
+	exerciseName: varchar("exercise_name", { length: 120 }).notNull(),
+	recordType: mysqlEnum("record_type", ['max_weight','max_reps','max_volume','max_tonnage','max_duration','max_frequency']).notNull(),
+	value: decimal({ precision: 10, scale: 2 }).notNull(),
+	unit: varchar({ length: 20 }).notNull(),
+	sessionId: varchar("session_id", { length: 36 }).references(() => gymWorkoutSessions.id, { onDelete: "set null" } ),
+	achievedAt: timestamp("achieved_at", { mode: 'string' }).default(sql`(now())`),
+	previousValue: decimal("previous_value", { precision: 10, scale: 2 }),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+},
+(table) => {
+	return {
+		idxPrMember: index("idx_pr_member").on(table.memberId),
+		idxPrExercise: index("idx_pr_exercise").on(table.memberId, table.exerciseId, table.recordType),
+		gymPersonalRecordsId: primaryKey({ columns: [table.id], name: "gym_personal_records_id"}),
+	}
+});
+
+// ════════════════════════════════════════════════════════════════════
+// MÓDULO GIMNASIO — Dominio Health
+// ════════════════════════════════════════════════════════════════════
+
+export const gymHealthAssessments = mysqlTable("gym_health_assessments", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" } ),
+	memberId: varchar("member_id", { length: 36 }).notNull().references(() => gymMembers.id, { onDelete: "cascade" } ),
+	trainerId: varchar("trainer_id", { length: 36 }).references(() => users.id, { onDelete: "set null" } ),
+	assessmentDate: date("assessment_date").notNull(),
+	type: mysqlEnum(['inicial','periodica','especial','alta']).default('periodica').notNull(),
+	weightKg: decimal("weight_kg", { precision: 5, scale: 1 }),
+	heightCm: decimal("height_cm", { precision: 5, scale: 1 }),
+	imc: decimal({ precision: 5, scale: 1 }),
+	bodyFatPct: decimal("body_fat_pct", { precision: 4, scale: 1 }),
+	muscleMassKg: decimal("muscle_mass_kg", { precision: 5, scale: 1 }),
+	bodyWaterPct: decimal("body_water_pct", { precision: 4, scale: 1 }),
+	visceralFat: decimal("visceral_fat", { precision: 3, scale: 1 }),
+	metabolicAge: tinyint("metabolic_age", { unsigned: true }),
+	boneMassKg: decimal("bone_mass_kg", { precision: 4, scale: 1 }),
+	restingHrBpm: tinyint("resting_hr_bpm", { unsigned: true }),
+	systolicBp: smallint("systolic_bp", { unsigned: true }),
+	diastolicBp: smallint("diastolic_bp", { unsigned: true }),
+	flexibilityScore: tinyint("flexibility_score", { unsigned: true }),
+	postureScore: tinyint("posture_score", { unsigned: true }),
+	mobilityScore: tinyint("mobility_score", { unsigned: true }),
+	painLevel: tinyint("pain_level", { unsigned: true }),
+	stressLevel: tinyint("stress_level", { unsigned: true }),
+	sleepHours: decimal("sleep_hours", { precision: 3, scale: 1 }),
+	waterIntakeMl: int("water_intake_ml", { unsigned: true }),
+	observations: text(),
+	isActive: tinyint("is_active").default(1).notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
+},
+(table) => {
+	return {
+		idxGhaMember: index("idx_gha_member").on(table.memberId, table.assessmentDate),
+		idxGhaTenant: index("idx_gha_tenant").on(table.tenantId),
+		gymHealthAssessmentsId: primaryKey({ columns: [table.id], name: "gym_health_assessments_id"}),
+	}
+});
+
+export const gymBodyMeasurements = mysqlTable("gym_body_measurements", {
+	id: varchar({ length: 36 }).notNull(),
+	assessmentId: varchar("assessment_id", { length: 36 }).notNull().references(() => gymHealthAssessments.id, { onDelete: "cascade" } ),
+	memberId: varchar("member_id", { length: 36 }).notNull().references(() => gymMembers.id, { onDelete: "cascade" } ),
+	measurementDate: date("measurement_date").notNull(),
+	neckCm: decimal("neck_cm", { precision: 5, scale: 1 }),
+	shouldersCm: decimal("shoulders_cm", { precision: 5, scale: 1 }),
+	chestCm: decimal("chest_cm", { precision: 5, scale: 1 }),
+	leftArmCm: decimal("left_arm_cm", { precision: 5, scale: 1 }),
+	rightArmCm: decimal("right_arm_cm", { precision: 5, scale: 1 }),
+	leftForearmCm: decimal("left_forearm_cm", { precision: 5, scale: 1 }),
+	rightForearmCm: decimal("right_forearm_cm", { precision: 5, scale: 1 }),
+	waistCm: decimal("waist_cm", { precision: 5, scale: 1 }),
+	hipCm: decimal("hip_cm", { precision: 5, scale: 1 }),
+	leftThighCm: decimal("left_thigh_cm", { precision: 5, scale: 1 }),
+	rightThighCm: decimal("right_thigh_cm", { precision: 5, scale: 1 }),
+	leftCalfCm: decimal("left_calf_cm", { precision: 5, scale: 1 }),
+	rightCalfCm: decimal("right_calf_cm", { precision: 5, scale: 1 }),
+	waistHipRatio: decimal("waist_hip_ratio", { precision: 4, scale: 2 }),
+	notes: text(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+},
+(table) => {
+	return {
+		idxGbmMember: index("idx_gbm_member").on(table.memberId, table.measurementDate),
+		idxGbmAssessment: index("idx_gbm_assessment").on(table.assessmentId),
+		gymBodyMeasurementsId: primaryKey({ columns: [table.id], name: "gym_body_measurements_id"}),
+	}
+});
+
+export const gymProgressPhotos = mysqlTable("gym_progress_photos", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" } ),
+	memberId: varchar("member_id", { length: 36 }).notNull().references(() => gymMembers.id, { onDelete: "cascade" } ),
+	assessmentId: varchar("assessment_id", { length: 36 }).references(() => gymHealthAssessments.id, { onDelete: "set null" } ),
+	category: mysqlEnum(['progreso','evaluacion','lesion','otro']).default('progreso').notNull(),
+	label: varchar({ length: 100 }),
+	photoUrl: varchar("photo_url", { length: 500 }).notNull(),
+	thumbnailUrl: varchar("thumbnail_url", { length: 500 }),
+	viewAngle: mysqlEnum("view_angle", ['frontal','lateral','espalda','otro']).default('frontal').notNull(),
+	takenAt: date("taken_at"),
+	dayLabel: varchar({ length: 30 }),
+	sortOrder: int("sort_order").default(0).notNull(),
+	uploadedBy: varchar("uploaded_by", { length: 36 }).references(() => users.id, { onDelete: "set null" } ),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+},
+(table) => {
+	return {
+		idxGppMember: index("idx_gpp_member").on(table.memberId, table.takenAt),
+		idxGppAssessment: index("idx_gpp_assessment").on(table.assessmentId),
+		gymProgressPhotosId: primaryKey({ columns: [table.id], name: "gym_progress_photos_id"}),
+	}
+});
+
+export const gymAssessmentFiles = mysqlTable("gym_assessment_files", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" } ),
+	memberId: varchar("member_id", { length: 36 }).notNull().references(() => gymMembers.id, { onDelete: "cascade" } ),
+	assessmentId: varchar("assessment_id", { length: 36 }).references(() => gymHealthAssessments.id, { onDelete: "cascade" } ),
+	category: mysqlEnum(['certificado','examen','incapacidad','rx','informe','otro']).default('otro').notNull(),
+	title: varchar({ length: 200 }).notNull(),
+	fileUrl: varchar("file_url", { length: 500 }).notNull(),
+	fileType: varchar("file_type", { length: 20 }),
+	fileSize: int("file_size", { unsigned: true }),
+	notes: text(),
+	uploadedBy: varchar("uploaded_by", { length: 36 }).references(() => users.id, { onDelete: "set null" } ),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+},
+(table) => {
+	return {
+		idxGafMember: index("idx_gaf_member").on(table.memberId),
+		idxGafAssessment: index("idx_gaf_assessment").on(table.assessmentId),
+		gymAssessmentFilesId: primaryKey({ columns: [table.id], name: "gym_assessment_files_id"}),
+	}
+});
+
+export const gymMedicalConditions = mysqlTable("gym_medical_conditions", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" } ),
+	memberId: varchar("member_id", { length: 36 }).notNull().references(() => gymMembers.id, { onDelete: "cascade" } ),
+	type: mysqlEnum(['lesion','enfermedad','alergia','condicion','restriccion','cirugia']).default('lesion').notNull(),
+	zone: varchar({ length: 60 }),
+	description: text().notNull(),
+	dateReported: date("date_reported"),
+	status: mysqlEnum(['activa','recuperando','recuperada','cronica','controlada']).default('activa').notNull(),
+	severity: mysqlEnum(['leve','moderada','grave']).default('moderada').notNull(),
+	restrictedExercises: json("restricted_exercises"),
+	restrictedMovements: json("restricted_movements"),
+	documentUrl: varchar("document_url", { length: 500 }),
+	recoveryDate: date("recovery_date"),
+	recoveryNotes: text("recovery_notes"),
+	reportedBy: varchar("reported_by", { length: 36 }).references(() => users.id, { onDelete: "set null" } ),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
+},
+(table) => {
+	return {
+		idxGmcMember: index("idx_gmc_member").on(table.memberId, table.status),
+		idxGmcTenant: index("idx_gmc_tenant").on(table.tenantId),
+		gymMedicalConditionsId: primaryKey({ columns: [table.id], name: "gym_medical_conditions_id"}),
 	}
 });
 

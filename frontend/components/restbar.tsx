@@ -13,10 +13,12 @@ import {
   BookOpen, Search, ToggleLeft, ToggleRight, ChevronLeft,
   Banknote, CreditCard, Smartphone, ArrowLeftRight, Layers,
   ChevronRight, User, DollarSign, FileText, Printer, TrendingDown, Download,
-  CalendarDays, Wallet, Link2, Zap, XCircle,
+  CalendarDays, Wallet, Link2, Zap, XCircle, Ticket,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { RestBarReservations } from '@/components/restbar-reservations'
+import { MealPassesManager } from '@/components/meal-passes-manager'
+import { MealPassAssignDialog } from '@/components/meal-pass-assign-dialog'
 import { RestBarFinanzas } from '@/components/restbar-finanzas'
 import { PosShell } from '@/components/restbar-pos/PosShell'
 import { Monitor } from 'lucide-react'
@@ -39,7 +41,7 @@ const ITEM_STATUS: Record<string, { label: string; color: string }> = {
   cancelado:      { label: 'Cancelado',    color: 'bg-red-500/20 text-red-400' },
 }
 
-type Tab = 'mesas' | 'reservas' | 'comandas' | 'cocina' | 'bar' | 'caja' | 'reportes' | 'menu' | 'finanzas'
+type Tab = 'mesas' | 'reservas' | 'comandas' | 'cocina' | 'bar' | 'caja' | 'reportes' | 'menu' | 'finanzas' | 'tiqueteras'
 
 const RESTAURANT_ROLES = ['mesero', 'cocinero', 'cajero', 'bartender', 'administrador_rb']
 
@@ -76,6 +78,7 @@ export function RestBar() {
     { id: 'cocina',   label: 'Cocina',   icon: ChefHat },
     { id: 'bar',      label: 'Bar',      icon: GlassWater },
     { id: 'caja',     label: 'Caja',     icon: Receipt },
+    { id: 'tiqueteras', label: 'Tiqueteras', icon: Ticket },
     { id: 'reportes', label: 'Reportes', icon: TrendingUp },
     { id: 'finanzas', label: 'Finanzas', icon: Wallet },
   ]
@@ -152,6 +155,7 @@ export function RestBar() {
         {tab === 'cocina'   && <AreaDisplayTab area="cocina" />}
         {tab === 'bar'      && <AreaDisplayTab area="bar" />}
         {tab === 'caja'     && <CajaTab />}
+        {tab === 'tiqueteras' && <MealPassesManager />}
         {tab === 'reportes' && <ReportesTab />}
         {tab === 'finanzas' && <RestBarFinanzas />}
       </div>
@@ -1181,13 +1185,17 @@ function AreaDisplayTab({ area }: { area: 'cocina' | 'bar' }) {
                       </span>
                     </div>
                     <div className="mt-2 flex gap-1">
+                      {/* "Preparando" es opcional (marca inicio). Desde pendiente
+                          o en_preparacion, "Listo" siempre está a UN clic: antes
+                          había que pasar por "Preparando" primero y los ítems se
+                          quedaban en preparación. */}
                       {item.status === 'pendiente' && (
                         <button onClick={() => updateStatus(item.itemId, 'en_preparacion')}
                           className="flex-1 rounded-md bg-amber-500/15 text-amber-400 text-xs py-1 hover:bg-amber-500/25 transition-colors">
                           Preparando
                         </button>
                       )}
-                      {item.status === 'en_preparacion' && (
+                      {(item.status === 'pendiente' || item.status === 'en_preparacion') && (
                         <button onClick={() => updateStatus(item.itemId, 'listo')}
                           className="flex-1 rounded-md bg-green-500/15 text-green-400 text-xs py-1 hover:bg-green-500/25 transition-colors flex items-center justify-center gap-1">
                           <Check className="h-3 w-3" /> Listo
@@ -1239,6 +1247,7 @@ function CajaTab() {
   const [amountPaid, setAmountPaid] = useState('')
   const [detailOpen, setDetailOpen] = useState(false)
   const [splitCount, setSplitCount] = useState(2)
+  const [showMealPassAssign, setShowMealPassAssign] = useState(false) // Smart Checkout (F5)
 
   // Modo Cajero
   const [cajaMode, setCajaMode] = useState<'cobro' | 'full'>('cobro')
@@ -1357,14 +1366,26 @@ function CajaTab() {
     setPayTarget(null); setAmountPaid('')
   }
 
+  // Smart Checkout (F5): lo cargado a tiquetera NO se cobra en efectivo, así que
+  // se descuenta del monto a pedir. Sin ítems en tiquetera, mealPassAmount = 0 y
+  // el cálculo queda idéntico al de siempre.
+  const mealPassAmount = (selected?.items ?? [])
+    .filter((i: any) => i.mealPassId && i.status !== 'cancelado' && i.status !== 'entregado')
+    .reduce((s: number, i: any) => s + Number(i.subtotal || 0), 0)
+
   const targetAmount = (() => {
-    if (payMode === 'equal-split') return selected?.total ?? 0
-    if (!breakdown) return selected?.total ?? 0
-    if (payTarget === null) return selected?.total ?? 0
-    const group = breakdown.guests?.find((g: any) =>
-      payTarget === 'general' ? g.guestNumber == null : g.guestNumber === payTarget
-    )
-    return group?.subtotal ?? 0
+    const full = (() => {
+      if (payMode === 'equal-split') return selected?.total ?? 0
+      if (!breakdown) return selected?.total ?? 0
+      if (payTarget === null) return selected?.total ?? 0
+      const group = breakdown.guests?.find((g: any) =>
+        payTarget === 'general' ? g.guestNumber == null : g.guestNumber === payTarget
+      )
+      return group?.subtotal ?? 0
+    })()
+    // El descuento de tiquetera aplica al cobro de toda la mesa (no al split por comensal)
+    if (payTarget === null && payMode !== 'equal-split') return Math.max(0, full - mealPassAmount)
+    return full
   })()
 
   const amountNum = Number(amountPaid)
@@ -1402,6 +1423,14 @@ function CajaTab() {
                 : payTarget === 'general' ? 'Mesa general'
                 : breakdown?.guests?.find((g: any) => g.guestNumber === payTarget)?.guestName ?? `Comensal ${payTarget}`
       toast.success(`✅ ${who} — Factura ${r.data.invoiceNumber}. Cambio: ${formatCOP(r.data.changeAmount)}`)
+      // Smart Checkout (F5): resumen de lo descontado de tiqueteras
+      const consumos = r.data.passConsumptions ?? []
+      if (consumos.length > 0) {
+        toast.success(
+          `🎟️ Tiquetera: ${consumos.map((c: any) => `${c.customerName} −${c.meals} almuerzo(s), quedan ${c.balanceAfter}`).join(' · ')}`,
+          { duration: 6000 }
+        )
+      }
       if (r.data.closed) {
         clearSelection(); load()
       } else {
@@ -1559,6 +1588,10 @@ function CajaTab() {
           <button onClick={cancelCajaOrder} disabled={cancelling}
             className="flex items-center justify-center gap-1.5 rounded-xl border-2 border-red-500/20 bg-card py-2.5 text-sm font-semibold text-red-400 hover:bg-red-500/10 transition-all active:scale-[0.98] disabled:opacity-40">
             <XCircle className="h-4 w-4" /> {cancelling ? 'Cancelando...' : 'Cancelar comanda'}
+          </button>
+          <button onClick={() => setShowMealPassAssign(true)} disabled={selected?.status === 'cerrada' || selected?.status === 'cancelada'}
+            className="flex items-center justify-center gap-1.5 rounded-xl border-2 border-border bg-card py-2.5 text-sm font-semibold hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all active:scale-[0.98] disabled:opacity-40">
+            <Ticket className="h-4 w-4" /> Tiquetera
           </button>
           <button onClick={() => { setPayMode('table'); setPayTarget(null); setAmountPaid(String(Math.ceil(selected.total))) }}
             className="flex items-center justify-center gap-1.5 rounded-xl border-2 border-green-500/20 bg-green-500/10 py-2.5 text-sm font-semibold text-green-400 hover:bg-green-500/20 transition-all active:scale-[0.98]">
@@ -2094,6 +2127,20 @@ function CajaTab() {
           </div>
         )}
       </div>
+
+      {/* Smart Checkout (F5): cargar ítems de la comanda a una tiquetera */}
+      {showMealPassAssign && selected && (
+        <MealPassAssignDialog
+          orderId={selected.id}
+          items={selected.items ?? []}
+          onClose={() => setShowMealPassAssign(false)}
+          onAssigned={async () => {
+            setShowMealPassAssign(false)
+            const refreshed = await api.getRestbarOrder(selected.id)
+            if (refreshed.success) setSelected(refreshed.data)
+          }}
+        />
+      )}
     </>
   )
 }

@@ -90,6 +90,8 @@ export function TicketItem({
 
   return (
     <div className="pos-ticket-enter">
+      {/* `group` habilita group-hover: sin él los controles rápidos (−/+/eliminar)
+          nunca se revelaban y había que ir al botón lejano de la barra lateral. */}
       <div
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
@@ -97,7 +99,7 @@ export function TicketItem({
         onMouseDown={() => { isPressing.current = true; longPressTimer.current = setTimeout(() => { if (isPressing.current) setShowMenu(true) }, LONG_PRESS_MS) }}
         onMouseUp={() => { isPressing.current = false; if (longPressTimer.current) clearTimeout(longPressTimer.current) }}
         onMouseLeave={() => { isPressing.current = false; if (longPressTimer.current) clearTimeout(longPressTimer.current) }}
-        className={`px-3 py-2.5 transition-all relative select-none
+        className={`group px-3 py-2.5 transition-all relative select-none
           ${isSelected ? 'bg-zinc-800/80 ring-1 ring-emerald-500/30 rounded-lg mx-1' : 'hover:bg-zinc-800/30'}
           ${isDelivered ? 'opacity-50' : ''}`}
         style={{ transform: `translateX(${translateX}px)`, transition: translateX === 0 ? 'transform 0.2s ease' : 'none' }}
@@ -156,6 +158,14 @@ export function TicketItem({
               className="h-6 w-6 flex items-center justify-center rounded bg-zinc-700 hover:bg-zinc-600 text-zinc-400">
               <Plus className="h-3 w-3" />
             </button>
+            {/* Eliminar directo, pegado al producto (M5): antes había que hacer
+                swipe, long-press o ir a la barra lateral. */}
+            {!isDelivered && (
+              <button onClick={() => onRemove(item.id)} title="Eliminar producto"
+                className="h-6 w-6 flex items-center justify-center rounded bg-red-500/15 hover:bg-red-500/30 text-red-400 ml-1">
+                <Trash2 className="h-3 w-3" />
+              </button>
+            )}
             <button onClick={() => setShowMenu(true)}
               className="h-6 w-6 flex items-center justify-center rounded bg-zinc-700 hover:bg-zinc-600 text-zinc-400 ml-1">
               <MoreHorizontal className="h-3 w-3" />

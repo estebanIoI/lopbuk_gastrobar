@@ -24,6 +24,13 @@ router.get('/filters', async (_req, res, next) => {
   } catch (e) { next(e) }
 })
 
+// Analíticas de la librería (P6) — va antes de '/:id' para no ser capturada.
+router.get('/stats', async (_req, res, next) => {
+  try {
+    res.json({ success: true, data: await svc.getLibraryStats() })
+  } catch (e) { next(e) }
+})
+
 router.get('/:id', async (req, res, next) => {
   try {
     const lang = (req.query.lang as string) || svc.DEFAULT_LANG

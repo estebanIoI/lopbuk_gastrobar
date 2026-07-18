@@ -76,6 +76,123 @@ async function ensureEventsMigrationsMarked(): Promise<void> {
   }
 }
 
+// ── Reconciliador idempotente de migraciones pendientes ──────────────────────
+// Problema que resuelve: una migración puede quedar "a medias" — parte de su
+// esquema ya existe (creado por catch-up o por otra vía) y parte no. Drizzle es
+// todo-o-nada: al re-ejecutarla falla con "Duplicate column/Table already exists"
+// y ABORTA, dejando fuera todas las migraciones siguientes. Eso mantuvo 0050–0052
+// sin aplicar y al módulo de gimnasio sin sus 20 tablas.
+//
+// Estrategia: aplicar de cada migración pendiente SOLO lo que falta de verdad
+// (tabla por tabla, columna por columna, constraint por constraint) y recién
+// entonces marcarla como aplicada. Nunca borra ni modifica nada existente.
+//
+// Es genérico: sirve para cualquier migración futura que caiga en el mismo caso.
+
+const tableExists = async (t: string): Promise<boolean> => {
+  const [r]: any = await pool.query(
+    'SELECT COUNT(*) AS n FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?', [t]
+  )
+  return Number(r[0].n) > 0
+}
+const columnExists = async (t: string, c: string): Promise<boolean> => {
+  const [r]: any = await pool.query(
+    'SELECT COUNT(*) AS n FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?', [t, c]
+  )
+  return Number(r[0].n) > 0
+}
+const constraintExists = async (t: string, c: string): Promise<boolean> => {
+  const [r]: any = await pool.query(
+    'SELECT COUNT(*) AS n FROM information_schema.table_constraints WHERE table_schema = DATABASE() AND table_name = ? AND constraint_name = ?', [t, c]
+  )
+  return Number(r[0].n) > 0
+}
+
+/** ¿Este statement ya está aplicado? (para saltarlo sin ejecutarlo) */
+async function alreadyApplied(stmt: string): Promise<boolean> {
+  const create = stmt.match(/CREATE TABLE `([a-z_0-9]+)`/i)
+  if (create) return tableExists(create[1])
+
+  const addCol = stmt.match(/ALTER TABLE `([a-z_0-9]+)` ADD `([a-z_0-9]+)`/i)
+  if (addCol) {
+    if (!(await tableExists(addCol[1]))) return true // la tabla no existe → la crea su propio CREATE
+    return columnExists(addCol[1], addCol[2])
+  }
+
+  const addConstraint = stmt.match(/ALTER TABLE `([a-z_0-9]+)` ADD CONSTRAINT `([a-z_0-9]+)`/i)
+  if (addConstraint) {
+    if (!(await tableExists(addConstraint[1]))) return true
+    return constraintExists(addConstraint[1], addConstraint[2])
+  }
+
+  const createIdx = stmt.match(/CREATE (?:UNIQUE )?INDEX `([a-z_0-9]+)` ON `([a-z_0-9]+)`/i)
+  if (createIdx) {
+    if (!(await tableExists(createIdx[2]))) return true
+    const [r]: any = await pool.query(
+      'SELECT COUNT(*) AS n FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = ? AND index_name = ?',
+      [createIdx[2], createIdx[1]]
+    )
+    return Number(r[0].n) > 0
+  }
+  return false // desconocido → intentar ejecutarlo
+}
+
+/**
+ * MySQL limita los identificadores a 64 caracteres, pero drizzle-kit genera
+ * nombres de FK concatenando tabla+columna+tabla_destino, que a veces se pasan
+ * (p. ej. gym_workout_sets_session_exercise_id_gym_workout_session_exercises_id_fk,
+ * 72 chars). Esas migraciones NUNCA pudieron aplicarse. Se acortan de forma
+ * determinista (prefijo + hash) para que el nombre sea estable entre entornos.
+ */
+function shortenLongIdentifiers(stmt: string): string {
+  return stmt.replace(/`([a-zA-Z_0-9]{65,})`/g, (_m, id: string) => {
+    const short = `${id.slice(0, 50)}_${createHash('sha1').update(id).digest('hex').slice(0, 8)}`
+    return `\`${short}\``
+  })
+}
+
+/** Errores que significan "ya estaba" y por tanto son seguros de ignorar. */
+const DUP_CODES = new Set([
+  'ER_TABLE_EXISTS_ERROR', 'ER_DUP_FIELDNAME', 'ER_DUP_KEYNAME',
+  'ER_DUP_KEY', 'ER_FK_DUP_NAME', 'ER_CANT_CREATE_TABLE',
+])
+
+async function reconcilePendingMigrations(): Promise<void> {
+  const [mt]: any = await pool.query(
+    "SELECT COUNT(*) AS n FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = '__drizzle_migrations'"
+  )
+  if (Number(mt[0].n) === 0) return // BD fresca → migrate() aplica todo normalmente
+
+  const journal = JSON.parse(readFileSync(resolve(MIGRATIONS_DIR, 'meta', '_journal.json'), 'utf8'))
+  for (const entry of journal.entries ?? []) {
+    const [done]: any = await pool.query(
+      'SELECT COUNT(*) AS n FROM `__drizzle_migrations` WHERE `created_at` = ?', [entry.when]
+    )
+    if (Number(done[0].n) > 0) continue // ya registrada
+
+    let sql: string
+    try { sql = readFileSync(resolve(MIGRATIONS_DIR, `${entry.tag}.sql`), 'utf8') }
+    catch { continue } // sin archivo → que lo maneje migrate()
+
+    const statements = sql.split('--> statement-breakpoint').map(s => s.trim()).filter(Boolean)
+    let applied = 0, skipped = 0
+    for (const stmt of statements) {
+      const clean = shortenLongIdentifiers(stmt.replace(/;\s*$/, '').trim())
+      if (!clean) continue
+      if (await alreadyApplied(clean)) { skipped++; continue }
+      try { await pool.query(clean); applied++ }
+      catch (e: any) {
+        if (DUP_CODES.has(e?.code)) { skipped++; continue }  // ya existía por otra vía
+        throw new Error(`Reconciliando ${entry.tag}: ${e?.sqlMessage || e?.message}`)
+      }
+    }
+
+    const hash = createHash('sha256').update(sql).digest('hex')
+    await pool.query('INSERT INTO `__drizzle_migrations` (`hash`, `created_at`) VALUES (?, ?)', [hash, entry.when])
+    console.log(`Drizzle: "${entry.tag}" reconciliada (${applied} statements aplicados, ${skipped} ya existían).`)
+  }
+}
+
 // ── Catch-up idempotente ──────────────────────────────────────────────────────
 // Rellena gaps de esquema en BD existentes que fueron auto-marcadas con el baseline
 // (que NO se re-ejecuta) y por eso no tienen tablas/columnas que viven dentro del
@@ -140,7 +257,7 @@ async function ensureTableCollation(table: string, charset: string, collation: s
   }
 }
 
-async function runCatchup(): Promise<void> {
+export async function runCatchup(): Promise<void> {
   // Detectar la collation de una tabla de negocio existente para que hormas haga
   // JOIN sin "Illegal mix of collations". Sirve igual en prod (unicode_ci) y dev (0900).
   const [collRows]: any = await pool.query(
@@ -190,6 +307,16 @@ async function runCatchup(): Promise<void> {
   await addColumnIfMissing('storefront_orders', 'assigned_to', 'VARCHAR(36) NULL')
   await addColumnIfMissing('cash_sessions', 'shift_type', "ENUM('mañana','tarde','unico') NOT NULL DEFAULT 'unico'")
   await addColumnIfMissing('cash_sessions', 'shift_label', 'VARCHAR(50)')
+  // Fase 1 GastroBar: libro de ventas del turno (snapshot por producto al cerrar).
+  await addColumnIfMissing('cash_sessions', 'sales_book', 'JSON NULL')
+  // Fase 5 GastroBar · Smart Checkout: ítem asignado a tiquetera + producto que
+  // vale 1 cupo. Ambas nullable/default 0 → sin tiquetera el cobro no cambia.
+  await addColumnIfMissing('rb_order_items', 'meal_pass_id', 'VARCHAR(36) NULL')
+  await addColumnIfMissing('products', 'is_meal', 'TINYINT NOT NULL DEFAULT 0')
+  // Fase 6 GastroBar · Mesa General: origen del ítem al unir mesas y comanda
+  // absorbida. Ambas nullable → sin unir mesas, nada cambia.
+  await addColumnIfMissing('rb_order_items', 'origin_table_id', 'VARCHAR(36) NULL')
+  await addColumnIfMissing('rb_orders', 'merged_into_order_id', 'VARCHAR(36) NULL')
   // RestBar POS táctil: el service inserta original_price/course_number en rb_order_items,
   // pero el baseline creó la tabla sin ellas → "Unknown column" (500) al agregar ítems.
   await addColumnIfMissing('rb_order_items', 'original_price', 'DECIMAL(12,2) NULL')
@@ -361,12 +488,221 @@ async function runCatchup(): Promise<void> {
       INDEX idx_rex_version (routine_version_id, exercise_order)
     ) ENGINE=InnoDB DEFAULT CHARSET=${charset} COLLATE=${collation}`
   )
+
+  // ── Fase 1.5 · versionado de plantillas de producto ──────────────────────────
+  // Mismo patrón que routine_versions. NO destructivo: product_templates.sections
+  // se conserva como espejo de la versión publicada, así el endpoint público
+  // /storefront/product-page/:id sigue leyéndolo sin cambios y revertir el deploy
+  // no pierde datos.
+  await pool.query(
+    `CREATE TABLE IF NOT EXISTS product_template_versions (
+      id VARCHAR(36) NOT NULL PRIMARY KEY,
+      template_id VARCHAR(36) NOT NULL,
+      version INT NOT NULL DEFAULT 1,
+      sections JSON NOT NULL,
+      status VARCHAR(12) NOT NULL DEFAULT 'draft',
+      published_at DATETIME NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY uk_ptv (template_id, version),
+      INDEX idx_ptv_status (template_id, status)
+    ) ENGINE=InnoDB DEFAULT CHARSET=${charset} COLLATE=${collation}`
+  )
+
+  // Backfill v1 de las plantillas que aún no tienen versiones. Idempotente por el
+  // NOT EXISTS + uk_ptv; el servicio además hace backfill perezoso por si acaso.
+  const [ptplExists]: any = await pool.query(
+    "SELECT COUNT(*) AS n FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'product_templates'"
+  )
+  if (Number(ptplExists[0].n) > 0) {
+    await pool.query(
+      `INSERT INTO product_template_versions (id, template_id, version, sections, status, published_at)
+       SELECT UUID(), t.id, 1, t.sections, t.status,
+              CASE WHEN t.status = 'published' THEN NOW() ELSE NULL END
+         FROM product_templates t
+        WHERE NOT EXISTS (
+          SELECT 1 FROM product_template_versions v WHERE v.template_id = t.id
+        )`
+    )
+  }
+
+  // ── Fase 3 · Product Bundle Builder ──────────────────────────────────────────
+  await pool.query(
+    `CREATE TABLE IF NOT EXISTS product_bundles (
+      id VARCHAR(36) NOT NULL PRIMARY KEY,
+      tenant_id VARCHAR(36) NOT NULL,
+      name VARCHAR(160) NOT NULL,
+      description VARCHAR(400) NULL,
+      image_url VARCHAR(500) NULL,
+      label VARCHAR(60) NULL,
+      discount_type ENUM('fixed_total','percent','amount_off') NOT NULL DEFAULT 'percent',
+      discount_value DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+      anchor_product_id VARCHAR(36) NULL,
+      status ENUM('draft','published','archived') NOT NULL DEFAULT 'draft',
+      is_active TINYINT NOT NULL DEFAULT 1,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_pb_tenant_status (tenant_id, status),
+      INDEX idx_pb_anchor (anchor_product_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=${charset} COLLATE=${collation}`
+  )
+  await pool.query(
+    `CREATE TABLE IF NOT EXISTS product_bundle_items (
+      id VARCHAR(36) NOT NULL PRIMARY KEY,
+      bundle_id VARCHAR(36) NOT NULL,
+      product_id VARCHAR(36) NOT NULL,
+      variant_id VARCHAR(36) NULL,
+      quantity INT NOT NULL DEFAULT 1,
+      sort_order INT NOT NULL DEFAULT 0,
+      INDEX idx_pbi_bundle (bundle_id, sort_order)
+    ) ENGINE=InnoDB DEFAULT CHARSET=${charset} COLLATE=${collation}`
+  )
+
+  // ── Fase 4 · Checkout Experience (config de personalización por tenant) ───────
+  await pool.query(
+    `CREATE TABLE IF NOT EXISTS checkout_experiences (
+      tenant_id VARCHAR(36) NOT NULL PRIMARY KEY,
+      config JSON NOT NULL,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=${charset} COLLATE=${collation}`
+  )
+
+  // ── Gimnasio: membresías, planes, progreso y asistencia ─────────────────────
+  // `gym.service.ts` las consultaba pero no estaban definidas en ninguna parte del
+  // repo → sus endpoints fallaban con "table doesn't exist". Esquema derivado de
+  // las consultas reales del servicio.
+  await pool.query(
+    `CREATE TABLE IF NOT EXISTS gym_membresias (
+      id VARCHAR(36) NOT NULL PRIMARY KEY,
+      tenant_id VARCHAR(36) NOT NULL,
+      user_id VARCHAR(36) NOT NULL,
+      plan_name VARCHAR(160) NULL,
+      status VARCHAR(20) NOT NULL DEFAULT 'activa',
+      price DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+      payment_cycle VARCHAR(20) NOT NULL DEFAULT 'mensual',
+      auto_renew TINYINT NOT NULL DEFAULT 0,
+      start_date DATE NULL,
+      end_date DATE NULL,
+      last_payment_at DATETIME NULL,
+      next_payment_at DATETIME NULL,
+      notes TEXT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uk_gym_membresia (tenant_id, user_id),
+      INDEX idx_gym_memb_status (tenant_id, status)
+    ) ENGINE=InnoDB DEFAULT CHARSET=${charset} COLLATE=${collation}`
+  )
+  await pool.query(
+    `CREATE TABLE IF NOT EXISTS gym_planes_entrenamiento (
+      id VARCHAR(36) NOT NULL PRIMARY KEY,
+      tenant_id VARCHAR(36) NOT NULL,
+      member_user_id VARCHAR(36) NOT NULL,
+      name VARCHAR(200) NOT NULL,
+      description TEXT NULL,
+      days_per_week INT NULL,
+      is_active TINYINT NOT NULL DEFAULT 1,
+      created_by VARCHAR(36) NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_gym_plan_member (tenant_id, member_user_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=${charset} COLLATE=${collation}`
+  )
+  await pool.query(
+    `CREATE TABLE IF NOT EXISTS gym_ejercicios (
+      id VARCHAR(36) NOT NULL PRIMARY KEY,
+      plan_id VARCHAR(36) NOT NULL,
+      tenant_id VARCHAR(36) NOT NULL,
+      day_label VARCHAR(60) NULL,
+      name VARCHAR(200) NOT NULL,
+      sets INT NULL,
+      reps VARCHAR(40) NULL,
+      weight_kg DECIMAL(8,2) NULL,
+      rest_seconds INT NULL,
+      notes TEXT NULL,
+      sort_order INT NOT NULL DEFAULT 0,
+      INDEX idx_gym_ej_plan (plan_id, sort_order)
+    ) ENGINE=InnoDB DEFAULT CHARSET=${charset} COLLATE=${collation}`
+  )
+  await pool.query(
+    `CREATE TABLE IF NOT EXISTS gym_progreso (
+      id VARCHAR(36) NOT NULL PRIMARY KEY,
+      tenant_id VARCHAR(36) NOT NULL,
+      member_user_id VARCHAR(36) NOT NULL,
+      log_date DATE NOT NULL,
+      weight_kg DECIMAL(6,2) NULL,
+      body_fat_pct DECIMAL(5,2) NULL,
+      muscle_mass_kg DECIMAL(6,2) NULL,
+      measurements JSON NULL,
+      notes TEXT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_gym_prog_member (tenant_id, member_user_id, log_date)
+    ) ENGINE=InnoDB DEFAULT CHARSET=${charset} COLLATE=${collation}`
+  )
+  await pool.query(
+    `CREATE TABLE IF NOT EXISTS gym_asistencia (
+      id VARCHAR(36) NOT NULL PRIMARY KEY,
+      tenant_id VARCHAR(36) NOT NULL,
+      member_user_id VARCHAR(36) NOT NULL,
+      checked_in_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      checked_out_at TIMESTAMP NULL,
+      notes TEXT NULL,
+      INDEX idx_gym_asis_tenant_day (tenant_id, checked_in_at),
+      INDEX idx_gym_asis_member (member_user_id, checked_out_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=${charset} COLLATE=${collation}`
+  )
+
+  // Por si la tabla ya se creó antes sin esta columna (listMemberAttendance la lee)
+  await addColumnIfMissing('gym_asistencia', 'notes', 'TEXT NULL')
+
+  // ── Fase 4 GastroBar · Tiqueteras / Meal Pass ────────────────────────────────
+  await pool.query(
+    `CREATE TABLE IF NOT EXISTS meal_passes (
+      id VARCHAR(36) NOT NULL PRIMARY KEY,
+      tenant_id VARCHAR(36) NOT NULL,
+      customer_name VARCHAR(255) NOT NULL,
+      document VARCHAR(50) NULL,
+      phone VARCHAR(50) NULL,
+      convenio VARCHAR(160) NULL,
+      empresa VARCHAR(160) NULL,
+      total_meals INT NOT NULL DEFAULT 0,
+      remaining INT NOT NULL DEFAULT 0,
+      purchased_at DATE NULL,
+      expires_at DATE NULL,
+      status ENUM('activa','agotada','vencida','anulada') NOT NULL DEFAULT 'activa',
+      is_active TINYINT NOT NULL DEFAULT 1,
+      notes VARCHAR(400) NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_mp_tenant_status (tenant_id, status),
+      INDEX idx_mp_doc (tenant_id, document),
+      INDEX idx_mp_phone (tenant_id, phone)
+    ) ENGINE=InnoDB DEFAULT CHARSET=${charset} COLLATE=${collation}`
+  )
+  await pool.query(
+    `CREATE TABLE IF NOT EXISTS meal_pass_movements (
+      id VARCHAR(36) NOT NULL PRIMARY KEY,
+      meal_pass_id VARCHAR(36) NOT NULL,
+      type ENUM('recarga','consumo','ajuste','anulacion') NOT NULL,
+      meals INT NOT NULL,
+      balance_after INT NOT NULL,
+      order_id VARCHAR(36) NULL,
+      order_item_id VARCHAR(36) NULL,
+      table_number VARCHAR(20) NULL,
+      employee_id VARCHAR(36) NULL,
+      employee_name VARCHAR(255) NULL,
+      note VARCHAR(255) NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_mpm_pass (meal_pass_id, created_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=${charset} COLLATE=${collation}`
+  )
 }
 
 // Aplica las migraciones pendientes (registradas en __drizzle_migrations).
 export async function runMigrations(): Promise<void> {
   await ensureBaselineForExistingDb()
   await ensureEventsMigrationsMarked()
+  // Aplica lo que falte de las migraciones pendientes que quedaron a medias y las
+  // marca. Sin esto, migrate() aborta con "Duplicate column/Table already exists"
+  // y bloquea todas las siguientes (era el caso de 0050–0052 y el gimnasio).
+  await reconcilePendingMigrations()
   await migrate(db, { migrationsFolder: MIGRATIONS_DIR })
   await runCatchup()
 }

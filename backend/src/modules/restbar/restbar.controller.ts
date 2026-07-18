@@ -184,6 +184,18 @@ export class RestbarController {
     } catch (err) { next(err); }
   }
 
+  // ── SMART CHECKOUT · Tiqueteras (Fase 5) ──────────────────────────────────
+  async assignMealPass(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { itemIds, mealPassId } = req.body || {};
+      const data = await restbarService.assignMealPass(
+        req.user!.tenantId!, req.params.orderId, itemIds, mealPassId ?? null
+      );
+      emitOrderChanged(req.params.orderId);
+      res.json({ success: true, data });
+    } catch (err) { next(err); }
+  }
+
   // ── PAYMENT ───────────────────────────────────────────────────────────────
 
   async updateOrderNotes(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {

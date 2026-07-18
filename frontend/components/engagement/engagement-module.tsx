@@ -1,6 +1,6 @@
 'use client'
 
-// Panel admin de fidelización (Fase 3 → P1 Customer Engagement Platform):
+// Módulo Engagement del panel del comerciante (backend: customer-engagement):
 // reglas de puntos, catálogo de recompensas, cuentas de clientes,
 // wallet config, CRM, analytics, campañas y automatizaciones.
 import { useEffect, useState, useCallback } from 'react'
@@ -13,7 +13,7 @@ import { AIInsights } from '@/components/wallet/ai-insights'
 import { RevenueAttribution } from '@/components/wallet/revenue-attribution'
 import { AICopilot } from '@/components/wallet/ai-copilot'
 
-export default function LoyaltyAdminPage() {
+export function EngagementModule() {
   const [tab, setTab] = useState<'config' | 'rewards' | 'accounts' | 'wallet' | 'crm' | 'analytics' | 'automations' | 'campaigns' | 'copilot'>('config')
 
   // Config
@@ -212,8 +212,8 @@ export default function LoyaltyAdminPage() {
   const TABS = [['config', '⚙️ Reglas'], ['wallet', '📱 Wallet'], ['rewards', '🎁 Recompensas'], ['accounts', '👤 Cuentas'], ['crm', '📊 CRM'], ['analytics', '📈 Analytics'], ['automations', '🔁 Automatización'], ['campaigns', '📢 Campañas'], ['copilot', '🤖 AI Copilot']] as const
 
   return (
-    <div className="min-h-screen bg-background text-foreground p-5 max-w-4xl mx-auto">
-      <h1 className="text-2xl font-black mb-1">⭐ Customer Engagement</h1>
+    <div className="text-foreground p-5 max-w-4xl mx-auto">
+      <h1 className="text-2xl font-black mb-1">Engagement</h1>
       <p className="text-sm text-muted-foreground mb-5">Fidelización, wallet, CRM y analytics para tu negocio.</p>
 
       <div className="flex gap-2 mb-6 flex-wrap">

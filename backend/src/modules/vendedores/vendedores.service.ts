@@ -479,6 +479,101 @@ export class VendedoresService {
       promedioComanda: r.comandasCerradas > 0 ? Number(r.totalFacturado) / Number(r.comandasCerradas) : 0,
     }));
   }
+
+  // ── Hoja de vida laboral (Fase 2 GastroBar · M3) ─────────────────────────────
+  // Agregación pura de datos existentes: turnos trabajados (shift_employees),
+  // adicionales/descuentos (shift_employee_bonuses) y la fecha del turno (la
+  // sesión de caja). Sin tablas nuevas.
+
+  /** Empleados que han trabajado algún turno (para el selector de la hoja de vida). */
+  async getEmployeesWithShifts(tenantId: string): Promise<Array<{ userId: string | null; name: string; roleLabel: string | null; shifts: number }>> {
+    const [rows] = await db.execute<RowDataPacket[]>(
+      `SELECT se.user_id AS userId, MAX(se.employee_name) AS name, MAX(se.role_label) AS roleLabel,
+              COUNT(*) AS shifts
+         FROM shift_employees se
+        WHERE se.tenant_id = ?
+        GROUP BY se.user_id, se.employee_name
+        ORDER BY shifts DESC, name ASC`,
+      [tenantId]
+    );
+    return rows.map((r: any) => ({
+      userId: r.userId || null,
+      name: r.name,
+      roleLabel: r.roleLabel || null,
+      shifts: Number(r.shifts) || 0,
+    }));
+  }
+
+  /**
+   * Hoja de vida laboral de un empleado en un rango (por mes por defecto):
+   * cada turno con fecha, valor base, adicionales/descuentos, y los totales.
+   * Se identifica por userId; si el turno se registró sin user_id, se puede
+   * pasar `name` para empatar por nombre (empleados sin login).
+   */
+  async getWorkHistory(
+    tenantId: string,
+    opts: { userId?: string; name?: string; from: string; to: string }
+  ): Promise<{
+    employee: { userId: string | null; name: string | null };
+    range: { from: string; to: string };
+    shifts: Array<{
+      shiftEmpId: string; sessionId: string; date: string | null; shiftType: string | null; shiftLabel: string | null;
+      roleLabel: string | null; sessionStatus: string; shiftValue: number; bono: number; descuento: number; neto: number;
+      concepts: string[];
+    }>;
+    totals: { daysWorked: number; baseTotal: number; bonosTotal: number; descuentosTotal: number; totalEarned: number };
+  }> {
+    const where: string[] = ['se.tenant_id = ?', 'cs.opened_at >= ?', 'cs.opened_at < ?'];
+    const vals: any[] = [tenantId, opts.from, opts.to];
+    if (opts.userId) { where.push('se.user_id = ?'); vals.push(opts.userId); }
+    else if (opts.name) { where.push('se.employee_name = ?'); vals.push(opts.name); }
+    else throw new AppError('Se requiere userId o name', 400);
+
+    const [rows] = await db.execute<RowDataPacket[]>(
+      `SELECT se.id AS shiftEmpId, se.session_id AS sessionId, se.user_id AS userId, se.employee_name AS name,
+              se.role_label AS roleLabel, se.shift_value AS shiftValue,
+              cs.opened_at AS openedAt, cs.shift_type AS shiftType, cs.shift_label AS shiftLabel, cs.status AS sessionStatus,
+              COALESCE(b.bono, 0) AS bono, COALESCE(b.descuento, 0) AS descuento, b.concepts AS concepts
+         FROM shift_employees se
+         JOIN cash_sessions cs ON cs.id = se.session_id
+         LEFT JOIN (
+           SELECT shift_emp_id,
+                  SUM(CASE WHEN type = 'bono' THEN amount ELSE 0 END) AS bono,
+                  SUM(CASE WHEN type = 'descuento' THEN amount ELSE 0 END) AS descuento,
+                  GROUP_CONCAT(CONCAT(type, ':', COALESCE(concept, '')) SEPARATOR '|') AS concepts
+             FROM shift_employee_bonuses GROUP BY shift_emp_id
+         ) b ON b.shift_emp_id = se.id
+        WHERE ${where.join(' AND ')}
+        ORDER BY cs.opened_at DESC`,
+      vals
+    );
+
+    let baseTotal = 0, bonosTotal = 0, descuentosTotal = 0;
+    const shifts = rows.map((r: any) => {
+      const shiftValue = Number(r.shiftValue) || 0;
+      const bono = Number(r.bono) || 0;
+      const descuento = Number(r.descuento) || 0;
+      baseTotal += shiftValue; bonosTotal += bono; descuentosTotal += descuento;
+      const concepts = r.concepts ? String(r.concepts).split('|').map((c: string) => c.replace(/^(bono|descuento):/, '').trim()).filter(Boolean) : [];
+      return {
+        shiftEmpId: r.shiftEmpId, sessionId: r.sessionId,
+        date: r.openedAt || null, shiftType: r.shiftType || null, shiftLabel: r.shiftLabel || null,
+        roleLabel: r.roleLabel || null, sessionStatus: r.sessionStatus,
+        shiftValue, bono, descuento, neto: shiftValue + bono - descuento, concepts,
+      };
+    });
+
+    return {
+      employee: { userId: opts.userId || (rows[0] as any)?.userId || null, name: opts.name || (rows[0] as any)?.name || null },
+      range: { from: opts.from, to: opts.to },
+      shifts,
+      totals: {
+        daysWorked: shifts.length,
+        baseTotal, bonosTotal, descuentosTotal,
+        totalEarned: baseTotal + bonosTotal - descuentosTotal,
+      },
+    };
+  }
 }
 
 export const vendedoresService = new VendedoresService();

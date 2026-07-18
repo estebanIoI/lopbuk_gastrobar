@@ -2,53 +2,52 @@
 
 /**
  * Editor visual de Plantillas Dinámicas de Producto (JSON-driven, tipo Shopify).
+ *
+ * Fase 1.5: no conoce ningún bloque. Catálogo, defaults, formulario, preview y
+ * render se derivan del Block Registry (`lib/product-blocks`), única fuente de
+ * verdad. Agregar un bloque no requiere tocar este archivo.
+ *
  * - Lista de plantillas con estados draft/published/archived + duplicar.
  * - Editor por secciones: agregar del catálogo, reordenar (drag nativo + flechas),
  *   ocultar/duplicar/eliminar, settings por tipo, vista previa en vivo con el
  *   MISMO SectionRenderer que usa la tienda (un solo código de render).
+ * - Versionado real: guardar escribe el borrador; publicar crea versión y
+ *   refresca la tienda; historial con rollback.
  * - Asignación masiva a productos + contenido único por producto (page_content).
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { api } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Textarea } from '@/components/ui/textarea'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog'
 import {
   LayoutTemplate, Plus, Copy, Archive, Pencil, GripVertical, Eye, EyeOff,
   Trash2, ChevronUp, ChevronDown, Loader2, Sparkles, PackageCheck, Search, ArrowLeft,
+  History, RotateCcw, Monitor, Smartphone, Sun, Moon, AlertTriangle,
 } from 'lucide-react'
-import { SectionRenderer, type TemplateSection, type SectionType } from '@/components/product-template/SectionRenderer'
+import { SectionRenderer } from '@/components/product-template/SectionRenderer'
+import type { TemplateSection, SectionRendererCtx } from '@/lib/product-blocks/types'
+import { BLOCKS, getBlock, newSection } from '@/lib/product-blocks/registry'
+import { ListEditor } from '@/lib/product-blocks/shared'
 
-// ── Catálogo de secciones (labels + settings por defecto) ──────────────────────
-
-const SECTION_CATALOG: Array<{ type: SectionType; label: string; desc: string; defaults: Record<string, any> }> = [
-  { type: 'benefits', label: '✓ Beneficios', desc: 'Bloques de valor (envío, garantía, calidad)', defaults: { title: '¿Por qué elegir {{product.title}}?', columns: 2, items: [{ icon: '🚚', text: 'Envío rápido a todo el país' }, { icon: '✅', text: 'Calidad garantizada' }] } },
-  { type: 'rich_text', label: '📝 Texto enriquecido', desc: 'Título + texto con negritas y listas + imagen', defaults: { title: '', body: '{{product.description}}', imageUrl: '', imagePosition: 'right' } },
-  { type: 'video', label: '🎬 Video', desc: 'YouTube, TikTok o MP4', defaults: { title: 'Míralo en acción', url: '' } },
-  { type: 'faq', label: '❓ FAQ', desc: 'Preguntas frecuentes en acordeón', defaults: { title: 'Preguntas frecuentes', items: [{ q: '¿Cuánto tarda el envío?', a: 'Entre 2 y 5 días hábiles según tu ciudad.' }] } },
-  { type: 'testimonials', label: '⭐ Testimonios', desc: 'Reviews aprobadas del producto (automático)', defaults: { title: 'Lo que dicen nuestros clientes', maxItems: 6 } },
-  { type: 'comparison', label: '⚖️ Comparación', desc: 'Tu producto vs la competencia', defaults: { title: '{{product.title}} vs otros', ourLabel: '{{product.title}}', theirLabel: 'Otros', rows: [{ feature: 'Garantía', ours: '✓ Incluida', theirs: '✗' }] } },
-  { type: 'urgency', label: '🔥 Urgencia', desc: 'Stock real y/o cuenta regresiva', defaults: { message: '🔥 Quedan {{product.stock}} unidades', showStock: true, deadline: '' } },
-  { type: 'guarantees', label: '🛡️ Garantías', desc: 'Trust badges de confianza', defaults: { items: [{ icon: '🛡️', title: 'Garantía', text: 'Por defectos de fábrica' }, { icon: '💵', title: 'Contra entrega', text: 'Paga al recibir' }] } },
-  { type: 'image_banner', label: '🖼️ Banner', desc: 'Imagen full-width con texto y botón', defaults: { imageUrl: '', title: '', subtitle: '', ctaText: '' } },
-  { type: 'related', label: '🛍️ Relacionados', desc: 'Productos de la misma categoría/marca', defaults: { title: 'También te puede gustar', maxItems: 4 } },
-]
-
-const catalogFor = (type: SectionType) => SECTION_CATALOG.find(c => c.type === type)
-
-// Producto de muestra para la vista previa del editor
-const SAMPLE_CTX = {
-  product: { name: 'Producto de ejemplo', salePrice: 99000, offerPrice: 79000, isOnOffer: true, stock: 7, brand: 'Mi Marca', category: 'General', description: 'Descripción de ejemplo del producto para previsualizar la plantilla.' },
+// Producto de muestra para previsualizar sin depender de la tienda real
+const SAMPLE_IMG = 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600'
+const SAMPLE_CTX: SectionRendererCtx = {
+  product: {
+    name: 'Producto de ejemplo', salePrice: 99000, offerPrice: 79000, isOnOffer: true, stock: 7,
+    brand: 'Mi Marca', category: 'General', description: 'Descripción de ejemplo del producto para previsualizar la plantilla.',
+    images: [SAMPLE_IMG, SAMPLE_IMG + '&sat=-50'], imageUrl: SAMPLE_IMG,
+  },
   store: { name: 'Mi Tienda', whatsapp: '3000000000' },
+  formatPrice: (v: number) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(v),
   reviews: [
-    { rating: 5, text: '¡Excelente calidad, llegó rapidísimo!', author: 'Cliente feliz' },
-    { rating: 4, text: 'Muy buen producto, lo recomiendo.', author: 'Compradora verificada' },
+    { rating: 5, text: '¡Excelente calidad, llegó rapidísimo!', author: 'Cliente feliz', verified: true },
+    { rating: 4, text: 'Muy buen producto, lo recomiendo.', author: 'Compradora', verified: true },
   ],
   relatedProducts: [
     { id: '1', name: 'Producto relacionado A', price: 59000, imageUrl: null },
@@ -64,162 +63,31 @@ interface TemplateRow {
   sections: TemplateSection[]
   status: 'draft' | 'published' | 'archived'
   productCount?: number
+  hasDraft?: boolean
+}
+
+interface VersionRow {
+  id: string
+  version: number
+  status: 'draft' | 'published' | 'archived'
+  sectionCount: number
+  publishedAt: string | null
+  createdAt: string
 }
 
 const STATUS_LABEL: Record<string, string> = { draft: 'Borrador', published: 'Publicada', archived: 'Archivada' }
 
-// ── Sub-editores de listas (items de beneficios/faq/filas) ─────────────────────
-
-function ListEditor({ items, fields, onChange, addLabel }: {
-  items: any[]
-  fields: Array<{ key: string; label: string; long?: boolean }>
-  onChange: (items: any[]) => void
-  addLabel: string
-}) {
-  return (
-    <div className="space-y-2">
-      {items.map((item, i) => (
-        <div key={i} className="rounded-lg border p-2 space-y-1.5 relative">
-          <button
-            onClick={() => onChange(items.filter((_, j) => j !== i))}
-            className="absolute top-1.5 right-1.5 text-muted-foreground hover:text-destructive"
-            title="Eliminar"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
-          {fields.map(f => (
-            f.long ? (
-              <Textarea key={f.key} rows={2} placeholder={f.label} value={item[f.key] || ''}
-                onChange={e => onChange(items.map((it, j) => j === i ? { ...it, [f.key]: e.target.value } : it))}
-                className="text-xs" />
-            ) : (
-              <Input key={f.key} placeholder={f.label} value={item[f.key] || ''}
-                onChange={e => onChange(items.map((it, j) => j === i ? { ...it, [f.key]: e.target.value } : it))}
-                className={`text-xs h-8 ${f.key === 'icon' ? 'w-20 inline-block mr-1.5' : ''}`} />
-            )
-          ))}
-        </div>
-      ))}
-      <Button variant="outline" size="sm" className="w-full" onClick={() => onChange([...items, {}])}>
-        <Plus className="h-3.5 w-3.5 mr-1.5" />{addLabel}
-      </Button>
-    </div>
-  )
-}
-
-// ── Form de settings por tipo de sección ───────────────────────────────────────
-
-function SectionSettingsForm({ section, onChange }: { section: TemplateSection; onChange: (settings: Record<string, any>) => void }) {
-  const s = section.settings
-  const set = (key: string, value: any) => onChange({ ...s, [key]: value })
-  const text = (key: string, label: string) => (
-    <div>
-      <label className="text-xs font-medium mb-1 block">{label}</label>
-      <Input value={s[key] || ''} onChange={e => set(key, e.target.value)} className="h-8 text-xs" />
-    </div>
-  )
-
-  switch (section.type) {
-    case 'benefits':
-      return (<div className="space-y-3">
-        {text('title', 'Título')}
-        <div>
-          <label className="text-xs font-medium mb-1 block">Columnas</label>
-          <select value={String(s.columns || 2)} onChange={e => set('columns', Number(e.target.value))} className="w-full h-8 text-xs border rounded-md bg-background px-2">
-            <option value="2">2 columnas</option><option value="3">3 columnas</option>
-          </select>
-        </div>
-        <ListEditor items={s.items || []} onChange={v => set('items', v)} addLabel="Agregar beneficio"
-          fields={[{ key: 'icon', label: 'Emoji' }, { key: 'text', label: 'Texto del beneficio' }]} />
-      </div>)
-    case 'rich_text':
-      return (<div className="space-y-3">
-        {text('title', 'Título')}
-        <div>
-          <label className="text-xs font-medium mb-1 block">Texto (usa **negrita**, "- " para listas y {'{{product.description}}'})</label>
-          <Textarea rows={6} value={s.body || ''} onChange={e => set('body', e.target.value)} className="text-xs" />
-        </div>
-        {text('imageUrl', 'URL de imagen (opcional)')}
-        <div>
-          <label className="text-xs font-medium mb-1 block">Posición de la imagen</label>
-          <select value={s.imagePosition || 'right'} onChange={e => set('imagePosition', e.target.value)} className="w-full h-8 text-xs border rounded-md bg-background px-2">
-            <option value="right">Derecha</option><option value="left">Izquierda</option>
-          </select>
-        </div>
-      </div>)
-    case 'video':
-      return (<div className="space-y-3">
-        {text('title', 'Título')}
-        {text('url', 'URL (YouTube, TikTok o .mp4)')}
-        <p className="text-[10px] text-muted-foreground">Si se deja vacío, usa el video propio del producto (contenido de página).</p>
-      </div>)
-    case 'faq':
-      return (<div className="space-y-3">
-        {text('title', 'Título')}
-        <ListEditor items={s.items || []} onChange={v => set('items', v)} addLabel="Agregar pregunta"
-          fields={[{ key: 'q', label: 'Pregunta' }, { key: 'a', label: 'Respuesta', long: true }]} />
-        <p className="text-[10px] text-muted-foreground">Las FAQs propias de cada producto se suman automáticamente.</p>
-      </div>)
-    case 'testimonials':
-      return (<div className="space-y-3">
-        {text('title', 'Título')}
-        <div>
-          <label className="text-xs font-medium mb-1 block">Máximo a mostrar</label>
-          <Input type="number" min={1} max={12} value={s.maxItems || 6} onChange={e => set('maxItems', Number(e.target.value))} className="h-8 text-xs w-24" />
-        </div>
-        <p className="text-[10px] text-muted-foreground">Muestra automáticamente las reseñas APROBADAS del producto + los testimonios manuales del contenido de página.</p>
-      </div>)
-    case 'comparison':
-      return (<div className="space-y-3">
-        {text('title', 'Título')}
-        {text('ourLabel', 'Etiqueta de tu producto')}
-        {text('theirLabel', 'Etiqueta de la competencia')}
-        <ListEditor items={s.rows || []} onChange={v => set('rows', v)} addLabel="Agregar fila"
-          fields={[{ key: 'feature', label: 'Característica' }, { key: 'ours', label: 'Tu producto (ej: ✓ Incluida)' }, { key: 'theirs', label: 'Otros (ej: ✗)' }]} />
-      </div>)
-    case 'urgency':
-      return (<div className="space-y-3">
-        {text('message', 'Mensaje (usa {{product.stock}})')}
-        <label className="flex items-center gap-2 text-xs">
-          <input type="checkbox" checked={s.showStock !== false} onChange={e => set('showStock', e.target.checked)} />
-          Mostrar solo si hay stock real
-        </label>
-        <div>
-          <label className="text-xs font-medium mb-1 block">Fecha límite (cuenta regresiva, opcional)</label>
-          <Input type="datetime-local" value={s.deadline || ''} onChange={e => set('deadline', e.target.value)} className="h-8 text-xs" />
-        </div>
-      </div>)
-    case 'guarantees':
-      return (<ListEditor items={s.items || []} onChange={v => set('items', v)} addLabel="Agregar garantía"
-        fields={[{ key: 'icon', label: 'Emoji' }, { key: 'title', label: 'Título' }, { key: 'text', label: 'Descripción' }]} />)
-    case 'image_banner':
-      return (<div className="space-y-3">
-        {text('imageUrl', 'URL de imagen de fondo')}
-        {text('title', 'Título')}
-        {text('subtitle', 'Subtítulo')}
-        {text('ctaText', 'Texto del botón (vacío = sin botón)')}
-      </div>)
-    case 'related':
-      return (<div className="space-y-3">
-        {text('title', 'Título')}
-        <div>
-          <label className="text-xs font-medium mb-1 block">Máximo a mostrar</label>
-          <Input type="number" min={2} max={8} value={s.maxItems || 4} onChange={e => set('maxItems', Number(e.target.value))} className="h-8 text-xs w-24" />
-        </div>
-        <p className="text-[10px] text-muted-foreground">Reemplaza la sección nativa de relacionados (misma categoría/marca).</p>
-      </div>)
-    default:
-      return <p className="text-xs text-muted-foreground">Sin configuración</p>
-  }
+const parseMaybeJson = (v: any) => {
+  if (!v) return null
+  if (typeof v !== 'string') return v
+  try { return JSON.parse(v) } catch { return null }
 }
 
 // ── Modal de contenido único por producto (page_content) ──────────────────────
 
 function PageContentModal({ product, onClose }: { product: any; onClose: () => void }) {
   const [content, setContent] = useState<any>(() => {
-    const pc = product.pageContent
-    if (!pc) return { videoUrl: '', benefits: [], faqs: [], testimonials: [] }
-    const parsed = typeof pc === 'string' ? (() => { try { return JSON.parse(pc) } catch { return {} } })() : pc
+    const parsed = parseMaybeJson(product.pageContent) || {}
     return { videoUrl: '', benefits: [], faqs: [], testimonials: [], ...parsed }
   })
   const [saving, setSaving] = useState(false)
@@ -230,7 +98,12 @@ function PageContentModal({ product, onClose }: { product: any; onClose: () => v
       videoUrl: content.videoUrl || undefined,
       benefits: (content.benefits || []).filter((b: any) => b?.text),
       faqs: (content.faqs || []).filter((f: any) => f?.q && f?.a),
-      testimonials: (content.testimonials || []).filter((t: any) => t?.text),
+      testimonials: (content.testimonials || []).filter((t: any) => t?.text).map((t: any) => ({
+        ...t,
+        // Rating opcional: si no lo puso, NO se inventa 5★ — el bloque lo
+        // muestra sin estrellas y etiquetado como "Testimonio".
+        rating: t.rating ? Number(t.rating) : undefined,
+      })),
     }
     const empty = !clean.videoUrl && !clean.benefits.length && !clean.faqs.length && !clean.testimonials.length
     const res = await api.setProductPageContent(String(product.id), empty ? null : clean)
@@ -266,7 +139,17 @@ function PageContentModal({ product, onClose }: { product: any; onClose: () => v
           <div>
             <label className="text-xs font-medium mb-1 block">Testimonios manuales</label>
             <ListEditor items={content.testimonials || []} onChange={v => setContent({ ...content, testimonials: v })}
-              addLabel="Agregar testimonio" fields={[{ key: 'name', label: 'Nombre' }, { key: 'text', label: 'Testimonio', long: true }]} />
+              addLabel="Agregar testimonio"
+              fields={[
+                { key: 'name', label: 'Nombre' },
+                { key: 'rating', label: 'Calificación 1-5 (opcional)' },
+                { key: 'text', label: 'Testimonio', long: true },
+              ]} />
+            <p className="text-[10px] text-muted-foreground mt-1.5">
+              Estos testimonios se muestran etiquetados como “Testimonio”, nunca como “Compra
+              verificada”: ese distintivo lo llevan solo las reseñas de compras reales. Si no pones
+              calificación, no se muestran estrellas.
+            </p>
           </div>
         </div>
         <DialogFooter>
@@ -295,7 +178,7 @@ function AssignModal({ template, onClose, onAssigned }: { template: TemplateRow;
     setLoading(true)
     api.getProducts({ limit: 100, search: search || undefined }).then(res => {
       if (cancelled) return
-      const list = res?.data?.products || res?.data || []
+      const list = (res as any)?.data?.products || (res as any)?.data || []
       setProducts(Array.isArray(list) ? list : [])
       setLoading(false)
     })
@@ -320,7 +203,7 @@ function AssignModal({ template, onClose, onAssigned }: { template: TemplateRow;
     <Dialog open onOpenChange={open => { if (!open) onClose() }}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle className="text-base">Asignar "{template.name}" a productos</DialogTitle>
+          <DialogTitle className="text-base">Asignar &quot;{template.name}&quot; a productos</DialogTitle>
         </DialogHeader>
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
@@ -359,6 +242,72 @@ function AssignModal({ template, onClose, onAssigned }: { template: TemplateRow;
   )
 }
 
+// ── Modal de historial de versiones ───────────────────────────────────────────
+
+function VersionsModal({ template, onClose, onRolledBack }: {
+  template: TemplateRow; onClose: () => void; onRolledBack: () => void
+}) {
+  const [versions, setVersions] = useState<VersionRow[]>([])
+  const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState<number | null>(null)
+
+  const load = useCallback(async () => {
+    const res = await api.getProductTemplateVersions(template.id)
+    if (res.success && Array.isArray(res.data)) setVersions(res.data)
+    setLoading(false)
+  }, [template.id])
+
+  useEffect(() => { load() }, [load])
+
+  const rollback = async (version: number) => {
+    setBusy(version)
+    const res = await api.rollbackProductTemplate(template.id, version)
+    setBusy(null)
+    if (res.success) { onRolledBack(); onClose() }
+  }
+
+  return (
+    <Dialog open onOpenChange={open => { if (!open) onClose() }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-base flex items-center gap-2">
+            <History className="h-4 w-4" />Historial de versiones
+          </DialogTitle>
+          <p className="text-xs text-muted-foreground">
+            Volver a una versión la copia en una versión nueva y la publica. Nada se sobrescribe.
+            La tienda puede tardar hasta 60 s en reflejarlo (caché).
+          </p>
+        </DialogHeader>
+        {loading ? (
+          <p className="text-xs text-muted-foreground text-center py-6">Cargando…</p>
+        ) : (
+          <div className="max-h-80 overflow-y-auto border rounded-lg divide-y">
+            {versions.map(v => (
+              <div key={v.id} className="flex items-center gap-2 px-3 py-2.5">
+                <span className="text-xs font-semibold w-9 shrink-0">v{v.version}</span>
+                <span className="flex-1 min-w-0">
+                  <Badge variant={v.status === 'published' ? 'default' : v.status === 'draft' ? 'secondary' : 'outline'} className="text-[10px]">
+                    {STATUS_LABEL[v.status]}
+                  </Badge>
+                  <span className="block text-[10px] text-muted-foreground mt-0.5">
+                    {v.sectionCount} secciones · {new Date(v.publishedAt || v.createdAt).toLocaleString('es-CO')}
+                  </span>
+                </span>
+                {v.status !== 'published' && (
+                  <Button variant="outline" size="sm" className="h-7 text-[10px] shrink-0"
+                    onClick={() => rollback(v.version)} disabled={busy != null}>
+                    {busy === v.version ? <Loader2 className="h-3 w-3 animate-spin" /> : <><RotateCcw className="h-3 w-3 mr-1" />Volver aquí</>}
+                  </Button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // ── Componente principal ───────────────────────────────────────────────────────
 
 export function ProductTemplateEditor() {
@@ -369,7 +318,18 @@ export function ProductTemplateEditor() {
   const [showPreview, setShowPreview] = useState(true)
   const [saving, setSaving] = useState(false)
   const [assignFor, setAssignFor] = useState<TemplateRow | null>(null)
+  const [versionsFor, setVersionsFor] = useState<TemplateRow | null>(null)
   const [dragIndex, setDragIndex] = useState<number | null>(null)
+
+  // Preview
+  const [previewMobile, setPreviewMobile] = useState(false)
+  const [previewLight, setPreviewLight] = useState(true)
+  const [previewProducts, setPreviewProducts] = useState<any[]>([])
+  const [previewProductId, setPreviewProductId] = useState<string>('')
+
+  // Dirty state: instantánea de lo último guardado vs lo que hay en pantalla.
+  // Estado DERIVADO (no useEffect + setState): no puede quedar desincronizado.
+  const [savedSnapshot, setSavedSnapshot] = useState('')
 
   const fetchTemplates = useCallback(async () => {
     const res = await api.getProductTemplates()
@@ -378,6 +338,41 @@ export function ProductTemplateEditor() {
   }, [])
 
   useEffect(() => { fetchTemplates() }, [fetchTemplates])
+
+  // Productos reales para la vista previa
+  useEffect(() => {
+    api.getProducts({ limit: 50 }).then(res => {
+      const list = (res as any)?.data?.products || (res as any)?.data || []
+      if (Array.isArray(list)) setPreviewProducts(list)
+    }).catch(() => { /* preview cae al producto de ejemplo */ })
+  }, [])
+
+  const snapshotOf = (t: TemplateRow | null) =>
+    t ? JSON.stringify({ name: t.name, description: t.description, sections: t.sections }) : ''
+
+  const dirty = useMemo(
+    () => !!editing && snapshotOf(editing) !== savedSnapshot,
+    [editing, savedSnapshot],
+  )
+
+  // Protección del navegador (recargar/cerrar pestaña)
+  useEffect(() => {
+    if (!dirty) return
+    const onBeforeUnload = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = '' }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [dirty])
+
+  const openEditor = (t: TemplateRow) => {
+    setSavedSnapshot(snapshotOf(t))
+    setEditing(t)
+    setSelectedSectionId(t.sections[0]?.id || null)
+  }
+
+  const closeEditor = () => {
+    if (dirty && !window.confirm('Tienes cambios sin guardar. ¿Salir y perderlos?')) return
+    setEditing(null)
+  }
 
   const seedDefaults = async () => {
     setLoading(true)
@@ -389,7 +384,7 @@ export function ProductTemplateEditor() {
     const res = await api.createProductTemplate({ name: 'Nueva plantilla', sections: [] })
     if (res.success && res.data) {
       await fetchTemplates()
-      setEditing(res.data)
+      openEditor(res.data)
     }
   }
 
@@ -398,11 +393,13 @@ export function ProductTemplateEditor() {
     setEditing(prev => prev ? { ...prev, sections: fn(prev.sections).map((s, i) => ({ ...s, order: i })) } : prev)
   }
 
-  const addSection = (type: SectionType) => {
-    const cat = catalogFor(type)!
-    const id = `sec-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
-    updSections(secs => [...secs, { id, type, settings: JSON.parse(JSON.stringify(cat.defaults)), order: secs.length, visible: true }])
-    setSelectedSectionId(id)
+  const addSection = (type: string) => {
+    setEditing(prev => {
+      if (!prev) return prev
+      const sec = newSection(type, prev.sections.length)
+      setSelectedSectionId(sec.id)
+      return { ...prev, sections: [...prev.sections, sec].map((s, i) => ({ ...s, order: i })) }
+    })
   }
 
   const move = (from: number, to: number) => {
@@ -423,15 +420,43 @@ export function ProductTemplateEditor() {
       description: editing.description || undefined,
       sections: editing.sections,
     })
-    if (res.success && publish !== undefined) {
-      await api.setProductTemplateStatus(editing.id, publish ? 'published' : 'draft')
+    if (res.success && publish) {
+      await api.setProductTemplateStatus(editing.id, 'published')
     }
     setSaving(false)
     if (res.success) {
+      setSavedSnapshot(snapshotOf(editing))
       await fetchTemplates()
-      if (publish !== undefined) setEditing(null)
+      if (publish) setEditing(null)
     }
   }
+
+  // Contexto de preview: producto real elegido, o el de ejemplo
+  const previewCtx: SectionRendererCtx = useMemo(() => {
+    const base: SectionRendererCtx = { ...SAMPLE_CTX, isLightBg: previewLight }
+    if (!previewProductId) return base
+    const p = previewProducts.find(x => String(x.id) === previewProductId)
+    if (!p) return base
+    return {
+      ...base,
+      product: {
+        name: p.name,
+        salePrice: p.salePrice,
+        offerPrice: p.offerPrice ?? null,
+        isOnOffer: p.isOnOffer,
+        stock: p.stock,
+        brand: p.brand || null,
+        category: p.category || null,
+        description: p.description || null,
+        images: Array.isArray(p.images) ? p.images : null,
+        imageUrl: p.imageUrl || null,
+      },
+      pageContent: parseMaybeJson(p.pageContent),
+      // Sin reseñas reales cargadas aquí: el bloque de testimonios mostrará solo
+      // los testimonios manuales del producto, que es justo lo que se está editando.
+      reviews: [],
+    }
+  }, [previewProductId, previewProducts, previewLight])
 
   // ═══════════ Vista LISTA ═══════════
   if (!editing) {
@@ -481,13 +506,21 @@ export function ProductTemplateEditor() {
                   <p className="text-xs text-muted-foreground">
                     {t.sections.length} secciones · {t.productCount || 0} productos
                   </p>
+                  {t.hasDraft && (
+                    <p className="text-[10px] text-amber-600 flex items-center gap-1">
+                      <AlertTriangle className="h-3 w-3" />Borrador sin publicar
+                    </p>
+                  )}
                   <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                    <Button variant="outline" size="sm" onClick={() => { setEditing(t); setSelectedSectionId(t.sections[0]?.id || null) }}>
+                    <Button variant="outline" size="sm" onClick={() => openEditor(t)}>
                       <Pencil className="h-3 w-3 mr-1" />Editar
                     </Button>
                     <Button variant="outline" size="sm" onClick={() => setAssignFor(t)} disabled={t.status !== 'published'}
                       title={t.status !== 'published' ? 'Publica la plantilla para asignarla' : undefined}>
                       <PackageCheck className="h-3 w-3 mr-1" />Asignar
+                    </Button>
+                    <Button variant="ghost" size="icon" title="Historial de versiones" onClick={() => setVersionsFor(t)}>
+                      <History className="h-3.5 w-3.5" />
                     </Button>
                     <Button variant="ghost" size="icon" title="Duplicar"
                       onClick={async () => { await api.duplicateProductTemplate(t.id); fetchTemplates() }}>
@@ -506,29 +539,41 @@ export function ProductTemplateEditor() {
         {assignFor && (
           <AssignModal template={assignFor} onClose={() => setAssignFor(null)} onAssigned={fetchTemplates} />
         )}
+        {versionsFor && (
+          <VersionsModal template={versionsFor} onClose={() => setVersionsFor(null)} onRolledBack={fetchTemplates} />
+        )}
       </Card>
     )
   }
 
   // ═══════════ Vista EDITOR ═══════════
   const selected = editing.sections.find(s => s.id === selectedSectionId) || null
+  const selectedDef = selected ? getBlock(selected.type) : null
 
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 gap-3">
         <div className="flex items-center gap-2 flex-1 min-w-0">
-          <Button variant="ghost" size="icon" onClick={() => setEditing(null)} title="Volver">
+          <Button variant="ghost" size="icon" onClick={closeEditor} title="Volver">
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <Input value={editing.name} onChange={e => setEditing({ ...editing, name: e.target.value })}
             className="h-9 text-sm font-semibold max-w-xs" />
           <Badge variant={editing.status === 'published' ? 'default' : 'secondary'}>{STATUS_LABEL[editing.status]}</Badge>
+          {dirty && (
+            <span className="text-[11px] font-medium text-amber-600 flex items-center gap-1 shrink-0">
+              <AlertTriangle className="h-3 w-3" />Cambios sin guardar
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          <Button variant="outline" size="sm" onClick={() => setVersionsFor(editing)} title="Historial de versiones">
+            <History className="h-3.5 w-3.5" />
+          </Button>
           <Button variant="outline" size="sm" onClick={() => setShowPreview(v => !v)}>
             <Eye className="h-3.5 w-3.5 mr-1.5" />{showPreview ? 'Ocultar vista' : 'Vista previa'}
           </Button>
-          <Button variant="outline" size="sm" onClick={() => save(false)} disabled={saving}>
+          <Button variant="outline" size="sm" onClick={() => save(false)} disabled={saving || !dirty}>
             {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Guardar borrador'}
           </Button>
           <Button size="sm" onClick={() => save(true)} disabled={saving}>
@@ -537,6 +582,11 @@ export function ProductTemplateEditor() {
         </div>
       </CardHeader>
       <CardContent>
+        {editing.status === 'published' && (
+          <p className="text-[11px] text-muted-foreground mb-3">
+            Esta plantilla está en vivo. Guardar borrador NO afecta la tienda: los cambios llegan al publicar.
+          </p>
+        )}
         <div className="grid gap-4 lg:grid-cols-[280px_320px_1fr]">
           {/* Columna 1: secciones (drag nativo + flechas) + catálogo */}
           <div className="space-y-4">
@@ -559,7 +609,7 @@ export function ProductTemplateEditor() {
                     } ${s.visible === false ? 'opacity-50' : ''}`}
                   >
                     <GripVertical className="h-3.5 w-3.5 text-muted-foreground cursor-grab shrink-0" />
-                    <span className="flex-1 text-xs font-medium truncate">{catalogFor(s.type)?.label || s.type}</span>
+                    <span className="flex-1 text-xs font-medium truncate">{getBlock(s.type)?.label || s.type}</span>
                     <button onClick={e => { e.stopPropagation(); move(i, i - 1) }} className="text-muted-foreground hover:text-foreground" title="Subir">
                       <ChevronUp className="h-3.5 w-3.5" />
                     </button>
@@ -596,27 +646,33 @@ export function ProductTemplateEditor() {
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Agregar sección</p>
               <div className="grid grid-cols-2 gap-1.5">
-                {SECTION_CATALOG.map(c => (
-                  <button key={c.type} onClick={() => addSection(c.type)} title={c.desc}
+                {BLOCKS.map(b => (
+                  <button key={b.type} onClick={() => addSection(b.type)} title={b.desc}
                     className="text-left text-[11px] font-medium rounded-lg border px-2 py-2 hover:bg-muted/60 transition-colors">
-                    {c.label}
+                    {b.label}
                   </button>
                 ))}
               </div>
             </div>
           </div>
 
-          {/* Columna 2: settings de la sección seleccionada */}
+          {/* Columna 2: settings de la sección seleccionada (formulario del registry) */}
           <div className="border rounded-xl p-3 max-h-[560px] overflow-y-auto">
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-              {selected ? `Configurar: ${catalogFor(selected.type)?.label || selected.type}` : 'Configuración'}
+              {selected ? `Configurar: ${selectedDef?.label || selected.type}` : 'Configuración'}
             </p>
-            {selected ? (
-              <SectionSettingsForm
+            {selected && selectedDef ? (
+              <selectedDef.Editor
                 key={selected.id}
-                section={selected}
-                onChange={settings => updSections(secs => secs.map(x => x.id === selected.id ? { ...x, settings } : x))}
+                settings={selected.settings}
+                set={(key, value) => updSections(secs => secs.map(x =>
+                  x.id === selected.id ? { ...x, settings: { ...x.settings, [key]: value } } : x
+                ))}
               />
+            ) : selected ? (
+              <p className="text-xs text-muted-foreground">
+                Bloque «{selected.type}» desconocido en esta versión. Se conserva tal cual y se ignora al renderizar.
+              </p>
             ) : (
               <p className="text-xs text-muted-foreground">Selecciona una sección para configurarla. Puedes usar variables como {'{{product.title}}'}, {'{{product.price}}'} o {'{{product.stock}}'}.</p>
             )}
@@ -624,17 +680,46 @@ export function ProductTemplateEditor() {
 
           {/* Columna 3: vista previa (mismo renderer que la tienda) */}
           {showPreview && (
-            <div className="border rounded-xl p-4 bg-white max-h-[560px] overflow-y-auto">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-4">Vista previa · producto de ejemplo</p>
-              {editing.sections.length === 0 ? (
-                <p className="text-xs text-gray-400">La vista previa aparecerá al agregar secciones.</p>
-              ) : (
-                <SectionRenderer sections={editing.sections} ctx={SAMPLE_CTX} />
-              )}
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <select value={previewProductId} onChange={e => setPreviewProductId(e.target.value)}
+                  className="h-7 text-[11px] border rounded-md bg-background px-1.5 max-w-[160px]">
+                  <option value="">Producto de ejemplo</option>
+                  {previewProducts.map(p => <option key={p.id} value={String(p.id)}>{p.name}</option>)}
+                </select>
+                <div className="flex rounded-md border overflow-hidden">
+                  <button onClick={() => setPreviewMobile(false)} title="Escritorio"
+                    className={`px-1.5 py-1 ${!previewMobile ? 'bg-muted' : ''}`}><Monitor className="h-3.5 w-3.5" /></button>
+                  <button onClick={() => setPreviewMobile(true)} title="Móvil"
+                    className={`px-1.5 py-1 ${previewMobile ? 'bg-muted' : ''}`}><Smartphone className="h-3.5 w-3.5" /></button>
+                </div>
+                <div className="flex rounded-md border overflow-hidden">
+                  <button onClick={() => setPreviewLight(true)} title="Tema claro"
+                    className={`px-1.5 py-1 ${previewLight ? 'bg-muted' : ''}`}><Sun className="h-3.5 w-3.5" /></button>
+                  <button onClick={() => setPreviewLight(false)} title="Tema oscuro"
+                    className={`px-1.5 py-1 ${!previewLight ? 'bg-muted' : ''}`}><Moon className="h-3.5 w-3.5" /></button>
+                </div>
+              </div>
+              <div className={`border rounded-xl p-4 max-h-[560px] overflow-y-auto ${previewLight ? 'bg-white' : 'bg-neutral-900'}`}>
+                <div className={previewMobile ? 'max-w-[380px] mx-auto' : ''}>
+                  <p className={`text-[10px] font-semibold uppercase tracking-wider mb-4 ${previewLight ? 'text-gray-400' : 'text-white/40'}`}>
+                    Vista previa · {previewProductId ? 'producto real' : 'producto de ejemplo'}
+                  </p>
+                  {editing.sections.length === 0 ? (
+                    <p className={`text-xs ${previewLight ? 'text-gray-400' : 'text-white/40'}`}>La vista previa aparecerá al agregar secciones.</p>
+                  ) : (
+                    <SectionRenderer sections={editing.sections} ctx={previewCtx} />
+                  )}
+                </div>
+              </div>
             </div>
           )}
         </div>
       </CardContent>
+      {versionsFor && (
+        <VersionsModal template={versionsFor} onClose={() => setVersionsFor(null)}
+          onRolledBack={async () => { await fetchTemplates(); setEditing(null) }} />
+      )}
     </Card>
   )
 }

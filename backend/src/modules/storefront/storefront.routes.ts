@@ -33,6 +33,71 @@ router.get(
   }
 );
 
+// =============================================
+// PUBLIC: Bundles publicados para el PDP de un producto
+// GET /api/storefront/product-bundles/:productId
+// Devuelve los bundles PUBLICADOS y DISPONIBLES cuyo ancla es este producto
+// (o sin ancla y el producto es uno de los ítems), con precio/ahorro resueltos.
+// Nunca rompe el PDP: ante error devuelve lista vacía.
+// =============================================
+router.get(
+  '/product-bundles/:productId',
+  [param('productId').notEmpty(), validateRequest],
+  async (req: Request, res: Response) => {
+    try {
+      const { productBundlesService } = await import('../product-bundles/product-bundles.service');
+      const bundles = await productBundlesService.getPublicForProduct(req.params.productId);
+      res.json({ success: true, data: bundles });
+    } catch (error) {
+      console.error('Product bundles error:', error);
+      res.json({ success: true, data: [] });
+    }
+  }
+);
+
+// =============================================
+// PUBLIC: Social Proof de un producto (SOLO datos reales)
+// GET /api/storefront/social-proof/:productId
+// Señales derivadas de ventas, stock, reseñas aprobadas y espectadores en vivo.
+// Sin datos reales → señales en cero/null (el frontend no las muestra).
+// =============================================
+router.get(
+  '/social-proof/:productId',
+  [param('productId').notEmpty(), validateRequest],
+  async (req: Request, res: Response) => {
+    try {
+      const { socialProofService } = await import('../social-proof/social-proof.service');
+      res.json({ success: true, data: await socialProofService.getForProduct(req.params.productId) });
+    } catch (error) {
+      console.error('Social proof error:', error);
+      res.json({ success: true, data: null });
+    }
+  }
+);
+
+// =============================================
+// PUBLIC: Checkout Experience de una tienda
+// GET /api/storefront/checkout-experience/:storeSlug
+// Config de personalización del checkout (encabezado, CTA, campos, mensajes).
+// Sin config → defaults. Nunca rompe el checkout: ante error devuelve defaults.
+// =============================================
+router.get(
+  '/checkout-experience/:storeSlug',
+  [param('storeSlug').notEmpty(), validateRequest],
+  async (req: Request, res: Response) => {
+    try {
+      const { checkoutExperienceService, defaultConfig } = await import('../checkout-experience/checkout-experience.service');
+      const tenant = await resolvePublicTenantBySlug(req.params.storeSlug, grantFrom(req));
+      if (!tenant) { res.json({ success: true, data: defaultConfig() }); return; }
+      res.json({ success: true, data: await checkoutExperienceService.get(tenant.id) });
+    } catch (error) {
+      console.error('Checkout experience error:', error);
+      const { defaultConfig } = await import('../checkout-experience/checkout-experience.service');
+      res.json({ success: true, data: defaultConfig() });
+    }
+  }
+);
+
 /** Grant de acceso a tienda oculta, tomado del query (?hg=) o del header. */
 const grantFrom = (req: Request): string | undefined =>
   (req.query.hg as string) || (req.headers['x-hidden-grant'] as string) || undefined;

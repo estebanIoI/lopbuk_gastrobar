@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { Search, Dumbbell, Eye, EyeOff, Loader2 } from 'lucide-react'
+import { Search, Dumbbell, Eye, EyeOff, Loader2, TrendingUp } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -23,6 +23,57 @@ interface Exercise {
 
 interface FilterOption { value: string; count: number }
 
+interface LibraryStats {
+  total: number; active: number; usedLast7Days: number; neverUsed: number
+  inRoutines: number; completedSessions: number; totalVolume: number
+  top: Array<{ id: string; name: string; uses: number; users: number; gif_url?: string | null }>
+  byBodyPart: FilterOption[]
+}
+
+/** Panel de analíticas de la librería (P6): qué se usa y qué está muerto. */
+function StatsPanel({ stats }: { stats: LibraryStats }) {
+  const cards = [
+    { label: 'Ejercicios', value: stats.total, hint: `${stats.active} activos` },
+    { label: 'En rutinas', value: stats.inRoutines, hint: 'publicados o en borrador' },
+    { label: 'Usados (7 días)', value: stats.usedLast7Days, hint: 'ejercicios distintos' },
+    { label: 'Nunca usados', value: stats.neverUsed, hint: 'candidatos a limpiar' },
+  ]
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {cards.map(c => (
+          <Card key={c.label} className="p-3">
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{c.label}</p>
+            <p className="text-2xl font-bold tabular-nums leading-tight">{c.value.toLocaleString('es-CO')}</p>
+            <p className="text-[10px] text-muted-foreground">{c.hint}</p>
+          </Card>
+        ))}
+      </div>
+      {stats.top.length > 0 && (
+        <Card className="p-3">
+          <p className="text-[11px] uppercase tracking-wide text-muted-foreground mb-2 flex items-center gap-1.5">
+            <TrendingUp className="h-3.5 w-3.5" /> Más usados
+          </p>
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {stats.top.map(t => (
+              <div key={t.id} className="shrink-0 w-24 text-center">
+                <div className="aspect-square rounded-md bg-muted overflow-hidden mb-1">
+                  {t.gif_url && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={t.gif_url} alt={t.name} loading="lazy" className="w-full h-full object-cover" />
+                  )}
+                </div>
+                <p className="text-[10px] font-medium leading-tight line-clamp-2 capitalize">{t.name}</p>
+                <p className="text-[10px] text-muted-foreground">{t.uses} usos</p>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+    </div>
+  )
+}
+
 export function ExercisesTab() {
   const [items, setItems] = useState<Exercise[]>([])
   const [total, setTotal] = useState(0)
@@ -32,6 +83,7 @@ export function ExercisesTab() {
   const [bodyPart, setBodyPart] = useState('')
   const [equipment, setEquipment] = useState('')
   const [filters, setFilters] = useState<{ bodyParts: FilterOption[]; equipment: FilterOption[] }>({ bodyParts: [], equipment: [] })
+  const [stats, setStats] = useState<LibraryStats | null>(null)
   const offsetRef = useRef(0)
 
   // Debounce del buscador
@@ -42,6 +94,7 @@ export function ExercisesTab() {
 
   useEffect(() => {
     fetch(`${API_URL}/exercises/filters`).then(r => r.json()).then(j => { if (j.success) setFilters(j.data) }).catch(() => {})
+    fetch(`${API_URL}/exercises/stats`).then(r => r.json()).then(j => { if (j.success) setStats(j.data) }).catch(() => {})
   }, [])
 
   const fetchPage = useCallback(async (off: number, reset: boolean) => {
@@ -83,6 +136,9 @@ export function ExercisesTab() {
         <h2 className="text-lg font-bold flex items-center gap-2"><Dumbbell className="h-5 w-5 text-primary" /> Librería de ejercicios</h2>
         <p className="text-sm text-muted-foreground">{total} ejercicios con imagen de ejemplo. Búscalos, fíltralos y activa/oculta los que se usan en las rutinas.</p>
       </div>
+
+      {/* Analíticas de la librería (P6) */}
+      {stats && <StatsPanel stats={stats} />}
 
       {/* Buscador + filtros */}
       <Card className="p-4 space-y-3">

@@ -16,7 +16,7 @@ import {
   Settings2, ClipboardList, History, Plus, Trash2, CheckCircle,
   Target, Award, AlertCircle, BarChart2, FileText, Umbrella, Loader2,
   ThumbsUp, ThumbsDown, Clock, X, Monitor, MonitorOff, UtensilsCrossed,
-  RefreshCw, ChefHat,
+  RefreshCw, ChefHat, IdCard,
 } from 'lucide-react'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -1985,6 +1985,123 @@ function TabRestBar() {
   )
 }
 
+// ─── Hoja de vida laboral (Fase 2 GastroBar · M3) ───────────────────────────────
+// Agrega turnos trabajados + adicionales/descuentos por empleado y mes. Todo sale
+// de datos reales (shift_employees + shift_employee_bonuses); no inventa nada.
+
+function TabHojaDeVida() {
+  const [employees, setEmployees] = useState<Array<{ userId: string | null; name: string; roleLabel: string | null; shifts: number }>>([])
+  const [picked, setPicked] = useState<{ userId: string | null; name: string } | null>(null)
+  const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7)) // YYYY-MM
+  const [data, setData] = useState<any>(null)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    apiService.getWorkHistoryEmployees().then(r => { if (r.success && Array.isArray(r.data)) setEmployees(r.data) })
+  }, [])
+
+  useEffect(() => {
+    if (!picked) { setData(null); return }
+    const from = `${month}-01`
+    const [y, m] = month.split('-').map(Number)
+    const to = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`
+    setLoading(true)
+    apiService.getWorkHistory({ userId: picked.userId || undefined, name: picked.userId ? undefined : picked.name, from, to })
+      .then(r => { if (r.success) setData(r.data) })
+      .finally(() => setLoading(false))
+  }, [picked, month])
+
+  const t = data?.totals
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="flex-1 min-w-[200px]">
+          <label className="text-xs font-medium mb-1 block text-muted-foreground">Empleado</label>
+          <select
+            value={picked ? (picked.userId || `name:${picked.name}`) : ''}
+            onChange={e => {
+              const v = e.target.value
+              if (!v) { setPicked(null); return }
+              const emp = employees.find(x => (x.userId || `name:${x.name}`) === v)
+              if (emp) setPicked({ userId: emp.userId, name: emp.name })
+            }}
+            className="w-full h-9 text-sm border border-border rounded-md bg-background px-2">
+            <option value="">Seleccionar empleado…</option>
+            {employees.map(e => (
+              <option key={e.userId || e.name} value={e.userId || `name:${e.name}`}>
+                {e.name}{e.roleLabel ? ` · ${e.roleLabel}` : ''} ({e.shifts} turnos)
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="text-xs font-medium mb-1 block text-muted-foreground">Mes</label>
+          <Input type="month" value={month} onChange={e => setMonth(e.target.value)} className="h-9 text-sm w-40" />
+        </div>
+      </div>
+
+      {!picked ? (
+        <Card><CardContent className="py-12 text-center text-sm text-muted-foreground">
+          <IdCard className="h-10 w-10 mx-auto mb-2 opacity-40" />
+          Selecciona un empleado para ver su hoja de vida laboral del mes.
+        </CardContent></Card>
+      ) : loading ? (
+        <Card><CardContent className="py-12 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" /></CardContent></Card>
+      ) : !data || data.shifts.length === 0 ? (
+        <Card><CardContent className="py-12 text-center text-sm text-muted-foreground">
+          {picked.name} no registra turnos en {month}.
+        </CardContent></Card>
+      ) : (
+        <>
+          {/* Resumen del mes */}
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+            <Card><CardContent className="p-3"><p className="text-[11px] uppercase text-muted-foreground">Días trabajados</p><p className="text-2xl font-bold tabular-nums">{t.daysWorked}</p></CardContent></Card>
+            <Card><CardContent className="p-3"><p className="text-[11px] uppercase text-muted-foreground">Base turnos</p><p className="text-lg font-bold tabular-nums">{fmt(t.baseTotal)}</p></CardContent></Card>
+            <Card><CardContent className="p-3"><p className="text-[11px] uppercase text-muted-foreground">Adicionales</p><p className="text-lg font-bold tabular-nums text-emerald-600">+{fmt(t.bonosTotal)}</p></CardContent></Card>
+            <Card><CardContent className="p-3"><p className="text-[11px] uppercase text-muted-foreground">Descuentos</p><p className="text-lg font-bold tabular-nums text-red-500">−{fmt(t.descuentosTotal)}</p></CardContent></Card>
+            <Card className="bg-primary/5 border-primary/20"><CardContent className="p-3"><p className="text-[11px] uppercase text-muted-foreground">Total ganado</p><p className="text-xl font-bold tabular-nums text-primary">{fmt(t.totalEarned)}</p></CardContent></Card>
+          </div>
+
+          {/* Detalle de turnos */}
+          <Card>
+            <CardHeader className="pb-2"><CardTitle className="text-sm">Turnos de {picked.name}</CardTitle></CardHeader>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm min-w-[560px]">
+                  <thead>
+                    <tr className="text-muted-foreground border-b border-border text-xs">
+                      <th className="text-left font-medium py-2 px-3">Fecha</th>
+                      <th className="text-left font-medium py-2 px-3">Turno</th>
+                      <th className="text-right font-medium py-2 px-3">Base</th>
+                      <th className="text-right font-medium py-2 px-3">Adicional</th>
+                      <th className="text-right font-medium py-2 px-3">Descuento</th>
+                      <th className="text-right font-medium py-2 px-3">Neto</th>
+                      <th className="text-left font-medium py-2 px-3">Concepto</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.shifts.map((s: any) => (
+                      <tr key={s.shiftEmpId} className="border-b border-border/50 last:border-0">
+                        <td className="py-2 px-3 whitespace-nowrap">{s.date ? new Date(s.date).toLocaleDateString('es-CO', { day: '2-digit', month: 'short' }) : '—'}</td>
+                        <td className="py-2 px-3 text-xs text-muted-foreground">{s.shiftLabel || s.shiftType || '—'}{s.sessionStatus === 'abierta' && <span className="ml-1 text-amber-500">(abierto)</span>}</td>
+                        <td className="py-2 px-3 text-right tabular-nums">{fmt(s.shiftValue)}</td>
+                        <td className="py-2 px-3 text-right tabular-nums text-emerald-600">{s.bono ? '+' + fmt(s.bono) : '—'}</td>
+                        <td className="py-2 px-3 text-right tabular-nums text-red-500">{s.descuento ? '−' + fmt(s.descuento) : '—'}</td>
+                        <td className="py-2 px-3 text-right tabular-nums font-medium">{fmt(s.neto)}</td>
+                        <td className="py-2 px-3 text-xs text-muted-foreground truncate max-w-[160px]">{s.concepts.join(', ') || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        </>
+      )}
+    </div>
+  )
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 const tabs = [
@@ -1992,6 +2109,7 @@ const tabs = [
   { id: 'restbar',   label: 'RestBar',        icon: UtensilsCrossed },
   { id: 'config',    label: 'Configuración',  icon: Settings2 },
   { id: 'nomina',    label: 'Nómina',         icon: ClipboardList },
+  { id: 'hojavida',  label: 'Hoja de vida',   icon: IdCard },
   { id: 'historial', label: 'Historial',      icon: History },
   { id: 'novedades', label: 'Novedades',      icon: FileText },
 ]
@@ -2030,6 +2148,7 @@ export function VendedoresPanel() {
       {tab === 'restbar'    && <TabRestBar />}
       {tab === 'config'     && <TabConfig />}
       {tab === 'nomina'     && <TabNomina />}
+      {tab === 'hojavida'   && <TabHojaDeVida />}
       {tab === 'historial'  && <TabHistorial />}
       {tab === 'novedades'  && <TabNovedades />}
     </div>

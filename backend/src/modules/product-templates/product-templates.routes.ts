@@ -27,6 +27,27 @@ router.get('/:id', [param('id').notEmpty(), validateRequest], async (req: AuthRe
   } catch (e) { fail(res, e); }
 });
 
+// GET /api/product-templates/:id/versions — historial de versiones
+router.get('/:id/versions', [param('id').notEmpty(), validateRequest], async (req: AuthRequest, res: Response) => {
+  try {
+    res.json({ success: true, data: await productTemplatesService.listVersions(req.user!.tenantId!, req.params.id) });
+  } catch (e) { fail(res, e); }
+});
+
+// POST /api/product-templates/:id/rollback — vuelve a una versión anterior
+// (copia vN en una versión nueva y la publica; no revive filas viejas)
+router.post(
+  '/:id/rollback',
+  authorize('superadmin', 'comerciante'),
+  [param('id').notEmpty(), body('version').isInt({ min: 1 }), validateRequest],
+  async (req: AuthRequest, res: Response) => {
+    try {
+      await productTemplatesService.rollback(req.user!.tenantId!, req.params.id, Number(req.body.version));
+      res.json({ success: true, data: await productTemplatesService.findById(req.user!.tenantId!, req.params.id) });
+    } catch (e) { fail(res, e); }
+  }
+);
+
 // POST /api/product-templates — crear (nace en draft)
 router.post(
   '/',

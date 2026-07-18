@@ -21,6 +21,9 @@ import { dashboardRoutes } from './modules/dashboard';
 import { customersRoutes } from './modules/customers';
 import { privacyRoutes } from './modules/privacy';
 import { productTemplatesRoutes } from './modules/product-templates';
+import { productBundlesRoutes } from './modules/product-bundles';
+import { checkoutExperienceRoutes } from './modules/checkout-experience';
+import { mealPassesRoutes } from './modules/meal-passes';
 import { creditsRoutes } from './modules/credits';
 import { categoriesRoutes } from './modules/categories';
 import { cashSessionsRoutes } from './modules/cash-sessions';
@@ -33,6 +36,7 @@ import deliveryRoutes from './modules/delivery/delivery.routes';
 import coverageRoutes from './modules/delivery/coverage.routes';
 import deliveryChatRoutes from './modules/delivery/delivery-chat.routes';
 import { initDeliveryChatSocket } from './modules/delivery/delivery-chat.socket';
+import { initSocialProofSocket } from './modules/social-proof';
 import clientRoutes from './modules/client/client.routes';
 import { purchasesRoutes } from './modules/purchases';
 import { servicesRoutes } from './modules/services';
@@ -189,6 +193,9 @@ app.use(`${apiPrefix}/dashboard`, dashboardRoutes);
 app.use(`${apiPrefix}/customers`, customersRoutes);
 app.use(`${apiPrefix}/privacy`, privacyRoutes);
 app.use(`${apiPrefix}/product-templates`, productTemplatesRoutes);
+app.use(`${apiPrefix}/product-bundles`, productBundlesRoutes);
+app.use(`${apiPrefix}/checkout-experience`, checkoutExperienceRoutes);
+app.use(`${apiPrefix}/meal-passes`, mealPassesRoutes);
 app.use(`${apiPrefix}/credits`, creditsRoutes);
 app.use(`${apiPrefix}/categories`, categoriesRoutes);
 app.use(`${apiPrefix}/cash-sessions`, cashSessionsRoutes);
@@ -336,6 +343,7 @@ const startServer = async () => {
     initVaultSocket(io);
     initRestbarSocket(io);
     initDeliveryChatSocket(io);
+    initSocialProofSocket(io);
 
     // Iniciar scheduler de sync offline→nube (solo si IS_LOCAL_INSTANCE=true)
     startSyncScheduler();

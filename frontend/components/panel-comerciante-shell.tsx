@@ -18,6 +18,7 @@ import {
   FlaskConical, Truck, Receipt, History, CalendarDays, Ticket, Star,
   Scissors, CreditCard, UserCheck, Printer, ArrowRight, Boxes, PieChart,
   HelpCircle, UtensilsCrossed, Trash2, Wine, ClipboardList, Network, FileSpreadsheet, Gauge, Layers,
+  Sparkles,
 } from 'lucide-react'
 
 // ──────────────────────────────────────────────────────────────
@@ -67,6 +68,7 @@ const NAV: NavGroup[] = [
   {
     key: 'clientes', label: 'Clientes', icon: Users, adminOnly: true, children: [
       { id: 'customers', label: 'Clientes', icon: Users, adminOnly: true },
+      { id: 'engagement', label: 'Engagement', icon: Sparkles, adminOnly: true },
       { id: 'fiados', label: 'Fiados', icon: CreditCard, adminOnly: true },
       { id: 'vendedores', label: 'Empleados', icon: UserCheck, adminOnly: true },
       { id: 'organigrama', label: 'Jerarquía', icon: Network, adminOnly: true },

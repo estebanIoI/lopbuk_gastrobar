@@ -97,6 +97,60 @@ export async function getFilters() {
 }
 
 /**
+ * Analíticas de la librería (P6). Todo se calcula desde el uso real
+ * (workout_exercises + routine_exercises) — sirve para limpiar el catálogo:
+ * qué se usa, qué está muerto y qué está publicado en rutinas.
+ */
+export async function getLibraryStats() {
+  const [totals] = await pool.query<RowDataPacket[]>(
+    'SELECT COUNT(*) AS total, SUM(is_active = 1) AS active FROM exercises',
+  )
+  const [week] = await pool.query<RowDataPacket[]>(
+    `SELECT COUNT(DISTINCT we.exercise_id) AS n
+     FROM workout_exercises we
+     JOIN workout_sessions s ON s.id = we.session_id
+     WHERE s.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)`,
+  )
+  const [never] = await pool.query<RowDataPacket[]>(
+    `SELECT COUNT(*) AS n FROM exercises e
+     WHERE NOT EXISTS (SELECT 1 FROM workout_exercises we WHERE we.exercise_id = e.id)`,
+  )
+  const [inRoutines] = await pool.query<RowDataPacket[]>(
+    'SELECT COUNT(DISTINCT exercise_id) AS n FROM routine_exercises',
+  )
+  const [sessions] = await pool.query<RowDataPacket[]>(
+    "SELECT COUNT(*) AS n, COALESCE(SUM(total_volume), 0) AS volume FROM workout_sessions WHERE status = 'completed'",
+  )
+  const [top] = await pool.query<RowDataPacket[]>(
+    `SELECT we.exercise_id AS id, COUNT(*) AS uses, COUNT(DISTINCT we.user_id) AS users,
+            COALESCE(t.name, ten.name) AS name, mg.url AS gif_url
+     FROM workout_exercises we
+     LEFT JOIN exercises e ON e.id = we.exercise_id
+     LEFT JOIN exercise_translations t   ON t.exercise_id = e.id AND t.language = 'es'
+     LEFT JOIN exercise_translations ten ON ten.exercise_id = e.id AND ten.language = 'en'
+     LEFT JOIN exercise_media mg ON mg.exercise_id = e.id AND mg.kind = 'gif'
+     GROUP BY we.exercise_id, name, gif_url
+     ORDER BY uses DESC LIMIT 10`,
+  )
+  const [byBody] = await pool.query<RowDataPacket[]>(
+    `SELECT e.body_part AS value, COUNT(*) AS count
+     FROM exercises e WHERE e.is_active = 1 AND e.body_part IS NOT NULL
+     GROUP BY e.body_part ORDER BY count DESC`,
+  )
+  return {
+    total: Number(totals[0]?.total || 0),
+    active: Number(totals[0]?.active || 0),
+    usedLast7Days: Number(week[0]?.n || 0),
+    neverUsed: Number(never[0]?.n || 0),
+    inRoutines: Number(inRoutines[0]?.n || 0),
+    completedSessions: Number(sessions[0]?.n || 0),
+    totalVolume: Number(sessions[0]?.volume || 0),
+    top,
+    byBodyPart: byBody,
+  }
+}
+
+/**
  * Admin: activa/oculta (núcleo) y edita textos (traducción del idioma dado).
  * El nombre traducido se inserta/actualiza en exercise_translations.
  */
