@@ -415,6 +415,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   const pdpDepthRef = useRef({ d50: false, d100: false })
   // Plantilla dinámica del producto (secciones JSON asignadas desde el panel)
   const [templatePage, setTemplatePage] = useState<{ sections: TemplateSection[]; pageContent: any } | null>(null)
+  const [productBundles, setProductBundles] = useState<any[]>([])
+  const [checkoutExp, setCheckoutExp] = useState<any>(null)
+  const [socialProof, setSocialProof] = useState<any>(null)
   const [ctaVisible, setCtaVisible] = useState(false)
   const ctaRef = useRef<HTMLDivElement>(null)
 
@@ -1774,9 +1777,10 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
   // Cargar la plantilla dinámica del producto (secciones publicadas + page_content)
   useEffect(() => {
-    if (!showProductModal || !selectedProduct) { setTemplatePage(null); return }
+    if (!showProductModal || !selectedProduct) { setTemplatePage(null); setProductBundles([]); return }
     let cancelled = false
     setTemplatePage(null)
+    setProductBundles([])
     fetch(`${API_URL}/storefront/product-page/${selectedProduct.id}`)
       .then(r => r.json())
       .then(j => {
@@ -1785,7 +1789,51 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         }
       })
       .catch(() => { /* sin plantilla: el detalle se ve como siempre */ })
+    // Bundles publicados para este PDP (bloque `bundle`)
+    fetch(`${API_URL}/storefront/product-bundles/${selectedProduct.id}`)
+      .then(r => r.json())
+      .then(j => { if (!cancelled && j.success && Array.isArray(j.data)) setProductBundles(j.data) })
+      .catch(() => { /* sin combos: no se muestra el bloque */ })
     return () => { cancelled = true }
+  }, [showProductModal, selectedProduct?.id])
+
+  // Checkout Experience de la tienda (personalización del checkout). Se carga por
+  // tienda; sin config, el checkout usa defaults y se ve como hoy.
+  useEffect(() => {
+    if (!selectedStore || selectedStore === 'all') { setCheckoutExp(null); return }
+    let cancelled = false
+    fetch(`${API_URL}/storefront/checkout-experience/${selectedStore}${grantQ1}`)
+      .then(r => r.json())
+      .then(j => { if (!cancelled && j.success && j.data) setCheckoutExp(j.data) })
+      .catch(() => { /* defaults */ })
+    return () => { cancelled = true }
+  }, [selectedStore])
+
+  // Social Proof (SOLO datos reales) del producto abierto: se cargan las señales
+  // y este visitante se cuenta como espectador real vía Socket.io (presencia). El
+  // conteo en vivo llega por el evento `viewers` sin sondear.
+  useEffect(() => {
+    if (!showProductModal || !selectedProduct) { setSocialProof(null); return }
+    const pid = String(selectedProduct.id)
+    let cancelled = false
+    fetch(`${API_URL}/storefront/social-proof/${pid}`)
+      .then(r => r.json())
+      .then(j => { if (!cancelled && j.success && j.data) setSocialProof(j.data) })
+      .catch(() => { /* sin señales: el bloque no se muestra */ })
+
+    let cleanup = () => {}
+    import('@/lib/socket').then(({ getSocialProofSocket }) => {
+      if (cancelled) return
+      const socket = getSocialProofSocket()
+      const onViewers = (p: { productId: string; viewers: number }) => {
+        if (p.productId === pid) setSocialProof((prev: any) => prev ? { ...prev, viewers: p.viewers } : prev)
+      }
+      socket.on('viewers', onViewers)
+      socket.emit('view-product', pid)
+      cleanup = () => { socket.emit('leave-product', pid); socket.off('viewers', onViewers) }
+    }).catch(() => {})
+
+    return () => { cancelled = true; cleanup() }
   }, [showProductModal, selectedProduct?.id])
 
   // Observe CTA visibility for sticky mobile bar
@@ -2032,6 +2080,42 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       }]
     })
     setShowCart(true) // Always show cart after adding
+  }
+
+  // Agrega un combo (Bundle Builder): cada ítem entra como línea propia con su
+  // parte del precio de combo. El descuento se reparte proporcionalmente y el
+  // sobrante de redondeo va a la última línea → la suma es exactamente bundlePrice.
+  const agregarBundleAlCarrito = (bundleId: string) => {
+    const bundle = productBundles.find((b: any) => b.id === bundleId)
+    if (!bundle || !bundle.items?.length) return
+    const regular = Number(bundle.regularTotal) || 0
+    const ratio = regular > 0 ? bundle.bundlePrice / regular : 1
+    const lines = bundle.items.map((it: any, i: number) => {
+      const qty = Math.max(1, Number(it.quantity) || 1)
+      const unit = Math.round(Number(it.unitPrice) * ratio)
+      return {
+        id: it.productId,
+        tempId: `bundle:${bundle.id}:${it.productId}:${it.variantId || ''}:${i}`,
+        nombre: `${it.name}${qty > 1 ? ` (x${qty})` : ''}`,
+        precio: unit,
+        precioOriginal: Number(it.unitPrice) !== unit ? Number(it.unitPrice) : undefined,
+        cantidad: qty,
+        imagen: it.imageUrl || '',
+        tenantId: selectedProduct?.tenantId,
+        storeName: selectedProduct?.storeName,
+        availableForDelivery: !!selectedProduct?.availableForDelivery,
+        bundleId: bundle.id,
+        bundleName: bundle.name,
+      } as any
+    })
+    // Ajuste de redondeo en la última línea
+    if (lines.length > 0) {
+      const summed = lines.reduce((s: number, l: any) => s + l.precio * l.cantidad, 0)
+      const last = lines[lines.length - 1]
+      last.precio = Math.max(0, last.precio + Math.round((bundle.bundlePrice - summed) / last.cantidad))
+    }
+    setCarrito(prev => [...prev, ...lines])
+    setShowCart(true)
   }
 
   const actualizarCantidad = (id: number, cambio: number, tempId?: string) => {
@@ -2909,6 +2993,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
           mlStyle={productDetailStyle === 'ml'}
           accentColor={(activeThemeColors as any)?.primary || '#3483fa'}
           storeName={storeConfig?.storeInfo?.name || 'la tienda'}
+          checkoutConfig={checkoutExp}
           acceptsDataPolicy={checkoutAcceptsPolicy}
           acceptsMarketing={checkoutAcceptsMarketing}
           onConsentChange={(policy, marketing) => { setCheckoutAcceptsPolicy(policy); setCheckoutAcceptsMarketing(marketing) }}
@@ -3581,6 +3666,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 brand: selectedProduct.brand || null,
                 category: selectedProduct.category || null,
                 description: selectedProduct.description || null,
+                // Galería real para el Hero (regla de oro: la plantilla no la almacena)
+                images: Array.isArray(selectedProduct.images) ? selectedProduct.images : null,
+                imageUrl: selectedProduct.imageUrl || null,
               },
               store: {
                 name: storeConfig?.storeInfo?.name || null,
@@ -3608,6 +3696,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               },
               onCta: () => productDetailScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' }),
               formatPrice: formatCOP,
+              bundles: productBundles,
+              onAddBundle: agregarBundleAlCarrito,
+              socialProof,
               isLightBg: light,
               accentColor: (activeThemeColors as any)?.primary || undefined,
             }}

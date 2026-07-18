@@ -2,7 +2,7 @@
 
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { Product, Sale, CartItem, StockMovement, StoreInfo, CustomerFull, CategoryItem, Sede } from './types'
+import type { Product, Sale, CartItem, StockMovement, StoreInfo, CustomerFull, CategoryItem, Sede, BundleCartInput } from './types'
 import { api } from './api'
 
 interface AppState {
@@ -23,6 +23,7 @@ interface AppState {
   // Cart (local state)
   cart: CartItem[]
   addToCart: (product: Product, quantity?: number) => void
+  addBundleToCart: (bundle: BundleCartInput) => void
   removeFromCart: (productId: string) => void
   updateCartQuantity: (productId: string, quantity: number) => void
   applyItemDiscount: (productId: string, discount: number) => void
@@ -248,6 +249,35 @@ export const useStore = create<AppState>()(
           ? Math.ceil(Math.max(product.salePrice, product.purchasePrice) / 1000) * 1000
           : undefined
         return { cart: [...state.cart, { product, quantity, discount: 0, customAmount }] }
+      }),
+
+      // Agrega un combo: cada ítem entra como línea propia con su parte del precio
+      // de combo (customAmount = precio base). El descuento del bundle se reparte
+      // proporcionalmente entre las líneas y el sobrante de redondeo va a la última,
+      // así la suma del carrito es EXACTAMENTE el precio del combo.
+      addBundleToCart: (bundle) => set((state) => {
+        const regular = Number(bundle.regularTotal) || 0
+        const ratio = regular > 0 ? bundle.bundlePrice / regular : 1
+        const lines: CartItem[] = bundle.items.map((it) => {
+          const qty = Math.max(1, Number(it.quantity) || 1)
+          const unit = Math.round(Number(it.unitPrice) * ratio) // precio base por unidad con descuento
+          const product = {
+            id: `${it.productId}${it.variantId ? '::' + it.variantId : ''}`,
+            name: it.quantity > 1 ? `${it.name} (x${qty})` : it.name,
+            salePrice: Number(it.unitPrice),
+            stock: 9999,
+            imageUrl: it.imageUrl || undefined,
+          } as unknown as Product
+          return { product, quantity: qty, discount: 0, customAmount: unit, bundleId: bundle.id, bundleName: bundle.name }
+        })
+        // Ajuste de redondeo en la última línea para cuadrar el total exacto
+        if (lines.length > 0) {
+          const summed = lines.reduce((s, l) => s + (l.customAmount || 0) * l.quantity, 0)
+          const diff = bundle.bundlePrice - summed
+          const last = lines[lines.length - 1]
+          last.customAmount = Math.max(0, (last.customAmount || 0) + Math.round(diff / last.quantity))
+        }
+        return { cart: [...state.cart, ...lines] }
       }),
 
       removeFromCart: (productId) => set((state) => ({

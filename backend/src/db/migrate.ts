@@ -140,7 +140,7 @@ async function ensureTableCollation(table: string, charset: string, collation: s
   }
 }
 
-async function runCatchup(): Promise<void> {
+export async function runCatchup(): Promise<void> {
   // Detectar la collation de una tabla de negocio existente para que hormas haga
   // JOIN sin "Illegal mix of collations". Sirve igual en prod (unicode_ci) y dev (0900).
   const [collRows]: any = await pool.query(
@@ -359,6 +359,83 @@ async function runCatchup(): Promise<void> {
       tempo VARCHAR(16) NULL,
       rest_seconds INT NULL,
       INDEX idx_rex_version (routine_version_id, exercise_order)
+    ) ENGINE=InnoDB DEFAULT CHARSET=${charset} COLLATE=${collation}`
+  )
+
+  // ── Fase 1.5 · versionado de plantillas de producto ──────────────────────────
+  // Mismo patrón que routine_versions. NO destructivo: product_templates.sections
+  // se conserva como espejo de la versión publicada, así el endpoint público
+  // /storefront/product-page/:id sigue leyéndolo sin cambios y revertir el deploy
+  // no pierde datos.
+  await pool.query(
+    `CREATE TABLE IF NOT EXISTS product_template_versions (
+      id VARCHAR(36) NOT NULL PRIMARY KEY,
+      template_id VARCHAR(36) NOT NULL,
+      version INT NOT NULL DEFAULT 1,
+      sections JSON NOT NULL,
+      status VARCHAR(12) NOT NULL DEFAULT 'draft',
+      published_at DATETIME NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY uk_ptv (template_id, version),
+      INDEX idx_ptv_status (template_id, status)
+    ) ENGINE=InnoDB DEFAULT CHARSET=${charset} COLLATE=${collation}`
+  )
+
+  // Backfill v1 de las plantillas que aún no tienen versiones. Idempotente por el
+  // NOT EXISTS + uk_ptv; el servicio además hace backfill perezoso por si acaso.
+  const [ptplExists]: any = await pool.query(
+    "SELECT COUNT(*) AS n FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'product_templates'"
+  )
+  if (Number(ptplExists[0].n) > 0) {
+    await pool.query(
+      `INSERT INTO product_template_versions (id, template_id, version, sections, status, published_at)
+       SELECT UUID(), t.id, 1, t.sections, t.status,
+              CASE WHEN t.status = 'published' THEN NOW() ELSE NULL END
+         FROM product_templates t
+        WHERE NOT EXISTS (
+          SELECT 1 FROM product_template_versions v WHERE v.template_id = t.id
+        )`
+    )
+  }
+
+  // ── Fase 3 · Product Bundle Builder ──────────────────────────────────────────
+  await pool.query(
+    `CREATE TABLE IF NOT EXISTS product_bundles (
+      id VARCHAR(36) NOT NULL PRIMARY KEY,
+      tenant_id VARCHAR(36) NOT NULL,
+      name VARCHAR(160) NOT NULL,
+      description VARCHAR(400) NULL,
+      image_url VARCHAR(500) NULL,
+      label VARCHAR(60) NULL,
+      discount_type ENUM('fixed_total','percent','amount_off') NOT NULL DEFAULT 'percent',
+      discount_value DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+      anchor_product_id VARCHAR(36) NULL,
+      status ENUM('draft','published','archived') NOT NULL DEFAULT 'draft',
+      is_active TINYINT NOT NULL DEFAULT 1,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_pb_tenant_status (tenant_id, status),
+      INDEX idx_pb_anchor (anchor_product_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=${charset} COLLATE=${collation}`
+  )
+  await pool.query(
+    `CREATE TABLE IF NOT EXISTS product_bundle_items (
+      id VARCHAR(36) NOT NULL PRIMARY KEY,
+      bundle_id VARCHAR(36) NOT NULL,
+      product_id VARCHAR(36) NOT NULL,
+      variant_id VARCHAR(36) NULL,
+      quantity INT NOT NULL DEFAULT 1,
+      sort_order INT NOT NULL DEFAULT 0,
+      INDEX idx_pbi_bundle (bundle_id, sort_order)
+    ) ENGINE=InnoDB DEFAULT CHARSET=${charset} COLLATE=${collation}`
+  )
+
+  // ── Fase 4 · Checkout Experience (config de personalización por tenant) ───────
+  await pool.query(
+    `CREATE TABLE IF NOT EXISTS checkout_experiences (
+      tenant_id VARCHAR(36) NOT NULL PRIMARY KEY,
+      config JSON NOT NULL,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=${charset} COLLATE=${collation}`
   )
 }

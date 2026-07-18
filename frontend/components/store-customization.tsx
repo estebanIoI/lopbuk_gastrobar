@@ -49,6 +49,8 @@ import { CloudinaryUpload } from '@/components/ui/cloudinary-upload'
 import { LogoThemeGenerator } from '@/components/logo-theme-generator'
 import { ChatbotConversations } from '@/components/chatbot-conversations'
 import { ProductTemplateEditor } from '@/components/product-template-editor'
+import { BundleBuilder } from '@/components/bundle-builder'
+import { CheckoutExperienceEditor } from '@/components/checkout-experience-editor'
 import { departamentosMunicipios } from '@/constants'
 
 interface Banner {
@@ -2007,6 +2009,8 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
       {activeTab === 'plantillas' && (
         <div className="space-y-4">
           <ProductTemplateEditor />
+          <BundleBuilder />
+          <CheckoutExperienceEditor />
         </div>
       )}
 

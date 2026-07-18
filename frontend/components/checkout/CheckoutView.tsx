@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from 'react';
+import { withCheckoutDefaults, type CheckoutExperienceConfig, type CheckoutFieldKey } from '@/lib/checkout-experience';
 
 const formatCOP = (value: number) =>
   new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value);
@@ -96,6 +97,9 @@ interface CheckoutViewProps {
   acceptsMarketing?: boolean;
   onConsentChange?: (acceptsDataPolicy: boolean, acceptsMarketing: boolean) => void;
   onOpenDataPolicy?: () => void;
+  // Checkout Experience (Fase 4): personalización opcional. Sin config, el
+  // checkout se ve como hoy (los defaults reproducen el comportamiento actual).
+  checkoutConfig?: CheckoutExperienceConfig | null;
 }
 
 export function CheckoutView({
@@ -141,7 +145,13 @@ export function CheckoutView({
   acceptsMarketing = false,
   onConsentChange,
   onOpenDataPolicy,
+  checkoutConfig,
 }: CheckoutViewProps) {
+  // Config de Checkout Experience (con defaults → comportamiento actual).
+  const CX = withCheckoutDefaults(checkoutConfig);
+  const fx = (k: CheckoutFieldKey) => CX.fields[k];
+  /** Etiqueta configurable + asterisk según required. */
+  const flabel = (k: CheckoutFieldKey, fallback: string) => `${fx(k).label || fallback}${fx(k).required ? ' *' : ''}`;
   const [inputCupon, setInputCupon] = useState(cuponCodigo);
   const [validandoCupon, setValidandoCupon] = useState(false);
   const [errorCupon, setErrorCupon] = useState('');
@@ -166,7 +176,13 @@ export function CheckoutView({
 
   const validateForm = (): boolean => {
     const errors: FieldError[] = [];
-    const fields = [...REQUIRED_FIELDS];
+    // Un campo es obligatorio solo si la config lo marca visible + required (los
+    // núcleos nombre/teléfono siempre lo son). Así ocultar/volver opcional un
+    // campo en el editor NO deja el checkout imposible de enviar.
+    const fields = REQUIRED_FIELDS.filter(({ field }) => {
+      const c = (CX.fields as any)[field];
+      return !c || (c.visible && c.required);
+    });
     if (!isDeliveryOrder) {
       fields.push(
         { field: 'departamento', label: 'Departamento' },
@@ -393,7 +409,7 @@ export function CheckoutView({
           <ChevronRight className="w-3.5 h-3.5 opacity-20" />
           <div className="flex items-center gap-2">
             <div className="w-5 h-5 rounded-full bg-white text-gray-900 flex items-center justify-center text-[10px] font-bold leading-none flex-shrink-0">2</div>
-            <span className="text-[10px] tracking-widest uppercase font-semibold">Finalizar Compra</span>
+            <span className="text-[10px] tracking-widest uppercase font-semibold">{CX.header.title || 'Finalizar Compra'}</span>
           </div>
           <ChevronRight className="w-3.5 h-3.5 opacity-20" />
           <div className="flex items-center gap-2 opacity-40">
@@ -431,8 +447,8 @@ export function CheckoutView({
               </h2>
                 <div className="space-y-5">
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-2 tracking-wide">
-                      NOMBRE COMPLETO *
+                    <label className="block text-xs font-medium text-gray-700 mb-2 tracking-wide uppercase">
+                      {flabel('nombre', 'Nombre completo')}
                     </label>
                     <input
                       type="text"
@@ -440,14 +456,14 @@ export function CheckoutView({
                       value={formData.nombre}
                       onChange={handleInputChangeWithClear}
                       className={`w-full px-4 py-3 border bg-white text-gray-900 focus:ring-1 font-light rounded-none placeholder-gray-400 ${hasFieldError('nombre') ? 'border-red-400 focus:border-red-500 focus:ring-red-500' : 'border-gray-300 focus:border-gray-900 focus:ring-gray-900'}`}
-                      placeholder="Ingresa tu nombre completo"
+                      placeholder={fx('nombre').placeholder}
                       required
                     />
                     {getFieldError('nombre') && <p className="text-xs text-red-500 mt-1">{getFieldError('nombre')!.message}</p>}
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-2 tracking-wide">
-                      TELÉFONO / WHATSAPP *
+                    <label className="block text-xs font-medium text-gray-700 mb-2 tracking-wide uppercase">
+                      {flabel('telefono', 'Teléfono / WhatsApp')}
                     </label>
                     <input
                       type="tel"
@@ -455,14 +471,15 @@ export function CheckoutView({
                       value={formData.telefono}
                       onChange={handleInputChangeWithClear}
                       className={`w-full px-4 py-3 border bg-white text-gray-900 focus:ring-1 font-light rounded-none placeholder-gray-400 ${hasFieldError('telefono') ? 'border-red-400 focus:border-red-500 focus:ring-red-500' : 'border-gray-300 focus:border-gray-900 focus:ring-gray-900'}`}
-                      placeholder="Ej: 3001234567"
+                      placeholder={fx('telefono').placeholder}
                       required
                     />
                     {getFieldError('telefono') && <p className="text-xs text-red-500 mt-1">{getFieldError('telefono')!.message}</p>}
                   </div>
+                  {fx('email').visible && (
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-2 tracking-wide">
-                      CORREO ELECTRÓNICO *
+                    <label className="block text-xs font-medium text-gray-700 mb-2 tracking-wide uppercase">
+                      {flabel('email', 'Correo electrónico')}
                     </label>
                     <input
                       type="email"
@@ -470,14 +487,16 @@ export function CheckoutView({
                       value={formData.email}
                       onChange={handleInputChangeWithClear}
                       className={`w-full px-4 py-3 border bg-white text-gray-900 focus:ring-1 font-light rounded-none placeholder-gray-400 ${hasFieldError('email') ? 'border-red-400 focus:border-red-500 focus:ring-red-500' : 'border-gray-300 focus:border-gray-900 focus:ring-gray-900'}`}
-                      placeholder="ejemplo@correo.com"
-                      required
+                      placeholder={fx('email').placeholder}
+                      required={fx('email').required}
                     />
                     {getFieldError('email') && <p className="text-xs text-red-500 mt-1">{getFieldError('email')!.message}</p>}
                   </div>
+                  )}
+                  {fx('cedula').visible && (
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-2 tracking-wide">
-                      CÉDULA / DOCUMENTO *
+                    <label className="block text-xs font-medium text-gray-700 mb-2 tracking-wide uppercase">
+                      {flabel('cedula', 'Cédula / Documento')}
                     </label>
                     <input
                       type="text"
@@ -485,11 +504,12 @@ export function CheckoutView({
                       value={formData.cedula}
                       onChange={handleInputChangeWithClear}
                       className={`w-full px-4 py-3 border bg-white text-gray-900 focus:ring-1 font-light rounded-none placeholder-gray-400 ${hasFieldError('cedula') ? 'border-red-400 focus:border-red-500 focus:ring-red-500' : 'border-gray-300 focus:border-gray-900 focus:ring-gray-900'}`}
-                      placeholder="Número de documento"
-                      required
+                      placeholder={fx('cedula').placeholder}
+                      required={fx('cedula').required}
                     />
                     {getFieldError('cedula') && <p className="text-xs text-red-500 mt-1">{getFieldError('cedula')!.message}</p>}
                   </div>
+                  )}
                 </div>
               </div>
 
@@ -581,8 +601,8 @@ export function CheckoutView({
                     </>
                   )}
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-2 tracking-wide">
-                      DIRECCIÓN DE ENTREGA *
+                    <label className="block text-xs font-medium text-gray-700 mb-2 tracking-wide uppercase">
+                      {flabel('direccion', 'Dirección de entrega')}
                     </label>
                     <input
                       type="text"
@@ -590,7 +610,7 @@ export function CheckoutView({
                       value={formData.direccion}
                       onChange={handleInputChangeWithClear}
                       className={`w-full px-4 py-3 border bg-white text-gray-900 focus:ring-1 font-light rounded-none placeholder-gray-400 ${hasFieldError('direccion') ? 'border-red-400 focus:border-red-500 focus:ring-red-500' : 'border-gray-300 focus:border-gray-900 focus:ring-gray-900'}`}
-                      placeholder="Calle, carrera, número..."
+                      placeholder={fx('direccion').placeholder}
                       required
                     />
                     {getFieldError('direccion') && <p className="text-xs text-red-500 mt-1">{getFieldError('direccion')!.message}</p>}
@@ -609,9 +629,10 @@ export function CheckoutView({
                     </div>
                   )}
 
+                  {fx('barrio').visible && (
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-2 tracking-wide">
-                      BARRIO
+                    <label className="block text-xs font-medium text-gray-700 mb-2 tracking-wide uppercase">
+                      {flabel('barrio', 'Barrio')}
                     </label>
                     <input
                       type="text"
@@ -619,9 +640,10 @@ export function CheckoutView({
                       value={formData.barrio}
                       onChange={handleInputChangeWithClear}
                       className="w-full px-4 py-3 border border-gray-300 bg-white text-gray-900 focus:border-gray-900 focus:ring-1 focus:ring-gray-900 font-light rounded-none placeholder-gray-400"
-                      placeholder="Nombre del barrio"
+                      placeholder={fx('barrio').placeholder}
                     />
                   </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1197,7 +1219,7 @@ export function CheckoutView({
                           paymentMethod === 'addi' ? 'PAGAR CON ADDI' :
                           paymentMethod === 'sistecredito' ? 'PAGAR CON SISTECRÉDITO' :
                           paymentMethod === 'wompi' ? 'PAGAR CON WOMPI' :
-                          'CONFIRMAR PEDIDO'}
+                          (CX.cta.text || 'CONFIRMAR PEDIDO')}
                       </span>
                       {paymentMethod === 'mercadopago' && <Sparkles className="w-4 h-4 flex-shrink-0 opacity-80" />}
                     </>
@@ -1206,8 +1228,34 @@ export function CheckoutView({
 
                 <p className="text-center text-[10px] text-gray-400 mt-2 flex items-center justify-center gap-1">
                   <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-                  Pago seguro con encriptación SSL
+                  {CX.cta.subtext || 'Pago seguro con encriptación SSL'}
                 </p>
+
+                {/* Checkout Experience: bloques informativos configurables */}
+                {CX.infoBlocks.length > 0 && (
+                  <div className="mt-4 grid grid-cols-2 gap-2">
+                    {CX.infoBlocks.map((b, i) => (
+                      <div key={i} className="flex items-start gap-2 p-2.5 border border-gray-100 rounded bg-gray-50">
+                        <span className="text-base leading-none shrink-0">{b.icon || '✓'}</span>
+                        <div className="min-w-0">
+                          <p className="text-[11px] font-semibold text-gray-800 leading-tight">{b.title}</p>
+                          {b.text && <p className="text-[10px] text-gray-500 leading-tight">{b.text}</p>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Checkout Experience: mensaje inferior configurable */}
+                {CX.bottomMessage.show && CX.bottomMessage.text && (
+                  <div className="mt-4 flex items-start gap-2 p-3 border border-blue-100 bg-blue-50 rounded">
+                    <span className="text-base leading-none shrink-0">{CX.bottomMessage.icon || '💬'}</span>
+                    <div className="min-w-0">
+                      {CX.bottomMessage.title && <p className="text-xs font-semibold text-blue-900">{CX.bottomMessage.title}</p>}
+                      <p className="text-[11px] text-blue-800 leading-snug">{CX.bottomMessage.text}</p>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>

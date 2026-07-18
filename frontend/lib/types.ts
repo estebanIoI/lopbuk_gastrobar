@@ -176,6 +176,25 @@ export interface CartItem {
   quantity: number
   discount: number
   customAmount?: number
+  /** Si el ítem proviene de un bundle: agrupa las líneas y marca su origen. */
+  bundleId?: string
+  bundleName?: string
+}
+
+/** Combo resuelto que se agrega al carrito (viene del Bundle Builder / API pública). */
+export interface BundleCartInput {
+  id: string
+  name: string
+  bundlePrice: number
+  regularTotal: number
+  items: Array<{
+    productId: string
+    variantId?: string | null
+    name: string
+    imageUrl?: string | null
+    unitPrice: number
+    quantity: number
+  }>
 }
 
 export interface Sale {

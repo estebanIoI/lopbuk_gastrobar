@@ -11,8 +11,19 @@ export interface ProductTemplate {
   sections: TemplateSection[];
   status: 'draft' | 'published' | 'archived';
   productCount?: number;
+  /** true si hay una versión draft con cambios aún no publicados */
+  hasDraft?: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface TemplateVersion {
+  id: string;
+  version: number;
+  status: 'draft' | 'published' | 'archived';
+  sectionCount: number;
+  publishedAt: string | null;
+  createdAt: string;
 }
 
 function parseSections(raw: unknown): TemplateSection[] {
@@ -58,13 +69,156 @@ export class ProductTemplatesService {
     return rows.map(mapRow);
   }
 
+  /**
+   * Lectura de ADMIN: devuelve la copia editable (draft si existe, si no la
+   * publicada). El público NO pasa por aquí: lee el espejo `sections` vía
+   * getPublicProductPage, que no cambió.
+   */
   async findById(tenantId: string, id: string): Promise<ProductTemplate> {
     const [rows] = await db.execute<RowDataPacket[]>(
       'SELECT * FROM product_templates WHERE id = ? AND tenant_id = ? AND is_active = 1',
       [id, tenantId]
     );
     if (rows.length === 0) throw new AppError('Plantilla no encontrada', 404);
-    return mapRow(rows[0]);
+    const tpl = mapRow(rows[0]);
+
+    await this.ensureVersions(id, rows[0]);
+    const editable = await this.getEditableVersion(id);
+    if (editable) {
+      tpl.sections = parseSections(editable.sections);
+      tpl.hasDraft = editable.status === 'draft' && tpl.status === 'published';
+    }
+    return tpl;
+  }
+
+  // ── Versionado ──────────────────────────────────────────────────────────────
+  // Invariantes (mismo patrón que routine_versions del módulo Gym):
+  //  · como máximo UNA versión 'draft' y UNA 'published' por plantilla
+  //  · `product_templates.sections` es el ESPEJO de la publicada → el endpoint
+  //    público sigue funcionando sin tocar una línea (compatibilidad total)
+  //  · el rollback CREA una versión nueva, nunca revive una vieja
+
+  /** Backfill perezoso: una plantilla sin versiones estrena v1 desde el espejo. */
+  private async ensureVersions(templateId: string, row: any): Promise<void> {
+    const [v] = await db.execute<RowDataPacket[]>(
+      'SELECT COUNT(*) AS n FROM product_template_versions WHERE template_id = ?',
+      [templateId]
+    );
+    if (Number(v[0]?.n || 0) > 0) return;
+    const status = row.status === 'published' ? 'published' : row.status === 'archived' ? 'archived' : 'draft';
+    await db.execute(
+      `INSERT INTO product_template_versions (id, template_id, version, sections, status, published_at)
+       VALUES (?, ?, 1, ?, ?, ${status === 'published' ? 'NOW()' : 'NULL'})`,
+      [uuidv4(), templateId, JSON.stringify(parseSections(row.sections)), status]
+    );
+  }
+
+  /** Versión editable: el draft si existe; si no, la publicada. */
+  private async getEditableVersion(templateId: string): Promise<any | null> {
+    const [rows] = await db.execute<RowDataPacket[]>(
+      `SELECT * FROM product_template_versions
+        WHERE template_id = ? AND status IN ('draft','published')
+        ORDER BY (status = 'draft') DESC, version DESC
+        LIMIT 1`,
+      [templateId]
+    );
+    return rows[0] || null;
+  }
+
+  private async nextVersion(templateId: string): Promise<number> {
+    const [rows] = await db.execute<RowDataPacket[]>(
+      'SELECT COALESCE(MAX(version), 0) + 1 AS n FROM product_template_versions WHERE template_id = ?',
+      [templateId]
+    );
+    return Number(rows[0]?.n || 1);
+  }
+
+  /** Escribe secciones en la versión draft (la crea si no existe). */
+  private async writeDraft(templateId: string, sections: TemplateSection[]): Promise<void> {
+    const json = JSON.stringify(sections);
+    const [d] = await db.execute<RowDataPacket[]>(
+      "SELECT id FROM product_template_versions WHERE template_id = ? AND status = 'draft' LIMIT 1",
+      [templateId]
+    );
+    if (d.length > 0) {
+      await db.execute('UPDATE product_template_versions SET sections = ? WHERE id = ?', [json, d[0].id]);
+      return;
+    }
+    await db.execute(
+      `INSERT INTO product_template_versions (id, template_id, version, sections, status)
+       VALUES (?, ?, ?, ?, 'draft')`,
+      [uuidv4(), templateId, await this.nextVersion(templateId), json]
+    );
+  }
+
+  async listVersions(tenantId: string, id: string): Promise<TemplateVersion[]> {
+    await this.findById(tenantId, id); // valida tenant + dispara backfill
+    const [rows] = await db.execute<RowDataPacket[]>(
+      `SELECT id, version, status, published_at, created_at, JSON_LENGTH(sections) AS sectionCount
+         FROM product_template_versions
+        WHERE template_id = ?
+        ORDER BY version DESC`,
+      [id]
+    );
+    return rows.map((r: any) => ({
+      id: r.id,
+      version: Number(r.version),
+      status: r.status,
+      sectionCount: Number(r.sectionCount || 0),
+      publishedAt: r.published_at || null,
+      createdAt: r.created_at,
+    }));
+  }
+
+  /** Publica el draft: archiva la publicada anterior y refresca el espejo. */
+  async publish(tenantId: string, id: string): Promise<void> {
+    await this.findById(tenantId, id);
+    const [d] = await db.execute<RowDataPacket[]>(
+      "SELECT id, sections FROM product_template_versions WHERE template_id = ? AND status = 'draft' ORDER BY version DESC LIMIT 1",
+      [id]
+    );
+    const target: any = d[0] || null;
+    if (target) {
+      await db.execute(
+        "UPDATE product_template_versions SET status = 'archived' WHERE template_id = ? AND status = 'published'",
+        [id]
+      );
+      await db.execute(
+        "UPDATE product_template_versions SET status = 'published', published_at = NOW() WHERE id = ?",
+        [target.id]
+      );
+      // Espejo → lo que sirve la tienda
+      await db.execute(
+        'UPDATE product_templates SET sections = ? WHERE id = ? AND tenant_id = ?',
+        [JSON.stringify(parseSections(target.sections)), id, tenantId]
+      );
+    }
+    await db.execute(
+      "UPDATE product_templates SET status = 'published' WHERE id = ? AND tenant_id = ?",
+      [id, tenantId]
+    );
+    invalidatePageCache();
+  }
+
+  /**
+   * Rollback: copia vN en una versión NUEVA y la publica. No revive filas
+   * viejas (rompería el histórico y el unique(template_id, version)); así queda
+   * traza de que hubo rollback. El draft en curso se archiva, no se pierde.
+   */
+  async rollback(tenantId: string, id: string, version: number): Promise<void> {
+    await this.findById(tenantId, id);
+    const [rows] = await db.execute<RowDataPacket[]>(
+      'SELECT sections FROM product_template_versions WHERE template_id = ? AND version = ? LIMIT 1',
+      [id, version]
+    );
+    if (rows.length === 0) throw new AppError('Versión no encontrada', 404);
+    const sections = parseSections(rows[0].sections);
+    await db.execute(
+      "UPDATE product_template_versions SET status = 'archived' WHERE template_id = ? AND status = 'draft'",
+      [id]
+    );
+    await this.writeDraft(id, sections);
+    await this.publish(tenantId, id);
   }
 
   async create(tenantId: string, data: { name: string; description?: string; sections?: unknown }): Promise<ProductTemplate> {
@@ -81,37 +235,65 @@ export class ProductTemplatesService {
     return this.findById(tenantId, id);
   }
 
+  /**
+   * Las secciones van SIEMPRE a la versión draft. Si la plantilla está
+   * publicada, el espejo NO se toca: guardar deja de publicar en vivo (era el
+   * bug de fondo del editor). Los cambios llegan a la tienda solo al publicar.
+   */
   async update(tenantId: string, id: string, data: { name?: string; description?: string; sections?: unknown }): Promise<ProductTemplate> {
-    await this.findById(tenantId, id);
+    const current = await this.findById(tenantId, id);
 
     const updates: string[] = [];
     const values: unknown[] = [];
     if (data.name !== undefined) { updates.push('name = ?'); values.push(String(data.name).trim()); }
     if (data.description !== undefined) { updates.push('description = ?'); values.push(String(data.description).trim() || null); }
+    if (updates.length === 0 && data.sections === undefined) {
+      throw new AppError('No hay datos para actualizar', 400);
+    }
+
+    if (updates.length > 0) {
+      values.push(id, tenantId);
+      await db.execute(
+        `UPDATE product_templates SET ${updates.join(', ')} WHERE id = ? AND tenant_id = ?`,
+        values
+      );
+    }
+
     if (data.sections !== undefined) {
       let sections: TemplateSection[];
       try { sections = normalizeSections(data.sections); }
       catch (e: any) { throw new AppError(e.message, 400); }
-      updates.push('sections = ?');
-      values.push(JSON.stringify(sections));
-    }
-    if (updates.length === 0) throw new AppError('No hay datos para actualizar', 400);
 
-    values.push(id, tenantId);
-    await db.execute(
-      `UPDATE product_templates SET ${updates.join(', ')} WHERE id = ? AND tenant_id = ?`,
-      values
-    );
+      await this.writeDraft(id, sections);
+
+      // Espejo solo mientras la plantilla no esté publicada: así el borrador de
+      // una plantilla en vivo no altera la tienda.
+      if (current.status !== 'published') {
+        await db.execute(
+          'UPDATE product_templates SET sections = ? WHERE id = ? AND tenant_id = ?',
+          [JSON.stringify(sections), id, tenantId]
+        );
+      }
+    }
+
     invalidatePageCache();
     return this.findById(tenantId, id);
   }
 
   async setStatus(tenantId: string, id: string, status: 'draft' | 'published' | 'archived'): Promise<void> {
+    if (status === 'published') { await this.publish(tenantId, id); return; }
+
     const [result] = await db.execute<ResultSetHeader>(
       'UPDATE product_templates SET status = ? WHERE id = ? AND tenant_id = ? AND is_active = 1',
       [status, id, tenantId]
     );
     if (result.affectedRows === 0) throw new AppError('Plantilla no encontrada', 404);
+    if (status === 'archived') {
+      await db.execute(
+        "UPDATE product_template_versions SET status = 'archived' WHERE template_id = ? AND status = 'published'",
+        [id]
+      );
+    }
     invalidatePageCache();
   }
 

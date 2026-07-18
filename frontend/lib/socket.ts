@@ -74,3 +74,23 @@ export function disconnectRestbarSocket() {
     restbarSocket = null
   }
 }
+
+// ── Social Proof — presencia de espectadores por producto (datos reales) ──
+let socialProofSocket: Socket | null = null
+
+export function getSocialProofSocket(): Socket {
+  if (!socialProofSocket) {
+    socialProofSocket = io(`${SOCKET_URL}/social-proof`, {
+      autoConnect: true,
+      transports: ['websocket', 'polling'],
+    })
+  }
+  return socialProofSocket
+}
+
+export function disconnectSocialProofSocket() {
+  if (socialProofSocket) {
+    socialProofSocket.disconnect()
+    socialProofSocket = null
+  }
+}

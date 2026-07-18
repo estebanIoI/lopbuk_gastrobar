@@ -2469,6 +2469,16 @@ class ApiService {
     return this.request<any>(`/product-templates/${id}/duplicate`, { method: 'POST' })
   }
 
+  /** Historial de versiones de una plantilla (Fase 1.5). */
+  async getProductTemplateVersions(id: string) {
+    return this.request<any>(`/product-templates/${id}/versions`)
+  }
+
+  /** Vuelve a una versión anterior: la copia en una versión nueva y la publica. */
+  async rollbackProductTemplate(id: string, version: number) {
+    return this.request<any>(`/product-templates/${id}/rollback`, { method: 'POST', body: JSON.stringify({ version }) })
+  }
+
   async deleteProductTemplate(id: string) {
     return this.request<any>(`/product-templates/${id}`, { method: 'DELETE' })
   }
@@ -2489,6 +2499,56 @@ class ApiService {
       method: 'PUT',
       body: JSON.stringify({ pageContent }),
     })
+  }
+
+  // ── Product Bundle Builder (Fase 3) ──────────────────────────────────────────
+  async getProductBundles() {
+    return this.request<any>('/product-bundles')
+  }
+  async getProductBundle(id: string) {
+    return this.request<any>(`/product-bundles/${id}`)
+  }
+  async createProductBundle(data: any) {
+    return this.request<any>('/product-bundles', { method: 'POST', body: JSON.stringify(data) })
+  }
+  async updateProductBundle(id: string, data: any) {
+    return this.request<any>(`/product-bundles/${id}`, { method: 'PUT', body: JSON.stringify(data) })
+  }
+  async setProductBundleStatus(id: string, status: 'draft' | 'published' | 'archived') {
+    return this.request<any>(`/product-bundles/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) })
+  }
+  async setProductBundleAnchor(id: string, anchorProductId: string | null) {
+    return this.request<any>(`/product-bundles/${id}/anchor`, { method: 'PATCH', body: JSON.stringify({ anchorProductId }) })
+  }
+  async duplicateProductBundle(id: string) {
+    return this.request<any>(`/product-bundles/${id}/duplicate`, { method: 'POST' })
+  }
+  async deleteProductBundle(id: string) {
+    return this.request<any>(`/product-bundles/${id}`, { method: 'DELETE' })
+  }
+  /** Público: bundles publicados para el PDP de un producto. */
+  async getPublicProductBundles(productId: string) {
+    return this.request<any>(`/storefront/product-bundles/${productId}`)
+  }
+
+  // ── Checkout Experience (Fase 4) ─────────────────────────────────────────────
+  async getCheckoutExperience() {
+    return this.request<any>('/checkout-experience')
+  }
+  async saveCheckoutExperience(config: any) {
+    return this.request<any>('/checkout-experience', { method: 'PUT', body: JSON.stringify({ config }) })
+  }
+  async resetCheckoutExperience() {
+    return this.request<any>('/checkout-experience/reset', { method: 'POST' })
+  }
+  /** Público: config del checkout de una tienda por slug. */
+  async getPublicCheckoutExperience(storeSlug: string) {
+    return this.request<any>(`/storefront/checkout-experience/${storeSlug}`)
+  }
+
+  /** Público: social proof (datos reales) de un producto. */
+  async getPublicSocialProof(productId: string) {
+    return this.request<any>(`/storefront/social-proof/${productId}`)
   }
 
   // Conversaciones del chatbot (asesoría + cierre humano)
@@ -3890,6 +3950,65 @@ class ApiService {
   async changeGymMemberStatus(memberId: string, status: string) { return this.request<any>(`/gym/members/${memberId}/status`, { method: 'PUT', body: JSON.stringify({ status }) }) }
   async reassignGymTrainer(memberId: string, trainerId: string | null) { return this.request<any>(`/gym/members/${memberId}/trainer`, { method: 'PUT', body: JSON.stringify({ trainerId }) }) }
   async getMyGymProfile() { return this.request<any>('/gym/me/profile') }
+
+  // ── Módulo GIMNASIO v3 — Dominio Training ──
+  // Biblioteca
+  async listTrainingExercises(filters?: Record<string, string>) {
+    const qs = filters ? '?' + new URLSearchParams(filters).toString() : ''
+    return this.request<{ rows: any[]; total: number }>(`/gym/training/exercises${qs}`)
+  }
+  async getTrainingExercise(id: string) { return this.request<any>(`/gym/training/exercises/${id}`) }
+  async createTrainingExercise(data: any) { return this.request<any>('/gym/training/exercises', { method: 'POST', body: JSON.stringify(data) }) }
+  async toggleExerciseFavorite(exerciseId: string) { return this.request<any>(`/gym/training/exercises/${exerciseId}/favorite`, { method: 'POST' }) }
+  // Plantillas
+  async listTrainingTemplates(category?: string) { return this.request<any[]>(`/gym/training/templates${category ? `?category=${category}` : ''}`) }
+  async getTrainingTemplate(id: string) { return this.request<any>(`/gym/training/templates/${id}`) }
+  async createTrainingTemplate(data: any) { return this.request<any>('/gym/training/templates', { method: 'POST', body: JSON.stringify(data) }) }
+  async deleteTrainingTemplate(id: string) { return this.request<any>(`/gym/training/templates/${id}`, { method: 'DELETE' }) }
+  // Asignaciones
+  async assignTrainingTemplate(data: { templateId: string; memberIds: string[] }) { return this.request<any>('/gym/training/assignments', { method: 'POST', body: JSON.stringify(data) }) }
+  async listTrainingAssignments(filters?: { memberId?: string; status?: string }) {
+    const qs = filters ? '?' + new URLSearchParams(Object.entries(filters).filter(([,v]) => v).map(([k,v]) => [k, String(v)])).toString() : ''
+    return this.request<any[]>(`/gym/training/assignments${qs}`)
+  }
+  // Sesiones
+  async startTrainingSession(memberId: string, data: any) { return this.request<any>('/gym/training/sessions', { method: 'POST', body: JSON.stringify({ ...data, memberId }) }) }
+  async getTrainingSession(id: string) { return this.request<any>(`/gym/training/sessions/${id}`) }
+  async logTrainingSet(sessionId: string, data: any) { return this.request<any>(`/gym/training/sessions/${sessionId}/sets`, { method: 'POST', body: JSON.stringify(data) }) }
+  async endTrainingSession(sessionId: string, data?: any) { return this.request<any>(`/gym/training/sessions/${sessionId}/end`, { method: 'PUT', body: JSON.stringify(data || {}) }) }
+  async listTrainingSessions(memberId: string, limit?: number) { return this.request<any[]>(`/gym/training/sessions?memberId=${memberId}&limit=${limit || 30}`) }
+  // Records
+  async listTrainingRecords(memberId: string) { return this.request<any[]>(`/gym/training/records?memberId=${memberId}`) }
+  async getTrainingStats(memberId: string) { return this.request<any>(`/gym/training/stats?memberId=${memberId}`) }
+  // Miembro (cliente)
+  async getMyTrainingPlan() { return this.request<any>('/gym/me/training/plan') }
+  async startMyTrainingSession(data: any) { return this.request<any>('/gym/me/training/sessions', { method: 'POST', body: JSON.stringify(data) }) }
+  async logMyTrainingSet(sessionId: string, data: any) { return this.request<any>(`/gym/me/training/sessions/${sessionId}/sets`, { method: 'POST', body: JSON.stringify(data) }) }
+  async endMyTrainingSession(sessionId: string) { return this.request<any>(`/gym/me/training/sessions/${sessionId}/end`, { method: 'PUT' }) }
+  async getMyTrainingHistory() { return this.request<any[]>('/gym/me/training/history') }
+  async getMyTrainingRecords() { return this.request<any[]>('/gym/me/training/records') }
+  async getMyTrainingStats() { return this.request<any>('/gym/me/training/stats') }
+
+  // ── Módulo GIMNASIO v3 — Dominio Health ──
+  async listHealthAssessments(memberId: string) { return this.request<any[]>(`/gym/health/assessments?memberId=${memberId}`) }
+  async getHealthAssessment(id: string) { return this.request<any>(`/gym/health/assessments/${id}`) }
+  async createHealthAssessment(data: any) { return this.request<any>('/gym/health/assessments', { method: 'POST', body: JSON.stringify(data) }) }
+  async listHealthPhotos(memberId: string, category?: string) { return this.request<any[]>(`/gym/health/photos?memberId=${memberId}${category ? `&category=${category}` : ''}`) }
+  async addHealthPhoto(data: any) { return this.request<any>('/gym/health/photos', { method: 'POST', body: JSON.stringify(data) }) }
+  async deleteHealthPhoto(id: string) { return this.request<any>(`/gym/health/photos/${id}`, { method: 'DELETE' }) }
+  async reorderHealthPhotos(photoIds: string[]) { return this.request<any>('/gym/health/photos/reorder', { method: 'PUT', body: JSON.stringify({ photoIds }) }) }
+  async uploadHealthFile(data: any) { return this.request<any>('/gym/health/files', { method: 'POST', body: JSON.stringify(data) }) }
+  async listHealthConditions(memberId: string, status?: string) { return this.request<any[]>(`/gym/health/conditions?memberId=${memberId}${status ? `&status=${status}` : ''}`) }
+  async reportHealthCondition(data: any) { return this.request<any>('/gym/health/conditions', { method: 'POST', body: JSON.stringify(data) }) }
+  async updateHealthCondition(id: string, data: any) { return this.request<any>(`/gym/health/conditions/${id}`, { method: 'PUT', body: JSON.stringify(data) }) }
+  async getActiveRestrictions(memberId: string) { return this.request<any>(`/gym/health/restrictions?memberId=${memberId}`) }
+  async getHealthDashboard(memberId: string) { return this.request<any>(`/gym/health/dashboard?memberId=${memberId}`) }
+  // Miembro
+  async getMyHealthDashboard() { return this.request<any>('/gym/me/health/dashboard') }
+  async getMyHealthAssessments() { return this.request<any[]>('/gym/me/health/assessments') }
+  async getMyHealthPhotos() { return this.request<any[]>('/gym/me/health/photos') }
+  async getMyHealthConditions() { return this.request<any[]>('/gym/me/health/conditions') }
+  async addMyHealthPhoto(data: any) { return this.request<any>('/gym/me/health/photos', { method: 'POST', body: JSON.stringify(data) }) }
 
   // ── Variantes ──────────────────────────────────────────────────────────────
   async getVariantsSummary() { return this.request<any[]>('/variants/summary') }
