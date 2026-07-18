@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useAuthStore } from '@/lib/auth-store'
 import { useCashStore } from '@/lib/cash-store'
 import { formatCOP } from '@/lib/utils'
-import type { CashSession } from '@/lib/types'
+import type { CashSession, SalesBookEntry } from '@/lib/types'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -110,6 +110,7 @@ export function CashRegister() {
   ] as const
   const [showCierreDenomCalc, setShowCierreDenomCalc] = useState(false)
   const [cierreDenomCounts, setCierreDenomCounts] = useState<Record<number, number>>({})
+  const [detailSession, setDetailSession] = useState<CashSession | null>(null) // revisar cierre pasado
 
   const cierreDenomTotal = Object.entries(cierreDenomCounts).reduce(
     (sum, [denom, count]) => sum + Number(denom) * count, 0
@@ -335,7 +336,7 @@ export function CashRegister() {
               {/* ── Tarjetas (móvil) ── */}
               <div className="md:hidden divide-y divide-border">
                 {sessionHistory.map((session) => (
-                  <div key={session.id} className="p-3">
+                  <div key={session.id} className="p-3 cursor-pointer hover:bg-muted/40 transition-colors" onClick={() => setDetailSession(session)}>
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <p className="text-sm font-medium">
@@ -369,7 +370,7 @@ export function CashRegister() {
                 </TableHeader>
                 <TableBody>
                   {sessionHistory.map((session) => (
-                    <TableRow key={session.id} className="border-border">
+                    <TableRow key={session.id} className="border-border cursor-pointer hover:bg-muted/40" onClick={() => setDetailSession(session)}>
                       <TableCell className="text-sm">
                         {new Date(session.openedAt).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}
                       </TableCell>
@@ -388,6 +389,9 @@ export function CashRegister() {
             </CardContent>
           </Card>
         )}
+
+        {/* Detalle de un cierre pasado con su libro de ventas (Fase 1 GastroBar) */}
+        <SessionDetailDialog session={detailSession} onClose={() => setDetailSession(null)} />
       </div>
     )
   }
@@ -959,6 +963,9 @@ export function CashRegister() {
                     )}</span>
                   </div>
                 </div>
+
+                {/* Libro de ventas del turno (Fase 1 GastroBar) */}
+                <SalesBookPanel salesBook={cierreResult?.salesBook} />
               </div>
               <DialogFooter>
                 <Button onClick={handleCierreAccept} className="w-full">Aceptar</Button>
@@ -972,6 +979,93 @@ export function CashRegister() {
 }
 
 // ============= Helper Components =============
+
+// Libro de ventas del turno: desglose por producto (cantidad + valor) con buscador.
+// Reutilizable en el modal de cierre y en la revisión de cierres pasados.
+function SalesBookPanel({ salesBook }: { salesBook?: SalesBookEntry[] }) {
+  const [q, setQ] = useState('')
+  const book = salesBook ?? []
+  if (book.length === 0) return null
+  const term = q.trim().toLowerCase()
+  const rows = term ? book.filter(r => r.name.toLowerCase().includes(term)) : book
+  const totalQty = rows.reduce((s, r) => s + r.quantity, 0)
+  const totalVal = rows.reduce((s, r) => s + r.total, 0)
+  return (
+    <div className="rounded-lg border border-border p-3 space-y-2 text-sm">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Libro de ventas del turno</p>
+        <span className="text-[11px] text-muted-foreground">{book.length} productos</span>
+      </div>
+      <div className="relative">
+        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+        <Input value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar producto (ej: aguacate)…" className="pl-8 h-8 text-xs" />
+      </div>
+      <div className="max-h-56 overflow-y-auto -mx-1">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="text-muted-foreground border-b border-border">
+              <th className="text-left font-medium py-1 px-1">Producto</th>
+              <th className="text-right font-medium py-1 px-1 w-12">Cant.</th>
+              <th className="text-right font-medium py-1 px-1 w-24">Valor</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 ? (
+              <tr><td colSpan={3} className="text-center text-muted-foreground py-3">Sin coincidencias</td></tr>
+            ) : rows.map(r => (
+              <tr key={r.productId} className="border-b border-border/50 last:border-0">
+                <td className="py-1 px-1 truncate max-w-[160px]">{r.name}</td>
+                <td className="py-1 px-1 text-right tabular-nums font-medium">{r.quantity}</td>
+                <td className="py-1 px-1 text-right tabular-nums">{formatCOP(r.total)}</td>
+              </tr>
+            ))}
+          </tbody>
+          {rows.length > 0 && (
+            <tfoot>
+              <tr className="border-t border-border font-semibold">
+                <td className="py-1 px-1">Total{term ? ' (filtrado)' : ''}</td>
+                <td className="py-1 px-1 text-right tabular-nums">{totalQty}</td>
+                <td className="py-1 px-1 text-right tabular-nums">{formatCOP(totalVal)}</td>
+              </tr>
+            </tfoot>
+          )}
+        </table>
+      </div>
+    </div>
+  )
+}
+
+// Detalle de un cierre pasado: resumen + libro de ventas con buscador.
+function SessionDetailDialog({ session, onClose }: { session: CashSession | null; onClose: () => void }) {
+  if (!session) return null
+  const totalSales = (session.totalCashSales || 0) + (session.totalCardSales || 0) + (session.totalTransferSales || 0) + (session.totalFiadoSales || 0)
+  return (
+    <Dialog open onOpenChange={o => { if (!o) onClose() }}>
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="text-base">
+            Cierre del {new Date(session.openedAt).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}
+          </DialogTitle>
+          <DialogDescription>{session.openedByName} · {session.totalSalesCount || 0} ventas · {formatCOP(totalSales)}</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div><p className="text-[10px] text-muted-foreground">Apertura</p><p className="text-sm font-medium">{formatCOP(session.openingAmount)}</p></div>
+            <div><p className="text-[10px] text-muted-foreground">Esperado</p><p className="text-sm font-medium">{session.expectedCash != null ? formatCOP(session.expectedCash) : '-'}</p></div>
+            <div><p className="text-[10px] text-muted-foreground">Real</p><p className="text-sm font-medium">{session.actualCash != null ? formatCOP(session.actualCash) : '-'}</p></div>
+          </div>
+          {session.salesBook && session.salesBook.length > 0 ? (
+            <SalesBookPanel salesBook={session.salesBook} />
+          ) : (
+            <p className="text-xs text-muted-foreground text-center py-4 border border-dashed border-border rounded-lg">
+              Este cierre no tiene libro de ventas (se cerró antes de activar esta función).
+            </p>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 function TotalCard({ title, value, subtitle, icon, highlight }: {
   title: string

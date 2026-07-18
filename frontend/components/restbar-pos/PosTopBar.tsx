@@ -136,25 +136,31 @@ export function PosTopBar({
       {/* Action buttons — visibles según el perfil (rol) */}
       {caps.canSend && (
         <button onClick={onSendKitchen}
-          disabled={!selectedOrder}
-          className={`h-10 px-4 rounded-lg text-sm font-bold flex items-center gap-1.5 transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed
+          disabled={!selectedOrder || (pendingKitchen === 0 && flashArea !== 'cocina')}
+          className={`relative h-10 px-4 rounded-lg text-sm font-bold flex items-center gap-1.5 transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed
             ${flashArea === 'cocina' ? 'bg-emerald-500 text-white scale-105 ring-2 ring-emerald-300/60' : 'bg-red-700 hover:bg-red-600 text-white'}`}
           title="Enviar a Cocina">
           {flashArea === 'cocina'
             ? <><Check className="h-4 w-4" /> ENVIADO</>
             : <><ChefHat className="h-4 w-4" /> COCINA</>}
+          {pendingKitchen > 0 && flashArea !== 'cocina' && (
+            <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-amber-400 text-black text-[11px] font-black flex items-center justify-center">{pendingKitchen}</span>
+          )}
         </button>
       )}
 
       {caps.canSend && (
         <button onClick={onSendBar}
-          disabled={!selectedOrder}
-          className={`h-10 px-4 rounded-lg text-sm font-bold flex items-center gap-1.5 transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed
+          disabled={!selectedOrder || (pendingBar === 0 && flashArea !== 'bar')}
+          className={`relative h-10 px-4 rounded-lg text-sm font-bold flex items-center gap-1.5 transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed
             ${flashArea === 'bar' ? 'bg-emerald-500 text-white scale-105 ring-2 ring-emerald-300/60' : 'bg-blue-700 hover:bg-blue-600 text-white'}`}
           title="Enviar a Bar">
           {flashArea === 'bar'
             ? <><Check className="h-4 w-4" /> ENVIADO</>
             : <><GlassWater className="h-4 w-4" /> BAR</>}
+          {pendingBar > 0 && flashArea !== 'bar' && (
+            <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-amber-400 text-black text-[11px] font-black flex items-center justify-center">{pendingBar}</span>
+          )}
         </button>
       )}
 

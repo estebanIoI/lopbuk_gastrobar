@@ -76,4 +76,9 @@ router.delete('/payroll/:id', vendedoresController.deletePayrollRecord.bind(vend
 // GET  /api/vendedores/restbar-performance    – rendimiento del staff restbar por período
 router.get('/restbar-performance', vendedoresController.getRestbarPerformance.bind(vendedoresController));
 
+// GET /api/vendedores/work-history/employees – empleados que han trabajado turnos
+router.get('/work-history/employees', vendedoresController.getEmployeesWithShifts.bind(vendedoresController));
+// GET /api/vendedores/work-history?userId|name&from&to – hoja de vida laboral del mes
+router.get('/work-history', vendedoresController.getWorkHistory.bind(vendedoresController));
+
 export default router;

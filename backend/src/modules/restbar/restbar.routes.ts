@@ -384,6 +384,20 @@ router.patch(
   restbarController.updateItemStatus.bind(restbarController)
 );
 
+// ── SMART CHECKOUT · asignar ítems a tiquetera (Fase 5) ───────────────────────
+// mealPassId: null quita la asignación (vuelve a pago normal)
+router.patch(
+  '/orders/:orderId/meal-pass',
+  authorize(...WAITER_ROLES, ...ADMIN_ROLES),
+  [
+    param('orderId').notEmpty(),
+    body('itemIds').isArray({ min: 1 }).withMessage('Selecciona al menos un ítem'),
+    body('mealPassId').optional({ nullable: true }),
+    validateRequest,
+  ],
+  restbarController.assignMealPass.bind(restbarController)
+);
+
 // ── PAYMENT ───────────────────────────────────────────────────────────────────
 router.get(
   '/orders/:id/guests',

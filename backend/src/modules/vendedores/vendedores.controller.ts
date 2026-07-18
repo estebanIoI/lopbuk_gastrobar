@@ -101,6 +101,23 @@ export class VendedoresController {
       res.json({ success: true, data });
     } catch (e) { next(e); }
   }
+
+  // ── Hoja de vida laboral (M3) ──
+  async getEmployeesWithShifts(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      res.json({ success: true, data: await vendedoresService.getEmployeesWithShifts(req.user!.tenantId!) });
+    } catch (e) { next(e); }
+  }
+
+  async getWorkHistory(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { userId, name, from, to } = req.query as { userId?: string; name?: string; from?: string; to?: string };
+      if (!from || !to) { res.status(400).json({ success: false, error: 'from y to son requeridos' }); return; }
+      if (!userId && !name) { res.status(400).json({ success: false, error: 'userId o name es requerido' }); return; }
+      const data = await vendedoresService.getWorkHistory(req.user!.tenantId!, { userId, name, from, to });
+      res.json({ success: true, data });
+    } catch (e) { next(e); }
+  }
 }
 
 export const vendedoresController = new VendedoresController();

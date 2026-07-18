@@ -74,14 +74,11 @@ router.post('/tables/merge', authenticate, async (req: AuthRequest, res: Respons
     const tenantId = req.user!.tenantId!;
     const ids: string[] = Array.isArray(req.body?.tableIds) ? req.body.tableIds.map(String).filter(Boolean) : [];
     if (ids.length < 2) return bad(res, 'Selecciona al menos 2 mesas para unir');
-    // Si alguna ya está en un grupo, reutiliza ese grupo; si no, crea uno nuevo.
-    const [existing] = (await pool.query(
-      'SELECT merge_group FROM rb_tables WHERE tenant_id = ? AND id IN (?) AND merge_group IS NOT NULL LIMIT 1', [tenantId, ids]
-    )) as any;
-    const groupId = existing[0]?.merge_group || uuidv4();
-    await pool.query('UPDATE rb_tables SET merge_group = ? WHERE tenant_id = ? AND id IN (?)', [groupId, tenantId, ids]);
-    ok(res, { groupId, tableIds: ids });
-  } catch (e: any) { bad(res, e?.message || 'No se pudieron unir las mesas', 500); }
+    // Mesa General (F6): además de agrupar, consolida las comandas en una sola.
+    const { restbarService } = await import('./restbar.service');
+    const result = await restbarService.mergeTables(tenantId, ids);
+    ok(res, result);
+  } catch (e: any) { bad(res, e?.message || 'No se pudieron unir las mesas', e?.statusCode || 500); }
 });
 
 // Separa: quita una mesa del grupo (tableId) o disuelve el grupo entero (groupId).
@@ -90,11 +87,12 @@ router.post('/tables/unmerge', authenticate, async (req: AuthRequest, res: Respo
     await ensureTables();
     const tenantId = req.user!.tenantId!;
     const { tableId, groupId } = req.body || {};
-    if (groupId) await pool.query('UPDATE rb_tables SET merge_group = NULL WHERE tenant_id = ? AND merge_group = ?', [tenantId, groupId]);
-    else if (tableId) await pool.query('UPDATE rb_tables SET merge_group = NULL WHERE tenant_id = ? AND id = ?', [tenantId, tableId]);
-    else return bad(res, 'Falta tableId o groupId');
-    ok(res, { ok: true });
-  } catch (e: any) { bad(res, e?.message || 'No se pudieron separar las mesas', 500); }
+    if (!groupId && !tableId) return bad(res, 'Falta tableId o groupId');
+    // Mesa General (F6): devuelve los ítems a la comanda de su mesa de origen.
+    const { restbarService } = await import('./restbar.service');
+    const result = await restbarService.unmergeTables(tenantId, { groupId, tableId });
+    ok(res, { ok: true, ...result });
+  } catch (e: any) { bad(res, e?.message || 'No se pudieron separar las mesas', e?.statusCode || 500); }
 });
 
 // ─────────── AUTH: el mesero genera/rota el QR de la mesa ───────────

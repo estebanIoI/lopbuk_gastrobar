@@ -5,6 +5,14 @@ import { AppError } from '../../common/middleware';
 import { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
 import { audit } from '../../utils/audit-logger';
 import { auditService } from '../audit/audit.service';
+import type { SalesBookEntry } from '../../common/types';
+
+/** mysql2 devuelve JSON como valor ya parseado o como string; normalizar. */
+function parseSalesBook(raw: unknown): SalesBookEntry[] | undefined {
+  if (raw == null) return undefined;
+  const arr = typeof raw === 'string' ? (() => { try { return JSON.parse(raw); } catch { return null; } })() : raw;
+  return Array.isArray(arr) ? arr as SalesBookEntry[] : undefined;
+}
 
 interface CashSessionRow extends RowDataPacket {
   id: string;
@@ -123,6 +131,7 @@ export class CashSessionsService {
       status: row.status,
       closingStatus: row.closing_status || undefined,
       observations: row.observations || undefined,
+      salesBook: parseSalesBook((row as any).sales_book),
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
@@ -571,6 +580,26 @@ export class CashSessionsService {
         closingStatus = 'faltante';
       }
 
+      // Libro de ventas del turno: desglose por producto (cantidad + valor) de las
+      // ventas completadas de esta sesión. Se guarda como snapshot para poder
+      // revisar el cierre y buscar un producto sin recalcular.
+      const [bookRows] = await connection.execute<RowDataPacket[]>(
+        `SELECT si.product_id AS productId, si.product_name AS name,
+                SUM(si.quantity) AS quantity, SUM(si.subtotal) AS total
+           FROM sale_items si
+           JOIN sales s ON s.id = si.sale_id
+          WHERE s.cash_session_id = ? AND s.status = 'completada'
+          GROUP BY si.product_id, si.product_name
+          ORDER BY total DESC`,
+        [sessionId]
+      );
+      const salesBook = bookRows.map((r: any) => ({
+        productId: r.productId,
+        name: r.name,
+        quantity: Number(r.quantity) || 0,
+        total: Number(r.total) || 0,
+      }));
+
       // Update session with all calculated values
       await connection.execute(
         `UPDATE cash_sessions SET
@@ -580,7 +609,7 @@ export class CashSessionsService {
           total_sales_count = ?, total_change_given = ?,
           total_cash_entries = ?, total_cash_withdrawals = ?,
           expected_cash = ?, actual_cash = ?, difference = ?,
-          status = 'cerrada', closing_status = ?, observations = ?
+          status = 'cerrada', closing_status = ?, observations = ?, sales_book = ?
          WHERE id = ?`,
         [
           closedBy, closedByName,
@@ -589,7 +618,7 @@ export class CashSessionsService {
           totalSalesCount, totalChangeGiven,
           totalCashEntries, totalCashWithdrawals,
           expectedCash, actualCash, difference,
-          closingStatus, observations || null,
+          closingStatus, observations || null, JSON.stringify(salesBook),
           sessionId,
         ]
       );

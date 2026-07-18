@@ -289,10 +289,12 @@ class RestbarService {
   async getOrders(tenantId: string, status?: string) {
     const whereStatus = status ? `AND o.status = '${status}'` : `AND o.status NOT IN ('cerrada','cancelada')`;
     const [rows] = await db.execute<OrderRow[]>(
+      // Mesa General (F6): las comandas absorbidas por una unión no se listan —
+      // sus ítems viven en la comanda principal.
       `SELECT o.*, t.number AS table_number, t.area AS table_area
        FROM rb_orders o
        JOIN rb_tables t ON t.id = o.table_id
-       WHERE o.tenant_id = ? ${whereStatus}
+       WHERE o.tenant_id = ? AND o.merged_into_order_id IS NULL ${whereStatus}
        ORDER BY o.opened_at DESC`,
       [tenantId]
     );
@@ -682,6 +684,202 @@ class RestbarService {
     return { itemId, status, orderId };
   }
 
+  // ── MESA GENERAL · unir / desunir mesas (Fase 6) ──────────────────────────
+  /**
+   * Une mesas en una "Mesa General": UNA sola comanda concentra todo.
+   *
+   * Antes cada mesa mantenía su comanda y el mesero tenía que elegir a cuál
+   * agregar. Ahora se elige una comanda PRINCIPAL (la más antigua abierta del
+   * grupo) y los ítems de las demás se MUEVEN a ella. Cada ítem movido guarda su
+   * `origin_table_id`, y la comanda vaciada queda marcada con
+   * `merged_into_order_id` — así desunir restaura todo sin ambigüedad.
+   *
+   * Todo va en una transacción: si algo falla, no queda a medias.
+   */
+  async mergeTables(tenantId: string, tableIds: string[]) {
+    if (!Array.isArray(tableIds) || tableIds.length < 2)
+      throw new AppError('Selecciona al menos 2 mesas para unir', 400);
+
+    const conn = await db.getConnection();
+    try {
+      await conn.beginTransaction();
+      const ph = tableIds.map(() => '?').join(',');
+
+      // Grupo: reutiliza el existente si alguna mesa ya está unida
+      const [existing] = await conn.execute<RowDataPacket[]>(
+        `SELECT merge_group FROM rb_tables WHERE tenant_id = ? AND id IN (${ph}) AND merge_group IS NOT NULL LIMIT 1`,
+        [tenantId, ...tableIds]
+      );
+      const groupId = (existing as any[])[0]?.merge_group || uuidv4();
+
+      // Comandas activas de esas mesas (la más antigua manda)
+      const [orders] = await conn.execute<RowDataPacket[]>(
+        `SELECT id, table_id, opened_at FROM rb_orders
+          WHERE tenant_id = ? AND table_id IN (${ph})
+            AND status NOT IN ('cerrada','cancelada') AND merged_into_order_id IS NULL
+          ORDER BY opened_at ASC`,
+        [tenantId, ...tableIds]
+      );
+      if ((orders as any[]).length === 0)
+        throw new AppError('Ninguna de las mesas tiene una comanda abierta', 400);
+
+      const principal: any = (orders as any[])[0];
+      const absorbed = (orders as any[]).slice(1);
+
+      for (const o of absorbed) {
+        // Mover ítems NO pagados (los entregados pertenecen a una venta ya hecha)
+        await conn.execute(
+          `UPDATE rb_order_items
+              SET order_id = ?, origin_table_id = COALESCE(origin_table_id, ?)
+            WHERE order_id = ? AND tenant_id = ? AND status NOT IN ('entregado','cancelado')`,
+          [principal.id, o.table_id, o.id, tenantId]
+        );
+        // Marcar la comanda como absorbida (se oculta de los listados activos)
+        await conn.execute(
+          'UPDATE rb_orders SET merged_into_order_id = ? WHERE id = ? AND tenant_id = ?',
+          [principal.id, o.id, tenantId]
+        );
+      }
+
+      // Marcar todas las mesas del grupo
+      await conn.execute(
+        `UPDATE rb_tables SET merge_group = ?, status = 'ocupada' WHERE tenant_id = ? AND id IN (${ph})`,
+        [groupId, tenantId, ...tableIds]
+      );
+
+      await conn.commit();
+      // Totales fuera de la transacción (recalcOrderTotals usa el pool)
+      await this.recalcOrderTotals(principal.id, tenantId);
+      return { groupId, principalOrderId: principal.id, absorbedOrders: absorbed.length, tableIds };
+    } catch (e) { await conn.rollback(); throw e; }
+    finally { conn.release(); }
+  }
+
+  /**
+   * Desune: devuelve cada ítem a la comanda de su mesa de origen y reactiva las
+   * comandas absorbidas. Los ítems ya pagados no se mueven (pertenecen a su
+   * venta). Si se pasa `tableId` se saca solo esa mesa del grupo.
+   */
+  async unmergeTables(tenantId: string, opts: { groupId?: string; tableId?: string }) {
+    if (!opts.groupId && !opts.tableId) throw new AppError('Falta groupId o tableId', 400);
+
+    const conn = await db.getConnection();
+    const touched = new Set<string>();
+    try {
+      await conn.beginTransaction();
+
+      // Mesas afectadas
+      const [tables] = await conn.execute<RowDataPacket[]>(
+        opts.groupId
+          ? 'SELECT id, merge_group FROM rb_tables WHERE tenant_id = ? AND merge_group = ?'
+          : 'SELECT id, merge_group FROM rb_tables WHERE tenant_id = ? AND id = ?',
+        [tenantId, opts.groupId || opts.tableId]
+      );
+      const tableIds = (tables as any[]).map(t => t.id);
+      if (tableIds.length === 0) throw new AppError('No hay mesas para separar', 404);
+
+      // Comandas absorbidas de esas mesas
+      const ph = tableIds.map(() => '?').join(',');
+      const [absorbed] = await conn.execute<RowDataPacket[]>(
+        `SELECT id, table_id, merged_into_order_id FROM rb_orders
+          WHERE tenant_id = ? AND table_id IN (${ph}) AND merged_into_order_id IS NOT NULL`,
+        [tenantId, ...tableIds]
+      );
+
+      for (const o of absorbed as any[]) {
+        // Devolver los ítems que salieron de esta mesa y siguen sin pagar
+        await conn.execute(
+          `UPDATE rb_order_items
+              SET order_id = ?, origin_table_id = NULL
+            WHERE tenant_id = ? AND order_id = ? AND origin_table_id = ?
+              AND status NOT IN ('entregado','cancelado')`,
+          [o.id, tenantId, o.merged_into_order_id, o.table_id]
+        );
+        await conn.execute('UPDATE rb_orders SET merged_into_order_id = NULL WHERE id = ?', [o.id]);
+        touched.add(o.id);
+        touched.add(o.merged_into_order_id);
+      }
+
+      // Quitar del grupo
+      await conn.execute(
+        opts.groupId
+          ? 'UPDATE rb_tables SET merge_group = NULL WHERE tenant_id = ? AND merge_group = ?'
+          : 'UPDATE rb_tables SET merge_group = NULL WHERE tenant_id = ? AND id = ?',
+        [tenantId, opts.groupId || opts.tableId]
+      );
+
+      await conn.commit();
+      for (const id of touched) await this.recalcOrderTotals(id, tenantId);
+      return { separated: tableIds.length, restoredOrders: (absorbed as any[]).length };
+    } catch (e) { await conn.rollback(); throw e; }
+    finally { conn.release(); }
+  }
+
+  // ── SMART CHECKOUT · Tiqueteras (Fase 5) ──────────────────────────────────
+  /**
+   * Asigna (o quita) ítems de una comanda a una tiquetera. Los ítems asignados
+   * NO suman al efectivo al cobrar: se descuentan del saldo de la tiquetera.
+   *
+   * Guardas:
+   *  · solo ítems no pagados/cancelados de esa comanda
+   *  · solo productos marcados `is_meal` (un almuerzo = 1 cupo)
+   *  · el saldo debe alcanzar para TODOS los ítems asignados a esa tiquetera
+   *    en la comanda (se revalida al cobrar, por si cambió entre tanto)
+   */
+  async assignMealPass(tenantId: string, orderId: string, itemIds: string[], mealPassId: string | null) {
+    if (!Array.isArray(itemIds) || itemIds.length === 0) throw new AppError('Selecciona al menos un ítem', 400);
+    const ph = itemIds.map(() => '?').join(',');
+
+    // Ítems válidos de la comanda (no pagados/cancelados) + si el producto es almuerzo
+    const [items] = await db.execute<RowDataPacket[]>(
+      `SELECT oi.id, oi.quantity, oi.menu_item_name, COALESCE(p.is_meal, 0) AS isMeal
+         FROM rb_order_items oi
+         LEFT JOIN products p ON p.id = oi.menu_item_id
+        WHERE oi.order_id = ? AND oi.tenant_id = ? AND oi.id IN (${ph})
+          AND oi.status NOT IN ('cancelado','entregado')`,
+      [orderId, tenantId, ...itemIds]
+    );
+    if (items.length === 0) throw new AppError('No hay ítems válidos para asignar', 400);
+
+    if (mealPassId) {
+      const noMeal = items.filter((i: any) => Number(i.isMeal) !== 1);
+      if (noMeal.length > 0) {
+        throw new AppError(
+          `Solo los almuerzos se pueden cargar a una tiquetera. Marca el producto como "almuerzo" o cóbralo normal: ${noMeal.map((i: any) => i.menu_item_name).join(', ')}`,
+          400
+        );
+      }
+      // Saldo debe cubrir lo ya asignado + lo nuevo
+      const [passRows] = await db.execute<RowDataPacket[]>(
+        'SELECT customer_name, remaining, status, expires_at FROM meal_passes WHERE id = ? AND tenant_id = ? AND is_active = 1',
+        [mealPassId, tenantId]
+      );
+      if (passRows.length === 0) throw new AppError('Tiquetera no encontrada', 404);
+      const pass: any = passRows[0];
+      if (pass.status === 'anulada') throw new AppError('La tiquetera está anulada', 409);
+      if (pass.status === 'vencida') throw new AppError('La tiquetera está vencida', 409);
+
+      const [already] = await db.execute<RowDataPacket[]>(
+        `SELECT COALESCE(SUM(quantity), 0) AS n FROM rb_order_items
+          WHERE order_id = ? AND tenant_id = ? AND meal_pass_id = ?
+            AND status NOT IN ('cancelado','entregado') AND id NOT IN (${ph})`,
+        [orderId, tenantId, mealPassId, ...itemIds]
+      );
+      const nuevos = items.reduce((s: number, i: any) => s + Number(i.quantity), 0);
+      const total = Number((already as any[])[0].n) + nuevos;
+      if (total > Number(pass.remaining)) {
+        throw new AppError(`Saldo insuficiente: ${pass.customer_name} tiene ${pass.remaining} almuerzos y se necesitan ${total}`, 409);
+      }
+    }
+
+    const ids = items.map((i: any) => i.id);
+    await db.execute(
+      `UPDATE rb_order_items SET meal_pass_id = ? WHERE tenant_id = ? AND id IN (${ids.map(() => '?').join(',')})`,
+      [mealPassId, tenantId, ...ids]
+    );
+    return { orderId, assigned: ids.length, mealPassId };
+  }
+
   // ── PAYMENT ───────────────────────────────────────────────────────────────
 
   // ── GUEST BREAKDOWN ────────────────────────────────────────────────────────
@@ -764,7 +962,13 @@ class RestbarService {
         throw new AppError('Este comensal ya tiene un pago registrado', 409);
     }
 
-    const subtotal = billableItems.reduce((s: number, i: any) => s + i.subtotal, 0);
+    // Smart Checkout (Fase 5): los ítems asignados a una tiquetera NO se cobran
+    // en efectivo — se descuentan del saldo. Si ninguno tiene tiquetera, todo se
+    // comporta exactamente igual que antes.
+    const passItems = billableItems.filter((i: any) => i.mealPassId);
+    const cashItems = billableItems.filter((i: any) => !i.mealPassId);
+
+    const subtotal = cashItems.reduce((s: number, i: any) => s + i.subtotal, 0);
     const amount   = Math.round(subtotal * 100) / 100;
     const changeAmount = Math.max(0, data.amountPaid - amount);
 
@@ -826,14 +1030,18 @@ class RestbarService {
       );
 
       // 4. Crear sale_items + descontar inventario + marcar ítems como 'entregado'
+      // Los ítems de tiquetera NO generan sale_item (no son venta en efectivo),
+      // pero sí descuentan inventario: el almuerzo se preparó igual.
       for (const item of billableItems) {
-        await connection.execute(
-          `INSERT INTO sale_items
-             (id, tenant_id, sale_id, product_id, product_name, product_sku, quantity, unit_price, subtotal)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [uuidv4(), tenantId, saleId, item.menuItemId, item.menuItemName,
-           item.menuItemId, item.quantity, item.unitPrice, item.subtotal]
-        );
+        if (!item.mealPassId) {
+          await connection.execute(
+            `INSERT INTO sale_items
+               (id, tenant_id, sale_id, product_id, product_name, product_sku, quantity, unit_price, subtotal)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [uuidv4(), tenantId, saleId, item.menuItemId, item.menuItemName,
+             item.menuItemId, item.quantity, item.unitPrice, item.subtotal]
+          );
+        }
 
         // Descontar inventario por receta
         const [recipes] = await connection.execute<RowDataPacket[]>(
@@ -865,6 +1073,43 @@ class RestbarService {
           `UPDATE rb_order_items SET status = 'entregado' WHERE id = ? AND tenant_id = ?`,
           [item.id, tenantId]
         );
+      }
+
+      // 4b. Consumir tiqueteras (Fase 5) — DENTRO de la transacción del cobro:
+      // si algo falla, no se descuenta el saldo. FOR UPDATE evita doble descuento
+      // si dos cajeros cobran a la vez.
+      const passConsumptions: Array<{ mealPassId: string; customerName: string; meals: number; balanceAfter: number }> = [];
+      const byPass = new Map<string, number>();
+      for (const it of passItems) {
+        byPass.set(it.mealPassId, (byPass.get(it.mealPassId) || 0) + Number(it.quantity));
+      }
+      for (const [passId, meals] of byPass) {
+        const [pRows] = await connection.execute<RowDataPacket[]>(
+          'SELECT customer_name, remaining, status, expires_at FROM meal_passes WHERE id = ? AND tenant_id = ? AND is_active = 1 FOR UPDATE',
+          [passId, tenantId]
+        );
+        if ((pRows as any[]).length === 0) throw new AppError('Tiquetera no encontrada', 404);
+        const p: any = (pRows as any[])[0];
+        if (p.status === 'anulada') throw new AppError(`La tiquetera de ${p.customer_name} está anulada`, 409);
+        if (p.expires_at && new Date(p.expires_at).getTime() < new Date(new Date().toISOString().slice(0, 10)).getTime())
+          throw new AppError(`La tiquetera de ${p.customer_name} está vencida`, 409);
+        if (Number(p.remaining) < meals)
+          throw new AppError(`Saldo insuficiente: ${p.customer_name} tiene ${p.remaining} almuerzos y se necesitan ${meals}`, 409);
+
+        const balanceAfter = Number(p.remaining) - meals;
+        const newStatus = balanceAfter <= 0 ? 'agotada' : 'activa';
+        await connection.execute(
+          'UPDATE meal_passes SET remaining = ?, status = ? WHERE id = ?',
+          [balanceAfter, newStatus, passId]
+        );
+        await connection.execute(
+          `INSERT INTO meal_pass_movements
+             (id, meal_pass_id, type, meals, balance_after, order_id, table_number, employee_id, employee_name, note)
+           VALUES (?, ?, 'consumo', ?, ?, ?, ?, ?, ?, ?)`,
+          [uuidv4(), passId, -meals, balanceAfter, orderId, order.tableNumber ?? null,
+           cashierId, cashierName, `Comanda ${order.orderNumber}`]
+        );
+        passConsumptions.push({ mealPassId: passId, customerName: p.customer_name, meals, balanceAfter });
       }
 
       // 5. Registrar en finance_transactions
@@ -916,7 +1161,13 @@ class RestbarService {
           tableId: order.tableId, tableNumber: order.tableNumber,
         })
       ).catch(() => {});
-      return { paymentId, saleId, invoiceNumber, changeAmount, orderId, closed: allDone, amount };
+      return {
+        paymentId, saleId, invoiceNumber, changeAmount, orderId, closed: allDone, amount,
+        // Desglose Smart Checkout: qué se pagó y qué se descontó de tiqueteras
+        passConsumptions,
+        cashItemsCount: cashItems.length,
+        passItemsCount: passItems.length,
+      };
     } catch (err) {
       await connection.rollback();
       throw err;
@@ -1150,6 +1401,7 @@ class RestbarService {
       guestNumber: r.guest_number, courseNumber: r.course_number, itemNotes: r.item_notes,
       sentToKitchenAt: r.sent_to_kitchen_at,
       readyAt: r.ready_at, deliveredAt: r.delivered_at,
+      mealPassId: (r as any).meal_pass_id ?? null,
     };
   }
 }

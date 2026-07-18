@@ -985,6 +985,55 @@ class ApiService {
     return this.request<any[]>('/vendedores')
   }
 
+  /** Smart Checkout (F5): asigna ítems de una comanda a una tiquetera (null = pago normal). */
+  async assignOrderItemsToMealPass(orderId: string, itemIds: string[], mealPassId: string | null) {
+    return this.request<any>(`/restbar/orders/${orderId}/meal-pass`, {
+      method: 'PATCH', body: JSON.stringify({ itemIds, mealPassId }),
+    })
+  }
+
+  // Tiqueteras / Meal Pass (Fase 4 GastroBar · M4)
+  async getMealPasses(params?: { search?: string; status?: string }) {
+    const q = new URLSearchParams()
+    if (params?.search) q.set('search', params.search)
+    if (params?.status) q.set('status', params.status)
+    const s = q.toString()
+    return this.request<any[]>(`/meal-passes${s ? `?${s}` : ''}`)
+  }
+  async getMealPass(id: string) {
+    return this.request<any>(`/meal-passes/${id}`)
+  }
+  async getMealPassMovements(id: string) {
+    return this.request<any[]>(`/meal-passes/${id}/movements`)
+  }
+  async createMealPass(data: any) {
+    return this.request<any>('/meal-passes', { method: 'POST', body: JSON.stringify(data) })
+  }
+  async updateMealPass(id: string, data: any) {
+    return this.request<any>(`/meal-passes/${id}`, { method: 'PUT', body: JSON.stringify(data) })
+  }
+  async rechargeMealPass(id: string, meals: number, note?: string) {
+    return this.request<any>(`/meal-passes/${id}/recharge`, { method: 'POST', body: JSON.stringify({ meals, note }) })
+  }
+  async annulMealPass(id: string, note?: string) {
+    return this.request<any>(`/meal-passes/${id}/annul`, { method: 'POST', body: JSON.stringify({ note }) })
+  }
+  async deleteMealPass(id: string) {
+    return this.request<any>(`/meal-passes/${id}`, { method: 'DELETE' })
+  }
+
+  // Hoja de vida laboral (Fase 2 GastroBar · M3)
+  async getWorkHistoryEmployees() {
+    return this.request<any[]>('/vendedores/work-history/employees')
+  }
+  async getWorkHistory(params: { userId?: string; name?: string; from: string; to: string }) {
+    const q = new URLSearchParams()
+    if (params.userId) q.set('userId', params.userId)
+    if (params.name) q.set('name', params.name)
+    q.set('from', params.from); q.set('to', params.to)
+    return this.request<any>(`/vendedores/work-history?${q.toString()}`)
+  }
+
   async updateSellerCommission(sellerId: string, data: {
     commissionType: string; commissionValue: number;
     salaryBase: number; monthlyGoal: number; goalBonus: number;

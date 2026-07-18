@@ -752,6 +752,10 @@ export const cashSessions = mysqlTable("cash_sessions", {
 	status: mysqlEnum(['abierta','cerrada']).default('abierta').notNull(),
 	closingStatus: mysqlEnum("closing_status", ['cuadrado','sobrante','faltante']),
 	observations: text(),
+	// Libro de ventas del turno (Fase 1 GastroBar): snapshot del desglose por
+	// producto al cerrar → [{ productId, name, quantity, total }]. Permite revisar
+	// un cierre viejo y buscar un producto sin recalcular.
+	salesBook: json("sales_book"),
 	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 	shiftType: mysqlEnum("shift_type", ['ma??ana','tarde','unico']).default('unico').notNull(),
@@ -3009,6 +3013,9 @@ export const products = mysqlTable("products", {
 	updatedBy: varchar("updated_by", { length: 50 }),
 	isMenuItem: tinyint("is_menu_item").default(0).notNull(),
 	isIngredient: tinyint("is_ingredient").default(0).notNull(),
+	// Smart Checkout (Fase 5): productos que valen 1 cupo de tiquetera (almuerzos).
+	// Solo estos se pueden asignar a una meal pass en el cobro.
+	isMeal: tinyint("is_meal").default(0).notNull(),
 	preparationArea: mysqlEnum("preparation_area", ['bar','cocina','ambos']),
 	prepTimeMinutes: int("prep_time_minutes"),
 	availableInMenu: tinyint("available_in_menu").default(1).notNull(),
@@ -3141,6 +3148,163 @@ export const checkoutExperiences = mysqlTable("checkout_experiences", {
 (table) => {
 	return {
 		checkoutExperiencesTenantId: primaryKey({ columns: [table.tenantId], name: "checkout_experiences_tenant_id"}),
+	}
+});
+
+// ── Gimnasio: membresías, planes, progreso y asistencia ──────────────────────
+// Estas 5 tablas las consultaba `gym.service.ts` desde siempre, pero no estaban
+// definidas en ninguna parte del repo (ni schema, ni migraciones, ni el esquema
+// legacy archivado) → todos esos endpoints fallaban con "table doesn't exist".
+// El esquema se derivó de las consultas reales del servicio.
+
+export const gymMembresias = mysqlTable("gym_membresias", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" }),
+	userId: varchar("user_id", { length: 36 }).notNull().references(() => users.id, { onDelete: "cascade" }),
+	planName: varchar("plan_name", { length: 160 }),
+	status: varchar({ length: 20 }).default('activa').notNull(),
+	price: decimal({ precision: 12, scale: 2 }).default('0.00').notNull(),
+	paymentCycle: varchar("payment_cycle", { length: 20 }).default('mensual').notNull(),
+	autoRenew: tinyint("auto_renew").default(0).notNull(),
+	startDate: date("start_date", { mode: 'string' }),
+	endDate: date("end_date", { mode: 'string' }),
+	lastPaymentAt: datetime("last_payment_at", { mode: 'string' }),
+	nextPaymentAt: datetime("next_payment_at", { mode: 'string' }),
+	notes: text(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
+},
+(table) => {
+	return {
+		// Una membresía por usuario y tenant (el servicio hace upsert por esa clave)
+		ukGymMembresia: unique("uk_gym_membresia").on(table.tenantId, table.userId),
+		idxGymMembStatus: index("idx_gym_memb_status").on(table.tenantId, table.status),
+		gymMembresiasId: primaryKey({ columns: [table.id], name: "gym_membresias_id"}),
+	}
+});
+
+export const gymPlanesEntrenamiento = mysqlTable("gym_planes_entrenamiento", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" }),
+	memberUserId: varchar("member_user_id", { length: 36 }).notNull(),
+	name: varchar({ length: 200 }).notNull(),
+	description: text(),
+	daysPerWeek: int("days_per_week"),
+	isActive: tinyint("is_active").default(1).notNull(),
+	createdBy: varchar("created_by", { length: 36 }),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+},
+(table) => {
+	return {
+		idxGymPlanMember: index("idx_gym_plan_member").on(table.tenantId, table.memberUserId),
+		gymPlanesEntrenamientoId: primaryKey({ columns: [table.id], name: "gym_planes_entrenamiento_id"}),
+	}
+});
+
+export const gymEjercicios = mysqlTable("gym_ejercicios", {
+	id: varchar({ length: 36 }).notNull(),
+	planId: varchar("plan_id", { length: 36 }).notNull().references(() => gymPlanesEntrenamiento.id, { onDelete: "cascade" }),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+	dayLabel: varchar("day_label", { length: 60 }),
+	name: varchar({ length: 200 }).notNull(),
+	sets: int(),
+	reps: varchar({ length: 40 }),
+	weightKg: decimal("weight_kg", { precision: 8, scale: 2 }),
+	restSeconds: int("rest_seconds"),
+	notes: text(),
+	sortOrder: int("sort_order").default(0).notNull(),
+},
+(table) => {
+	return {
+		idxGymEjPlan: index("idx_gym_ej_plan").on(table.planId, table.sortOrder),
+		gymEjerciciosId: primaryKey({ columns: [table.id], name: "gym_ejercicios_id"}),
+	}
+});
+
+export const gymProgreso = mysqlTable("gym_progreso", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" }),
+	memberUserId: varchar("member_user_id", { length: 36 }).notNull(),
+	logDate: date("log_date", { mode: 'string' }).notNull(),
+	weightKg: decimal("weight_kg", { precision: 6, scale: 2 }),
+	bodyFatPct: decimal("body_fat_pct", { precision: 5, scale: 2 }),
+	muscleMassKg: decimal("muscle_mass_kg", { precision: 6, scale: 2 }),
+	measurements: json(),
+	notes: text(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+},
+(table) => {
+	return {
+		idxGymProgMember: index("idx_gym_prog_member").on(table.tenantId, table.memberUserId, table.logDate),
+		gymProgresoId: primaryKey({ columns: [table.id], name: "gym_progreso_id"}),
+	}
+});
+
+export const gymAsistencia = mysqlTable("gym_asistencia", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" }),
+	memberUserId: varchar("member_user_id", { length: 36 }).notNull(),
+	checkedInAt: timestamp("checked_in_at", { mode: 'string' }).default(sql`(now())`).notNull(),
+	checkedOutAt: timestamp("checked_out_at", { mode: 'string' }),
+	notes: text(),
+},
+(table) => {
+	return {
+		idxGymAsisTenantDay: index("idx_gym_asis_tenant_day").on(table.tenantId, table.checkedInAt),
+		idxGymAsisMember: index("idx_gym_asis_member").on(table.memberUserId, table.checkedOutAt),
+		gymAsistenciaId: primaryKey({ columns: [table.id], name: "gym_asistencia_id"}),
+	}
+});
+
+// Tiqueteras / Meal Pass (Fase 4 GastroBar) — un cliente compra N almuerzos por
+// adelantado y los consume hasta agotarse. El saldo (`remaining`) se decrementa
+// transaccionalmente con cada consumo; cada movimiento queda en meal_pass_movements
+// con `balance_after` para auditoría. La integración con el POS/cobro es F5.
+export const mealPasses = mysqlTable("meal_passes", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" }),
+	customerName: varchar("customer_name", { length: 255 }).notNull(),
+	document: varchar({ length: 50 }),
+	phone: varchar({ length: 50 }),
+	convenio: varchar({ length: 160 }),
+	empresa: varchar({ length: 160 }),
+	totalMeals: int("total_meals").default(0).notNull(),   // comprados (histórico de recargas)
+	remaining: int().default(0).notNull(),                 // saldo restante
+	purchasedAt: date("purchased_at", { mode: 'string' }),
+	expiresAt: date("expires_at", { mode: 'string' }),
+	status: mysqlEnum(['activa', 'agotada', 'vencida', 'anulada']).default('activa').notNull(),
+	isActive: tinyint("is_active").default(1).notNull(),
+	notes: varchar({ length: 400 }),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
+},
+(table) => {
+	return {
+		idxMpTenantStatus: index("idx_mp_tenant_status").on(table.tenantId, table.status),
+		idxMpDoc: index("idx_mp_doc").on(table.tenantId, table.document),
+		idxMpPhone: index("idx_mp_phone").on(table.tenantId, table.phone),
+		mealPassesId: primaryKey({ columns: [table.id], name: "meal_passes_id"}),
+	}
+});
+
+export const mealPassMovements = mysqlTable("meal_pass_movements", {
+	id: varchar({ length: 36 }).notNull(),
+	mealPassId: varchar("meal_pass_id", { length: 36 }).notNull().references(() => mealPasses.id, { onDelete: "cascade" }),
+	type: mysqlEnum(['recarga', 'consumo', 'ajuste', 'anulacion']).notNull(),
+	meals: int().notNull(),                                // + recarga / − consumo
+	balanceAfter: int("balance_after").notNull(),
+	orderId: varchar("order_id", { length: 36 }),          // rb_orders del consumo (F5)
+	orderItemId: varchar("order_item_id", { length: 36 }), // ítem específico (F5)
+	tableNumber: varchar("table_number", { length: 20 }),
+	employeeId: varchar("employee_id", { length: 36 }),
+	employeeName: varchar("employee_name", { length: 255 }),
+	note: varchar({ length: 255 }),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+},
+(table) => {
+	return {
+		idxMpmPass: index("idx_mpm_pass").on(table.mealPassId, table.createdAt),
+		mealPassMovementsId: primaryKey({ columns: [table.id], name: "meal_pass_movements_id"}),
 	}
 });
 
@@ -3347,6 +3511,12 @@ export const rbOrderItems = mysqlTable("rb_order_items", {
 	sentToKitchenAt: timestamp("sent_to_kitchen_at", { mode: 'string' }),
 	readyAt: timestamp("ready_at", { mode: 'string' }),
 	deliveredAt: timestamp("delivered_at", { mode: 'string' }),
+	// Smart Checkout (Fase 5 GastroBar): ítem asignado a una tiquetera. Al cobrar
+	// se consume del saldo (no suma al efectivo). NULL = pago normal.
+	mealPassId: varchar("meal_pass_id", { length: 36 }),
+	// Mesa General (Fase 6): mesa de la que vino el ítem al unir mesas. Permite
+	// devolverlo a su comanda original al desunir, sin ambigüedad.
+	originTableId: varchar("origin_table_id", { length: 36 }),
 	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 },
@@ -3393,6 +3563,10 @@ export const rbOrders = mysqlTable("rb_orders", {
 	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
 	priority: mysqlEnum(['normal','urgente']).default('normal').notNull(),
+	// Mesa General (Fase 6): esta comanda fue absorbida por otra al unir mesas.
+	// Sus ítems viven en la comanda principal; se oculta de los listados activos
+	// y se restaura al desunir. NULL = comanda normal.
+	mergedIntoOrderId: varchar("merged_into_order_id", { length: 36 }),
 },
 (table) => {
 	return {
