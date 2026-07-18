@@ -520,19 +520,27 @@ router.get('/superadmin/integrations', authenticate, async (req: Request, res: R
     }
 
     const [rows] = await pool.query(
-      "SELECT setting_key, setting_value FROM platform_settings WHERE setting_key IN ('cloudinary_cloud_name','cloudinary_upload_preset','cloudinary_api_key','cloudinary_api_secret','ai_gemini_key','ai_openai_key','ai_groq_key','ai_opencode_go_key','ai_opencode_go_model','ai_text_model_main','ai_text_model_small','ai_default_provider','ai_openai_base_url','ai_openai_model','ai_vision_provider','ai_vision_model')"
+      "SELECT setting_key, setting_value FROM platform_settings WHERE setting_key IN ('cloudinary_cloud_name','cloudinary_upload_preset','cloudinary_api_key','cloudinary_api_secret','ai_gemini_key','ai_openai_key','ai_groq_key','ai_opencode_go_key','ai_opencode_go_model','ai_text_model_main','ai_text_model_small','ai_default_provider','ai_openai_base_url','ai_openai_model','ai_vision_provider','ai_vision_model','google_wallet_credentials')"
     ) as any;
 
     const settings: Record<string, string> = {};
     for (const row of (rows as any[])) {
       const val = row.setting_value || '';
       // Decrypt AI keys (Cloudinary values are plaintext)
-      if (['ai_gemini_key', 'ai_openai_key', 'ai_groq_key', 'ai_opencode_go_key'].includes(row.setting_key)) {
+      if (['ai_gemini_key', 'ai_openai_key', 'ai_groq_key', 'ai_opencode_go_key', 'google_wallet_credentials'].includes(row.setting_key)) {
         try { settings[row.setting_key] = decrypt(val); }
         catch { settings[row.setting_key] = val; }
       } else {
         settings[row.setting_key] = val;
       }
+    }
+
+    // Google Wallet: contiene una clave privada → NUNCA se devuelve. Solo si está
+    // configurada y el issuerId (dato no sensible) para que el admin lo verifique.
+    let walletIssuerId = '';
+    if (settings['google_wallet_credentials']) {
+      try { walletIssuerId = JSON.parse(settings['google_wallet_credentials'])?.issuerId || ''; }
+      catch { /* json inválido guardado */ }
     }
 
     res.json({
@@ -562,6 +570,9 @@ router.get('/superadmin/integrations', authenticate, async (req: Request, res: R
         openaiModel:            settings['ai_openai_model']            || '',
         visionProvider:         settings['ai_vision_provider']         || 'gemini',
         visionModel:            settings['ai_vision_model']            || '',
+        // Google Wallet: la clave privada nunca sale del servidor
+        googleWalletSet:        !!settings['google_wallet_credentials'],
+        googleWalletIssuerId:   walletIssuerId,
       },
     });
   } catch (error) {
@@ -687,6 +698,34 @@ router.put('/superadmin/integrations', authenticate, async (req: Request, res: R
     pushKey('ai_openai_key', openaiApiKey);
     pushKey('ai_groq_key',   groqApiKey);
     pushKey('ai_opencode_go_key', opencodeGoApiKey);
+
+    // ── Google Wallet: JSON del service account + issuerId ──────────────────
+    // Se valida ANTES de guardar: un JSON mal pegado se detecta aquí y no
+    // después, cuando la wallet fallaría en silencio al emitir un pase.
+    const gw = (req.body as any).googleWalletCredentials;
+    if (gw === '__CLEAR__') {
+      updates.push(['google_wallet_credentials', '']);
+    } else if (typeof gw === 'string' && gw.trim() && !gw.includes('•')) {
+      let parsed: any;
+      try { parsed = JSON.parse(gw); }
+      catch {
+        res.status(400).json({ success: false, error: 'El JSON de Google Wallet no es válido. Pega el archivo del service account completo.' });
+        return;
+      }
+      const missing = ['issuerId', 'client_email', 'private_key'].filter(k => !parsed?.[k]);
+      if (missing.length) {
+        res.status(400).json({
+          success: false,
+          error: `Faltan campos en el JSON de Google Wallet: ${missing.join(', ')}. Agrega "issuerId" al JSON del service account.`,
+        });
+        return;
+      }
+      if (!String(parsed.private_key).includes('BEGIN PRIVATE KEY')) {
+        res.status(400).json({ success: false, error: 'La private_key no parece válida (debe incluir "BEGIN PRIVATE KEY").' });
+        return;
+      }
+      updates.push(['google_wallet_credentials', encrypt(JSON.stringify(parsed))]);
+    }
 
     for (const [key, value] of updates) {
       await pool.query(

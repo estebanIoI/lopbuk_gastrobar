@@ -1124,6 +1124,21 @@ function AreaDisplayTab({ area }: { area: 'cocina' | 'bar' }) {
     else toast.error(r.error)
   }
 
+  // Marca TODA la comanda como lista de un clic. Antes había que tocar ítem por
+  // ítem y la lista se recargaba en cada uno, así que era fácil dejar alguno sin
+  // marcar (y el mesero veía "1 listo" con 3 platos servidos).
+  const markOrderReady = async (order: any) => {
+    const pending = (order.items ?? []).filter((i: any) => i.status !== 'listo' && i.status !== 'entregado')
+    if (pending.length === 0) return
+    const results = await Promise.all(
+      pending.map((i: any) => api.updateRestbarItemStatus(i.itemId, 'listo'))
+    )
+    const failed = results.filter(r => !r.success).length
+    if (failed === 0) toast.success(`${pending.length} ítem(s) listos — ${order.orderNumber}`)
+    else toast.error(`${failed} de ${pending.length} no se pudieron marcar`)
+    load()
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -1152,9 +1167,17 @@ function AreaDisplayTab({ area }: { area: 'cocina' | 'bar' }) {
                   <p className="font-bold text-sm">{o.orderNumber} — Mesa {o.tableNumber}</p>
                   <p className="text-xs text-muted-foreground">{o.waiterName}</p>
                 </div>
-                <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <Clock className="h-3 w-3" />
-                  {o.openedAt ? new Date(o.openedAt).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) : '—'}
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <Clock className="h-3 w-3" />
+                    {o.openedAt ? new Date(o.openedAt).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) : '—'}
+                  </div>
+                  {/* Marca toda la comanda lista de un clic */}
+                  <button onClick={() => markOrderReady(o)}
+                    title="Marcar todos los ítems de esta comanda como listos"
+                    className="rounded-md bg-green-500/15 text-green-400 px-2 py-1 text-[11px] font-semibold hover:bg-green-500/25 transition-colors flex items-center gap-1">
+                    <Check className="h-3 w-3" /> Todo listo
+                  </button>
                 </div>
               </div>
               {(() => {

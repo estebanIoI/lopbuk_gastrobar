@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Hash, DollarSign, StickyNote, Users, Layers, ReceiptText, Trash2, Copy, MoveRight, RefreshCw, UserPlus, Send, RotateCcw, ArrowRightLeft } from 'lucide-react'
+import { Hash, DollarSign, StickyNote, Users, Layers, ReceiptText, Trash2, Copy, MoveRight, RefreshCw, UserPlus, Send, RotateCcw, ArrowRightLeft, Ticket } from 'lucide-react'
 import type { OrderItem } from './PosShell'
 
 interface PosToolRailProps {
@@ -29,6 +29,8 @@ interface PosToolRailProps {
   // Batch-level (N>1 items)
   onSendSelected: () => void
   onDeleteSelected: () => void
+  /** Cargar a tiquetera: los ítems seleccionados, o toda la mesa si no hay selección. */
+  onAssignMealPass: () => void
 }
 
 export function PosToolRail({
@@ -36,7 +38,7 @@ export function PosToolRail({
   activeSeat, onSetSeat, activeCourse, onSetCourse, onPrintBill, onRepeatLast,
   pendingQuantity, onSetQuantity, onSetPrice,
   onMoveSeat, onDuplicate, onRemoveItem, onMoveToTable,
-  onSendSelected, onDeleteSelected,
+  onSendSelected, onDeleteSelected, onAssignMealPass,
 }: PosToolRailProps) {
   const [showQuantity, setShowQuantity] = useState(false)
   const [showPrice, setShowPrice] = useState(false)
@@ -87,6 +89,15 @@ export function PosToolRail({
             <span className="text-[10px] font-bold">{selectedCount}</span>
           </button>
         </div>
+        {/* Cargar los ítems seleccionados a una tiquetera (Fase 5) */}
+        <div className="px-2 w-full">
+          <button onClick={onAssignMealPass}
+            title="Cargar los ítems seleccionados a la tiquetera de un cliente"
+            className="w-full aspect-square rounded-lg bg-amber-600/20 hover:bg-amber-600/40 flex flex-col items-center justify-center gap-0.5 transition-colors text-amber-400">
+            <Ticket className="h-4 w-4" />
+            <span className="text-[9px] font-bold leading-none">Tiquet.</span>
+          </button>
+        </div>
         <div className="px-2 w-full">
           <button onClick={onDeleteSelected}
             className="w-full aspect-square rounded-lg bg-red-600/20 hover:bg-red-600/40 flex flex-col items-center justify-center gap-0.5 transition-colors text-red-400">
@@ -102,6 +113,18 @@ export function PosToolRail({
   if (selectedCount === 0) {
     return (
       <div className="w-16 bg-zinc-900 border-r border-zinc-800 flex flex-col items-center gap-1 py-2 shrink-0">
+        {/* Tiquetera — sin selección carga TODA la mesa (Fase 5) */}
+        {hasOrder && (
+          <div className="px-2 w-full">
+            <button onClick={onAssignMealPass}
+              title="Cargar la mesa a una tiquetera (o elegir ítems dentro)"
+              className="w-full aspect-square rounded-lg bg-amber-600/20 hover:bg-amber-600/40 flex flex-col items-center justify-center gap-0.5 transition-colors text-amber-400">
+              <Ticket className="h-4 w-4" />
+              <span className="text-[9px] font-bold leading-none">Tiquet.</span>
+            </button>
+          </div>
+        )}
+
         {/* Seat selector */}
         <div className="px-2 w-full">
           <button onClick={() => onSetSeat(activeSeat >= 8 ? 1 : activeSeat + 1)}

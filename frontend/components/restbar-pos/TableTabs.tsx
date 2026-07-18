@@ -2,12 +2,14 @@
 
 import { useRef, useEffect, useMemo } from 'react'
 import type { PosTable } from './PosShell'
-import { Clock, Users, ChefHat, GlassWater } from 'lucide-react'
+import { Clock, Users, ChefHat, GlassWater, Link2 } from 'lucide-react'
 
 interface TableTabsProps {
   tables: PosTable[]
   activeTableId: string | null
   onSelect: (tableId: string) => void
+  /** Abre el diálogo de unir/separar mesas (Mesa General · Fase 6) */
+  onMergeTables?: () => void
 }
 
 const STATUS_DEF: Record<string, { color: string; bg: string; border: string; label: string }> = {
@@ -30,7 +32,7 @@ function elapsedMinutes(openedAt: string | null | undefined): string {
   return `${h}h ${m}m`
 }
 
-export function TableTabs({ tables, activeTableId, onSelect }: TableTabsProps) {
+export function TableTabs({ tables, activeTableId, onSelect, onMergeTables }: TableTabsProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const sorted = useMemo(() => {
@@ -98,6 +100,15 @@ export function TableTabs({ tables, activeTableId, onSelect }: TableTabsProps) {
           </button>
         )
       })}
+
+      {/* Unir / separar mesas — Mesa General (Fase 6) */}
+      {onMergeTables && (
+        <button onClick={onMergeTables} title="Unir o separar mesas (comparten una sola comanda)"
+          className="shrink-0 h-12 min-w-[64px] px-2.5 rounded-lg border border-zinc-700 bg-zinc-800 hover:border-amber-500/60 hover:bg-amber-500/10 text-zinc-300 hover:text-amber-400 flex flex-col items-center justify-center gap-0.5 transition-colors">
+          <Link2 className="h-4 w-4" />
+          <span className="text-[10px] font-bold leading-none">Unir</span>
+        </button>
+      )}
     </div>
   )
 }

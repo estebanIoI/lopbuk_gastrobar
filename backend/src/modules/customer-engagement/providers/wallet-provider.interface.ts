@@ -14,6 +14,13 @@ export interface WalletPassData {
   shortDescription: string;
   qrPayload: string;
   storeUrl: string;
+  /**
+   * Ubicaciones del negocio (lat/lng). Google Wallet las usa como geofence: al
+   * acercarse el cliente, el pase aparece solo en la pantalla de bloqueo. Sin
+   * esto el pase existe pero NUNCA se muestra por proximidad.
+   * El radio lo decide Google (no es configurable desde el pase).
+   */
+  locations?: Array<{ latitude: number; longitude: number }>;
 }
 
 export interface WalletProvider {
