@@ -282,7 +282,7 @@ export function useLandingConfig() {
 
   // ── CRUD local de slides del carrusel ──
   const addSlide = () =>
-    setHeroSlides(s => [...s, { id: genId(), type: 'image', url: '', link: '', title: '', subtitle: '' }])
+    setHeroSlides(s => [...s, { id: genId(), type: 'image', url: '', mobileUrl: '', link: '', title: '', subtitle: '' }])
 
   const updateSlide = (id: string, patch: Partial<HeroSlide>) =>
     setHeroSlides(s => s.map(sl => (sl.id === id ? { ...sl, ...patch } : sl)))
@@ -308,6 +308,7 @@ export function useLandingConfig() {
         id: s.id,
         type: s.type === 'video' ? 'video' : 'image',
         url: s.url.trim(),
+        mobileUrl: s.mobileUrl?.trim() || undefined,
         link: s.link?.trim() || undefined,
         title: s.title?.trim() || undefined,
         subtitle: s.subtitle?.trim() || undefined,

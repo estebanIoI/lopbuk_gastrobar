@@ -3,6 +3,7 @@
 import {
   CalendarDays, Check, ImageIcon, LayoutTemplate, Plus, Pencil, RefreshCw,
   Sparkles, Tag, Trash2, ArrowUp, ArrowDown, Video, GalleryHorizontal, Store,
+  Monitor, Smartphone,
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -290,33 +291,70 @@ export function LandingConfigTab() {
               </div>
 
               {slide.type === 'image' ? (
-                <div className="space-y-2">
-                  <Label className="text-xs">Imagen o GIF</Label>
-                  <CloudinaryUpload
-                    value={slide.url}
-                    onChange={(url) => updateSlide(slide.id, { url })}
-                    accept="image/*,.gif"
-                    previewClassName="w-full max-w-md h-32 object-cover rounded-lg border border-border"
-                  />
-                  <Input
-                    value={slide.url}
-                    onChange={(e) => updateSlide(slide.id, { url: e.target.value })}
-                    placeholder="...o pega una URL de imagen/GIF"
-                    className="font-mono text-xs"
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Escritorio */}
+                  <div className="space-y-2">
+                    <Label className="text-xs flex items-center gap-1.5"><Monitor className="h-3.5 w-3.5" /> Imagen o GIF · Escritorio</Label>
+                    <CloudinaryUpload
+                      value={slide.url}
+                      onChange={(url) => updateSlide(slide.id, { url })}
+                      accept="image/*,.gif"
+                      previewClassName="w-full h-32 object-cover rounded-lg border border-border"
+                    />
+                    <Input
+                      value={slide.url}
+                      onChange={(e) => updateSlide(slide.id, { url: e.target.value })}
+                      placeholder="...o pega una URL de imagen/GIF"
+                      className="font-mono text-xs"
+                    />
+                  </div>
+                  {/* Móvil */}
+                  <div className="space-y-2">
+                    <Label className="text-xs flex items-center gap-1.5"><Smartphone className="h-3.5 w-3.5" /> Imagen o GIF · Móvil</Label>
+                    <CloudinaryUpload
+                      value={slide.mobileUrl || ''}
+                      onChange={(url) => updateSlide(slide.id, { mobileUrl: url })}
+                      accept="image/*,.gif"
+                      previewClassName="w-full h-32 object-cover rounded-lg border border-border"
+                    />
+                    <Input
+                      value={slide.mobileUrl || ''}
+                      onChange={(e) => updateSlide(slide.id, { mobileUrl: e.target.value })}
+                      placeholder="...o pega una URL de imagen/GIF"
+                      className="font-mono text-xs"
+                    />
+                    <p className="text-[10px] text-muted-foreground">Si lo dejas vacío, en móvil se usa la imagen de escritorio.</p>
+                  </div>
                 </div>
               ) : (
-                <div className="space-y-2">
-                  <Label className="text-xs">URL del video (.mp4)</Label>
-                  <Input
-                    value={slide.url}
-                    onChange={(e) => updateSlide(slide.id, { url: e.target.value })}
-                    placeholder="https://.../banner.mp4"
-                    className="font-mono text-xs"
-                  />
-                  {slide.url && (
-                    <video src={slide.url} muted loop autoPlay playsInline className="w-full max-w-md h-32 object-cover rounded-lg border border-border" />
-                  )}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Escritorio */}
+                  <div className="space-y-2">
+                    <Label className="text-xs flex items-center gap-1.5"><Monitor className="h-3.5 w-3.5" /> Video · Escritorio (.mp4)</Label>
+                    <Input
+                      value={slide.url}
+                      onChange={(e) => updateSlide(slide.id, { url: e.target.value })}
+                      placeholder="https://.../banner.mp4"
+                      className="font-mono text-xs"
+                    />
+                    {slide.url && (
+                      <video src={slide.url} muted loop autoPlay playsInline className="w-full h-32 object-cover rounded-lg border border-border" />
+                    )}
+                  </div>
+                  {/* Móvil */}
+                  <div className="space-y-2">
+                    <Label className="text-xs flex items-center gap-1.5"><Smartphone className="h-3.5 w-3.5" /> Video/GIF · Móvil</Label>
+                    <Input
+                      value={slide.mobileUrl || ''}
+                      onChange={(e) => updateSlide(slide.id, { mobileUrl: e.target.value })}
+                      placeholder="https://.../banner-movil.mp4 o .gif"
+                      className="font-mono text-xs"
+                    />
+                    {slide.mobileUrl && (
+                      <video src={slide.mobileUrl} muted loop autoPlay playsInline className="w-full h-32 object-cover rounded-lg border border-border" />
+                    )}
+                    <p className="text-[10px] text-muted-foreground">Si lo dejas vacío, en móvil se usa el video de escritorio.</p>
+                  </div>
                 </div>
               )}
 

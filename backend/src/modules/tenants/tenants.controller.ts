@@ -75,6 +75,20 @@ export class TenantsController {
     }
   }
 
+  async resetSalesData(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const counts = await tenantsService.resetSalesData(req.params.id);
+      const total = counts.sales;
+      res.json({
+        success: true,
+        data: counts,
+        message: `Ventas reiniciadas: ${total} venta(s) eliminada(s). El comercio puede empezar de cero.`,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async activateTrial(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const days = Number(req.body?.days) || 7;

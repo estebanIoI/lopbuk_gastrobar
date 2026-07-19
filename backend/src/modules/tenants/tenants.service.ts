@@ -351,9 +351,13 @@ export class TenantsService {
       maxProducts?: number;
       bgColor?: string;
       platformMarginPct?: number | null;
+      // Datos del propietario (editables por superadmin)
+      ownerName?: string;
+      ownerEmail?: string;
+      ownerPassword?: string;
     }
   ): Promise<TenantWithSummary> {
-    await this.findById(id);
+    const tenant = await this.findById(id);
 
     const updates: string[] = [];
     const values: (string | number | null)[] = [];
@@ -401,17 +405,115 @@ export class TenantsService {
       values.push(data.platformMarginPct);
     }
 
-    if (updates.length === 0) {
+    // ── Datos del propietario (usuario comerciante dueño del comercio) ──
+    const ownerUpdates: string[] = [];
+    const ownerValues: (string | number | null)[] = [];
+    const wantsOwnerChange =
+      data.ownerName !== undefined || data.ownerEmail !== undefined ||
+      (data.ownerPassword !== undefined && data.ownerPassword !== '');
+
+    if (wantsOwnerChange) {
+      const ownerId = tenant.ownerId;
+      if (!ownerId) throw new AppError('Este comercio no tiene un propietario asignado', 400);
+
+      if (data.ownerName !== undefined && data.ownerName.trim() !== '') {
+        ownerUpdates.push('name = ?');
+        ownerValues.push(data.ownerName.trim());
+      }
+      if (data.ownerEmail !== undefined && data.ownerEmail.trim() !== '') {
+        const email = data.ownerEmail.trim().toLowerCase();
+        const [dup] = await db.execute<RowDataPacket[]>(
+          'SELECT id FROM users WHERE email = ? AND id != ?',
+          [email, ownerId]
+        );
+        if ((dup as any[]).length > 0) throw new AppError('El email ya está en uso por otro usuario', 409);
+        ownerUpdates.push('email = ?');
+        ownerValues.push(email);
+      }
+      if (data.ownerPassword !== undefined && data.ownerPassword !== '') {
+        if (data.ownerPassword.length < 6) throw new AppError('La contraseña debe tener al menos 6 caracteres', 400);
+        const hashed = await bcrypt.hash(data.ownerPassword, 10);
+        ownerUpdates.push('password = ?');
+        ownerValues.push(hashed);
+      }
+
+      if (ownerUpdates.length > 0) {
+        ownerValues.push(ownerId);
+        await db.execute(
+          `UPDATE users SET ${ownerUpdates.join(', ')} WHERE id = ?`,
+          ownerValues
+        );
+      }
+    }
+
+    if (updates.length === 0 && ownerUpdates.length === 0) {
       throw new AppError('No hay datos para actualizar', 400);
     }
 
-    values.push(id);
-    await db.execute(
-      `UPDATE tenants SET ${updates.join(', ')} WHERE id = ?`,
-      values
-    );
+    if (updates.length > 0) {
+      values.push(id);
+      await db.execute(
+        `UPDATE tenants SET ${updates.join(', ')} WHERE id = ?`,
+        values
+      );
+    }
 
     return this.findById(id);
+  }
+
+  /**
+   * Reinicia SOLO los datos de ventas de un comercio (para limpiar ventas de prueba).
+   * Borra, en orden seguro respecto a las FKs:
+   *   1. credit_payments (abonos) — FK a sales con onDelete: restrict → van primero
+   *   2. sales — cascada a sale_items; rb_orders.sale_id se pone en NULL (set null)
+   *   3. cash_movements — FK a cash_sessions con restrict → antes que las sesiones
+   *   4. cash_sessions
+   *   5. invoice_sequence.current_number = 0 → la numeración de factura vuelve a empezar
+   * NO toca productos, clientes, inventario/stock ni pedidos de mesa/domicilio.
+   */
+  async resetSalesData(id: string): Promise<{
+    sales: number; creditPayments: number; cashMovements: number; cashSessions: number;
+  }> {
+    await this.findById(id); // valida que el comercio exista
+
+    const connection = await db.getConnection();
+    const counts = { sales: 0, creditPayments: 0, cashMovements: 0, cashSessions: 0 };
+    try {
+      await connection.beginTransaction();
+
+      const [cp] = await connection.execute<ResultSetHeader>(
+        'DELETE FROM credit_payments WHERE tenant_id = ?', [id]
+      );
+      counts.creditPayments = cp.affectedRows;
+
+      const [s] = await connection.execute<ResultSetHeader>(
+        'DELETE FROM sales WHERE tenant_id = ?', [id]
+      );
+      counts.sales = s.affectedRows;
+
+      const [cm] = await connection.execute<ResultSetHeader>(
+        'DELETE FROM cash_movements WHERE tenant_id = ?', [id]
+      );
+      counts.cashMovements = cm.affectedRows;
+
+      const [cs] = await connection.execute<ResultSetHeader>(
+        'DELETE FROM cash_sessions WHERE tenant_id = ?', [id]
+      );
+      counts.cashSessions = cs.affectedRows;
+
+      // Reiniciar numeración de factura (si el comercio tiene secuencia)
+      await connection.execute(
+        'UPDATE invoice_sequence SET current_number = 0 WHERE tenant_id = ?', [id]
+      );
+
+      await connection.commit();
+      return counts;
+    } catch (err) {
+      await connection.rollback();
+      throw new AppError('No se pudieron reiniciar las ventas: ' + (err instanceof Error ? err.message : 'error desconocido'), 500);
+    } finally {
+      connection.release();
+    }
   }
 
   async toggleStatus(id: string): Promise<TenantWithSummary> {

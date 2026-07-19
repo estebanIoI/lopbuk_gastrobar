@@ -112,6 +112,8 @@ export interface HeroSlide {
   id: string
   type: 'image' | 'video'
   url: string
+  /** Media alterna para pantallas móviles (imagen/GIF/video). Si está vacía, se usa `url`. */
+  mobileUrl?: string
   link?: string
   title?: string
   subtitle?: string
@@ -272,19 +274,21 @@ export function HomeHeroCarousel({
         {activeSlide && activeSlide.type !== 'video' ? (
           // Sizer invisible solo en móvil: define la altura exacta de la imagen activa.
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={cldImg(activeSlide.url, 1200)} alt="" aria-hidden="true" className="block w-full h-auto sm:hidden invisible select-none pointer-events-none" />
+          <img src={cldImg((isMobile && activeSlide.mobileUrl) ? activeSlide.mobileUrl : activeSlide.url, 1200)} alt="" aria-hidden="true" className="block w-full h-auto sm:hidden invisible select-none pointer-events-none" />
         ) : (
           <div className="w-full aspect-video sm:hidden" />
         )}
         {valid.map((slide, i) => {
           const active = i === index
+          // En móvil usa la media móvil si existe (fallback a la de escritorio).
+          const mediaUrl = (isMobile && slide.mobileUrl) ? slide.mobileUrl : slide.url
           // En móvil el contenedor ENVUELVE la imagen (object-contain, no la corta), como el tema 1
           // de las tiendas; en escritorio se mantiene a sangre (object-cover).
           const media = slide.type === 'video' ? (
-            <video src={slide.url} autoPlay muted loop playsInline className="absolute inset-0 w-full h-full object-contain sm:object-cover" />
+            <video src={mediaUrl} autoPlay muted loop playsInline className="absolute inset-0 w-full h-full object-contain sm:object-cover" />
           ) : (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={cldImg(slide.url, 1600)} alt={slide.title || `Banner ${i + 1}`} className="absolute inset-0 w-full h-full object-contain sm:object-cover" loading={i === 0 ? 'eager' : 'lazy'} fetchPriority={i === 0 ? 'high' : 'auto'} decoding="async" />
+            <img src={cldImg(mediaUrl, 1600)} alt={slide.title || `Banner ${i + 1}`} className="absolute inset-0 w-full h-full object-contain sm:object-cover" loading={i === 0 ? 'eager' : 'lazy'} fetchPriority={i === 0 ? 'high' : 'auto'} decoding="async" />
           )
           const overlay = (slide.title || slide.subtitle) && (
             <>

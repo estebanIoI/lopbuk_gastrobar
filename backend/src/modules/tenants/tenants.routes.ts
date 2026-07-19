@@ -169,6 +169,11 @@ router.put(
     body('bgColor')
       .optional()
       .matches(/^#[0-9a-fA-F]{6}$/).withMessage('Color de fondo inválido (formato: #RRGGBB)'),
+    body('ownerName').optional({ nullable: true }).isString().isLength({ min: 1, max: 150 }).withMessage('Nombre del propietario inválido'),
+    body('ownerEmail').optional({ nullable: true }).isEmail().withMessage('Email del propietario inválido'),
+    body('ownerPassword')
+      .optional({ nullable: true, checkFalsy: true })
+      .isString().isLength({ min: 6 }).withMessage('La contraseña debe tener al menos 6 caracteres'),
     validateRequest,
   ],
   tenantsController.update.bind(tenantsController)
@@ -179,6 +184,13 @@ router.patch(
   '/:id/toggle-status',
   [param('id').notEmpty().withMessage('ID requerido'), validateRequest],
   tenantsController.toggleStatus.bind(tenantsController)
+);
+
+// POST /api/tenants/:id/reset-sales - Reinicia SOLO los datos de ventas del comercio (irreversible)
+router.post(
+  '/:id/reset-sales',
+  [param('id').notEmpty().withMessage('ID requerido'), validateRequest],
+  tenantsController.resetSalesData.bind(tenantsController)
 );
 
 // POST /api/tenants/:id/activate-trial - Activate 7-day empresarial trial
