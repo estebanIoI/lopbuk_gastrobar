@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { body, param, query } from 'express-validator';
 import { productsController } from './products.controller';
-import { authenticate } from '../../common/middleware';
+import { authenticate, authorize } from '../../common/middleware';
 import { validateRequest } from '../../utils/validators';
 
 const PRODUCT_TYPES = ['general', 'alimentos', 'bebidas', 'ropa', 'electronica', 'farmacia', 'ferreteria', 'libreria', 'juguetes', 'cosmetica', 'perfumes', 'deportes', 'hogar', 'mascotas', 'otros'];
@@ -67,6 +67,18 @@ router.get(
   '/:id',
   [param('id').notEmpty().withMessage('ID requerido'), validateRequest],
   productsController.findById.bind(productsController)
+);
+
+// POST /api/products/analyze-image — Detecta producto + variantes + precios desde una foto con IA
+router.post(
+  '/analyze-image',
+  authorize('comerciante', 'superadmin'),
+  [
+    body('imageBase64').notEmpty().withMessage('La imagen es requerida'),
+    body('mimeType').optional().isString(),
+    validateRequest,
+  ],
+  productsController.analyzeImage.bind(productsController)
 );
 
 // POST /api/products/bulk-with-variants — crea productos + variantes en una sola transacción

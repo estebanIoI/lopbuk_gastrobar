@@ -599,6 +599,21 @@ class ApiService {
     })
   }
 
+  // Analiza una foto de producto con IA → nombre, variantes por color con stock y precios detal/mayorista
+  async analyzeProductImage(payload: { imageBase64: string; mimeType?: string }) {
+    return this.request<{
+      name: string
+      description: string | null
+      category: string | null
+      productType: string | null
+      variants: Array<{ color: string; colorHex: string | null; stock: number }>
+      priceTiers: Array<{ minQty: number; price: number; label: string | null }>
+      totalStock: number | null
+      matchedCategoryId: string | null
+      provider: 'gemini' | 'openai' | 'groq'
+    }>('/products/analyze-image', { method: 'POST', body: JSON.stringify(payload) })
+  }
+
   async updateProduct(id: string, updates: any) {
     return this.request<any>(`/products/${id}`, {
       method: 'PUT',

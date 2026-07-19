@@ -953,6 +953,7 @@ export class ProductsService {
               costPrice:     v.costPrice     ?? undefined,
               priceOverride: v.priceOverride ?? undefined,
               hormaId:       v.hormaId       ?? null,
+              priceTiers:    Array.isArray(v.priceTiers) ? v.priceTiers : undefined,
             }));
 
             const varResult = await variantsService.bulkCreate(productId, tenantId, variantItems);
