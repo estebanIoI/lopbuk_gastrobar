@@ -816,7 +816,7 @@ export function PosShell({ initialTableId, onDone }: PosShellProps) {
           tables={tables}
           currentTableId={selectedOrder?.tableId ?? null}
           onClose={() => setShowMergeTables(false)}
-          onDone={async () => { setShowMergeTables(false); await loadTables() }}
+          onDone={async () => { setShowMergeTables(false); await loadData() }}
         />
       )}
       {showCancelConfirm && selectedOrder && (() => {

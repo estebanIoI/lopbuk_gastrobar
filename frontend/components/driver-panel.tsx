@@ -6,7 +6,7 @@ import { api } from '@/lib/api';
 import {
   Package, MapPin, Phone, Navigation, Clock, CheckCircle2,
   Truck, ChevronRight, RefreshCw, User, LogOut, List, History,
-  Map as MapIcon, Store, X,
+  Map as MapIcon, Store, X, Star,
 } from 'lucide-react';
 import { CloudinaryUpload } from '@/components/ui/cloudinary-upload';
 import { toast } from 'sonner';
@@ -66,6 +66,12 @@ export function DriverPanel() {
   const [historyOrders, setHistoryOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
+  // Estado "en línea": es lo que hace que el repartidor aparezca como disponible
+  // en el checkout del cliente y que le lleguen los pedidos difundidos.
+  const [isOnline, setIsOnline] = useState(false);
+  const [onlineSaving, setOnlineSaving] = useState(false);
+  const [myRating, setMyRating] = useState<{ average: number | null; ratings: number; reports: number } | null>(null);
+
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -108,14 +114,38 @@ export function DriverPanel() {
           const pos = { lat: p.coords.latitude, lng: p.coords.longitude };
           setDriverPos(pos);
           api.pingMyRoute(pos.lat, pos.lng).catch(() => {});
+          // Latido de disponibilidad: el conteo del checkout solo cuenta a quien
+          // dio señal en los últimos 5 min. Sin esto, el repartidor "se apaga"
+          // solo a los 5 minutos de haberse puesto en línea.
+          if (isOnline) api.setMyAvailability(true, pos.lat, pos.lng).catch(() => {});
         },
         () => {}
       );
     };
     report();
-    const t = setInterval(report, hasActiveDelivery ? 15000 : 180000);
+    // Máximo 2 min: la ventana de disponibilidad del backend es de 5.
+    const t = setInterval(report, hasActiveDelivery ? 15000 : 120000);
     return () => clearInterval(t);
-  }, [hasActiveDelivery]);
+  }, [hasActiveDelivery, isOnline]);
+
+  // Calificación real del repartidor (null si aún no lo han calificado)
+  useEffect(() => {
+    api.getMyCourierRating().then(r => { if (r.success && r.data) setMyRating(r.data) }).catch(() => {});
+  }, []);
+
+  const toggleOnline = async () => {
+    const next = !isOnline;
+    setOnlineSaving(true);
+    const res = await api.setMyAvailability(next, driverPos?.lat, driverPos?.lng);
+    setOnlineSaving(false);
+    if (res.success) {
+      setIsOnline(next);
+      if (next) { toast.success('Estás en línea', { description: 'Ya puedes recibir pedidos.' }); loadOrders('available'); }
+      else toast.info('Estás fuera de línea', { description: 'No recibirás pedidos nuevos.' });
+    } else {
+      toast.error(res.error || 'No se pudo cambiar tu estado');
+    }
+  };
 
   // Load orders
   const loadOrders = useCallback(async (tab: SideTab = sideTab) => {
@@ -157,17 +187,27 @@ export function DriverPanel() {
     socket.on('connect', join);
     const onDispatch = (payload: any) => {
       if (payload?.kind === 'order-created') {
+        // courierRequested === 0 → tienda en modo plataforma y el cliente NO pidió
+        // repartidor: el pedido no entra a "Disponibles", así que no se avisa.
+        if (payload?.courierRequested === 0) return;
         refreshAvailable();
         toast.info('📦 Nuevo pedido disponible', { description: 'Toca “Disponibles” para tomarlo.' });
       }
     };
     socket.on('dispatch-changed', onDispatch);
 
+    // Otro repartidor lo tomó primero → desaparece de la lista sin refrescar.
+    const onTaken = (payload: any) => {
+      if (payload?.courierId !== uid) refreshAvailable();
+    };
+    socket.on('delivery-order-taken', onTaken);
+
     const poll = setInterval(refreshAvailable, 30000);
     return () => {
       clearInterval(poll);
       socket.off('connect', join);
       socket.off('dispatch-changed', onDispatch);
+      socket.off('delivery-order-taken', onTaken);
       disconnectDeliverySocket();
     };
   }, [user?.id, refreshAvailable]);
@@ -544,6 +584,53 @@ export function DriverPanel() {
             w-full md:w-[380px]
             ${showMapMobile ? 'hidden' : 'flex'} md:flex`}
         >
+
+            {/* Estado del repartidor: en línea + su calificación real */}
+            <div className="shrink-0 border-b border-gray-100 p-3 space-y-2.5">
+              <button
+                onClick={toggleOnline}
+                disabled={onlineSaving}
+                className={`w-full flex items-center justify-between gap-3 rounded-xl px-3.5 py-3 transition-colors disabled:opacity-60 ${
+                  isOnline ? 'bg-emerald-50 border border-emerald-200' : 'bg-gray-50 border border-gray-200'
+                }`}
+              >
+                <span className="flex items-center gap-2.5 min-w-0">
+                  <span className={`relative flex h-2.5 w-2.5 shrink-0`}>
+                    {isOnline && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />}
+                    <span className={`relative inline-flex h-2.5 w-2.5 rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-gray-400'}`} />
+                  </span>
+                  <span className="text-left min-w-0">
+                    <span className={`block text-sm font-semibold ${isOnline ? 'text-emerald-800' : 'text-gray-600'}`}>
+                      {isOnline ? 'En línea' : 'Fuera de línea'}
+                    </span>
+                    <span className="block text-[11px] text-gray-500 truncate">
+                      {isOnline ? 'Recibes pedidos nuevos' : 'Actívate para recibir pedidos'}
+                    </span>
+                  </span>
+                </span>
+                <span className={`shrink-0 text-xs font-medium px-2.5 py-1 rounded-full ${
+                  isOnline ? 'bg-emerald-600 text-white' : 'bg-gray-300 text-gray-700'
+                }`}>
+                  {onlineSaving ? '…' : isOnline ? 'Desactivar' : 'Activar'}
+                </span>
+              </button>
+
+              {/* Calificación: sin datos no se inventa un número */}
+              <div className="flex items-center justify-between px-1 text-xs">
+                <span className="flex items-center gap-1.5 text-gray-500">
+                  <Star className="h-3.5 w-3.5 text-amber-400 fill-amber-400" />
+                  {myRating?.average != null ? (
+                    <><span className="font-semibold text-gray-800">{myRating.average}</span>
+                      <span>({myRating.ratings} calificaciones)</span></>
+                  ) : (
+                    <span>Aún sin calificaciones</span>
+                  )}
+                </span>
+                {!!myRating?.reports && (
+                  <span className="text-red-500">{myRating.reports} reporte(s)</span>
+                )}
+              </div>
+            </div>
 
             {/* Tabs */}
             <div className="flex border-b border-gray-100 shrink-0">

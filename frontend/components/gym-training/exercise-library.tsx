@@ -25,7 +25,7 @@ export function ExerciseLibrary({ onSelect, compact, selectedId }: { onSelect?: 
   const load = useCallback(async () => {
     setLoading(true)
     const r = await api.listTrainingExercises({ search, ...filters })
-    if (r.success) { setExercises(r.data.rows); setTotal(r.data.total) }
+    if (r.success && r.data) { setExercises(r.data.rows); setTotal(r.data.total) }
     setLoading(false)
   }, [search, filters])
 

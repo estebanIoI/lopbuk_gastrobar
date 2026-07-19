@@ -553,6 +553,20 @@ class ApiService {
   }
 
   // Tracking F5: GPS del conductor + tracking público
+  /** Repartidor: ponerse en línea / fuera de línea. Sin esto nunca aparece como disponible. */
+  async setMyAvailability(isOnline: boolean, lat?: number, lng?: number) {
+    return this.request<{ isOnline: boolean }>('/delivery/availability', {
+      method: 'PUT', body: JSON.stringify({ isOnline, lat, lng }),
+    })
+  }
+  /** Repartidor: su calificación real. average es null si aún no lo han calificado. */
+  async getMyCourierRating() {
+    return this.request<{
+      average: number | null; ratings: number; reports: number
+      recent: Array<{ stars: number; comment: string; createdAt: string }>
+    }>('/delivery/my-rating')
+  }
+
   async pingMyRoute(lat: number, lng: number) {
     return this.request<any>('/fleet/my-route/ping', { method: 'POST', body: JSON.stringify({ lat, lng }) })
   }
@@ -1771,7 +1785,16 @@ class ApiService {
   // Cart Settings
   // =============================================
 
-  async updateCartSettings(data: { cartMinPurchase: number; cartDeliveryFee?: number }) {
+  async updateCartSettings(data: {
+    cartMinPurchase: number
+    cartDeliveryFee?: number
+    // Domicilios (F1): opcionales — si no se envían, no se tocan
+    deliveryMode?: 'ninguno' | 'propio' | 'plataforma'
+    platformDeliveryFee?: number
+    deliveryAutoBroadcast?: boolean
+    /** Animación de entrada a categoría (tema 1). Opcional: si no se envía, no se toca. */
+    categoryTransition?: string
+  }) {
     return this.request<any>('/storefront/cart-settings', {
       method: 'PUT',
       body: JSON.stringify(data),
@@ -1825,10 +1848,14 @@ class ApiService {
     })
   }
 
-  async updateCategoryImage(categoryId: string, imageUrl: string) {
+  /**
+   * `imageUrlHover` = segunda imagen (barrido al pasar el cursor).
+   * `coverUrl` = portada/GIF (transición al abrir + cabecera del catálogo).
+   */
+  async updateCategoryImage(categoryId: string, imageUrl: string, imageUrlHover?: string, coverUrl?: string) {
     return this.request<any>(`/storefront/categories/${categoryId}/image`, {
       method: 'PUT',
-      body: JSON.stringify({ imageUrl }),
+      body: JSON.stringify({ imageUrl, imageUrlHover, coverUrl }),
     })
   }
 
@@ -2598,6 +2625,13 @@ class ApiService {
   /** Público: social proof (datos reales) de un producto. */
   async getPublicSocialProof(productId: string) {
     return this.request<any>(`/storefront/social-proof/${productId}`)
+  }
+
+  /** Público: ¿la tienda ofrece repartidores de plataforma? (F2 domicilios) */
+  async getDeliveryAvailability(storeSlug: string) {
+    return this.request<{ enabled: boolean; fee: number; couriersOnline: number; autoBroadcast: boolean }>(
+      `/storefront/delivery-availability/${storeSlug}`
+    )
   }
 
   // Conversaciones del chatbot (asesoría + cierre humano)
@@ -4231,7 +4265,27 @@ class ApiService {
 
   // ── Repartidores de plataforma (superadmin) ──
   async getPlatformCouriers() {
-    return this.request<Array<{ id: string; name: string; email: string; phone?: string | null; isActive: number; tenantsCount: number }>>('/superadmin/couriers')
+    // avgStars es null si nunca lo calificaron — no mostrar 0 en ese caso.
+    return this.request<Array<{ id: string; name: string; email: string; phone?: string | null; isActive: number; tenantsCount: number; avgStars: number | null; ratingsCount: number; openReports: number }>>('/superadmin/couriers')
+  }
+
+  // F6 · Moderación de reportes de repartidores
+  async getCourierReports(status: 'pendientes' | 'revisados' | 'todos' = 'pendientes') {
+    return this.request<{
+      pending: number
+      reports: Array<{
+        id: string; stars: number | null; comment: string | null; reportReason: string
+        createdAt: string; reviewedAt: string | null; reviewedByName: string | null
+        courierId: string; courierName: string; courierPhone: string | null
+        tenantName: string | null; orderNumber: string | null; total: number | null
+        deliveredAt: string | null
+      }>
+    }>(`/superadmin/courier-reports?status=${status}`)
+  }
+  async reviewCourierReport(id: string, reopen = false) {
+    return this.request<{ reviewed: boolean }>(`/superadmin/courier-reports/${id}/review`, {
+      method: 'POST', body: JSON.stringify({ reopen }),
+    })
   }
   async createPlatformCourier(data: { name: string; email: string; password: string; phone?: string }) {
     return this.request<{ id: string; name: string; email: string }>('/superadmin/couriers', { method: 'POST', body: JSON.stringify(data) })

@@ -3,6 +3,7 @@ import { body, param } from 'express-validator';
 import { authenticate, authorize, AuthRequest } from '../../common/middleware';
 import { validateRequest } from '../../utils/validators';
 import pool from '../../config/database';
+import { decryptNullable } from '../../utils/crypto';
 
 const router: ReturnType<typeof Router> = Router();
 
@@ -79,6 +80,42 @@ router.get(
 
 // GET /api/delivery/my-history — Pedidos entregados por el repartidor
 router.get(
+  '/my-rating',
+  authorize('repartidor'),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      // Promedio construido con datos reales: una calificación por pedido
+      // entregado (uk_courier_rating_order). Nada simulado.
+      const [[agg]] = await pool.query(
+        `SELECT ROUND(AVG(stars), 2) AS avgStars, COUNT(stars) AS ratings,
+                SUM(reported = 1) AS reports
+           FROM courier_ratings WHERE courier_user_id = ?`,
+        [req.user!.userId]
+      ) as any;
+      const [recent] = await pool.query(
+        `SELECT stars, comment, created_at AS createdAt
+           FROM courier_ratings
+          WHERE courier_user_id = ? AND stars IS NOT NULL AND comment IS NOT NULL
+          ORDER BY created_at DESC LIMIT 5`,
+        [req.user!.userId]
+      ) as any;
+      res.json({
+        success: true,
+        data: {
+          average: agg?.avgStars != null ? Number(agg.avgStars) : null,
+          ratings: Number(agg?.ratings || 0),
+          reports: Number(agg?.reports || 0),
+          recent,
+        },
+      });
+    } catch (error) {
+      console.error('My rating error:', error);
+      res.status(500).json({ success: false, error: 'Error al obtener tu calificación' });
+    }
+  }
+);
+
+router.get(
   '/my-history',
   authorize('repartidor'),
   async (req: AuthRequest, res: Response) => {
@@ -138,6 +175,9 @@ router.get(
           ${scope.clause}
           AND o.delivery_status = 'sin_asignar'
           AND o.status IN ('pendiente', 'confirmado', 'preparando', 'enviado')
+          -- F3: NULL = tienda fuera del modo plataforma → se lista como siempre.
+          -- 0 = el cliente eligió recoger / domicilio propio → no se difunde.
+          AND (o.courier_requested IS NULL OR o.courier_requested = 1)
         ORDER BY o.created_at ASC`;
 
       const params: any[] = [...scope.params];
@@ -173,28 +213,48 @@ router.put(
       const { orderId } = req.params;
 
       const scope = courierTenantScope('', tenantId, driverId);
-      const checkSql = `
-        SELECT id FROM storefront_orders
-        WHERE id = ?
-          ${scope.clause}
-          AND delivery_driver_id IS NULL
-          AND delivery_status = 'sin_asignar'`;
+      // Asignación atómica: con difusión, varios repartidores compiten por el
+      // mismo pedido. El UPDATE lleva las condiciones en el WHERE, así que solo
+      // uno puede afectar la fila; los demás obtienen affectedRows = 0.
+      const [upd] = await pool.query(
+        `UPDATE storefront_orders
+         SET delivery_driver_id = ?, delivery_status = 'asignado', delivery_assigned_at = NOW()
+         WHERE id = ?
+           ${scope.clause}
+           AND delivery_driver_id IS NULL
+           AND delivery_status = 'sin_asignar'`,
+        [driverId, orderId, ...scope.params]
+      ) as any;
 
-      const checkParams: any[] = [orderId, ...scope.params];
-
-      const [orderRows] = await pool.query(checkSql, checkParams) as any;
-
-      if (orderRows.length === 0) {
+      if (!upd || upd.affectedRows === 0) {
         res.status(400).json({ success: false, error: 'El pedido ya fue tomado o no está disponible' });
         return;
       }
 
-      await pool.query(
-        `UPDATE storefront_orders
-         SET delivery_driver_id = ?, delivery_status = 'asignado', delivery_assigned_at = NOW()
-         WHERE id = ?`,
-        [driverId, orderId]
-      );
+      // Avisar al cliente que su pedido dejó de estar "buscando repartidor".
+      try {
+        const [rows] = await pool.query(
+          `SELECT o.tenant_id AS tenantId, o.tracking_token AS trackingToken,
+                  u.name AS courierName, u.phone AS courierPhone
+             FROM storefront_orders o
+             LEFT JOIN users u ON u.id = o.delivery_driver_id
+            WHERE o.id = ? LIMIT 1`,
+          [orderId]
+        ) as any;
+        const row = rows?.[0];
+        const io = (global as any).__deliveryIO;
+        if (row && io) {
+          if (row.trackingToken) {
+            io.to(`tracking:${row.trackingToken}`).emit('delivery-courier-assigned', {
+              orderId, courierName: row.courierName || 'Repartidor',
+              // users.phone está cifrado en la BD
+              courierPhone: decryptNullable(row.courierPhone), deliveryStatus: 'asignado',
+            });
+          }
+          // Los demás repartidores quitan el pedido de su lista sin refrescar.
+          io.to(`ops:${row.tenantId}`).emit('delivery-order-taken', { orderId, courierId: driverId });
+        }
+      } catch (_) { /* el aviso en vivo no puede tumbar la aceptación */ }
 
       res.json({ success: true, message: 'Pedido aceptado exitosamente' });
     } catch (error) {
@@ -271,6 +331,20 @@ router.put(
       // Si el pedido pertenece a una ruta agrupada y era la última parada,
       // cerrar la ruta y liberar el vehículo automáticamente.
       if (deliveryStatus === 'entregado') {
+        // F4: el chat vive lo que vive el pedido → al entregar se cierra.
+        // El POST de mensajes responde 409 y la UI del cliente pasa a solo lectura.
+        try {
+          await pool.query(
+            `UPDATE delivery_chat_rooms SET status = 'closed', closed_at = NOW()
+              WHERE order_id = ? AND status <> 'closed'`,
+            [orderId]
+          );
+          const io = (global as any).__deliveryIO;
+          const [[rm]] = await pool.query(
+            'SELECT id FROM delivery_chat_rooms WHERE order_id = ? LIMIT 1', [orderId]
+          ) as any;
+          if (io && rm?.id) io.to(`delivery-chat:${rm.id}`).emit('delivery-chat-closed', { orderId, roomId: rm.id });
+        } catch { /* el cierre del chat no puede tumbar la entrega */ }
         try {
           // Línea de tiempo (F4): etapa entregado también por el flujo delivery
           const { logStage } = await import('../ops-timeline/ops-timeline.service');

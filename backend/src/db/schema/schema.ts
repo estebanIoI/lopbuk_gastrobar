@@ -778,6 +778,12 @@ export const categories = mysqlTable("categories", {
 	name: varchar({ length: 100 }).notNull(),
 	description: varchar({ length: 255 }),
 	imageUrl: varchar("image_url", { length: 500 }),
+	// Segunda imagen opcional: en el tema 1 la tarjeta muestra `image_url` y
+	// cambia a esta al pasar el cursor. Si está vacía, no hay efecto hover.
+	imageUrlHover: varchar("image_url_hover", { length: 500 }),
+	// Imagen o GIF de portada: se muestra como transición al abrir la categoría
+	// y como cabecera diferenciadora dentro del catálogo. Opcional.
+	coverUrl: varchar("cover_url", { length: 500 }),
 	hiddenInStore: tinyint("hidden_in_store").default(0).notNull(),
 	isActive: tinyint("is_active").default(1).notNull(),
 	color: varchar({ length: 7 }),
@@ -4762,6 +4768,19 @@ export const storeInfo = mysqlTable("store_info", {
 	storeTheme: varchar("store_theme", { length: 20 }).default('theme1').notNull(),
 	logoSize: smallint("logo_size"),
 	cartDeliveryFee: int("cart_delivery_fee").default(0).notNull(),
+	// ── Domicilios (F1 · plan-delivery-tema2) ──────────────────────────────────
+	// Cómo maneja el comercio las entregas de su tienda:
+	//   ninguno    → el cliente coordina con el restaurante (comportamiento actual)
+	//   propio     → reparte con su propia gente (asignación manual, ya existe)
+	//   plataforma → se ofrecen los repartidores de la plataforma en el checkout
+	// Animación de entrada a una categoría (tema 1). Es un ajuste de la tienda:
+	// aplica a TODAS sus categorías que tengan portada configurada.
+	categoryTransition: varchar("category_transition", { length: 20 }).default('peine').notNull(),
+	deliveryMode: mysqlEnum("delivery_mode", ['ninguno', 'propio', 'plataforma']).default('ninguno').notNull(),
+	// Lo que se le cobra al cliente por el domicilio de plataforma
+	platformDeliveryFee: int("platform_delivery_fee").default(0).notNull(),
+	// Avisar a todos los repartidores en línea del comercio al entrar un pedido
+	deliveryAutoBroadcast: tinyint("delivery_auto_broadcast").default(1).notNull(),
 	socialX: varchar("social_x", { length: 500 }),
 	socialSnapchat: varchar("social_snapchat", { length: 500 }),
 	// ── Cloudinary por comercio (fallback a platform_settings global) ──────────
@@ -4899,6 +4918,11 @@ export const storefrontOrders = mysqlTable("storefront_orders", {
 	promisedAt: datetime("promised_at", { mode: 'string' }),
 	// Tracking público + prueba de entrega (F5)
 	trackingToken: varchar("tracking_token", { length: 48 }),
+	// Delivery de plataforma (tema 2): NULL = la tienda no usa modo plataforma
+	// (comportamiento histórico intacto). 1 = el cliente pidió repartidor y el
+	// pedido se difunde. 0 = recoge en tienda / domicilio propio → no se difunde.
+	courierRequested: tinyint("courier_requested"),
+	courierRequestedAt: timestamp("courier_requested_at", { mode: 'string' }),
 	podPhotoUrl: varchar("pod_photo_url", { length: 500 }),
 	podReceivedBy: varchar("pod_received_by", { length: 120 }),
 	// Satisfacción post-entrega: el cliente califica desde el portal de seguimiento
@@ -5863,6 +5887,35 @@ export const deliveryZones = mysqlTable("delivery_zones", {
 		idxZoneCity: index("idx_zone_city").on(table.city),
 		idxZoneActive: index("idx_zone_active").on(table.isActive),
 		deliveryZonesId: primaryKey({ columns: [table.id], name: "delivery_zones_id"}),
+	}
+});
+
+/**
+ * F5 · Calificación y reporte del repartidor (distinto de `storefront_orders.rating`,
+ * que mide la satisfacción con el pedido/tienda).
+ * `UNIQUE(order_id)` es la garantía de que un promedio no se puede inflar:
+ * una calificación por pedido, y solo de pedidos entregados.
+ */
+export const courierRatings = mysqlTable("courier_ratings", {
+	id: varchar({ length: 36 }).notNull(),
+	orderId: varchar("order_id", { length: 36 }).notNull(),
+	courierUserId: varchar("courier_user_id", { length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+	stars: tinyint(),                                        // 1..5 (null si solo reportó)
+	comment: varchar({ length: 400 }),
+	reported: tinyint().default(0).notNull(),
+	reportReason: varchar("report_reason", { length: 60 }),   // tarde/trato/producto/no_entregado/otro
+	reviewedAt: timestamp("reviewed_at", { mode: 'string' }), // F6: moderación del superadmin
+	reviewedBy: varchar("reviewed_by", { length: 36 }),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+},
+(table) => {
+	return {
+		idxCourierRatingCourier: index("idx_courier_rating_courier").on(table.courierUserId),
+		idxCourierRatingTenant: index("idx_courier_rating_tenant").on(table.tenantId),
+		idxCourierRatingReported: index("idx_courier_rating_reported").on(table.reported),
+		ukCourierRatingOrder: unique("uk_courier_rating_order").on(table.orderId),
+		courierRatingsId: primaryKey({ columns: [table.id], name: "courier_ratings_id"}),
 	}
 });
 

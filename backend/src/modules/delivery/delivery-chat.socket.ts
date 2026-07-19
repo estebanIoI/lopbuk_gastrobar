@@ -49,6 +49,19 @@ export function initDeliveryChatSocket(io: SocketIOServer): void {
       }
     );
 
+    // ── Join sala de seguimiento del cliente (público, por tracking token) ──
+    // El token ya es el secreto del pedido: quien lo tiene puede ver el estado.
+    // Solo recibe eventos; nunca puede emitir hacia esta sala.
+    socket.on('join-tracking', ({ token }: { token: string }) => {
+      if (!token) return;
+      socket.join(`tracking:${token}`);
+    });
+
+    socket.on('leave-tracking', ({ token }: { token: string }) => {
+      if (!token) return;
+      socket.leave(`tracking:${token}`);
+    });
+
     // ── Join ops center room (superadmin / comerciante) ────────────────────
     socket.on('join-ops', ({ tenantId }: { tenantId: string }) => {
       if (!tenantId) return;

@@ -234,6 +234,7 @@ router.post(
     body('deliveryLongitude').optional().isFloat().withMessage('Longitud inválida'),
     body('clientUserId').optional().notEmpty(),
     body('tenantId').optional().notEmpty(),
+    body('requestCourier').optional().isBoolean().withMessage('requestCourier inválido'),
     requireDataPolicyConsent,
     validateRequest,
   ],
@@ -249,6 +250,7 @@ router.post(
         items, tenantId: requestedTenantId, paymentMethod, shippingCost = 0,
         deliveryLatitude, deliveryLongitude, clientUserId,
         idempotencyKey,   // clave única del cliente para detectar dobles envíos
+        requestCourier,   // F3: el cliente pidió repartidor de la plataforma
       } = req.body;
 
       // ── Protección contra pedidos duplicados (multiclic / doble envío) ──
@@ -361,11 +363,35 @@ router.post(
         });
       } catch (_) { /* si falla la resolución, no bloquear el pedido */ }
 
+      // ── F3: ¿este pedido se difunde a repartidores de la plataforma? ──
+      // Solo aplica si la tienda activó delivery_mode = 'plataforma'. Fuera de
+      // ese modo se guarda NULL y todo se comporta exactamente como hoy.
+      // Se resuelve ANTES del total porque la tarifa de domicilio entra en él.
+      let courierRequested: number | null = null;
+      let deliveryAutoBroadcast = true;
+      let platformFee = 0;
+      try {
+        const [siRows] = await pool.query(
+          `SELECT delivery_mode, delivery_auto_broadcast, platform_delivery_fee
+             FROM store_info WHERE tenant_id = ? LIMIT 1`,
+          [tenantId]
+        ) as any;
+        if (siRows?.[0]?.delivery_mode === 'plataforma') {
+          courierRequested = requestCourier === true ? 1 : 0;
+          deliveryAutoBroadcast = siRows[0].delivery_auto_broadcast !== 0;
+          // Tarifa AUTORITATIVA: sale de la config del comercio, no del request.
+          // Si viniera del cliente, cualquiera podría pedir domicilio gratis.
+          if (courierRequested === 1) platformFee = Math.max(0, Number(siRows[0].platform_delivery_fee) || 0);
+        }
+      } catch (_) { /* columnas de delivery aún no migradas — pedido normal */ }
+
       // Calculate totals
       const subtotal = items.reduce((sum: number, item: any) => sum + (item.unitPrice * item.quantity), 0);
       // Cupón re-validado server-side contra el subtotal autoritativo (ignora el discount del request)
       const discount = await orderPricingService.resolveCouponDiscount(req.body.couponCode, subtotal);
-      const total = Math.max(0, subtotal + shippingCost - discount);
+      // El domicilio de plataforma se suma aquí: el cliente ya lo vio en su total.
+      const finalShipping = Math.max(0, Number(shippingCost) || 0) + platformFee;
+      const total = Math.max(0, subtotal + finalShipping - discount);
 
       // Append coupon to notes if code provided
       const couponNote = req.body.couponCode
@@ -394,13 +420,16 @@ router.post(
           (id, tenant_id, order_number, customer_name, customer_phone, customer_email, customer_cedula,
            department, municipality, address, neighborhood, delivery_latitude, delivery_longitude,
            notes, subtotal, shipping_cost, discount, total, payment_method, client_user_id,
-           total_weight_kg, vehicle_id, idempotency_key, consent_id, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendiente')`,
+           total_weight_kg, vehicle_id, idempotency_key, consent_id, courier_requested,
+           courier_requested_at, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                 ?, 'pendiente')`,
         [orderId, tenantId, orderNumber, customerName, customerPhone, customerEmail || null, customerCedula || null,
           department || null, municipality || null, address || null, neighborhood || null,
           deliveryLatitude || null, deliveryLongitude || null, finalNotes,
-          subtotal, shippingCost, discount, total, paymentMethod || null, clientUserId || null,
-          totalWeightKg || null, assignedVehicleId, idempotencyKey || null, consentId]
+          subtotal, finalShipping, discount, total, paymentMethod || null, clientUserId || null,
+          totalWeightKg || null, assignedVehicleId, idempotencyKey || null, consentId,
+          courierRequested, courierRequested === 1 ? new Date() : null]
       );
 
       // Insert order items (con descuento por item para reportes DIAN)
@@ -446,7 +475,40 @@ router.post(
       affiliatesService.attributeOrder({ refToken: req.body?.refToken, tenantId, orderId, orderTotalCop: total }).catch(() => {});
 
       // Tablero de despachos en vivo: el pedido aparece apenas se factura
-      emitOps(tenantId, 'dispatch-changed', { kind: 'order-created', orderId, orderNumber, weightKg: totalWeightKg });
+      // courierRequested viaja en el payload para que el panel del repartidor no
+      // avise por pedidos que NO va a ver en su lista (recoge en tienda).
+      emitOps(tenantId, 'dispatch-changed', {
+        kind: 'order-created', orderId, orderNumber, weightKg: totalWeightKg, courierRequested,
+      });
+
+      // ── F3: token de seguimiento desde ya ──
+      // Normalmente el token se crea al despachar, pero con repartidor de
+      // plataforma el cliente necesita seguir la búsqueda desde el segundo cero.
+      let trackingToken: string | null = null;
+      if (courierRequested === 1) {
+        try {
+          const { randomBytes } = await import('crypto');
+          trackingToken = randomBytes(18).toString('base64url');
+          await pool.query(
+            'UPDATE storefront_orders SET tracking_token = ? WHERE id = ? AND tracking_token IS NULL',
+            [trackingToken, orderId]
+          );
+        } catch (_) { trackingToken = null; }
+      }
+
+      // ── F3: difusión a los repartidores conectados del comercio ──
+      // Los repartidores ya están en la sala `ops:<tenantId>` vía 'join-courier'.
+      // El evento es solo un aviso en vivo; la fuente de verdad sigue siendo
+      // GET /api/delivery/available, así que un repartidor desconectado no pierde
+      // el pedido — lo ve al refrescar.
+      if (courierRequested === 1 && deliveryAutoBroadcast) {
+        emitOps(tenantId, 'delivery-order-available', {
+          orderId, orderNumber, address: address || null, neighborhood: neighborhood || null,
+          municipality: municipality || null, total,
+          deliveryLatitude: deliveryLatitude ?? null, deliveryLongitude: deliveryLongitude ?? null,
+          createdAt: new Date().toISOString(),
+        });
+      }
 
       res.status(201).json({
         success: true,
@@ -456,6 +518,7 @@ router.post(
           total,
           totalWeightKg,
           vehicleAssigned: !!assignedVehicleId,
+          trackingToken,   // null salvo pedidos con repartidor de plataforma
           status: 'pendiente',
           message: 'Pedido creado exitosamente'
         }

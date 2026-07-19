@@ -12,8 +12,10 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 import {
   Package, CheckCircle2, Truck, Clock, MapPin, Store, Phone,
-  RefreshCw, PackageX, ClipboardList, Boxes, Star, Loader2,
+  RefreshCw, PackageX, ClipboardList, Boxes, Star, Loader2, Bike, User,
+  MessageCircle, Send,
 } from 'lucide-react'
+import { getDeliverySocket } from '@/lib/socket'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'
 
@@ -49,13 +51,31 @@ export default function TrackingPage() {
     setLoading(false)
   }, [token])
 
-  // En tránsito refresca cada 12s (mapa en vivo); si no, cada 60s.
+  // En tránsito refresca cada 12s (mapa en vivo); buscando repartidor cada 10s
+  // (el cliente está mirando la pantalla); en reposo cada 60s.
   const inTransit = !!data?.vehicle
+  const searchingCourier = data?.delivery?.state === 'buscando'
   useEffect(() => {
     load()
-    const t = setInterval(load, inTransit ? 12000 : 60000)
+    const every = inTransit ? 12000 : searchingCourier ? 10000 : 60000
+    const t = setInterval(load, every)
     return () => clearInterval(t)
-  }, [load, inTransit])
+  }, [load, inTransit, searchingCourier])
+
+  // Aviso en vivo cuando un repartidor acepta (el polling es solo el respaldo).
+  useEffect(() => {
+    if (!token) return
+    const s = getDeliverySocket()
+    const join = () => s.emit('join-tracking', { token })
+    join()
+    s.on('connect', join)
+    s.on('delivery-courier-assigned', load)
+    return () => {
+      s.emit('leave-tracking', { token })
+      s.off('connect', join)
+      s.off('delivery-courier-assigned', load)
+    }
+  }, [token, load])
 
   // ── Mapa en vivo (Leaflet + OpenStreetMap, gratis) ────────────────────────
   const mapContainerRef = useRef<HTMLDivElement>(null)
@@ -176,6 +196,59 @@ export default function TrackingPage() {
       </div>
 
       <div className="max-w-md mx-auto px-4 -mt-6 space-y-4">
+        {/* Repartidor de plataforma: buscando → aceptado (solo si se pidió) */}
+        {data.delivery && !delivered && (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+            {data.delivery.state === 'buscando' ? (
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-amber-50 flex items-center justify-center shrink-0">
+                  <Loader2 className="h-5 w-5 text-amber-600 animate-spin" />
+                </div>
+                <div className="min-w-0">
+                  <p className="font-semibold text-sm text-gray-900">Buscando repartidor…</p>
+                  <p className="text-xs text-gray-500">Te avisamos apenas alguien tome tu pedido.</p>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-emerald-50 flex items-center justify-center shrink-0">
+                  <Bike className="h-5 w-5 text-emerald-600" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-sm text-gray-900">
+                    {(() => {
+                      const n = data.delivery.courierName || 'Tu repartidor'
+                      // El texto sigue el estado real; antes decía siempre
+                      // "aceptó tu pedido", incluso yendo ya en camino.
+                      if (data.delivery.state === 'recogido') return `${n} recogió tu pedido`
+                      if (data.delivery.state === 'en_camino') return `${n} va en camino`
+                      return `${n} aceptó tu pedido`
+                    })()}
+                  </p>
+                  <p className="text-xs text-gray-500 flex items-center gap-1">
+                    <User className="h-3 w-3" />
+                    {data.delivery.state === 'en_camino' ? 'En ruta hacia ti'
+                      : data.delivery.state === 'recogido' ? 'Ya tiene tu pedido'
+                      : 'Repartidor asignado'}
+                  </p>
+                </div>
+                {data.delivery.courierPhone && (
+                  <a href={`tel:${data.delivery.courierPhone}`}
+                     className="h-9 w-9 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0"
+                     aria-label="Llamar al repartidor">
+                    <Phone className="h-4 w-4" />
+                  </a>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Chat con el repartidor: solo con repartidor asignado y pedido vivo */}
+        {data.delivery && data.delivery.state !== 'buscando' && (
+          <DeliveryChatBlock token={token} courierName={data.delivery.courierName} />
+        )}
+
         {/* Barra de progreso */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
           <div className="flex items-center justify-between mb-2">
@@ -248,6 +321,11 @@ export default function TrackingPage() {
 
         {/* Calificación (satisfacción post-entrega) */}
         {delivered && <RatingBlock token={token!} existing={data.rating} onRated={load} />}
+
+        {/* Calificar al repartidor: solo si hubo repartidor de plataforma */}
+        {delivered && data.delivery && (
+          <CourierRatingBlock token={token!} delivery={data.delivery} onRated={load} />
+        )}
 
         {/* Línea de tiempo */}
         {data.stages?.length > 0 && (
@@ -367,6 +445,271 @@ function RatingBlock({ token, existing, onRated }: { token: string; existing: { 
           </button>
         </>
       )}
+    </div>
+  )
+}
+
+/**
+ * Chat del cliente con su repartidor (F4).
+ * Sin login: se autoriza con el mismo token del seguimiento. Solo existe
+ * mientras el pedido está vivo — al entregar, el backend cierra la sala y esto
+ * queda en solo lectura.
+ */
+function DeliveryChatBlock({ token, courierName }: { token: string; courierName?: string | null }) {
+  const [state, setState] = useState<{
+    available: boolean; roomId?: string; status?: string; courierName?: string | null
+    messages: { id: string; senderName: string; senderRole: string; message: string; createdAt: string }[]
+  } | null>(null)
+  const [draft, setDraft] = useState('')
+  const [sending, setSending] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const listRef = useRef<HTMLDivElement>(null)
+
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_URL}/storefront/tracking/${token}/chat`)
+      const json = await res.json()
+      if (json.success) setState(json.data)
+    } catch { /* se reintenta con el socket o el próximo envío */ }
+  }, [token])
+
+  useEffect(() => { load() }, [load])
+
+  // Tiempo real sobre la sala; el polling lento queda de respaldo.
+  const roomId = state?.roomId
+  useEffect(() => {
+    if (!roomId) return
+    const s = getDeliverySocket()
+    const join = () => s.emit('join-delivery-chat', { roomId })
+    join()
+    s.on('connect', join)
+    s.on('delivery-message', load)
+    s.on('delivery-chat-closed', load)
+    const poll = setInterval(load, 20000)
+    return () => {
+      clearInterval(poll)
+      s.emit('leave-delivery-chat', { roomId })
+      s.off('connect', join)
+      s.off('delivery-message', load)
+      s.off('delivery-chat-closed', load)
+    }
+  }, [roomId, load])
+
+  // Auto-scroll al último mensaje
+  useEffect(() => {
+    if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight
+  }, [state?.messages?.length])
+
+  if (!state?.available) return null
+  const closed = state.status === 'closed'
+  const name = state.courierName || courierName || 'tu repartidor'
+
+  const send = async () => {
+    const text = draft.trim()
+    if (!text || sending) return
+    setSending(true); setError(null)
+    try {
+      const res = await fetch(`${API_URL}/storefront/tracking/${token}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text }),
+      })
+      const json = await res.json().catch(() => null)
+      if (!res.ok || !json?.success) {
+        setError(json?.error || 'No se pudo enviar el mensaje')
+        // 409 = la sala se cerró mientras escribía → refrescar para pasar a solo lectura
+        if (res.status === 409) load()
+      } else {
+        setDraft('')
+        load()
+      }
+    } catch {
+      setError('Sin conexión. Intenta de nuevo.')
+    }
+    setSending(false)
+  }
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
+        <MessageCircle className="h-4 w-4 text-indigo-600" />
+        <p className="text-sm font-semibold text-gray-900">
+          {closed ? 'Conversación finalizada' : `Chat con ${name}`}
+        </p>
+      </div>
+
+      <div ref={listRef} className="max-h-64 overflow-y-auto px-4 py-3 space-y-2">
+        {state.messages.length === 0 ? (
+          <p className="text-xs text-gray-400 text-center py-4">
+            Escríbele si necesitas darle alguna indicación para llegar.
+          </p>
+        ) : state.messages.map(m => {
+          const mine = m.senderRole === 'cliente'
+          return (
+            <div key={m.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+              <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm ${
+                mine ? 'bg-indigo-600 text-white rounded-br-sm' : 'bg-gray-100 text-gray-800 rounded-bl-sm'
+              }`}>
+                {!mine && <p className="text-[10px] font-medium opacity-60 mb-0.5">{m.senderName}</p>}
+                <p className="whitespace-pre-wrap break-words">{m.message}</p>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {closed ? (
+        <p className="px-4 py-3 text-xs text-gray-400 border-t border-gray-100 text-center">
+          El pedido fue entregado. Ya no se pueden enviar mensajes.
+        </p>
+      ) : (
+        <div className="border-t border-gray-100 p-2">
+          {error && <p className="text-xs text-red-600 px-2 pb-1.5">{error}</p>}
+          <div className="flex items-center gap-2">
+            <input
+              value={draft}
+              onChange={e => setDraft(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
+              maxLength={800}
+              placeholder="Escribe un mensaje…"
+              className="flex-1 px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-indigo-400"
+            />
+            <button
+              onClick={send}
+              disabled={!draft.trim() || sending}
+              className="h-9 w-9 rounded-full bg-indigo-600 text-white flex items-center justify-center disabled:opacity-40 shrink-0"
+              aria-label="Enviar mensaje"
+            >
+              {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+const REPORT_REASONS: { key: string; label: string }[] = [
+  { key: 'tarde', label: 'Llegó muy tarde' },
+  { key: 'trato', label: 'Mal trato' },
+  { key: 'producto', label: 'Pedido en mal estado' },
+  { key: 'no_entregado', label: 'No me lo entregó' },
+  { key: 'otro', label: 'Otro' },
+]
+
+/**
+ * Calificación y reporte del repartidor (F5).
+ * Distinto del rating del pedido: aquí se evalúa a quien entregó. Una sola vez
+ * por pedido (el backend lo garantiza con UNIQUE(order_id)).
+ */
+function CourierRatingBlock({ token, delivery, onRated }: {
+  token: string
+  delivery: { courierName?: string | null; rated?: boolean; ratedStars?: number | null; reported?: boolean }
+  onRated: () => void
+}) {
+  const [stars, setStars] = useState(0)
+  const [hover, setHover] = useState(0)
+  const [comment, setComment] = useState('')
+  const [reporting, setReporting] = useState(false)
+  const [reason, setReason] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const name = delivery.courierName || 'tu repartidor'
+
+  if (delivery.rated) {
+    return (
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 text-center">
+        <p className="text-sm text-gray-600">
+          {delivery.reported
+            ? 'Gracias. Recibimos tu reporte y lo vamos a revisar.'
+            : `¡Gracias por calificar a ${name}!`}
+        </p>
+        {delivery.ratedStars != null && (
+          <div className="flex items-center justify-center gap-1 mt-2">
+            {[1, 2, 3, 4, 5].map(i => (
+              <Star key={i} className={`h-4 w-4 ${i <= delivery.ratedStars! ? 'fill-amber-400 text-amber-400' : 'text-gray-200'}`} />
+            ))}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  const submit = async () => {
+    if (saving) return
+    if (!stars && !reporting) { setError('Elige una calificación'); return }
+    if (reporting && !reason) { setError('Elige el motivo del reporte'); return }
+    setSaving(true); setError(null)
+    try {
+      const res = await fetch(`${API_URL}/storefront/tracking/${token}/courier-rating`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          stars: stars || null,
+          comment: comment.trim() || null,
+          reported: reporting,
+          reportReason: reporting ? reason : null,
+        }),
+      })
+      const json = await res.json().catch(() => null)
+      if (!res.ok || !json?.success) setError(json?.error || 'No se pudo registrar')
+      else onRated()
+    } catch {
+      setError('Sin conexión. Intenta de nuevo.')
+    }
+    setSaving(false)
+  }
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+      <p className="text-sm font-semibold text-gray-800 mb-1">¿Cómo estuvo {name}?</p>
+      <p className="text-xs text-gray-400 mb-3">Tu opinión nos ayuda a cuidar el servicio.</p>
+
+      <div className="flex items-center justify-center gap-2 mb-3">
+        {[1, 2, 3, 4, 5].map(i => (
+          <button key={i} onClick={() => setStars(i)} onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(0)}
+            aria-label={i === 1 ? '1 estrella' : `${i} estrellas`} className="p-0.5">
+            <Star className={`h-7 w-7 transition-colors ${
+              i <= (hover || stars) ? 'fill-amber-400 text-amber-400' : 'text-gray-200'
+            }`} />
+          </button>
+        ))}
+      </div>
+
+      <textarea
+        value={comment} onChange={e => setComment(e.target.value)} maxLength={400} rows={2}
+        placeholder="Cuéntanos algo más (opcional)"
+        className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-indigo-400 resize-none"
+      />
+
+      {!reporting ? (
+        <button onClick={() => setReporting(true)} className="mt-2 text-xs text-red-500 hover:text-red-600">
+          Tuve un problema con este repartidor
+        </button>
+      ) : (
+        <div className="mt-3 p-3 bg-red-50 rounded-xl border border-red-100">
+          <p className="text-xs font-medium text-red-700 mb-2">¿Qué pasó?</p>
+          <div className="flex flex-wrap gap-1.5">
+            {REPORT_REASONS.map(r => (
+              <button key={r.key} onClick={() => setReason(r.key)}
+                className={`px-2.5 py-1 rounded-full text-xs border ${
+                  reason === r.key ? 'bg-red-600 text-white border-red-600' : 'bg-white text-red-700 border-red-200'
+                }`}>{r.label}</button>
+            ))}
+          </div>
+          <button onClick={() => { setReporting(false); setReason('') }}
+            className="mt-2 text-[11px] text-gray-400">Cancelar reporte</button>
+        </div>
+      )}
+
+      {error && <p className="text-xs text-red-600 mt-2">{error}</p>}
+
+      <button onClick={submit} disabled={saving}
+        className="mt-3 w-full py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-medium disabled:opacity-50 flex items-center justify-center gap-2">
+        {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+        {reporting ? 'Enviar reporte' : 'Enviar calificación'}
+      </button>
     </div>
   )
 }

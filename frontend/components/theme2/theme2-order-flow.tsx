@@ -10,6 +10,7 @@ import { VariantSelector, type RawVariant, type SelectedVariant } from '@/compon
 import { CombosToday } from '@/components/combos-today'
 import { parseQtyPromo, qtyPromoUnit, type QtyPromo } from '@/lib/qty-promo'
 import { cldImg, cldSrcSet } from '@/utils/img'
+import { fillTemplate, DEFAULT_PRIVACY_POLICY } from '@/lib/legal-templates'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'
 const ASSET_BASE = API_URL.replace(/\/api$/, '')
@@ -159,6 +160,13 @@ export function Theme2OrderFlow({
   const [coLng, setCoLng] = useState<number | null>(null)
   const [locating, setLocating] = useState(false)
   const [locErr, setLocErr] = useState('')
+  // Domicilio de plataforma (F2): si el comercio lo activó, se ofrece repartidor
+  const [deliveryAvail, setDeliveryAvail] = useState<{ enabled: boolean; fee: number; couriersOnline: number } | null>(null)
+  const [wantsCourier, setWantsCourier] = useState(true)
+  // Tarifa a sumar: solo si es domicilio, el comercio lo ofrece y el cliente lo aceptó
+  const courierFee = mode === 'domicilio' && deliveryAvail?.enabled && wantsCourier
+    ? (deliveryAvail.fee || 0)
+    : 0
   // Autocompletado de cliente recurrente por teléfono
   const [foundMsg, setFoundMsg] = useState('')
   const lookedUpRef = useRef('')
@@ -183,6 +191,16 @@ export function Theme2OrderFlow({
       .finally(() => { if (alive) setLoadingProducts(false) })
     return () => { alive = false }
   }, [step, sede, slug])
+
+  // Disponibilidad de domicilio de plataforma (F2). Si el comercio no lo activó,
+  // el bloque no aparece y el checkout se ve exactamente como antes.
+  useEffect(() => {
+    let alive = true
+    fetch(`${API_URL}/storefront/delivery-availability/${slug}`)
+      .then(r => r.json()).catch(() => null)
+      .then(res => { if (alive && res?.success && res.data?.enabled) setDeliveryAvail(res.data) })
+    return () => { alive = false }
+  }, [slug])
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -360,6 +378,11 @@ export function Theme2OrderFlow({
   }, [coWhats, coName, orderTenantId])
 
   // Campos faltantes para habilitar el envío
+  // Ley 1581: sin esto el backend responde 400 y el pedido nunca se crea.
+  // Se declara antes de `missing` porque este lo usa.
+  const [acceptsDataPolicy, setAcceptsDataPolicy] = useState(false)
+  const [showPolicy, setShowPolicy] = useState(false)
+
   const missing = useMemo(() => {
     const m: string[] = []
     if (!coWhats.trim()) m.push('WhatsApp')
@@ -368,8 +391,11 @@ export function Theme2OrderFlow({
     if (forOther && (!otherName.trim() || !otherPhone.trim())) m.push('Datos de quien recibe')
     if (mode === 'domicilio' && !address.trim()) m.push('Dirección')
     if (!payment) m.push('Método de pago')
+    // Sin esto el botón quedaba deshabilitado diciendo "Confirmar pedido",
+    // sin explicar qué falta.
+    if (!acceptsDataPolicy) m.push('Aceptar política de datos')
     return m
-  }, [coWhats, coWhatsConfirm, coName, forOther, otherName, otherPhone, mode, address, payment])
+  }, [coWhats, coWhatsConfirm, coName, forOther, otherName, otherPhone, mode, address, payment, acceptsDataPolicy])
 
   const paymentLabel: Record<string, string> = { efectivo: 'Efectivo', transferencia: 'Transferencia', tarjeta: 'Tarjeta' }
   const [submitting, setSubmitting] = useState(false)
@@ -381,7 +407,9 @@ export function Theme2OrderFlow({
   // Link de Google Maps a partir del GPS capturado (para que el comercio lo abra).
   const mapsLink = (coLat != null && coLng != null) ? `https://maps.google.com/?q=${coLat},${coLng}` : ''
 
-  const registerOrder = async (): Promise<{ ok: boolean; orderNumber?: string; total?: number }> => {
+  const registerOrder = async (): Promise<{
+    ok: boolean; orderNumber?: string; total?: number; trackingToken?: string
+  }> => {
     const tenantId = cart.map(i => i.product.tenantId).find(Boolean) || undefined
     const notesParts = [
       `Entrega: ${mode === 'domicilio' ? 'Domicilio' : 'Recoger en sede'}`,
@@ -425,6 +453,9 @@ export function Theme2OrderFlow({
           paymentMethod: payment || 'efectivo',
           deliveryLatitude: mode === 'domicilio' ? coLat ?? undefined : undefined,
           deliveryLongitude: mode === 'domicilio' ? coLng ?? undefined : undefined,
+          // El backend solo lo tiene en cuenta si la tienda está en modo plataforma
+          requestCourier: mode === 'domicilio' && !!deliveryAvail?.enabled && wantsCourier,
+          acceptsDataPolicy,
           refToken,
         }),
       })
@@ -433,7 +464,10 @@ export function Theme2OrderFlow({
         setOrderError(j?.error || 'No se pudo registrar el pedido. Intenta de nuevo.')
         return { ok: false }
       }
-      return { ok: true, orderNumber: j.data?.orderNumber, total: Number(j.data?.total) || cartTotal }
+      return {
+        ok: true, orderNumber: j.data?.orderNumber, total: Number(j.data?.total) || cartTotal,
+        trackingToken: j.data?.trackingToken ? String(j.data.trackingToken) : undefined,
+      }
     } catch {
       setOrderError('No se pudo conectar. Revisa tu internet e intenta de nuevo.')
       return { ok: false }
@@ -456,7 +490,10 @@ export function Theme2OrderFlow({
         return `• ${i.qty}x ${i.product.name}${variant} — ${COP(lineUnit(i) * i.qty)}${mods}${note}`
       }),
       '',
-      `*Total a pagar: ${COP(cartTotal)}*`,
+      // El domicilio se lista aparte para que el total del mensaje coincida con
+      // el que vio el cliente en pantalla.
+      ...(courierFee > 0 ? [`Domicilio: ${COP(courierFee)}`] : []),
+      `*Total a pagar: ${COP(cartTotal + courierFee)}*`,
       '',
       `Cliente: ${coName.trim()}`,
       `WhatsApp: +57 ${coWhats.trim()}`,
@@ -503,6 +540,7 @@ export function Theme2OrderFlow({
         customerName: snapshotName,
         sedeName: snapshotSede,
         whatsappUrl,
+        trackingToken: res.trackingToken,
       })
       resetCheckout()
     }
@@ -984,13 +1022,57 @@ export function Theme2OrderFlow({
                       <Field label="Barrio o Dirección" required>
                         <input value={address} onChange={e => setAddress(e.target.value)} placeholder="Ej: Barrio Centro, Calle 123 #45-67" className={INP} />
                       </Field>
-                      <div className="rounded-xl border border-amber-500/30 bg-amber-500/[0.07] p-3 flex items-start gap-2">
-                        <span>🛵</span>
-                        <div>
-                          <p className="text-xs font-semibold text-amber-400">Domicilio no incluido</p>
-                          <p className="text-[11px] text-white/50">El costo del envío se coordina directamente con el restaurante.</p>
+                      {/* Domicilio: si el comercio activó repartidores de plataforma
+                          se ofrece el servicio; si no, el aviso de siempre. */}
+                      {deliveryAvail?.enabled ? (
+                        <div className="rounded-xl border border-cyan-500/30 bg-cyan-500/[0.07] p-3 space-y-2.5">
+                          <label className="flex items-start gap-2.5 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={wantsCourier}
+                              onChange={e => setWantsCourier(e.target.checked)}
+                              className="mt-0.5 accent-cyan-500 w-4 h-4"
+                            />
+                            <span className="flex-1">
+                              <span className="text-xs font-semibold text-cyan-400 flex items-center gap-1.5">
+                                🛵 Domicilio a tu dirección
+                                <span className="text-white font-bold">{deliveryAvail.fee > 0 ? COP(deliveryAvail.fee) : 'Gratis'}</span>
+                              </span>
+                              <span className="block text-[11px] text-white/50 mt-0.5">
+                                Un repartidor lleva tu pedido. Podrás chatear con él cuando lo acepte.
+                              </span>
+                            </span>
+                          </label>
+
+                          {wantsCourier && (
+                            <div className="flex items-center gap-1.5 text-[11px] pl-6">
+                              {deliveryAvail.couriersOnline > 0 ? (
+                                <>
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                  <span className="text-emerald-400">
+                                    {deliveryAvail.couriersOnline} repartidor{deliveryAvail.couriersOnline === 1 ? '' : 'es'} disponible{deliveryAvail.couriersOnline === 1 ? '' : 's'} ahora
+                                  </span>
+                                </>
+                              ) : (
+                                <>
+                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                                  <span className="text-amber-400">
+                                    Sin repartidores en línea — el restaurante coordinará el envío contigo
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          )}
                         </div>
-                      </div>
+                      ) : (
+                        <div className="rounded-xl border border-amber-500/30 bg-amber-500/[0.07] p-3 flex items-start gap-2">
+                          <span>🛵</span>
+                          <div>
+                            <p className="text-xs font-semibold text-amber-400">Domicilio no incluido</p>
+                            <p className="text-[11px] text-white/50">El costo del envío se coordina directamente con el restaurante.</p>
+                          </div>
+                        </div>
+                      )}
                       {coLat == null || coLng == null ? (
                         <>
                           <button onClick={captureLocation} disabled={locating} className="w-full rounded-xl border border-white/[0.08] bg-[#161616] py-3 text-sm text-white/70 hover:text-white flex items-center justify-center gap-2 disabled:opacity-60">
@@ -1046,16 +1128,42 @@ export function Theme2OrderFlow({
                     <span>Ahorro por promos</span><span>−{COP(cartSavings)}</span>
                   </div>
                 )}
+                {courierFee > 0 && (
+                  <div className="flex justify-between text-sm text-white/50">
+                    <span>Domicilio</span><span>{COP(courierFee)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-lg">
                   <span className="font-semibold">Total a pagar</span>
-                  <span className="font-extrabold text-cyan-400">{COP(cartTotal)}</span>
+                  <span className="font-extrabold text-cyan-400">{COP(cartTotal + courierFee)}</span>
                 </div>
+                {/* Consentimiento Ley 1581 — obligatorio: el backend rechaza el
+                    pedido sin él. Debe marcarlo el cliente, no venir precargado. */}
+                <label className="flex items-start gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={acceptsDataPolicy}
+                    onChange={e => { setAcceptsDataPolicy(e.target.checked); if (e.target.checked) setOrderError('') }}
+                    className="mt-0.5 w-4 h-4 accent-green-500 shrink-0"
+                  />
+                  <span className="text-[12px] text-white/60 leading-relaxed">
+                    Acepto la{' '}
+                    <button
+                      type="button"
+                      onClick={e => { e.preventDefault(); e.stopPropagation(); setShowPolicy(true) }}
+                      className="text-cyan-400 underline"
+                    >
+                      política de tratamiento de datos personales
+                    </button>
+                  </span>
+                </label>
+
                 {orderError && (
                   <p className="text-[13px] text-red-400 text-center bg-red-500/10 border border-red-500/20 rounded-lg py-2 px-3">{orderError}</p>
                 )}
                 <button
                   onClick={submitOrder}
-                  disabled={missing.length > 0 || submitting}
+                  disabled={missing.length > 0 || submitting || !acceptsDataPolicy}
                   className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-green-500 text-black font-bold py-3.5 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {submitting
@@ -1071,6 +1179,38 @@ export function Theme2OrderFlow({
       )}
 
       {/* ════ ÉXITO: holo "en camino" + ticket ════ */}
+      {/* Política de datos (Ley 1581): el cliente debe poder LEER lo que acepta.
+          Mismo criterio que el resto de checkouts — modal, no ruta externa. */}
+      {showPolicy && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/70" onClick={() => setShowPolicy(false)} />
+          <div className="relative bg-[#141414] border border-white/10 rounded-2xl w-full max-w-lg max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between px-5 h-14 border-b border-white/10 shrink-0">
+              <h3 className="text-sm font-semibold text-white">Política de tratamiento de datos</h3>
+              <button onClick={() => setShowPolicy(false)} className="text-white/40 hover:text-white" aria-label="Cerrar">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="overflow-y-auto px-5 py-4">
+              <pre className="whitespace-pre-wrap font-sans text-[12px] leading-relaxed text-white/70">
+                {fillTemplate(DEFAULT_PRIVACY_POLICY, {
+                  storeName: info.name,
+                  contactPhone: info.socialWhatsapp || undefined,
+                })}
+              </pre>
+            </div>
+            <div className="px-5 py-3 border-t border-white/10 shrink-0">
+              <button
+                onClick={() => { setAcceptsDataPolicy(true); setShowPolicy(false); setOrderError('') }}
+                className="w-full py-2.5 rounded-xl bg-green-500 text-black text-sm font-bold"
+              >
+                Entiendo y acepto
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {success && (
         <Theme2OrderSuccess
           data={success}

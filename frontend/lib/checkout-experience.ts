@@ -79,7 +79,8 @@ export function withCheckoutDefaults(raw: Partial<CheckoutExperienceConfig> | nu
   const fields: Record<string, FieldConfig> = {}
   for (const k of ALL_FIELDS) {
     const isCore = CORE_FIELDS.includes(k)
-    const r = raw.fields?.[k] || {}
+    // Tipado explícito: sin esto el fallback `{}` hace que TS pierda la forma
+    const r: Partial<FieldConfig> = raw.fields?.[k] ?? {}
     fields[k] = {
       label: r.label ?? def.fields[k].label,
       placeholder: r.placeholder ?? def.fields[k].placeholder,

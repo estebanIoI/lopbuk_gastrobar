@@ -11,7 +11,7 @@
  */
 
 import type { ComponentType } from 'react'
-import type { ZodType } from 'zod'
+import type { ZodType, ZodTypeAny } from 'zod'
 import type { TemplateVarsContext } from '@/lib/template-vars'
 
 // ── Datos que la tienda inyecta al render ─────────────────────────────────────
@@ -151,8 +151,12 @@ export interface BlockDefinition<S = any> {
    *  - todo campo con .default()  → un campo ausente nunca es error
    *  - .passthrough()             → claves desconocidas sobreviven
    *  - .catch()                   → settings corruptos degradan, no rompen
+   *
+   * Tipo laxo (ZodTypeAny) a propósito: al envolver con .catch()/.passthrough()
+   * el tipo resultante (ZodCatch<...>) no es asignable a ZodType<S>. Solo se usa
+   * para .parse(), así que no se pierde seguridad práctica.
    */
-  schema: ZodType<S>
+  schema: ZodTypeAny
   Render: ComponentType<BlockRenderProps<S>>
   Editor: ComponentType<BlockEditorProps>
 }

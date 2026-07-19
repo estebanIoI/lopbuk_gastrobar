@@ -94,6 +94,10 @@ import { hasMarketingConsent, CONSENT_CHANGED_EVENT, type ConsentState } from '@
 import { DEFAULT_PRIVACY_POLICY, DEFAULT_TERMS, DEFAULT_COOKIES_POLICY, fillTemplate } from '@/lib/legal-templates'
 import { SectionRenderer, type TemplateSection } from '@/components/product-template/SectionRenderer'
 import { emitPdpEvent } from '@/lib/pdp/pdp-analytics'
+import {
+  CATEGORY_TRANSITION_CSS, buildPieces, getTransition, pieceClass, pieceDelay,
+  type CategoryTransition,
+} from '@/lib/category-transitions'
 import type { ProductoCarrito, PedidoForm, PedidoConfirmado, CuponValidacion } from '@/types'
 
 interface LandingPageProps {
@@ -276,6 +280,52 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     return true
   })
   const [businessTypeFilter, setBusinessTypeFilter] = useState<string>('all')
+
+  // Transición al abrir una categoría con portada (imagen o GIF).
+  const [categoryIntro, setCategoryIntro] = useState<
+    { url: string; label: string; transition: CategoryTransition } | null
+  >(null)
+  const introTimers = useRef<ReturnType<typeof setTimeout>[]>([])
+
+  /**
+   * Muestra la portada a pantalla completa con la animación que eligió el
+   * comerciante y luego abre la categoría.
+   * El contenido se abre SIEMPRE, aunque la imagen no cargue: la animación no
+   * puede dejar al cliente atrapado en una pantalla intermedia.
+   */
+  const openCategoryWithIntro = (url: string, label: string, abrir: () => void) => {
+    const def = getTransition(storeConfig?.categoryTransition)
+    // 'ninguna' (o tienda sin portada) → sin overlay, abre directo.
+    if (def.key === 'ninguna' || def.bands === 0) { abrir(); return }
+    setCategoryIntro({ url, label, transition: def.key })
+    // El catálogo se monta detrás cuando empieza el fundido (80% del total),
+    // así que al desaparecer el overlay ya está armado.
+    introTimers.current.push(setTimeout(abrir, Math.round(def.durationMs * 0.78)))
+    introTimers.current.push(setTimeout(() => setCategoryIntro(null), def.durationMs))
+  }
+
+  useEffect(() => () => { introTimers.current.forEach(clearTimeout) }, [])
+
+  // "Volver" del móvil: al abrir una tienda se agrega una entrada al historial,
+  // así que al retroceder se vuelve al inicio del marketplace en vez de salir
+  // de la app. Se relee el slug de la URL, que es la fuente de verdad.
+  useEffect(() => {
+    const onPop = () => {
+      const slug = getStoreSlugFromUrl()
+      if (slug) {
+        setSelectedStore(slug)
+        setShowStoresView(false)
+      } else {
+        setSelectedStore('all')
+        setShowStoresView(true)
+        setActiveSede(null)
+        setStoreSedes([])
+      }
+    }
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [])
+
   // Link de campaña de colección: ?collection=<code> → solo muestra esos comercios
   const [collectionCode] = useState<string>(() => {
     try { return new URLSearchParams(window.location.search).get('collection') || '' } catch { return '' }
@@ -326,10 +376,12 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   // ====== STORE CONFIG STATE (Hero Sections) ======
   const [storeConfig, setStoreConfig] = useState<{
     banners: Array<{ id: number; position: string; imageUrl: string; videoUrl?: string | null; title: string | null; subtitle: string | null; linkUrl: string | null }>
-    categories: Array<{ name: string; displayName?: string; imageUrl: string | null }>
+    categories: Array<{ name: string; displayName?: string; imageUrl: string | null; imageUrlHover?: string | null; coverUrl?: string | null }>
     featuredProducts: StorefrontProduct[]
     trendingProducts: StorefrontProduct[]
     newLaunches?: StorefrontProduct[]
+    /** Animación al abrir una categoría, elegida por el comerciante. */
+    categoryTransition?: string
     storeInfo: {
       name: string; address: string | null; phone: string | null; email: string | null; logoUrl: string | null; logoSize?: number | null
       schedule: string | null; locationMapUrl: string | null;
@@ -3028,6 +3080,11 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       if (store.externalUrl) { window.open(store.externalUrl, '_blank', 'noopener,noreferrer'); return }
       if (store.theme === 'theme2') { window.location.href = `/t/${store.slug}`; return }
       setSelectedStore(store.slug); setShowStoresView(false); setActiveSede(null); setStoreSedes([])
+      // Entrada en el historial: sin esto, abrir una tienda solo cambiaba estado
+      // y el botón "volver" del móvil salía de la app en vez de regresar al inicio.
+      try {
+        window.history.pushState({ store: store.slug }, '', `${window.location.pathname}?store=${encodeURIComponent(store.slug)}`)
+      } catch { /* si el historial falla, la tienda igual se abre */ }
       window.scrollTo({ top: 0, behavior: 'smooth' })
     }
     return (
@@ -5378,6 +5435,26 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
             {/* MAIN CONTENT */}
             <main className="flex-1 min-w-0">
+              {/* Portada de la categoría: identifica visualmente en qué sección
+                  está el cliente. Solo con UNA categoría activa y portada cargada. */}
+              {(() => {
+                if (sedesViewMode || catalogSpecialFilter !== 'all') return null
+                if (catalogSelectedCategories.size !== 1) return null
+                const nombre = Array.from(catalogSelectedCategories)[0]
+                const portada = storeConfig?.categories?.find(c => c.name === nombre)?.coverUrl
+                if (!portada) return null
+                return (
+                  <div className="relative w-full h-32 sm:h-44 overflow-hidden">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={portada} alt="" aria-hidden="true" className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
+                    <h2 className="absolute bottom-3 left-4 sm:left-6 lg:left-8 text-white text-lg sm:text-2xl font-light uppercase tracking-[0.25em]">
+                      {nombre}
+                    </h2>
+                  </div>
+                )
+              })()}
+
               {/* Header */}
               <div className="sticky top-16 z-10 landing-sidebar-blur backdrop-blur-sm border-b border-white/10 px-4 sm:px-6 lg:px-8 py-4">
                 <div className="flex items-center justify-between gap-4 mb-3">
@@ -6916,7 +6993,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       ) : (
         /* Original image carousel — only shown inside individual store */
         (() => {
-          const heroCategories: Array<{ name: string; displayName?: string; imageUrl: string | null }> =
+          const heroCategories: Array<{ name: string; displayName?: string; imageUrl: string | null; imageUrlHover?: string | null; coverUrl?: string | null }> =
             storeConfig && storeConfig.categories.length > 0
               ? storeConfig.categories
               : categories.length > 0
@@ -6942,21 +7019,45 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                     <button
                       key={cat.name}
                       onClick={() => {
-                        setCatalogSelectedCategories(new Set([cat.name]))
-                        setShowCatalog(true)
-                        setShowDrop(false)
-                        window.scrollTo({ top: 0, behavior: 'smooth' })
+                        const abrir = () => {
+                          setCatalogSelectedCategories(new Set([cat.name]))
+                          setShowCatalog(true)
+                          setShowDrop(false)
+                          window.scrollTo({ top: 0, behavior: 'smooth' })
+                        }
+                        // Con portada configurada se muestra una transición breve
+                        // antes de entrar. Sin ella, abre igual que siempre.
+                        if (cat.coverUrl) openCategoryWithIntro(cat.coverUrl, cat.displayName || cat.name, abrir)
+                        else abrir()
                       }}
                       className="group flex flex-col w-full sm:flex-shrink-0 sm:flex-1 sm:w-auto transition-all duration-300"
                     >
                       <div data-dark className="relative overflow-hidden w-full aspect-[4/3] sm:aspect-auto sm:h-[380px]">
                         {cat.imageUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={cat.imageUrl}
-                            alt={cat.name}
-                            className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-                          />
+                          <>
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={cat.imageUrl}
+                              alt={cat.name}
+                              className={`absolute inset-0 w-full h-full object-cover transition-transform duration-700 ease-out ${
+                                cat.imageUrlHover
+                                  ? 'group-hover:translate-x-full'   // barrido: sale por la derecha
+                                  : 'group-hover:scale-105'
+                              }`}
+                            />
+                            {/* Segunda imagen: entra desde la izquierda ocupando
+                                el lugar de la principal. Si el comercio no la
+                                configuró, este bloque no existe. */}
+                            {cat.imageUrlHover && (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={cat.imageUrlHover}
+                                alt=""
+                                aria-hidden="true"
+                                className="absolute inset-0 w-full h-full object-cover -translate-x-full group-hover:translate-x-0 transition-transform duration-700 ease-out"
+                              />
+                            )}
+                          </>
                         ) : (
                           <div className={`absolute inset-0 bg-gradient-to-br ${categoryGradients[idx % categoryGradients.length]} group-hover:scale-105 transition-transform duration-700`}>
                             <div className="absolute inset-0 flex items-center justify-center opacity-10">
@@ -6966,7 +7067,12 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                         )}
                       </div>
                       <div className="py-3 text-center">
-                        <h3 className={`text-[11px] sm:text-sm font-light uppercase tracking-[0.2em] transition-colors group-hover:text-white/70 ${isLightBg ? 'text-black/70' : 'text-white/80'}`}>
+                        {/* El hover NO puede aclarar el texto en fondo claro:
+                            antes pasaba a text-white/70 siempre y el nombre
+                            desaparecía sobre fondo blanco. */}
+                        <h3 className={`text-[11px] sm:text-sm font-light uppercase tracking-[0.2em] transition-colors ${
+                          isLightBg ? 'text-black/70 group-hover:text-black' : 'text-white/80 group-hover:text-white'
+                        }`}>
                           {cat.displayName || cat.name}
                         </h3>
                       </div>
@@ -10868,6 +10974,48 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
           {clientMunicipality}
         </button>
       )}
+
+      {/* Transición de entrada a la categoría. La animación la elige el
+          comerciante (Tienda → Categorías); las piezas y sus retardos salen del
+          catálogo compartido en lib/category-transitions.
+          Es puramente decorativa: no bloquea clics ni la navegación. */}
+      {categoryIntro && (
+        <div
+          className="fixed inset-0 z-[500] pointer-events-none flex items-center justify-center bg-black ct-overlay"
+          aria-hidden="true"
+        >
+          {/* Keyframes con <style> plano: `<style jsx global>` multilínea rompía
+              el bundle de Turbopack (SyntaxError en el chunk, la home daba 500). */}
+          <style dangerouslySetInnerHTML={{ __html: CATEGORY_TRANSITION_CSS }} />
+
+          {/* Cada pieza lleva la portada recortada en su porción, así que al
+              juntarse reconstruyen la imagen completa. Sin el backgroundSize /
+              backgroundPosition calculados, cada pieza mostraría la imagen entera. */}
+          {buildPieces(getTransition(categoryIntro.transition)).map(p => (
+            <div
+              key={p.i}
+              className={pieceClass(categoryIntro.transition, p)}
+              style={{
+                position: 'absolute',
+                top: `${p.top}%`,
+                left: `${p.left}%`,
+                width: `${p.w}%`,
+                height: `${p.h}%`,
+                backgroundImage: `url(${categoryIntro.url})`,
+                backgroundSize: `${p.bgSizeX}% ${p.bgSizeY}%`,
+                backgroundPosition: `${p.bgPosX}% ${p.bgPosY}%`,
+                animationDelay: `${pieceDelay(categoryIntro.transition, p)}ms`,
+              }}
+            />
+          ))}
+
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+          <span className="absolute bottom-[18%] text-white text-2xl sm:text-4xl font-light uppercase tracking-[0.3em] ct-label">
+            {categoryIntro.label}
+          </span>
+        </div>
+      )}
+
     </div>
   )
 }
@@ -11127,6 +11275,7 @@ function CatalogSidebar({
           </div>
         </div>
       )}
+
     </div>
   )
 }
