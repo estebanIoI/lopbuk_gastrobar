@@ -2,7 +2,7 @@
 
 import React from "react"
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useStore, getStockStatus } from '@/lib/store'
 import { api } from '@/lib/api'
 import { type Product, type Category, type ProductType, type Sede, type ProductVariant } from '@/lib/types'
