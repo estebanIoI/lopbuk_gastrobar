@@ -3,7 +3,7 @@
 // Pantalla de éxito del pedido (Tema 2): animación holográfica "en camino" +
 // tarjeta de ticket con el resumen. CSS scoped a .t2-success / keyframes t2s-*
 // para no afectar el resto de la app.
-import { X, MessageCircle } from 'lucide-react'
+import { X, MessageCircle, MapPin } from 'lucide-react'
 
 const COP = (n: number) =>
   new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n || 0)
@@ -17,6 +17,8 @@ export interface OrderSuccessData {
   sedeName?: string | null
   /** URL de WhatsApp con el resumen (opcional): se ofrece como botón, no redirige solo. */
   whatsappUrl?: string
+  /** Solo en pedidos con repartidor de plataforma: llave del seguimiento en vivo. */
+  trackingToken?: string
 }
 
 export function Theme2OrderSuccess({
@@ -76,6 +78,14 @@ export function Theme2OrderSuccess({
           <span className="t2s-notch t2s-notch-l" />
           <span className="t2s-notch t2s-notch-r" />
         </div>
+
+        {/* Repartidor de plataforma: seguimiento en vivo de la búsqueda y la entrega. */}
+        {data.trackingToken && (
+          <a href={`/seguimiento/${data.trackingToken}`} className="t2s-wa" style={{ textDecoration: 'none' }}>
+            <MapPin className="w-4 h-4" />
+            Seguir mi pedido en vivo
+          </a>
+        )}
 
         {/* WhatsApp opcional: "¿Olvidaste algo?" — NO se abre solo, el cliente decide. */}
         {data.whatsappUrl && (

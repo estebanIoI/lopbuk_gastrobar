@@ -62,6 +62,8 @@ interface AppState {
   // UI State
   activeSection: string
   setActiveSection: (section: string) => void
+  /** Limpia el estado que NO debe sobrevivir a un cambio de usuario/tenant. */
+  resetSession: () => void
   sidebarOpen: boolean
   setSidebarOpen: (open: boolean) => void
   toggleSidebar: () => void
@@ -110,6 +112,24 @@ interface AppState {
   deleteSede: (id: string) => Promise<{ success: boolean; error?: string }>
 }
 
+/**
+ * Datos de tienda por defecto. Se extraen a una constante para poder
+ * restaurarlos en `resetSession()`: `storeInfo` se persiste en localStorage y,
+ * sin reset, los datos de facturación de un comercio se le mostraban al
+ * siguiente usuario que iniciara sesión en el mismo navegador.
+ */
+const INITIAL_STORE_INFO: StoreInfo = {
+  name: 'Lopbuk Gestion de Inventario',
+  address: 'Cra 7 #45-23, Bogotá, Colombia',
+  phone: '(601) 234-5678',
+  taxId: '900.123.456-7',
+  email: 'ventas@lopbuk.com.co',
+  invoiceLogo: '',
+  invoiceGreeting: '¡Gracias por su compra!',
+  invoicePolicy: 'Cambios y devoluciones dentro de los 30 días con factura original.\nProducto en buen estado, sin uso y con etiquetas.',
+  invoiceCopies: 1,
+}
+
 export const useStore = create<AppState>()(
   persist(
     (set, get) => ({
@@ -120,17 +140,7 @@ export const useStore = create<AppState>()(
       sales: [],
       isLoadingSales: false,
       stockMovements: [],
-      storeInfo: {
-        name: 'Lopbuk Gestion de Inventario',
-        address: 'Cra 7 #45-23, Bogotá, Colombia',
-        phone: '(601) 234-5678',
-        taxId: '900.123.456-7',
-        email: 'ventas@lopbuk.com.co',
-        invoiceLogo: '',
-        invoiceGreeting: '¡Gracias por su compra!',
-        invoicePolicy: 'Cambios y devoluciones dentro de los 30 días con factura original.\nProducto en buen estado, sin uso y con etiquetas.',
-        invoiceCopies: 1,
-      },
+      storeInfo: { ...INITIAL_STORE_INFO },
       activeSection: 'dashboard',
       sidebarOpen: false,
       sidebarCollapsed: false,
@@ -399,6 +409,22 @@ export const useStore = create<AppState>()(
 
       // UI Actions
       setActiveSection: (section) => set({ activeSection: section, sidebarOpen: false }),
+
+      // Se llama al cerrar sesión y al entrar con un usuario distinto.
+      // Limpia lo persistido que pertenece al usuario/comercio anterior:
+      // la sección abierta, el carrito del POS y los datos de facturación.
+      // Las preferencias de dispositivo (cámara, sidebar) sí se conservan.
+      resetSession: () => set({
+        activeSection: 'dashboard',
+        sidebarOpen: false,
+        cart: [],
+        selectedCustomer: null,
+        storeInfo: { ...INITIAL_STORE_INFO },
+        products: [],
+        sales: [],
+        stockMovements: [],
+        categories: [],
+      }),
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
       toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
       setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),

@@ -24,6 +24,29 @@ export default function StoreBySlugPage() {
   const router = useRouter()
   const slug = Array.isArray(params?.slug) ? params.slug[0] : (params?.slug as string)
 
+  /**
+   * "Volver" en móvil (sobre todo instalada como app): si se entra a la tienda
+   * por enlace directo o como primera pantalla, no hay nada atrás y el botón
+   * volver cerraba la app. Se agrega una entrada propia para que retroceder
+   * lleve al inicio del marketplace en vez de salir.
+   * Si el usuario ya venía navegando dentro de la app, no se toca nada.
+   */
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    let vieneDeLaApp = false
+    try {
+      vieneDeLaApp = !!document.referrer && new URL(document.referrer).origin === window.location.origin
+    } catch { /* referrer inválido → tratar como entrada directa */ }
+    if (vieneDeLaApp) return
+
+    try { window.history.pushState({ storeGuard: true }, '', window.location.href) } catch { return }
+    // Navegación dura: con router.replace(), Next volvía a sincronizar la URL
+    // de la tienda y el usuario se quedaba donde estaba. Ocurre una sola vez.
+    const onPop = () => { window.location.replace('/') }
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [])
+
   const [theme, setTheme] = useState<'theme1' | 'theme2' | 'theme3' | 'theme4' | null>(null)
   const [useHomepageRenderer, setUseHomepageRenderer] = useState(false)
   const [storeName, setStoreName] = useState('')

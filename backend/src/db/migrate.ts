@@ -210,8 +210,17 @@ async function addColumnIfMissing(table: string, col: string, definition: string
     [table, col]
   )
   if (Number(c[0].n) > 0) return // ya existe
-  await pool.query(`ALTER TABLE \`${table}\` ADD COLUMN \`${col}\` ${definition}`)
-  console.log(`Catch-up: ${table}.${col} agregada.`)
+  try {
+    await pool.query(`ALTER TABLE \`${table}\` ADD COLUMN \`${col}\` ${definition}`)
+    console.log(`Catch-up: ${table}.${col} agregada.`)
+  } catch (e: any) {
+    // El chequeo y el ALTER son sentencias separadas: si dos procesos arrancan a
+    // la vez (reinicio en caliente, despliegue rolling) ambos pasan el chequeo y
+    // uno recibe ER_DUP_FIELDNAME. Antes ese error abortaba TODO el catch-up y
+    // las columnas siguientes no se creaban.
+    if (e?.code === 'ER_DUP_FIELDNAME') return
+    throw e
+  }
 }
 
 // Reconcilia un rename de columna a través de BD en estados distintos:
@@ -317,6 +326,45 @@ export async function runCatchup(): Promise<void> {
   // absorbida. Ambas nullable → sin unir mesas, nada cambia.
   await addColumnIfMissing('rb_order_items', 'origin_table_id', 'VARCHAR(36) NULL')
   await addColumnIfMissing('rb_orders', 'merged_into_order_id', 'VARCHAR(36) NULL')
+  // Domicilios F1: modo de entrega del comercio. Default 'ninguno' → las tiendas
+  // existentes siguen comportándose exactamente igual que hoy.
+  await addColumnIfMissing('store_info', 'delivery_mode', "ENUM('ninguno','propio','plataforma') NOT NULL DEFAULT 'ninguno'")
+  await addColumnIfMissing('store_info', 'platform_delivery_fee', 'INT NOT NULL DEFAULT 0')
+  await addColumnIfMissing('store_info', 'delivery_auto_broadcast', 'TINYINT NOT NULL DEFAULT 1')
+  // Domicilios F3: marca de "el cliente pidió repartidor de plataforma".
+  // NULL (default) = tienda fuera del modo plataforma → el pedido se difunde
+  // como siempre. 0 = pidió recoger/domicilio propio → NO se difunde.
+  // Segunda imagen de categoría (hover en el tema 1). Opcional: sin valor, la
+  // tarjeta se comporta exactamente como hoy.
+  await addColumnIfMissing('categories', 'image_url_hover', 'VARCHAR(500) NULL')
+  // Portada de categoría (imagen o GIF): transición al abrirla + cabecera del catálogo.
+  await addColumnIfMissing('categories', 'cover_url', 'VARCHAR(500) NULL')
+  // Animación de entrada a categoría (tema 1), a nivel de tienda.
+  await addColumnIfMissing('store_info', 'category_transition', "VARCHAR(20) NOT NULL DEFAULT 'peine'")
+  await addColumnIfMissing('storefront_orders', 'courier_requested', 'TINYINT NULL')
+  await addColumnIfMissing('storefront_orders', 'courier_requested_at', 'TIMESTAMP NULL')
+  // Domicilios F5: calificación y reporte del repartidor. UNIQUE(order_id) es lo
+  // que impide inflar un promedio: una calificación por pedido.
+  await pool.query(
+    `CREATE TABLE IF NOT EXISTS courier_ratings (
+       id VARCHAR(36) NOT NULL,
+       order_id VARCHAR(36) NOT NULL,
+       courier_user_id VARCHAR(36) NOT NULL,
+       tenant_id VARCHAR(36) NOT NULL,
+       stars TINYINT NULL,
+       comment VARCHAR(400) NULL,
+       reported TINYINT NOT NULL DEFAULT 0,
+       report_reason VARCHAR(60) NULL,
+       reviewed_at TIMESTAMP NULL,
+       reviewed_by VARCHAR(36) NULL,
+       created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+       PRIMARY KEY (id),
+       UNIQUE KEY uk_courier_rating_order (order_id),
+       KEY idx_courier_rating_courier (courier_user_id),
+       KEY idx_courier_rating_tenant (tenant_id),
+       KEY idx_courier_rating_reported (reported)
+     )`
+  )
   // RestBar POS táctil: el service inserta original_price/course_number en rb_order_items,
   // pero el baseline creó la tabla sin ellas → "Unknown column" (500) al agregar ítems.
   await addColumnIfMissing('rb_order_items', 'original_price', 'DECIMAL(12,2) NULL')

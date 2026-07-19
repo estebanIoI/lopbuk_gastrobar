@@ -1,10 +1,11 @@
 import { Router, Request, Response, NextFunction } from 'express';
+import { randomUUID } from 'crypto';
 import { query, param, body } from 'express-validator';
 import { validateRequest } from '../../utils/validators';
 import pool from '../../config/database';
 import { authenticate, requirePlan } from '../../common/middleware';
 import { computeOpenState, computeNextOpen } from '../../utils/store-hours';
-import { decrypt } from '../../utils/crypto';
+import { decrypt, decryptNullable } from '../../utils/crypto';
 import { themePaletteService } from './theme-palette.service';
 import { verifyStoreGrant } from '../hidden-access/hidden-access.service';
 
@@ -51,6 +52,62 @@ router.get(
     } catch (error) {
       console.error('Product bundles error:', error);
       res.json({ success: true, data: [] });
+    }
+  }
+);
+
+// =============================================
+// PUBLIC: Disponibilidad de domicilio de una tienda (F2 · plan-delivery-tema2)
+// GET /api/storefront/delivery-availability/:storeSlug
+// Le dice al checkout si el comercio ofrece repartidores de plataforma, cuánto
+// cobra y cuántos hay en línea AHORA. Solo devuelve el CONTEO — nunca nombres,
+// teléfonos ni ubicaciones de los repartidores.
+// Nunca rompe el checkout: ante cualquier error responde "no disponible".
+// =============================================
+router.get(
+  '/delivery-availability/:storeSlug',
+  [param('storeSlug').notEmpty(), validateRequest],
+  async (req: Request, res: Response) => {
+    const off = { enabled: false, fee: 0, couriersOnline: 0, autoBroadcast: false };
+    try {
+      const tenant = await resolvePublicTenantBySlug(req.params.storeSlug, grantFrom(req));
+      if (!tenant) { res.json({ success: true, data: off }); return; }
+
+      const [cfg] = await pool.query(
+        'SELECT delivery_mode, platform_delivery_fee, delivery_auto_broadcast FROM store_info WHERE tenant_id = ? LIMIT 1',
+        [tenant.id]
+      ) as any;
+      const row = cfg?.[0];
+      if (!row || row.delivery_mode !== 'plataforma') { res.json({ success: true, data: off }); return; }
+
+      // Repartidores del comercio en línea y disponibles (visto en los últimos 5 min)
+      const [cnt] = await pool.query(
+        `SELECT COUNT(*) AS n
+           FROM courier_availability ca
+           JOIN courier_tenants ct ON ct.courier_user_id = ca.user_id AND ct.tenant_id = ?
+          -- El JOIN con courier_tenants ya acota al comercio. ca.tenant_id solo
+          -- indica de quién es la fila: un repartidor DE PLATAFORMA no tiene
+          -- comercio, así que la guarda con '' — exigir que coincida dejaba el
+          -- conteo en 0 siempre, justo para los repartidores de este flujo.
+          WHERE (ca.tenant_id = ? OR ca.tenant_id = '' OR ca.tenant_id IS NULL)
+            AND ca.is_online = 1
+            AND ca.status = 'disponible'
+            AND ca.last_seen_at >= DATE_SUB(NOW(), INTERVAL 5 MINUTE)`,
+        [tenant.id, tenant.id]
+      ) as any;
+
+      res.json({
+        success: true,
+        data: {
+          enabled: true,
+          fee: Number(row.platform_delivery_fee || 0),
+          couriersOnline: Number(cnt?.[0]?.n || 0),
+          autoBroadcast: Number(row.delivery_auto_broadcast) !== 0,
+        },
+      });
+    } catch (error) {
+      console.error('Delivery availability error:', error);
+      res.json({ success: true, data: off });
     }
   }
 );
@@ -1042,7 +1099,8 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
     try {
       // Try with image_url column (requires migration)
       const [rows] = await pool.query(
-        `SELECT DISTINCT p.category as name, COALESCE(c.name, p.category) as displayName, c.image_url as imageUrl
+        `SELECT DISTINCT p.category as name, COALESCE(c.name, p.category) as displayName,
+                c.image_url as imageUrl, c.image_url_hover as imageUrlHover, c.cover_url as coverUrl
          FROM products p
          LEFT JOIN categories c ON c.tenant_id = p.tenant_id AND c.id = p.category
          WHERE p.tenant_id = ? AND ${stockVisibleSql('p')} AND p.published_in_store = 1
@@ -1055,7 +1113,8 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
       // Fallback: categories without image_url column
       try {
         const [rows] = await pool.query(
-          `SELECT DISTINCT p.category as name, p.category as displayName, NULL as imageUrl
+          `SELECT DISTINCT p.category as name, p.category as displayName,
+                  NULL as imageUrl, NULL as imageUrlHover, NULL as coverUrl
            FROM products p
            WHERE p.tenant_id = ? AND ${stockVisibleSql('p')} AND p.published_in_store = 1
            ORDER BY p.category`,
@@ -1270,6 +1329,18 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
     // Cart settings (public — needed for progress bar and delivery fee in landing page)
     let cartMinPurchase = 0;
     let cartDeliveryFee = 0;
+    // Animación de entrada a categoría (tema 1). La elige el comerciante y
+    // aplica a todas sus categorías con portada.
+    let categoryTransition = 'peine';
+    try {
+      const [ctRows] = await pool.query(
+        'SELECT category_transition AS categoryTransition FROM store_info WHERE tenant_id = ?',
+        [tenantId]
+      ) as any;
+      if (ctRows.length > 0 && ctRows[0].categoryTransition) {
+        categoryTransition = String(ctRows[0].categoryTransition);
+      }
+    } catch { /* columna aún no creada → queda el default */ }
     try {
       const [cartRows] = await pool.query(
         'SELECT cart_min_purchase as cartMinPurchase FROM store_info WHERE tenant_id = ?',
@@ -1327,6 +1398,7 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
         isHidden: !!tenant.is_hidden,
         customSections,
         cartMinPurchase,
+        categoryTransition,
         cartDeliveryFee,
       },
     });
@@ -1648,13 +1720,13 @@ router.get('/customization', authenticate, requirePlan('empresarial'), async (re
     let categories: any[] = [];
     try {
       const [catRows] = await pool.query(
-        'SELECT id, name, image_url as imageUrl, hidden_in_store as hiddenInStore FROM categories WHERE tenant_id = ? ORDER BY name',
+        'SELECT id, name, image_url as imageUrl, image_url_hover as imageUrlHover, cover_url as coverUrl, hidden_in_store as hiddenInStore FROM categories WHERE tenant_id = ? ORDER BY name',
         [tenantId]
       ) as any;
       categories = catRows;
     } catch {
       const [catRows] = await pool.query(
-        'SELECT id, name, image_url as imageUrl, 0 as hiddenInStore FROM categories WHERE tenant_id = ? ORDER BY name',
+        'SELECT id, name, image_url as imageUrl, NULL as imageUrlHover, NULL as coverUrl, 0 as hiddenInStore FROM categories WHERE tenant_id = ? ORDER BY name',
         [tenantId]
       ) as any;
       categories = catRows;
@@ -1758,6 +1830,18 @@ router.get('/customization', authenticate, requirePlan('empresarial'), async (re
     // Cart settings
     let cartMinPurchase = 0;
     let cartDeliveryFee = 0;
+    // Animación de entrada a categoría (tema 1). La elige el comerciante y
+    // aplica a todas sus categorías con portada.
+    let categoryTransition = 'peine';
+    try {
+      const [ctRows] = await pool.query(
+        'SELECT category_transition AS categoryTransition FROM store_info WHERE tenant_id = ?',
+        [tenantId]
+      ) as any;
+      if (ctRows.length > 0 && ctRows[0].categoryTransition) {
+        categoryTransition = String(ctRows[0].categoryTransition);
+      }
+    } catch { /* columna aún no creada → queda el default */ }
     try {
       const [cartRows] = await pool.query(
         'SELECT cart_min_purchase as cartMinPurchase FROM store_info WHERE tenant_id = ?',
@@ -1776,6 +1860,22 @@ router.get('/customization', authenticate, requirePlan('empresarial'), async (re
         cartDeliveryFee = Number(feeRows[0].cartDeliveryFee);
       }
     } catch { /* column not yet added */ }
+
+    // Domicilios (F1): modo de entrega del comercio
+    let deliveryMode = 'ninguno';
+    let platformDeliveryFee = 0;
+    let deliveryAutoBroadcast = true;
+    try {
+      const [dRows] = await pool.query(
+        'SELECT delivery_mode, platform_delivery_fee, delivery_auto_broadcast FROM store_info WHERE tenant_id = ?',
+        [tenantId]
+      ) as any;
+      if (dRows.length > 0) {
+        deliveryMode = dRows[0].delivery_mode || 'ninguno';
+        platformDeliveryFee = Number(dRows[0].platform_delivery_fee || 0);
+        deliveryAutoBroadcast = Number(dRows[0].delivery_auto_broadcast) !== 0;
+      }
+    } catch { /* columnas aún no creadas */ }
 
     // Published products for featured selection (stock filter removed so admins can feature any published product)
     const [publishedProducts] = await pool.query(
@@ -1835,7 +1935,11 @@ router.get('/customization', authenticate, requirePlan('empresarial'), async (re
         announcementBar,
         drops,
         cartMinPurchase,
+        categoryTransition,
         cartDeliveryFee,
+        deliveryMode,
+        platformDeliveryFee,
+        deliveryAutoBroadcast,
       },
     });
   } catch (error) {
@@ -1925,11 +2029,24 @@ router.put('/categories/:id/image', authenticate, requirePlan('empresarial'), as
   try {
     const tenantId = (req as any).user.tenantId;
     const { id } = req.params;
-    const { imageUrl } = req.body;
+    const { imageUrl, imageUrlHover, coverUrl } = req.body;
+
+    // `imageUrlHover` y `coverUrl` son opcionales: si no vienen en el body no se
+    // tocan, para que un guardado de la imagen principal no borre las otras.
+    const sets = ['image_url = ?'];
+    const vals: any[] = [imageUrl || null];
+    if (imageUrlHover !== undefined) {
+      sets.push('image_url_hover = ?');
+      vals.push(imageUrlHover || null);
+    }
+    if (coverUrl !== undefined) {
+      sets.push('cover_url = ?');
+      vals.push(coverUrl || null);
+    }
 
     const [result] = await pool.query(
-      'UPDATE categories SET image_url = ? WHERE id = ? AND tenant_id = ?',
-      [imageUrl || null, id, tenantId]
+      `UPDATE categories SET ${sets.join(', ')} WHERE id = ? AND tenant_id = ?`,
+      [...vals, id, tenantId]
     ) as any;
 
     if (result.affectedRows === 0) {
@@ -1937,7 +2054,7 @@ router.put('/categories/:id/image', authenticate, requirePlan('empresarial'), as
       return;
     }
 
-    res.json({ success: true, data: { id, imageUrl } });
+    res.json({ success: true, data: { id, imageUrl, imageUrlHover, coverUrl } });
   } catch (error) {
     console.error('Update category image error:', error);
     res.status(500).json({ success: false, error: 'Error al actualizar imagen de categoría' });
@@ -2517,16 +2634,45 @@ router.put('/cart-settings', authenticate, requirePlan('empresarial'), async (re
       return;
     }
 
-    const { cartMinPurchase, cartDeliveryFee } = req.body;
+    const { cartMinPurchase, cartDeliveryFee, deliveryMode, platformDeliveryFee, deliveryAutoBroadcast, categoryTransition } = req.body;
     const safeMin = Math.max(0, parseInt(cartMinPurchase) || 0);
     const safeFee = Math.max(0, parseInt(cartDeliveryFee) || 0);
 
     // DDL congelado: columnas store_info.cart_min_purchase/cart_delivery_fee en el baseline Drizzle (src/db/migrations). Ver CLAUDE.md.
 
+    // Domicilios (F1): campos OPCIONALES. Si no llegan, no se tocan → un guardado
+    // del carrito no puede apagar el modo de domicilio sin querer.
+    const sets = ['cart_min_purchase = ?', 'cart_delivery_fee = ?'];
+    const vals: any[] = [safeMin, safeFee];
+    const MODES = ['ninguno', 'propio', 'plataforma'];
+    if (deliveryMode !== undefined) {
+      if (!MODES.includes(String(deliveryMode))) {
+        res.status(400).json({ success: false, error: 'Modo de domicilio inválido' });
+        return;
+      }
+      sets.push('delivery_mode = ?'); vals.push(String(deliveryMode));
+    }
+    if (platformDeliveryFee !== undefined) {
+      sets.push('platform_delivery_fee = ?'); vals.push(Math.max(0, parseInt(platformDeliveryFee) || 0));
+    }
+    if (deliveryAutoBroadcast !== undefined) {
+      sets.push('delivery_auto_broadcast = ?'); vals.push(deliveryAutoBroadcast ? 1 : 0);
+    }
+    // Animación de categoría: catálogo cerrado. Un valor inventado se rechaza en
+    // vez de guardarse y dejar la tienda sin animación silenciosamente.
+    if (categoryTransition !== undefined) {
+      const TRANSITIONS = ['ninguna', 'peine', 'destruir', 'persianas', 'fracturar', 'aplastar', 'vortice'];
+      if (!TRANSITIONS.includes(String(categoryTransition))) {
+        res.status(400).json({ success: false, error: 'Animación de categoría inválida' });
+        return;
+      }
+      sets.push('category_transition = ?'); vals.push(String(categoryTransition));
+    }
+
     // Try UPDATE first (row already exists)
     const [updateResult] = await pool.query(
-      `UPDATE store_info SET cart_min_purchase = ?, cart_delivery_fee = ? WHERE tenant_id = ?`,
-      [safeMin, safeFee, tenantId]
+      `UPDATE store_info SET ${sets.join(', ')} WHERE tenant_id = ?`,
+      [...vals, tenantId]
     ) as any;
 
     // If no row existed yet, create it pulling the name from tenants
@@ -2536,9 +2682,20 @@ router.put('/cart-settings', authenticate, requirePlan('empresarial'), async (re
          SELECT ?, t.name, ?, ? FROM tenants t WHERE t.id = ?`,
         [tenantId, safeMin, safeFee, tenantId]
       );
+      if (sets.length > 2) {
+        await pool.query(`UPDATE store_info SET ${sets.slice(2).join(', ')} WHERE tenant_id = ?`, [...vals.slice(2), tenantId]);
+      }
     }
 
-    res.json({ success: true, data: { cartMinPurchase: safeMin, cartDeliveryFee: safeFee } });
+    res.json({
+      success: true,
+      data: {
+        cartMinPurchase: safeMin, cartDeliveryFee: safeFee,
+        ...(deliveryMode !== undefined ? { deliveryMode } : {}),
+        ...(platformDeliveryFee !== undefined ? { platformDeliveryFee: Math.max(0, parseInt(platformDeliveryFee) || 0) } : {}),
+        ...(deliveryAutoBroadcast !== undefined ? { deliveryAutoBroadcast: !!deliveryAutoBroadcast } : {}),
+      },
+    });
   } catch (error) {
     console.error('Update cart settings error:', error);
     res.status(500).json({ success: false, error: 'Error al guardar configuración del carrito' });
@@ -3510,10 +3667,17 @@ router.get('/tracking/:token', async (req: Request, res: Response) => {
               o.rating, o.rating_comment AS ratingComment,
               o.delivery_delivered_at AS deliveredAt,
               o.delivery_latitude AS destLat, o.delivery_longitude AS destLng,
+              o.courier_requested AS courierRequested,
+              o.delivery_status AS deliveryStatus,
+              o.delivery_assigned_at AS courierAssignedAt,
+              cu.name AS courierName, cu.phone AS courierPhone,
+              cr.id AS courierRatingId, cr.stars AS courierStars, cr.reported AS courierReported,
               r.status AS routeStatus, r.last_lat AS lastLat, r.last_lng AS lastLng,
               r.last_ping_at AS lastPingAt,
               si.name AS storeName, si.phone AS storePhone
          FROM storefront_orders o
+         LEFT JOIN users cu ON cu.id = o.delivery_driver_id
+         LEFT JOIN courier_ratings cr ON cr.order_id = o.id
          LEFT JOIN dispatch_routes r ON r.id = o.route_id
          LEFT JOIN store_info si ON si.tenant_id = o.tenant_id
         WHERE o.tracking_token = ?
@@ -3586,6 +3750,29 @@ router.get('/tracking/:token', async (req: Request, res: Response) => {
           ? { photoUrl: order.podPhotoUrl, receivedBy: order.podReceivedBy }
           : null,
         rating: order.rating != null ? { stars: Number(order.rating), comment: order.ratingComment || null } : null,
+        // F3: estado del repartidor de plataforma. null = este pedido no pidió
+        // repartidor (recoge en tienda / domicilio propio) → el cliente no ve nada.
+        // Se expone solo el primer nombre del repartidor; el teléfono únicamente
+        // mientras la entrega sigue viva (Ley 1581, datos mínimos).
+        delivery: order.courierRequested === 1
+          ? {
+              // 'buscando' hasta que alguien acepta; luego el estado real de la entrega
+              state: order.deliveryStatus === 'sin_asignar' ? 'buscando' : order.deliveryStatus,
+              courierName: order.courierName
+                ? String(order.courierName).split(' ')[0]
+                : null,
+              // users.phone está CIFRADO en la BD: sin descifrar, el botón
+              // "Llamar al repartidor" generaba un tel: con el blob cifrado.
+              courierPhone: order.courierName && order.deliveryStatus !== 'entregado'
+                ? decryptNullable(order.courierPhone)
+                : null,
+              assignedAt: order.courierAssignedAt || null,
+              // F5: para no volver a pedir calificación de un pedido ya calificado
+              rated: !!order.courierRatingId,
+              ratedStars: order.courierStars != null ? Number(order.courierStars) : null,
+              reported: order.courierReported === 1,
+            }
+          : null,
       },
     });
   } catch (error) {
@@ -3624,6 +3811,233 @@ router.post(
       res.json({ success: true, data: { rated: true, stars: Number(req.body.stars) } });
     } catch (error) {
       console.error('Rating error:', error);
+      res.status(500).json({ success: false, error: 'Error al registrar la calificación' });
+    }
+  }
+);
+
+// =============================================================================
+// F4 · Chat del cliente con su repartidor (público, autorizado por token)
+// El cliente no tiene cuenta: el token de seguimiento es la llave, igual que el
+// resto del portal. El chat vive exactamente lo que vive el pedido — no existe
+// antes de que un repartidor acepte, y se cierra al entregar.
+// =============================================================================
+
+type TrackedChatOrder = {
+  id: string; tenantId: string; driverId: string | null; driverName: string | null;
+  deliveryStatus: string | null; delivered: boolean; customerName: string | null;
+};
+
+/** Resuelve el pedido desde el token de seguimiento. null = token inválido. */
+async function resolveChatOrder(token: string): Promise<TrackedChatOrder | null> {
+  if (!token || token.length < 20) return null;
+  const [[row]] = await pool.query(
+    `SELECT o.id, o.tenant_id AS tenantId, o.delivery_driver_id AS driverId,
+            o.delivery_status AS deliveryStatus, o.dispatch_status AS dispatchStatus,
+            o.status, o.customer_name AS customerName, u.name AS driverName
+       FROM storefront_orders o
+       LEFT JOIN users u ON u.id = o.delivery_driver_id
+      WHERE o.tracking_token = ? LIMIT 1`,
+    [token]
+  ) as any;
+  if (!row) return null;
+  return {
+    id: row.id, tenantId: row.tenantId, driverId: row.driverId || null,
+    driverName: row.driverName || null, deliveryStatus: row.deliveryStatus || null,
+    delivered: row.dispatchStatus === 'entregado' || row.status === 'entregado'
+      || row.deliveryStatus === 'entregado',
+    customerName: row.customerName || null,
+  };
+}
+
+/**
+ * Cierra la sala de un pedido entregado. Idempotente.
+ * Es la red de seguridad: aunque la entrega se marque por otra vía, el chat
+ * queda cerrado la próxima vez que alguien lo abra.
+ */
+async function closeChatRoomForOrder(orderId: string): Promise<void> {
+  await pool.query(
+    `UPDATE delivery_chat_rooms SET status = 'closed', closed_at = NOW()
+      WHERE order_id = ? AND status <> 'closed'`,
+    [orderId]
+  );
+}
+
+// GET /api/storefront/tracking/:token/chat — sala + mensajes del cliente
+router.get('/tracking/:token/chat', async (req: Request, res: Response) => {
+  try {
+    const order = await resolveChatOrder(String(req.params.token || ''));
+    if (!order) { res.status(404).json({ success: false, error: 'Seguimiento no encontrado' }); return; }
+
+    // Sin repartidor asignado no hay con quién chatear.
+    if (!order.driverId) {
+      res.json({ success: true, data: { available: false, reason: 'sin_repartidor', messages: [] } });
+      return;
+    }
+    if (order.delivered) await closeChatRoomForOrder(order.id);
+
+    // La sala se crea al primer acceso (el repartidor ya aceptó).
+    let [[room]] = await pool.query(
+      'SELECT id, status FROM delivery_chat_rooms WHERE order_id = ? LIMIT 1',
+      [order.id]
+    ) as any;
+    if (!room) {
+      if (order.delivered) {
+        res.json({ success: true, data: { available: false, reason: 'entregado', messages: [] } });
+        return;
+      }
+      const roomId = randomUUID();
+      await pool.query(
+        `INSERT INTO delivery_chat_rooms (id, order_id, tenant_id, status) VALUES (?, ?, ?, 'active')`,
+        [roomId, order.id, order.tenantId]
+      );
+      room = { id: roomId, status: 'active' };
+    }
+
+    const [messages] = await pool.query(
+      `SELECT id, sender_name AS senderName, sender_role AS senderRole,
+              message, created_at AS createdAt
+         FROM delivery_chat_messages WHERE room_id = ?
+        ORDER BY created_at ASC LIMIT 100`,
+      [room.id]
+    ) as any;
+
+    res.json({
+      success: true,
+      data: {
+        available: true,
+        roomId: room.id,
+        // 'closed' → la UI pasa a solo lectura
+        status: room.status,
+        // Solo el primer nombre del repartidor (endpoint público, Ley 1581)
+        courierName: order.driverName ? String(order.driverName).split(' ')[0] : null,
+        messages,
+      },
+    });
+  } catch (error) {
+    console.error('Tracking chat error:', error);
+    res.status(500).json({ success: false, error: 'Error al abrir el chat' });
+  }
+});
+
+// POST /api/storefront/tracking/:token/chat — el cliente envía un mensaje
+router.post(
+  '/tracking/:token/chat',
+  [body('message').isString().trim().isLength({ min: 1, max: 800 }), validateRequest],
+  async (req: Request, res: Response) => {
+    try {
+      const order = await resolveChatOrder(String(req.params.token || ''));
+      if (!order) { res.status(404).json({ success: false, error: 'Seguimiento no encontrado' }); return; }
+      if (!order.driverId) {
+        res.status(409).json({ success: false, error: 'Todavía no hay un repartidor asignado' });
+        return;
+      }
+      if (order.delivered) {
+        await closeChatRoomForOrder(order.id);
+        res.status(409).json({ success: false, error: 'El pedido ya fue entregado. El chat está cerrado.' });
+        return;
+      }
+
+      const [[room]] = await pool.query(
+        'SELECT id, status FROM delivery_chat_rooms WHERE order_id = ? LIMIT 1',
+        [order.id]
+      ) as any;
+      if (!room) { res.status(409).json({ success: false, error: 'El chat aún no está disponible' }); return; }
+      if (room.status === 'closed') {
+        res.status(409).json({ success: false, error: 'El chat está cerrado' });
+        return;
+      }
+
+      const message = String(req.body.message).trim();
+      const senderName = order.customerName ? String(order.customerName).split(' ')[0] : 'Cliente';
+      const msgId = randomUUID();
+      await pool.query(
+        `INSERT INTO delivery_chat_messages
+           (id, room_id, sender_id, sender_name, sender_role, message, message_type)
+         VALUES (?, ?, ?, ?, 'cliente', ?, 'text')`,
+        // El cliente no tiene cuenta: se identifica el mensaje con el pedido.
+        [msgId, room.id, order.id, senderName, message]
+      );
+
+      const newMsg = {
+        id: msgId, roomId: room.id, senderName, senderRole: 'cliente',
+        message, messageType: 'text', createdAt: new Date().toISOString(),
+      };
+      const io = (global as any).__deliveryIO;
+      if (io) io.to(`delivery-chat:${room.id}`).emit('delivery-message', newMsg);
+
+      res.json({ success: true, data: newMsg });
+    } catch (error) {
+      console.error('Tracking chat send error:', error);
+      res.status(500).json({ success: false, error: 'Error al enviar el mensaje' });
+    }
+  }
+);
+
+// =============================================================================
+// F5 · Calificación y reporte del repartidor (público, por token)
+// Distinto de /tracking/:token/rating, que califica el pedido/tienda. Aquí se
+// evalúa a la persona que entregó, y es la base del control de calidad.
+// =============================================================================
+
+const REPORT_REASONS = ['tarde', 'trato', 'producto', 'no_entregado', 'otro'];
+
+router.post(
+  '/tracking/:token/courier-rating',
+  [
+    body('stars').optional({ nullable: true }).isInt({ min: 1, max: 5 }),
+    body('comment').optional({ nullable: true }).isString().isLength({ max: 400 }),
+    body('reported').optional().isBoolean(),
+    body('reportReason').optional({ nullable: true }).isIn(REPORT_REASONS),
+    validateRequest,
+  ],
+  async (req: Request, res: Response) => {
+    try {
+      const order = await resolveChatOrder(String(req.params.token || ''));
+      if (!order) { res.status(404).json({ success: false, error: 'Seguimiento no encontrado' }); return; }
+      if (!order.driverId) {
+        res.status(409).json({ success: false, error: 'Este pedido no tuvo repartidor de plataforma' });
+        return;
+      }
+      // Solo se califica lo que ya se recibió.
+      if (!order.delivered) {
+        res.status(409).json({ success: false, error: 'Solo puedes calificar un pedido entregado' });
+        return;
+      }
+
+      const reported = req.body.reported === true;
+      const stars = req.body.stars != null ? Number(req.body.stars) : null;
+      // Sin estrellas y sin reporte no hay nada que registrar.
+      if (stars == null && !reported) {
+        res.status(400).json({ success: false, error: 'Indica una calificación o un reporte' });
+        return;
+      }
+      if (reported && !req.body.reportReason) {
+        res.status(400).json({ success: false, error: 'Indica el motivo del reporte' });
+        return;
+      }
+
+      try {
+        await pool.query(
+          `INSERT INTO courier_ratings
+             (id, order_id, courier_user_id, tenant_id, stars, comment, reported, report_reason)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [randomUUID(), order.id, order.driverId, order.tenantId, stars,
+            req.body.comment || null, reported ? 1 : 0,
+            reported ? req.body.reportReason : null]
+        );
+      } catch (e: any) {
+        // uk_courier_rating_order: una calificación por pedido, no se puede inflar.
+        if (e?.code === 'ER_DUP_ENTRY') {
+          res.status(409).json({ success: false, error: 'Ya calificaste este pedido' });
+          return;
+        }
+        throw e;
+      }
+
+      res.json({ success: true, data: { rated: true, stars, reported } });
+    } catch (error) {
+      console.error('Courier rating error:', error);
       res.status(500).json({ success: false, error: 'Error al registrar la calificación' });
     }
   }

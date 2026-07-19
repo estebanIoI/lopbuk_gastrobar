@@ -8,6 +8,34 @@ import { v4 as uuidv4 } from 'uuid';
 const router: ReturnType<typeof Router> = Router();
 router.use(authenticate);
 
+/**
+ * Autoriza a un usuario autenticado sobre una sala de chat.
+ * Antes estas rutas solo comprobaban que la sala existiera: cualquier usuario de
+ * cualquier tenant podía leer o escribir la conversación de otro comercio.
+ * Reglas: el comercio dueño de la sala, o el repartidor asignado al pedido.
+ * Devuelve la sala si tiene acceso, o null.
+ */
+async function authorizeRoom(
+  roomId: string,
+  user: { userId?: string; tenantId?: string | null; role?: string },
+): Promise<{ id: string; status: string; orderId: string; tenantId: string } | null> {
+  const [rows] = await pool.query(
+    `SELECT r.id, r.status, r.order_id AS orderId, r.tenant_id AS tenantId,
+            o.delivery_driver_id AS driverId
+       FROM delivery_chat_rooms r
+       LEFT JOIN storefront_orders o ON o.id = r.order_id
+      WHERE r.id = ? LIMIT 1`,
+    [roomId]
+  ) as any;
+  const room = rows?.[0];
+  if (!room) return null;
+  if (user.role === 'superadmin') return room;
+  if (user.role === 'repartidor') {
+    return room.driverId && room.driverId === user.userId ? room : null;
+  }
+  return user.tenantId && room.tenantId === user.tenantId ? room : null;
+}
+
 // =============================================================================
 // GET /api/delivery-chat/room/:orderId — obtener o crear room para un pedido
 // =============================================================================
@@ -37,6 +65,14 @@ router.get(
       }
 
       const order = orderRows[0];
+
+      // Un repartidor de plataforma tiene tenant_id NULL, así que el filtro por
+      // tenant de arriba no lo acota: solo puede abrir la sala del pedido que
+      // tiene asignado.
+      if (req.user!.role === 'repartidor' && order.driverId !== req.user!.userId) {
+        res.status(404).json({ success: false, error: 'Pedido no encontrado' });
+        return;
+      }
 
       // Buscar room existente o crear uno nuevo
       let [roomRows] = await pool.query(
@@ -79,6 +115,11 @@ router.get(
       const limit = Math.min(Number(req.query.limit || 50), 100);
       const before = req.query.before as string | undefined;
 
+      if (!(await authorizeRoom(roomId, req.user!))) {
+        res.status(404).json({ success: false, error: 'Sala no encontrada' });
+        return;
+      }
+
       let sql = `SELECT id, room_id as roomId, sender_id as senderId, sender_name as senderName,
                         sender_role as senderRole, message, message_type as messageType,
                         read_at as readAt, created_at as createdAt
@@ -116,18 +157,14 @@ router.post(
         return;
       }
 
-      // Verificar room existe y está activo
-      const [roomRows] = await pool.query(
-        'SELECT id, status FROM delivery_chat_rooms WHERE id = ?',
-        [roomId]
-      ) as any;
-
-      if (!roomRows.length) {
+      // Verificar acceso + que la sala esté activa
+      const room = await authorizeRoom(roomId, req.user!);
+      if (!room) {
         res.status(404).json({ success: false, error: 'Sala no encontrada' });
         return;
       }
-      if (roomRows[0].status === 'closed') {
-        res.status(400).json({ success: false, error: 'La sala está cerrada' });
+      if (room.status === 'closed') {
+        res.status(409).json({ success: false, error: 'La sala está cerrada' });
         return;
       }
 
@@ -180,6 +217,11 @@ router.post(
     try {
       const { roomId } = req.params;
       const userId = req.user!.userId!;
+
+      if (!(await authorizeRoom(roomId, req.user!))) {
+        res.status(404).json({ success: false, error: 'Sala no encontrada' });
+        return;
+      }
 
       await pool.query(
         'UPDATE delivery_chat_messages SET read_at = NOW() WHERE room_id = ? AND sender_id != ? AND read_at IS NULL',

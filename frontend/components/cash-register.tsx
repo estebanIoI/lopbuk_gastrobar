@@ -54,6 +54,7 @@ import {
   ChevronUp,
   Plus,
   Minus,
+  Search,
 } from 'lucide-react'
 import { toast } from 'sonner'
 

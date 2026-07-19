@@ -23,6 +23,7 @@ import { FlameButton } from '@/components/ui/flame-button'
 import { useIsDesktop } from '@/components/consumer/hooks/useIsDesktop'
 import { cldImg, cldSrcSet } from '@/utils/img'
 import { StoresSection } from '@/components/stores-map'
+import { fillTemplate, DEFAULT_TERMS, DEFAULT_PRIVACY_POLICY } from '@/lib/legal-templates'
 import {
   ChevronLeft, ChevronRight, Store, UtensilsCrossed, Zap, Tag, Package,
   Sparkles, ShoppingBag, Pill, Apple, Wrench, Scissors, Dog, Wine,
@@ -570,6 +571,7 @@ export function MarketplaceHomeGovCo({
   const [mobileNav, setMobileNav] = useState(false)
   const [alertOpen, setAlertOpen] = useState(true)
   const [scrolled, setScrolled] = useState(false)
+  const [legalDoc, setLegalDoc] = useState<'terminos' | 'privacidad' | null>(null)
   const gridRef = useRef<HTMLDivElement>(null)
   const accesosRef = useRef<HTMLDivElement>(null)
 
@@ -1526,12 +1528,35 @@ export function MarketplaceHomeGovCo({
           <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-white/60">
             <p>© {new Date().getFullYear()} {BRAND.name}. Todos los derechos reservados.</p>
             <div className="flex items-center gap-4">
-              <a href="#" className="hover:text-white">Términos</a>
-              <a href="#" className="hover:text-white">Privacidad</a>
+              {/* Antes eran href="#" — no llevaban a ninguna parte. */}
+              <button onClick={() => setLegalDoc('terminos')} className="hover:text-white">Términos</button>
+              <button onClick={() => setLegalDoc('privacidad')} className="hover:text-white">Privacidad</button>
             </div>
           </div>
         </div>
       </footer>
+
+      {/* Términos y Privacidad: antes eran enlaces muertos (href="#") */}
+      {legalDoc && (
+        <div className="fixed inset-0 z-[400] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setLegalDoc(null)} />
+          <div className="relative bg-white rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl">
+            <div className="flex items-center justify-between px-5 h-14 border-b border-gray-100 shrink-0">
+              <h3 className="text-sm font-semibold text-gray-900">
+                {legalDoc === 'terminos' ? 'Términos y condiciones' : 'Política de privacidad'}
+              </h3>
+              <button onClick={() => setLegalDoc(null)} aria-label="Cerrar" className="text-gray-400 hover:text-gray-700">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="overflow-y-auto px-5 py-4">
+              <pre className="whitespace-pre-wrap font-sans text-[12px] leading-relaxed text-gray-600">
+                {fillTemplate(legalDoc === 'terminos' ? DEFAULT_TERMS : DEFAULT_PRIVACY_POLICY, { storeName: BRAND.name })}
+              </pre>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

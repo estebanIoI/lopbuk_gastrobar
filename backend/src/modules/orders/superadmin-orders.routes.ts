@@ -44,13 +44,32 @@ router.get('/orders/tenants', async (_req: Request, res: Response) => {
 router.get('/couriers', async (_req: Request, res: Response) => {
   try {
     const [rows] = await pool.query(
+      // F6: calidad del repartidor a la vista. avgStars es NULL si nunca lo han
+      // calificado — la UI debe mostrar "sin calificaciones", no un 0 inventado.
       `SELECT u.id, u.name, u.email, u.phone, u.is_active AS isActive,
-              (SELECT COUNT(*) FROM courier_tenants ct WHERE ct.courier_user_id = u.id) AS tenantsCount
+              (SELECT COUNT(*) FROM courier_tenants ct WHERE ct.courier_user_id = u.id) AS tenantsCount,
+              (SELECT ROUND(AVG(cr.stars), 2) FROM courier_ratings cr
+                WHERE cr.courier_user_id = u.id) AS avgStars,
+              (SELECT COUNT(cr.stars) FROM courier_ratings cr
+                WHERE cr.courier_user_id = u.id) AS ratingsCount,
+              (SELECT COUNT(*) FROM courier_ratings cr
+                WHERE cr.courier_user_id = u.id AND cr.reported = 1
+                  AND cr.reviewed_at IS NULL) AS openReports
        FROM users u
        WHERE u.role = 'repartidor' AND u.tenant_id IS NULL
-       ORDER BY u.name`
+       ORDER BY openReports DESC, u.name`
     ) as any
-    res.json({ success: true, data: rows })
+    // AVG sobre DECIMAL llega como string ("2.00") por mysql2; el cliente lo tipa
+    // como number. Se normaliza aquí para que ambos extremos coincidan.
+    res.json({
+      success: true,
+      data: (rows as any[]).map(r => ({
+        ...r,
+        avgStars: r.avgStars != null ? Number(r.avgStars) : null,
+        ratingsCount: Number(r.ratingsCount || 0),
+        openReports: Number(r.openReports || 0),
+      })),
+    })
   } catch (err) {
     res.status(500).json({ success: false, error: 'Error al obtener repartidores' })
   }
@@ -693,6 +712,72 @@ router.get('/analytics/heatmap', async (req: Request, res: Response) => {
   } catch (err) {
     console.error('[superadmin-analytics/heatmap] error:', err)
     res.status(500).json({ success: false, error: 'Error al obtener heatmap' })
+  }
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+// F6 · Moderación de reportes de repartidores
+// El cliente reporta desde el seguimiento (F5); aquí el superadmin los revisa.
+// Marcar como revisado NO borra el reporte: queda el historial con quién y cuándo.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// GET /api/superadmin/courier-reports?status=pendientes|revisados|todos
+router.get('/courier-reports', async (req: Request, res: Response) => {
+  try {
+    const status = String(req.query.status || 'pendientes')
+    const where = status === 'revisados' ? 'AND cr.reviewed_at IS NOT NULL'
+      : status === 'todos' ? ''
+      : 'AND cr.reviewed_at IS NULL'
+
+    const [rows] = await pool.query(
+      `SELECT cr.id, cr.stars, cr.comment, cr.report_reason AS reportReason,
+              cr.created_at AS createdAt, cr.reviewed_at AS reviewedAt,
+              rv.name AS reviewedByName,
+              u.id AS courierId, u.name AS courierName, u.phone AS courierPhone,
+              t.name AS tenantName,
+              o.order_number AS orderNumber, o.total,
+              o.delivery_delivered_at AS deliveredAt
+         FROM courier_ratings cr
+         LEFT JOIN users u ON u.id = cr.courier_user_id
+         LEFT JOIN users rv ON rv.id = cr.reviewed_by
+         LEFT JOIN tenants t ON t.id = cr.tenant_id
+         LEFT JOIN storefront_orders o ON o.id = cr.order_id
+        WHERE cr.reported = 1 ${where}
+        ORDER BY cr.created_at DESC
+        LIMIT 200`
+    ) as any
+
+    // Contador de pendientes para el badge de la pestaña
+    const [[pend]] = await pool.query(
+      'SELECT COUNT(*) AS n FROM courier_ratings WHERE reported = 1 AND reviewed_at IS NULL'
+    ) as any
+
+    res.json({ success: true, data: { reports: rows, pending: Number(pend?.n || 0) } })
+  } catch (err) {
+    console.error('Courier reports error:', err)
+    res.status(500).json({ success: false, error: 'Error al obtener los reportes' })
+  }
+})
+
+// POST /api/superadmin/courier-reports/:id/review — marcar revisado (o reabrir)
+router.post('/courier-reports/:id/review', async (req: AuthRequest, res: Response) => {
+  try {
+    const reopen = req.body?.reopen === true
+    const [upd] = await pool.query(
+      reopen
+        ? 'UPDATE courier_ratings SET reviewed_at = NULL, reviewed_by = NULL WHERE id = ? AND reported = 1'
+        : 'UPDATE courier_ratings SET reviewed_at = NOW(), reviewed_by = ? WHERE id = ? AND reported = 1',
+      reopen ? [req.params.id] : [req.user!.userId, req.params.id]
+    ) as any
+
+    if (!upd || upd.affectedRows === 0) {
+      res.status(404).json({ success: false, error: 'Reporte no encontrado' })
+      return
+    }
+    res.json({ success: true, data: { reviewed: !reopen } })
+  } catch (err) {
+    console.error('Review report error:', err)
+    res.status(500).json({ success: false, error: 'Error al actualizar el reporte' })
   }
 })
 

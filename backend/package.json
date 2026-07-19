@@ -8,6 +8,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "lint": "eslint src/**/*.ts",
+    "e2e:delivery": "tsx scripts/e2e-delivery.ts",
     "db:pull": "drizzle-kit pull",
     "db:generate": "drizzle-kit generate",
     "migrate": "drizzle-kit migrate"

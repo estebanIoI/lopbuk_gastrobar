@@ -24,10 +24,34 @@ interface BIPEvent extends Event {
 const CURRENT_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || 'dev'
 const POLL_MS = 2 * 60 * 1000 // cada 2 minutos + al volver a la pestaña
 
+/**
+ * Descarte del botón "Instalar app".
+ * Antes solo vivía en el estado del componente: bastaba recargar o navegar para
+ * que volviera a aparecer. Ahora se recuerda en localStorage.
+ */
+const SNOOZE_KEY = 'pwa-install-snooze'
+const AUTO_HIDE_MS = 20_000            // se retira solo a los 20s
+const SNOOZE_AUTO_MS = 24 * 3600_000   // tras auto-ocultarse: 1 día
+const SNOOZE_MANUAL_MS = 7 * 24 * 3600_000 // si el usuario lo cierra: 7 días
+
+function snoozedUntil(): number {
+  try { return Number(localStorage.getItem(SNOOZE_KEY)) || 0 } catch { return 0 }
+}
+function snooze(ms: number) {
+  try { localStorage.setItem(SNOOZE_KEY, String(Date.now() + ms)) } catch { /* modo privado */ }
+}
+
 export function PwaManager() {
   const [installEvt, setInstallEvt] = useState<BIPEvent | null>(null)
   const [dismissed, setDismissed] = useState(false)
   const updateShown = useRef(false)
+
+  // Se retira solo pasado un rato: informa sin quedarse estorbando.
+  useEffect(() => {
+    if (!installEvt || dismissed) return
+    const t = setTimeout(() => { setDismissed(true); snooze(SNOOZE_AUTO_MS) }, AUTO_HIDE_MS)
+    return () => clearTimeout(t)
+  }, [installEvt, dismissed])
 
   // ── 1. Registrar el service worker ──
   useEffect(() => {
@@ -40,6 +64,8 @@ export function PwaManager() {
     const isStandalone = window.matchMedia?.('(display-mode: standalone)').matches
       || (window.navigator as any).standalone === true
     if (isStandalone) return
+    // Si se descartó hace poco, no reaparece (antes volvía en cada navegación).
+    if (snoozedUntil() > Date.now()) return
 
     const onPrompt = (e: Event) => { e.preventDefault(); setInstallEvt(e as BIPEvent) }
     const onInstalled = () => { setInstallEvt(null); toast.success('App instalada') }
@@ -94,7 +120,10 @@ export function PwaManager() {
         <Download className="h-4 w-4 text-emerald-600" />
         Instalar app
       </button>
-      <button onClick={() => setDismissed(true)} aria-label="Cerrar" className="text-neutral-400 hover:text-neutral-600">
+      <button
+        onClick={() => { setDismissed(true); snooze(SNOOZE_MANUAL_MS) }}
+        aria-label="Cerrar" className="text-neutral-400 hover:text-neutral-600"
+      >
         <X className="h-3.5 w-3.5" />
       </button>
     </div>

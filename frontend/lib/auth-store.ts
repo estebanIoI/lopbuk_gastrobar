@@ -4,6 +4,16 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { User } from './types'
 import { api } from './api'
+import { useStore } from './store'
+
+/**
+ * Descarta el estado persistido que pertenece al usuario/comercio anterior.
+ * `store.ts` no importa este módulo, así que no hay ciclo.
+ * Nunca puede tumbar el login/logout: si algo falla, se ignora.
+ */
+function resetAppSession() {
+  try { useStore.getState().resetSession() } catch { /* no bloquea la sesión */ }
+}
 
 interface AuthStore {
   user: User | null
@@ -36,6 +46,11 @@ export const useAuthStore = create<AuthStore>()(
         const result = await api.login(email, password)
 
         if (result.success && result.data) {
+          // Si entra un usuario distinto al del navegador, se descarta el
+          // estado persistido del anterior (sección abierta, carrito del POS,
+          // datos de facturación). Sin esto se veía la pantalla de la sesión
+          // previa al iniciar con otras credenciales.
+          if (get().user?.id !== result.data.user?.id) resetAppSession()
           set({
             user: result.data.user,
             isAuthenticated: true,
@@ -54,6 +69,7 @@ export const useAuthStore = create<AuthStore>()(
         const result = await api.googleLogin(credential, storeSlug)
 
         if (result.success && result.data) {
+          if (get().user?.id !== result.data.user?.id) resetAppSession()
           set({
             user: result.data.user,
             isAuthenticated: true,
@@ -91,6 +107,7 @@ export const useAuthStore = create<AuthStore>()(
 
       logout: async () => {
         await api.logout()
+        resetAppSession()
         set({
           user: null,
           isAuthenticated: false

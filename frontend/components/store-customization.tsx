@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { api } from '@/lib/api'
+import { CATEGORY_TRANSITIONS, DEFAULT_TRANSITION } from '@/lib/category-transitions'
 import { LocationPicker } from '@/components/checkout/LocationPicker'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -68,6 +69,10 @@ interface CategoryItem {
   id: string
   name: string
   imageUrl: string | null
+  /** Segunda imagen: se muestra al pasar el cursor en el tema 1. */
+  imageUrlHover?: string | null
+  /** Portada (imagen o GIF): transición al abrir la categoría + cabecera del catálogo. */
+  coverUrl?: string | null
   hiddenInStore?: boolean
 }
 
@@ -191,6 +196,10 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
   // Cart settings
   const [cartMinPurchase, setCartMinPurchase] = useState(0)
   const [cartDeliveryFee, setCartDeliveryFee] = useState(0)
+  // Domicilios (F1 · plan-delivery-tema2)
+  const [deliveryMode, setDeliveryMode] = useState<'ninguno' | 'propio' | 'plataforma'>('ninguno')
+  const [platformDeliveryFee, setPlatformDeliveryFee] = useState(0)
+  const [deliveryAutoBroadcast, setDeliveryAutoBroadcast] = useState(true)
   const [isSavingCartSettings, setIsSavingCartSettings] = useState(false)
   const [cartSettingsMsg, setCartSettingsMsg] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
 
@@ -225,6 +234,28 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
   // Category image editing
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null)
   const [categoryImageUrl, setCategoryImageUrl] = useState('')
+  const [categoryImageHoverUrl, setCategoryImageHoverUrl] = useState('')
+  const [categoryCoverUrl, setCategoryCoverUrl] = useState('')
+  const [categoryTransition, setCategoryTransition] = useState<string>(DEFAULT_TRANSITION)
+  const [savingTransition, setSavingTransition] = useState(false)
+
+  const handleSaveCategoryTransition = async (key: string) => {
+    const previo = categoryTransition
+    setCategoryTransition(key) // respuesta inmediata; se revierte si falla
+    setSavingTransition(true)
+    try {
+      const result = await api.updateCartSettings({
+        cartMinPurchase, cartDeliveryFee, categoryTransition: key,
+      })
+      if (result.success) showMsg('success', 'Animación de categoría actualizada')
+      else { setCategoryTransition(previo); showMsg('error', result.error || 'Error al guardar') }
+    } catch {
+      setCategoryTransition(previo)
+      showMsg('error', 'Error de conexión')
+    } finally {
+      setSavingTransition(false)
+    }
+  }
 
   const showMsg = (type: 'success' | 'error', text: string) => {
     setMsg({ type, text })
@@ -256,6 +287,10 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
         if (result.data.cartMinPurchase !== undefined) {
           setCartMinPurchase(Number(result.data.cartMinPurchase) || 0)
         }
+        if (result.data.categoryTransition) setCategoryTransition(String(result.data.categoryTransition))
+        if (result.data.deliveryMode !== undefined) setDeliveryMode(result.data.deliveryMode)
+        if (result.data.platformDeliveryFee !== undefined) setPlatformDeliveryFee(Number(result.data.platformDeliveryFee) || 0)
+        if (result.data.deliveryAutoBroadcast !== undefined) setDeliveryAutoBroadcast(!!result.data.deliveryAutoBroadcast)
         if (result.data.cartDeliveryFee !== undefined) {
           setCartDeliveryFee(Number(result.data.cartDeliveryFee) || 0)
         }
@@ -488,11 +523,13 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
   const handleSaveCategoryImage = async (categoryId: string) => {
     setSaving(true)
     try {
-      const result = await api.updateCategoryImage(categoryId, categoryImageUrl)
+      const result = await api.updateCategoryImage(categoryId, categoryImageUrl, categoryImageHoverUrl, categoryCoverUrl)
       if (result.success) {
-        showMsg('success', 'Imagen de categoría actualizada')
+        showMsg('success', 'Imágenes de categoría actualizadas')
         setEditingCategoryId(null)
         setCategoryImageUrl('')
+        setCategoryImageHoverUrl('')
+        setCategoryCoverUrl('')
         fetchData()
       } else {
         showMsg('error', result.error || 'Error al actualizar')
@@ -608,7 +645,10 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
   const handleSaveCartSettings = async () => {
     setIsSavingCartSettings(true)
     try {
-      const result = await api.updateCartSettings({ cartMinPurchase, cartDeliveryFee })
+      const result = await api.updateCartSettings({
+        cartMinPurchase, cartDeliveryFee,
+        deliveryMode, platformDeliveryFee, deliveryAutoBroadcast,
+      })
       if (result.success) {
         setCartSettingsMsg({ type: 'ok', text: 'Configuración de domicilio guardada' })
       } else {
@@ -904,6 +944,37 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
           <p className="text-sm text-muted-foreground">
             Elige qué categorías aparecen en el <strong>Hero 2</strong> (sección visual de categorías en tu tienda). Puedes activar o desactivar cada una con el ícono del ojo. Las categorías desactivadas siguen visibles en el <strong>catálogo</strong> con todos sus productos.
           </p>
+
+          {/* Animación de entrada — ajuste de la TIENDA, no de cada categoría */}
+          <Card>
+            <CardContent className="space-y-3 pt-5">
+              <div>
+                <p className="text-sm font-semibold">Animación al abrir una categoría</p>
+                <p className="text-xs text-muted-foreground">
+                  Se aplica a todas tus categorías que tengan <strong>portada</strong> configurada.
+                  Sin portada, la categoría abre directo sin animación.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {CATEGORY_TRANSITIONS.map(t => (
+                  <button
+                    key={t.key}
+                    onClick={() => handleSaveCategoryTransition(t.key)}
+                    disabled={savingTransition}
+                    title={t.hint}
+                    className={`rounded-lg border px-3 py-2 text-left transition-colors disabled:opacity-50 ${
+                      categoryTransition === t.key
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border hover:border-primary/40'
+                    }`}
+                  >
+                    <span className="block text-xs font-medium">{t.label}</span>
+                    <span className="block text-[10px] text-muted-foreground">{t.hint}</span>
+                  </button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
           {categories.length === 0 ? (
             <Card>
               <CardContent className="py-8 text-center text-muted-foreground">
@@ -915,10 +986,28 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {categories.map(cat => (
                 <Card key={cat.id} className={`overflow-hidden transition-opacity ${cat.hiddenInStore ? 'opacity-50' : ''}`}>
-                  <div className="relative h-32 bg-muted flex items-center justify-center">
+                  {/* `group` + `overflow-hidden`: misma animación de barrido que la tienda */}
+                  <div className="group relative h-32 bg-muted flex items-center justify-center overflow-hidden">
                     {cat.imageUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={cat.imageUrl} alt={cat.name} className="w-full h-full object-cover" />
+                      <>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={cat.imageUrl} alt={cat.name}
+                          className={`w-full h-full object-cover transition-transform duration-700 ease-out ${cat.imageUrlHover ? 'group-hover:translate-x-full' : ''}`}
+                        />
+                        {cat.imageUrlHover && (
+                          <>
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={cat.imageUrlHover} alt="" aria-hidden="true"
+                              className="absolute inset-0 w-full h-full object-cover -translate-x-full group-hover:translate-x-0 transition-transform duration-700 ease-out"
+                            />
+                            <span className="absolute top-1.5 right-1.5 z-10 rounded bg-black/60 px-1.5 py-0.5 text-[9px] font-medium text-white group-hover:opacity-0 transition-opacity">
+                              2 imágenes
+                            </span>
+                          </>
+                        )}
+                      </>
                     ) : (
                       <Grid3X3 className="h-10 w-10 text-muted-foreground/30" />
                     )}
@@ -943,18 +1032,50 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
                       {cat.hiddenInStore ? 'Oculta del Hero 2 · visible en catálogo' : 'Visible en Hero 2'}
                     </p>
                     {editingCategoryId === cat.id ? (
-                      <div className="space-y-2">
-                        <CloudinaryUpload
-                          value={categoryImageUrl}
-                          onChange={url => setCategoryImageUrl(url)}
-                          previewClassName="h-12 w-12 object-cover rounded border"
-                          accept="image/*"
-                        />
+                      <div className="space-y-3">
+                        <div className="space-y-1.5">
+                          <p className="text-[11px] font-medium text-muted-foreground">Imagen principal</p>
+                          <CloudinaryUpload
+                            value={categoryImageUrl}
+                            onChange={url => setCategoryImageUrl(url)}
+                            previewClassName="h-12 w-12 object-cover rounded border"
+                            accept="image/*"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <p className="text-[11px] font-medium text-muted-foreground">
+                            Imagen al pasar el cursor <span className="font-normal">(opcional)</span>
+                          </p>
+                          <CloudinaryUpload
+                            value={categoryImageHoverUrl}
+                            onChange={url => setCategoryImageHoverUrl(url)}
+                            previewClassName="h-12 w-12 object-cover rounded border"
+                            accept="image/*"
+                          />
+                          <p className="text-[10px] text-muted-foreground">
+                            Si la dejas vacía, la tarjeta no cambia de imagen.
+                          </p>
+                        </div>
+                        <div className="space-y-1.5">
+                          <p className="text-[11px] font-medium text-muted-foreground">
+                            Portada de la categoría <span className="font-normal">(imagen o GIF, opcional)</span>
+                          </p>
+                          <CloudinaryUpload
+                            value={categoryCoverUrl}
+                            onChange={url => setCategoryCoverUrl(url)}
+                            previewClassName="h-12 w-12 object-cover rounded border"
+                            accept="image/*"
+                          />
+                          <p className="text-[10px] text-muted-foreground">
+                            Se muestra como animación al abrir la categoría y como
+                            cabecera del catálogo. Un GIF se reproduce solo.
+                          </p>
+                        </div>
                         <div className="flex gap-2">
                           <Button size="sm" onClick={() => handleSaveCategoryImage(cat.id)} disabled={saving}>
                             <Check className="h-3 w-3 mr-1" /> Guardar
                           </Button>
-                          <Button size="sm" variant="ghost" onClick={() => { setEditingCategoryId(null); setCategoryImageUrl('') }}>
+                          <Button size="sm" variant="ghost" onClick={() => { setEditingCategoryId(null); setCategoryImageUrl(''); setCategoryImageHoverUrl(''); setCategoryCoverUrl('') }}>
                             <X className="h-3 w-3" />
                           </Button>
                         </div>
@@ -967,10 +1088,12 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
                         onClick={() => {
                           setEditingCategoryId(cat.id)
                           setCategoryImageUrl(cat.imageUrl || '')
+                          setCategoryImageHoverUrl(cat.imageUrlHover || '')
+                          setCategoryCoverUrl(cat.coverUrl || '')
                         }}
                       >
                         <ImageIcon className="h-3 w-3 mr-1" />
-                        {cat.imageUrl ? 'Cambiar imagen' : 'Agregar imagen'}
+                        {cat.imageUrl ? 'Cambiar imágenes' : 'Agregar imágenes'}
                       </Button>
                     )}
                   </CardContent>
@@ -2342,6 +2465,71 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
                     {cartMinPurchase > 0 ? formatCurrency(cartMinPurchase) : 'Desactivado'}
                   </span>
                 </div>
+              </div>
+
+              {/* ── Cómo manejas los domicilios (F1 · plan-delivery-tema2) ── */}
+              <div className="space-y-3 rounded-lg border border-border p-4">
+                <div>
+                  <label className="text-sm font-medium">¿Cómo manejas los domicilios?</label>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Define qué ve el cliente al pedir. Si no cambias nada, todo sigue como hasta ahora.
+                  </p>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  {([
+                    { v: 'ninguno', t: 'Lo coordino yo', d: 'El cliente acuerda el envío contigo por WhatsApp' },
+                    { v: 'propio', t: 'Repartidores propios', d: 'Tú asignas a tu gente desde el panel' },
+                    { v: 'plataforma', t: 'Repartidores de la plataforma', d: 'El cliente solicita uno al hacer el pedido' },
+                  ] as const).map(opt => (
+                    <button
+                      key={opt.v}
+                      type="button"
+                      onClick={() => setDeliveryMode(opt.v)}
+                      className={`text-left rounded-lg border-2 p-3 transition-colors ${
+                        deliveryMode === opt.v ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/40'
+                      }`}
+                    >
+                      <p className="text-sm font-semibold">{opt.t}</p>
+                      <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">{opt.d}</p>
+                    </button>
+                  ))}
+                </div>
+
+                {deliveryMode === 'plataforma' && (
+                  <div className="space-y-3 pt-1">
+                    <div>
+                      <label className="text-sm font-medium">Costo del domicilio (COP)</label>
+                      <p className="text-xs text-muted-foreground mb-1.5">Lo que se le cobra al cliente por el envío de plataforma.</p>
+                      <input
+                        type="number" min={0} step={500}
+                        value={platformDeliveryFee}
+                        onChange={e => setPlatformDeliveryFee(Math.max(0, parseInt(e.target.value) || 0))}
+                        placeholder="Ej: 6000"
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      />
+                    </div>
+                    <label className="flex items-start gap-2 text-sm cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={deliveryAutoBroadcast}
+                        onChange={e => setDeliveryAutoBroadcast(e.target.checked)}
+                        className="mt-0.5"
+                      />
+                      <span>
+                        Avisar a todos mis repartidores en línea
+                        <span className="block text-[11px] text-muted-foreground">
+                          El primero que acepte se lleva el pedido. Si lo desactivas, asignas tú manualmente.
+                        </span>
+                      </span>
+                    </label>
+                    <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
+                      <p className="text-xs text-amber-600 dark:text-amber-400">
+                        Necesitas repartidores vinculados a tu comercio para que esto funcione. Si no hay ninguno
+                        en línea al momento del pedido, el cliente verá la opción de coordinar contigo.
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="flex-1 space-y-2">

@@ -6,7 +6,7 @@
  * comercios que pueden atender. El repartidor solo ve pedidos de ese grupo.
  */
 import { useEffect, useState, useCallback, useMemo } from 'react'
-import { RefreshCw, Truck, Plus, Store, Search, Check, X, Power, Map as MapIcon } from 'lucide-react'
+import { RefreshCw, Truck, Plus, Store, Search, Check, X, Power, Map as MapIcon, Star, AlertTriangle, ShieldCheck, Undo2 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -20,7 +20,11 @@ import {
 } from '@/components/ui/select'
 import { api } from '@/lib/api'
 
-type Courier = { id: string; name: string; email: string; phone?: string | null; isActive: number; tenantsCount: number }
+type Courier = {
+  id: string; name: string; email: string; phone?: string | null; isActive: number; tenantsCount: number
+  // F6 — avgStars es null si nunca lo calificaron (no mostrar 0)
+  avgStars: number | null; ratingsCount: number; openReports: number
+}
 type Tenant = { id: string; name: string; businessType?: string | null }
 
 export function CouriersTab() {
@@ -137,6 +141,9 @@ export function CouriersTab() {
         </div>
       </div>
 
+      {/* F6 · Moderación de reportes de clientes */}
+      <CourierReportsPanel onReviewed={load} />
+
       {/* Config del seguimiento en vivo — API de mapas (opcional) */}
       <Card>
         <CardContent className="space-y-3 pt-5">
@@ -203,6 +210,25 @@ export function CouriersTab() {
                   <Store className="h-3.5 w-3.5 text-muted-foreground" />
                   <span className="font-medium">{c.tenantsCount}</span>
                   <span className="text-muted-foreground">comercio(s) asignado(s)</span>
+                </div>
+
+                {/* Calidad real: sin calificaciones no se inventa un número */}
+                <div className="flex items-center gap-3 text-sm">
+                  {c.avgStars != null ? (
+                    <span className="flex items-center gap-1">
+                      <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+                      <span className="font-medium">{c.avgStars}</span>
+                      <span className="text-xs text-muted-foreground">({c.ratingsCount})</span>
+                    </span>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">Sin calificaciones</span>
+                  )}
+                  {c.openReports > 0 && (
+                    <Badge variant="destructive" className="gap-1">
+                      <AlertTriangle className="h-3 w-3" />
+                      {c.openReports} reporte{c.openReports > 1 ? 's' : ''}
+                    </Badge>
+                  )}
                 </div>
                 <Button variant="outline" size="sm" className="w-full" onClick={() => openManage(c)}>
                   <Store className="mr-1 h-3.5 w-3.5" /> Gestionar comercios
@@ -303,5 +329,125 @@ export function CouriersTab() {
         </DialogContent>
       </Dialog>
     </div>
+  )
+}
+
+const REASON_LABELS: Record<string, string> = {
+  tarde: 'Llegó tarde',
+  trato: 'Mal trato',
+  producto: 'Pedido en mal estado',
+  no_entregado: 'No entregado',
+  otro: 'Otro',
+}
+
+/**
+ * F6 · Moderación de reportes de repartidores.
+ * Los clientes reportan desde el seguimiento (F5). Aquí se revisan.
+ * Marcar como revisado NO borra el reporte: queda el historial de quién y cuándo,
+ * y siempre se puede reabrir.
+ */
+function CourierReportsPanel({ onReviewed }: { onReviewed: () => void }) {
+  type Report = {
+    id: string; stars: number | null; comment: string | null; reportReason: string
+    createdAt: string; reviewedAt: string | null; reviewedByName: string | null
+    courierId: string; courierName: string; courierPhone: string | null
+    tenantName: string | null; orderNumber: string | null; total: number | null
+  }
+  const [status, setStatus] = useState<'pendientes' | 'revisados' | 'todos'>('pendientes')
+  const [reports, setReports] = useState<Report[]>([])
+  const [pending, setPending] = useState(0)
+  const [loading, setLoading] = useState(false)
+  const [busyId, setBusyId] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    const res = await api.getCourierReports(status)
+    if (res.success && res.data) {
+      setReports(res.data.reports as Report[])
+      setPending(res.data.pending)
+    }
+    setLoading(false)
+  }, [status])
+
+  useEffect(() => { load() }, [load])
+
+  const review = async (id: string, reopen: boolean) => {
+    setBusyId(id)
+    const res = await api.reviewCourierReport(id, reopen)
+    if (res.success) { await load(); onReviewed() }
+    setBusyId(null)
+  }
+
+  // Sin reportes pendientes y sin filtro activo: no ocupar espacio en la pantalla.
+  if (!loading && reports.length === 0 && status === 'pendientes' && pending === 0) return null
+
+  return (
+    <Card>
+      <CardContent className="space-y-3 pt-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="flex items-center gap-2 text-sm font-semibold">
+              <AlertTriangle className="h-4 w-4 text-destructive" /> Reportes de clientes
+              {pending > 0 && <Badge variant="destructive">{pending} sin revisar</Badge>}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Reportados por clientes al calificar su entrega. Revisar deja constancia; no borra el reporte.
+            </p>
+          </div>
+          <div className="flex gap-1">
+            {(['pendientes', 'revisados', 'todos'] as const).map(s => (
+              <Button key={s} size="sm" variant={status === s ? 'default' : 'outline'}
+                onClick={() => setStatus(s)} className="capitalize">{s}</Button>
+            ))}
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="py-6 text-center"><RefreshCw className="mx-auto h-5 w-5 animate-spin text-muted-foreground" /></div>
+        ) : reports.length === 0 ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">
+            {status === 'pendientes' ? 'No hay reportes sin revisar 🎉' : 'Sin reportes en este filtro'}
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {reports.map(r => (
+              <div key={r.id} className={`rounded-lg border p-3 ${r.reviewedAt ? 'bg-muted/30' : 'border-destructive/30 bg-destructive/5'}`}>
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-medium">{r.courierName}</span>
+                      <Badge variant="outline">{REASON_LABELS[r.reportReason] || r.reportReason}</Badge>
+                      {r.stars != null && (
+                        <span className="flex items-center gap-0.5 text-xs">
+                          <Star className="h-3 w-3 fill-amber-400 text-amber-400" />{r.stars}
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {r.tenantName || 'Sin comercio'}
+                      {r.orderNumber ? ` · Pedido #${r.orderNumber}` : ''}
+                      {' · '}{new Date(r.createdAt).toLocaleString('es-CO')}
+                    </p>
+                    {r.comment && <p className="mt-1.5 text-sm italic">“{r.comment}”</p>}
+                    {r.reviewedAt && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        <ShieldCheck className="mr-1 inline h-3 w-3" />
+                        Revisado por {r.reviewedByName || 'superadmin'} el {new Date(r.reviewedAt).toLocaleDateString('es-CO')}
+                      </p>
+                    )}
+                  </div>
+                  <Button size="sm" variant={r.reviewedAt ? 'outline' : 'default'}
+                    disabled={busyId === r.id} onClick={() => review(r.id, !!r.reviewedAt)}>
+                    {busyId === r.id ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                      : r.reviewedAt ? <><Undo2 className="mr-1 h-3.5 w-3.5" /> Reabrir</>
+                      : <><Check className="mr-1 h-3.5 w-3.5" /> Marcar revisado</>}
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   )
 }
