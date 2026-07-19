@@ -143,6 +143,7 @@ export function TenantManagement() {
     platformMarginPct: null as number | null, // null = comisión de plataforma inactiva
     ownerName: '',
     ownerEmail: '',
+    ownerPassword: '',
   })
 
   const [isDetailOpen, setIsDetailOpen] = useState(false)
@@ -221,6 +222,10 @@ export function TenantManagement() {
   const [isDeletingUser, setIsDeletingUser] = useState(false)
   const [deleteUserId, setDeleteUserId] = useState<string | null>(null)
   const [deleteUserName, setDeleteUserName] = useState('')
+  const [showOwnerPassword, setShowOwnerPassword] = useState(false)
+  const [isResetSalesOpen, setIsResetSalesOpen] = useState(false)
+  const [isResettingSales, setIsResettingSales] = useState(false)
+  const [resetSalesConfirm, setResetSalesConfirm] = useState('')
   const [isResetPassOpen, setIsResetPassOpen] = useState(false)
   const [resetPassUserId, setResetPassUserId] = useState<string | null>(null)
   const [resetPassUserName, setResetPassUserName] = useState('')
@@ -496,10 +501,29 @@ export function TenantManagement() {
       maxProducts: editForm.maxProducts,
       bgColor: editForm.bgColor,
       platformMarginPct: editForm.platformMarginPct,
+      ownerName: editForm.ownerName.trim() || undefined,
+      ownerEmail: editForm.ownerEmail.trim() || undefined,
+      ownerPassword: editForm.ownerPassword.trim() || undefined,
     })
     if (result.success) { toast.success('Comercio actualizado'); setIsEditOpen(false); fetchTenants() }
     else toast.error(result.error || 'Error al actualizar')
     setIsUpdating(false)
+  }
+
+  const handleResetSales = async () => {
+    if (!editingTenant) return
+    setIsResettingSales(true)
+    const result = await api.resetTenantSales(editingTenant.id)
+    if (result.success) {
+      const n = result.data?.sales ?? 0
+      toast.success(`Ventas reiniciadas: ${n} venta(s) eliminada(s)`)
+      setIsResetSalesOpen(false)
+      setResetSalesConfirm('')
+      fetchTenants(); fetchStats()
+    } else {
+      toast.error(result.error || 'Error al reiniciar las ventas')
+    }
+    setIsResettingSales(false)
   }
 
   const handleToggleStatus = async (tenant: TenantDetail) => {
@@ -599,6 +623,7 @@ export function TenantManagement() {
       platformMarginPct: (tenant as any).platformMarginPct ?? null,
       ownerName: (tenant as any).ownerName || '',
       ownerEmail: (tenant as any).ownerEmail || '',
+      ownerPassword: '',
     })
     setIsEditOpen(true)
   }
@@ -1519,21 +1544,69 @@ export function TenantManagement() {
                 <Input type="number" min={1} value={editForm.maxProducts} onChange={(e) => setEditForm(f => ({ ...f, maxProducts: parseInt(e.target.value) || 500 }))} />
               </div>
             </div>
-            {(editForm.ownerName || editForm.ownerEmail) && (
-              <div className="rounded-lg border border-border p-3 space-y-2 bg-muted/30">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Propietario (solo lectura)</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <p className="text-xs text-muted-foreground">Nombre</p>
-                    <p className="text-sm font-medium">{editForm.ownerName || '-'}</p>
+            <div className="rounded-lg border border-border p-3 space-y-3 bg-muted/30">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                <ShieldCheck className="h-3.5 w-3.5" /> Datos del propietario
+              </p>
+              {!editingTenant?.ownerId && (
+                <p className="text-xs text-amber-600 flex items-center gap-1.5">
+                  <AlertTriangle className="h-3.5 w-3.5 shrink-0" /> Este comercio aún no tiene un propietario asignado.
+                </p>
+              )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Nombre del propietario</Label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      value={editForm.ownerName}
+                      onChange={(e) => setEditForm(f => ({ ...f, ownerName: e.target.value }))}
+                      placeholder="Nombre del propietario"
+                      className="pl-9"
+                      disabled={!editingTenant?.ownerId}
+                    />
                   </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Email</p>
-                    <p className="text-sm font-medium break-all">{editForm.ownerEmail || '-'}</p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Correo (login)</Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      type="email"
+                      value={editForm.ownerEmail}
+                      onChange={(e) => setEditForm(f => ({ ...f, ownerEmail: e.target.value }))}
+                      placeholder="email@ejemplo.com"
+                      className="pl-9"
+                      disabled={!editingTenant?.ownerId}
+                    />
                   </div>
                 </div>
               </div>
-            )}
+              <div className="space-y-1.5">
+                <Label className="text-xs">Nueva contraseña</Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type={showOwnerPassword ? 'text' : 'password'}
+                    value={editForm.ownerPassword}
+                    onChange={(e) => setEditForm(f => ({ ...f, ownerPassword: e.target.value }))}
+                    placeholder="Déjalo vacío para no cambiarla"
+                    className="pl-9 pr-9"
+                    autoComplete="new-password"
+                    disabled={!editingTenant?.ownerId}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowOwnerPassword(v => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    tabIndex={-1}
+                  >
+                    {showOwnerPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+                <p className="text-[11px] text-muted-foreground">Mínimo 6 caracteres. Solo se actualiza si escribes una nueva.</p>
+              </div>
+            </div>
             <div className="space-y-2 border-t border-border pt-4">
               <Label className="flex items-center gap-2"><Palette className="h-4 w-4" />Color de fondo de la tienda</Label>
               <div className="flex items-center gap-3">
@@ -1573,9 +1646,68 @@ export function TenantManagement() {
               </div>
             </div>
           </div>
+          {/* Zona de peligro — reinicio de ventas */}
+          <div className="rounded-lg border border-red-500/30 bg-red-500/[0.04] p-3 space-y-2">
+            <p className="text-xs font-semibold text-red-600 uppercase tracking-wider flex items-center gap-1.5">
+              <AlertTriangle className="h-3.5 w-3.5" /> Zona de peligro
+            </p>
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <p className="text-xs text-muted-foreground max-w-sm">
+                Borra el historial de ventas de prueba (ventas, caja y abonos) para empezar el control desde cero. No afecta productos, clientes ni inventario. <strong>Es irreversible.</strong>
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="shrink-0 border-red-500/40 text-red-600 hover:bg-red-500/10 hover:text-red-600"
+                onClick={() => { setResetSalesConfirm(''); setIsResetSalesOpen(true) }}
+              >
+                <RefreshCw className="h-4 w-4 mr-1.5" /> Reiniciar ventas
+              </Button>
+            </div>
+          </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsEditOpen(false)}>Cancelar</Button>
             <Button onClick={handleUpdateTenant} disabled={isUpdating}>{isUpdating ? 'Guardando...' : 'Guardar Cambios'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirmación: reinicio de ventas (irreversible) */}
+      <Dialog open={isResetSalesOpen} onOpenChange={(open) => { if (!open) { setIsResetSalesOpen(false); setResetSalesConfirm('') } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertTriangle className="h-5 w-5" /> Reiniciar ventas del comercio
+            </DialogTitle>
+            <DialogDescription>
+              Vas a borrar <strong>todo el historial de ventas</strong> de <strong>{editingTenant?.name}</strong>: ventas y sus ítems, abonos de crédito, movimientos y sesiones de caja. También se reinicia la numeración de factura.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-1">
+            <div className="rounded-md bg-muted/50 border border-border p-3 text-xs text-muted-foreground space-y-1">
+              <p>✔ Se conservan: productos, clientes, inventario y stock actual.</p>
+              <p className="text-red-600">✗ No se puede deshacer.</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Escribe <strong>REINICIAR</strong> para confirmar</Label>
+              <Input
+                value={resetSalesConfirm}
+                onChange={(e) => setResetSalesConfirm(e.target.value)}
+                placeholder="REINICIAR"
+                autoComplete="off"
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => { setIsResetSalesOpen(false); setResetSalesConfirm('') }}>Cancelar</Button>
+            <Button
+              variant="destructive"
+              onClick={handleResetSales}
+              disabled={isResettingSales || resetSalesConfirm.trim().toUpperCase() !== 'REINICIAR'}
+            >
+              {isResettingSales ? <><RefreshCw className="h-4 w-4 mr-2 animate-spin" /> Reiniciando...</> : 'Sí, reiniciar ventas'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

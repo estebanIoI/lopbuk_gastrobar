@@ -1458,7 +1458,7 @@ class ApiService {
     })
   }
 
-  async updateTenant(id: string, data: { name?: string; slug?: string; businessType?: string; plan?: string; status?: string; maxUsers?: number; maxProducts?: number; bgColor?: string; platformMarginPct?: number | null }) {
+  async updateTenant(id: string, data: { name?: string; slug?: string; businessType?: string; plan?: string; status?: string; maxUsers?: number; maxProducts?: number; bgColor?: string; platformMarginPct?: number | null; ownerName?: string; ownerEmail?: string; ownerPassword?: string }) {
     return this.request<any>(`/tenants/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
@@ -1491,6 +1491,14 @@ class ApiService {
       method: 'POST',
       body: JSON.stringify({ days }),
     })
+  }
+
+  // Reinicia SOLO los datos de ventas del comercio (irreversible). Superadmin.
+  async resetTenantSales(id: string) {
+    return this.request<{ sales: number; creditPayments: number; cashMovements: number; cashSessions: number }>(
+      `/tenants/${id}/reset-sales`,
+      { method: 'POST' }
+    )
   }
 
   async deactivateTenantTrial(id: string, revertPlan: string = 'basico') {
