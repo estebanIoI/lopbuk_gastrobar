@@ -487,7 +487,8 @@ export class VariantsService {
     stock?: number; minStock?: number; costPrice?: number; priceOverride?: number;
     hormaId?: string | null; sortOrder?: number;
     attributes?: Array<{ name: string; value: string }>;
-  }>): Promise<{ created: number; skipped: number; errors: string[] }> {
+    priceTiers?: Array<{ minQty: number; price: number; tenantMarginPct?: number }>;
+  }>): Promise<{ created: number; skipped: number; errors: string[]; tiersCreated: number }> {
     await this.ensureTables();
     await this.ensureColorHex();
 
@@ -502,12 +503,14 @@ export class VariantsService {
     const skipped = items.length - toInsert.length;
     const errors: string[] = [];
 
-    if (toInsert.length === 0) return { created: 0, skipped, errors };
+    if (toInsert.length === 0) return { created: 0, skipped, errors, tiersCreated: 0 };
 
     // INSERT multi-row en una sola query
     const placeholders = toInsert.map(() => '(?,?,?,?,?,?,?,?,?,0,?,?,?,?,?,?)').join(',')
     const values: any[] = []
     const movements: { variantId: string; stock: number }[] = []
+    // Filas de price-tiers a insertar tras crear las variantes (dedup por min_qty)
+    const tierRows: any[] = []
 
     for (const v of toInsert) {
       const id = uuidv4()
@@ -523,6 +526,17 @@ export class VariantsService {
         attrs.length ? JSON.stringify(attrs) : null,
       )
       if (v.stock && v.stock > 0) movements.push({ variantId: id, stock: v.stock })
+
+      if (Array.isArray(v.priceTiers) && v.priceTiers.length) {
+        const seen = new Set<number>()
+        for (const t of v.priceTiers) {
+          const minQty = Math.max(1, Math.round(Number(t.minQty) || 1))
+          const price = Number(t.price)
+          if (!Number.isFinite(price) || price <= 0 || seen.has(minQty)) continue
+          seen.add(minQty)
+          tierRows.push([uuidv4(), tenantId, id, minQty, price, Number(t.tenantMarginPct) || 0])
+        }
+      }
     }
 
     await db.execute(
@@ -533,6 +547,19 @@ export class VariantsService {
       values
     );
 
+    // Insertar price-tiers (detal / mayorista) en una sola query multi-row
+    let tiersCreated = 0
+    if (tierRows.length) {
+      const tierPlaceholders = tierRows.map(() => '(?,?,?,?,?,?)').join(',')
+      await db.execute(
+        `INSERT INTO variant_price_tiers
+           (id, tenant_id, variant_id, min_qty, price, tenant_margin_pct)
+         VALUES ${tierPlaceholders}`,
+        tierRows.flat()
+      );
+      tiersCreated = tierRows.length
+    }
+
     // Registrar movimientos de inventario inicial
     for (const m of movements) {
       await this._recordMovement({
@@ -542,7 +569,7 @@ export class VariantsService {
       }).catch(() => { /* no bloquear si falla el log */ });
     }
 
-    return { created: toInsert.length, skipped, errors };
+    return { created: toInsert.length, skipped, errors, tiersCreated };
   }
 
   async update(id: string, tenantId: string, data: Partial<{

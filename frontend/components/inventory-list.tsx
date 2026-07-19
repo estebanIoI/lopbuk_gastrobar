@@ -73,6 +73,9 @@ import {
   Check,
   Cloud,
   Warehouse,
+  Sparkles,
+  Loader2,
+  AlertCircle,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { BarcodeScanner } from '@/components/barcode-scanner'
@@ -2822,6 +2825,13 @@ function ProductFormDialog({
       setFormData(initial)
       setShowScanner(false)
       setShowRemoteScanner(false)
+      // Reset del panel de IA
+      setAiActive(false)
+      setAiVariants([])
+      setAiTiers([])
+      setAiProvider(null)
+      setAiError(null)
+      setAiAnalyzing(false)
       // Cargar hormas para productos tipo ropa
       api.getHormas().then(r => { if (r.success && r.data) setHormasList(r.data as any[]) })
     }
@@ -2856,6 +2866,100 @@ function ProductFormDialog({
   const [hormaMatrix, setHormaMatrix] = useState<Record<string, Record<string, Record<string, string>>>>({})
   // Precios por horma: { [hormaId]: { purchasePrice: string, salePrice: string } }
   const [hormaPrices, setHormaPrices] = useState<Record<string, { purchasePrice: string; salePrice: string }>>({})
+
+  // ── IA: análisis de imagen → producto + variantes + precios ──────────────────
+  const aiFileInputRef = useRef<HTMLInputElement>(null)
+  const [aiAnalyzing, setAiAnalyzing] = useState(false)
+  const [aiError, setAiError] = useState<string | null>(null)
+  const [aiProvider, setAiProvider] = useState<string | null>(null)
+  // aiActive: cuando hay un análisis cargado, el panel rápido reemplaza la matriz de hormas
+  const [aiActive, setAiActive] = useState(false)
+  const [aiVariants, setAiVariants] = useState<Array<{ color: string; colorHex: string; stock: string }>>([])
+  const [aiTiers, setAiTiers] = useState<Array<{ minQty: string; price: string; label: string }>>([])
+
+  const triggerAiPicker = () => aiFileInputRef.current?.click()
+
+  const handleAiFile = async (file: File | null | undefined) => {
+    if (!file) return
+    setAiError(null)
+    setAiAnalyzing(true)
+    setAiProvider(null)
+    try {
+      const dataUrl: string = await new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(String(reader.result))
+        reader.onerror = () => reject(new Error('No se pudo leer el archivo'))
+        reader.readAsDataURL(file)
+      })
+      const res = await api.analyzeProductImage({ imageBase64: dataUrl, mimeType: file.type || 'image/jpeg' })
+      if (!res.success || !res.data) {
+        setAiError(res.error || 'No se pudo analizar la imagen')
+        return
+      }
+      const d = res.data
+      setAiProvider(d.provider)
+      // Precargar campos del producto
+      setFormData(prev => {
+        const next = { ...prev }
+        if (d.name) next.name = d.name
+        if (d.description) next.description = d.description
+        if (d.productType) next.productType = d.productType
+        if (d.matchedCategoryId) next.category = d.matchedCategoryId
+        // Para ropa el stock/precio viven en variantes → dejar en 0
+        if (d.productType === 'ropa') { next.stock = 0; next.reorderPoint = next.reorderPoint ?? 0 }
+        // Precio de venta del producto = tier más bajo (detal), como referencia
+        if (d.priceTiers?.length) {
+          const detal = [...d.priceTiers].sort((a, b) => a.minQty - b.minQty)[0]
+          if (detal?.price) next.salePrice = detal.price
+        }
+        return next
+      })
+      // Panel editable de variantes por color
+      setAiVariants(
+        (d.variants || []).map(v => ({
+          color: v.color,
+          colorHex: v.colorHex || '',
+          stock: String(v.stock ?? 0),
+        }))
+      )
+      // Panel editable de precios escalonados
+      setAiTiers(
+        (d.priceTiers || []).map(t => ({
+          minQty: String(t.minQty ?? 1),
+          price: String(t.price ?? 0),
+          label: t.label || '',
+        }))
+      )
+      setAiActive(true)
+      // Si no vino una categoría reconocida, avisar suavemente
+      if (!d.matchedCategoryId && d.category) {
+        toast.info(`Categoría sugerida: "${d.category}" — selecciónala o crea una`)
+      }
+    } catch (e: any) {
+      setAiError(e?.message || 'Error al analizar la imagen')
+    } finally {
+      setAiAnalyzing(false)
+      if (aiFileInputRef.current) aiFileInputRef.current.value = ''
+    }
+  }
+
+  const updateAiVariant = (idx: number, patch: Partial<{ color: string; colorHex: string; stock: string }>) =>
+    setAiVariants(prev => prev.map((v, i) => (i === idx ? { ...v, ...patch } : v)))
+  const removeAiVariant = (idx: number) => setAiVariants(prev => prev.filter((_, i) => i !== idx))
+  const addAiVariant = () => setAiVariants(prev => [...prev, { color: '', colorHex: '', stock: '0' }])
+
+  const updateAiTier = (idx: number, patch: Partial<{ minQty: string; price: string; label: string }>) =>
+    setAiTiers(prev => prev.map((t, i) => (i === idx ? { ...t, ...patch } : t)))
+  const removeAiTier = (idx: number) => setAiTiers(prev => prev.filter((_, i) => i !== idx))
+  const addAiTier = () => setAiTiers(prev => [...prev, { minQty: '1', price: '', label: '' }])
+
+  const clearAi = () => {
+    setAiActive(false)
+    setAiVariants([])
+    setAiTiers([])
+    setAiProvider(null)
+    setAiError(null)
+  }
 
   const toggleHorma = (hid: string) => {
     setSelectedHormaIds(prev => {
@@ -2955,7 +3059,37 @@ function ProductFormDialog({
 
     // Construir variantes desde la matriz multi-horma
     let variants: any[] | undefined
-    if (selectedHormaIds.length > 0 && Object.keys(hormaMatrix).length > 0) {
+    if (aiActive && aiVariants.length > 0) {
+      // ── Variantes detectadas por IA: una por color, con precios detal/mayorista ──
+      const skuBase = (cleaned.sku || 'VAR').toUpperCase().replace(/[^A-Z0-9]/g, '')
+      const slug = (s: string) => s.trim().toUpperCase().replace(/\s+/g, '-').replace(/[^A-Z0-9-]/g, '')
+      const tiers = aiTiers
+        .map(t => ({ minQty: parseInt(t.minQty) || 1, price: parseFloat(t.price) || 0 }))
+        .filter(t => t.price > 0)
+      const seenSku = new Set<string>()
+      variants = aiVariants
+        .filter(v => v.color.trim())
+        .map(v => {
+          let sku = `${skuBase}-${slug(v.color)}`
+          while (seenSku.has(sku)) sku = `${sku}-1`
+          seenSku.add(sku)
+          return {
+            sku,
+            color: v.color.trim(),
+            colorHex: v.colorHex || '',
+            stock: parseInt(v.stock) || 0,
+            minStock: 0,
+            priceTiers: tiers,
+          }
+        })
+      // Para ropa: stock/precio a nivel producto son 0 — los reales viven en variantes
+      if (productType === 'ropa') {
+        cleaned.stock = 0
+        cleaned.reorderPoint = cleaned.reorderPoint ?? 0
+        cleaned.purchasePrice = cleaned.purchasePrice ?? 0
+        cleaned.salePrice = cleaned.salePrice ?? (tiers[0]?.price ?? 0)
+      }
+    } else if (selectedHormaIds.length > 0 && Object.keys(hormaMatrix).length > 0) {
       const skuBase = (cleaned.sku || 'VAR').toUpperCase().replace(/[^A-Z0-9]/g, '')
       const slug = (s: string) => s.trim().toUpperCase().replace(/\s+/g, '-').replace(/[^A-Z0-9-]/g, '')
       variants = []
@@ -3057,6 +3191,146 @@ function ProductFormDialog({
                 ))}
               </div>
             </div>
+
+            {/* ══ Crear con IA desde una imagen (solo al crear) ══ */}
+            {!initialData && (
+              <div className="mb-4 rounded-lg border border-primary/30 bg-primary/[0.03] p-4">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-primary" />
+                    <div>
+                      <p className="text-xs font-semibold text-foreground">Crear con IA desde una imagen</p>
+                      <p className="text-[11px] text-muted-foreground">Sube la foto del catálogo y la IA detecta nombre, colores, stock y precios.</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {aiProvider && !aiAnalyzing && (
+                      <span className="inline-flex items-center gap-1 text-[11px] text-green-600">
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        {aiProvider === 'gemini' ? 'Gemini' : aiProvider === 'groq' ? 'Groq' : 'OpenAI'}
+                      </span>
+                    )}
+                    <Button type="button" size="sm" variant="outline" onClick={triggerAiPicker} disabled={aiAnalyzing}>
+                      {aiAnalyzing
+                        ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Analizando…</>
+                        : <><Sparkles className="h-3.5 w-3.5 mr-1.5" /> {aiActive ? 'Analizar otra' : 'Analizar imagen'}</>}
+                    </Button>
+                    {aiActive && (
+                      <Button type="button" size="sm" variant="ghost" onClick={clearAi} disabled={aiAnalyzing} className="text-muted-foreground">
+                        <X className="h-3.5 w-3.5 mr-1" /> Descartar
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                <input
+                  ref={aiFileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={e => handleAiFile(e.target.files?.[0])}
+                />
+
+                {aiError && (
+                  <p className="mt-2 flex items-center gap-1.5 text-[11px] text-red-500">
+                    <AlertCircle className="h-3.5 w-3.5 shrink-0" /> {aiError}
+                  </p>
+                )}
+
+                {aiActive && (
+                  <div className="mt-3 grid grid-cols-1 lg:grid-cols-2 gap-3">
+                    {/* ── Variantes por color ── */}
+                    <div className="rounded-md border border-border bg-card p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Colores / variantes</p>
+                        <button type="button" onClick={addAiVariant} className="text-[11px] text-primary hover:underline inline-flex items-center gap-0.5">
+                          <Plus className="h-3 w-3" /> Agregar
+                        </button>
+                      </div>
+                      <div className="space-y-1.5 max-h-56 overflow-y-auto">
+                        {aiVariants.length === 0 && <p className="text-[11px] text-muted-foreground">Sin colores detectados.</p>}
+                        {aiVariants.map((v, i) => (
+                          <div key={i} className="flex items-center gap-1.5">
+                            <input
+                              type="color"
+                              value={/^#[0-9a-fA-F]{6}$/.test(v.colorHex) ? v.colorHex : '#cccccc'}
+                              onChange={e => updateAiVariant(i, { colorHex: e.target.value })}
+                              className="h-8 w-8 rounded border border-border cursor-pointer shrink-0 p-0.5"
+                              title="Color"
+                            />
+                            <Input
+                              value={v.color}
+                              onChange={e => updateAiVariant(i, { color: e.target.value })}
+                              placeholder="Nombre del color"
+                              className="h-8 text-xs flex-1"
+                            />
+                            <Input
+                              type="number"
+                              min="0"
+                              value={v.stock}
+                              onChange={e => updateAiVariant(i, { stock: e.target.value })}
+                              placeholder="Stock"
+                              className="h-8 text-xs w-16"
+                            />
+                            <button type="button" onClick={() => removeAiVariant(i)} className="text-muted-foreground hover:text-red-500 shrink-0">
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* ── Precios escalonados (detal / mayorista) ── */}
+                    <div className="rounded-md border border-border bg-card p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Precios por cantidad</p>
+                        <button type="button" onClick={addAiTier} className="text-[11px] text-primary hover:underline inline-flex items-center gap-0.5">
+                          <Plus className="h-3 w-3" /> Agregar
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-1.5 mb-1 px-0.5">
+                        <span className="text-[10px] text-muted-foreground w-20">Desde (uds)</span>
+                        <span className="text-[10px] text-muted-foreground flex-1">Precio (COP)</span>
+                        <span className="text-[10px] text-muted-foreground w-20">Etiqueta</span>
+                        <span className="w-4" />
+                      </div>
+                      <div className="space-y-1.5 max-h-56 overflow-y-auto">
+                        {aiTiers.length === 0 && <p className="text-[11px] text-muted-foreground">Sin precios detectados.</p>}
+                        {aiTiers.map((t, i) => (
+                          <div key={i} className="flex items-center gap-1.5">
+                            <Input
+                              type="number"
+                              min="1"
+                              value={t.minQty}
+                              onChange={e => updateAiTier(i, { minQty: e.target.value })}
+                              className="h-8 text-xs w-20"
+                            />
+                            <Input
+                              type="number"
+                              min="0"
+                              value={t.price}
+                              onChange={e => updateAiTier(i, { price: e.target.value })}
+                              placeholder="0"
+                              className="h-8 text-xs flex-1"
+                            />
+                            <Input
+                              value={t.label}
+                              onChange={e => updateAiTier(i, { label: e.target.value })}
+                              placeholder="Detal…"
+                              className="h-8 text-xs w-20"
+                            />
+                            <button type="button" onClick={() => removeAiTier(i)} className="text-muted-foreground hover:text-red-500 shrink-0">
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                      <p className="mt-2 text-[10px] text-muted-foreground">Estos precios se aplican a todos los colores como price-tiers.</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* ══ Grid 2 columnas (desktop) ══ */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

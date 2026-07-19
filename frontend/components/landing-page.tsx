@@ -7248,13 +7248,13 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         <section
           data-dark
           className={`relative w-full${isMobile ? '' : ' px-4 py-3'}`}
-          style={{ height: isMobile ? 'auto' : '70vh' }}
+          style={{ height: 'auto' }}
         >
           {(() => {
             const hero4 = storeConfig!.banners.find(b => b.position === 'hero4')!
             return (
               <>
-                <div className={`relative w-full overflow-hidden bg-black${isMobile ? '' : ' h-full rounded-xl'}`}>
+                <div className={`relative w-full overflow-hidden bg-black${isMobile ? '' : ' rounded-xl'}`}>
                   {hero4.videoUrl ? (
                     <video
                       src={hero4.videoUrl}
@@ -7262,14 +7262,14 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       muted
                       loop
                       playsInline
-                      className={isMobile ? 'w-full h-auto block object-contain' : 'absolute inset-0 w-full h-full object-contain object-center'}
+                      className={isMobile ? 'w-full h-auto block object-contain' : 'w-full h-auto block object-contain object-center max-h-[calc(100vh-64px)]'}
                     />
                   ) : (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={hero4.imageUrl}
                       alt={hero4.title || 'Banner'}
-                      className={isMobile ? 'w-full h-auto block object-contain' : 'absolute inset-0 w-full h-full object-contain object-center'}
+                      className={isMobile ? 'w-full h-auto block object-contain' : 'w-full h-auto block object-contain object-center max-h-[calc(100vh-64px)]'}
                     />
                   )}
                   <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/10 to-black/70 pointer-events-none" />
