@@ -450,7 +450,9 @@ router.get(
       // Location filter
       if (municipality) {
         // Client has location: show envio/ambos everywhere + domicilio only in same municipality
-        whereClause += ` AND (p.delivery_type IS NULL OR p.delivery_type IN ('envio', 'ambos') OR (p.delivery_type = 'domicilio' AND si.municipality = ?))`;
+        // NOTE: el collation de la BD (utf8mb4_unicode_ci / 0900_ai_ci) ya ignora
+        // mayúsculas y tildes. TRIM añade tolerancia a espacios sobrantes.
+        whereClause += ` AND (p.delivery_type IS NULL OR p.delivery_type IN ('envio', 'ambos') OR (p.delivery_type = 'domicilio' AND TRIM(si.municipality) = TRIM(?)))`;
         params.push(municipality);
       } else if (noLocation) {
         // Client skipped location: hide domicilio-only products, show envio/ambos/null
@@ -651,7 +653,7 @@ router.get('/stores', async (req: Request, res: Response) => {
 
     if (municipality) {
       // Show: stores in same municipality, OR stores with envio/ambos products, OR stores with no location set
-      municipalityFilter = `AND (si.municipality IS NULL OR si.municipality = ? OR EXISTS (
+      municipalityFilter = `AND (si.municipality IS NULL OR TRIM(si.municipality) = TRIM(?) OR EXISTS (
         SELECT 1 FROM products p2
         WHERE p2.tenant_id = t.id AND ${stockVisibleSql('p2')} AND p2.published_in_store = 1
           AND p2.delivery_type IN ('envio', 'ambos')
