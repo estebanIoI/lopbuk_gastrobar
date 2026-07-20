@@ -25,6 +25,24 @@ const GEMINI_MODEL =
 const GROQ_VISION_MODEL =
   process.env.GROQ_VISION_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct';
 
+/**
+ * Tope para la llamada al proveedor de IA. Debe quedar por debajo del `proxyTimeout`
+ * del rewrite de Next (120s), porque si el proxy corta primero mata la conexión sin
+ * responder y el usuario recibe un 502 con HTML en vez de un error entendible.
+ */
+const AI_TIMEOUT_MS = 60_000;
+
+/** Traduce el abort por timeout en un error de dominio con mensaje para el usuario. */
+function asTimeoutError(err: unknown, provider: string): never {
+  if (err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError')) {
+    throw new AppError(
+      `${provider} tardó demasiado en responder. Intenta de nuevo o usa una foto más liviana.`,
+      504
+    );
+  }
+  throw err;
+}
+
 const ANALYZE_PROMPT = `Eres un asistente experto en digitalizar publicaciones/catálogos de productos para comercios (Colombia).
 Analiza la imagen del producto y responde EXCLUSIVAMENTE con un JSON válido, sin texto adicional ni markdown, con esta forma exacta:
 {
@@ -85,6 +103,7 @@ async function callGeminiVision(apiKey: string, base64: string, mimeType: string
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
   const response = await fetch(url, {
     method: 'POST',
+    signal: AbortSignal.timeout(AI_TIMEOUT_MS),
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       contents: [
@@ -115,6 +134,7 @@ async function callGeminiVision(apiKey: string, base64: string, mimeType: string
 async function callOpenAIVision(apiKey: string, base64: string, mimeType: string): Promise<string> {
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
+    signal: AbortSignal.timeout(AI_TIMEOUT_MS),
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: 'gpt-4o',
@@ -145,6 +165,7 @@ async function callGroqVision(apiKey: string, base64: string, mimeType: string):
   // API compatible con OpenAI. Llama 4 Scout admite imágenes vía image_url.
   const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
+    signal: AbortSignal.timeout(AI_TIMEOUT_MS),
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: GROQ_VISION_MODEL,
@@ -263,13 +284,16 @@ export class ProductImageAnalyzerService {
     let rawText: string;
     if (apiKey.startsWith('AIza')) {
       provider = 'gemini';
-      rawText = await callGeminiVision(apiKey, base64, mimeType);
+      rawText = await callGeminiVision(apiKey, base64, mimeType).catch((e) =>
+        asTimeoutError(e, 'Gemini Vision'));
     } else if (apiKey.startsWith('gsk_')) {
       provider = 'groq';
-      rawText = await callGroqVision(apiKey, base64, mimeType);
+      rawText = await callGroqVision(apiKey, base64, mimeType).catch((e) =>
+        asTimeoutError(e, 'Groq Vision'));
     } else if (apiKey.startsWith('sk-')) {
       provider = 'openai';
-      rawText = await callOpenAIVision(apiKey, base64, mimeType);
+      rawText = await callOpenAIVision(apiKey, base64, mimeType).catch((e) =>
+        asTimeoutError(e, 'OpenAI Vision'));
     } else {
       throw new AppError(
         'La IA configurada no admite lectura de imágenes. Configura una clave de Gemini (AIza…), Groq (gsk_…) u OpenAI (sk-…).',
