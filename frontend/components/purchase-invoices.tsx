@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { api } from '@/lib/api'
 import { formatCOP } from '@/lib/utils'
+import { fileToDownscaledDataUrl } from '@/lib/image'
 import type { Product, PurchaseInvoice, PurchaseInvoiceItem, Supplier } from '@/lib/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -172,37 +173,6 @@ const genTempId = () =>
   (typeof crypto !== 'undefined' && 'randomUUID' in crypto)
     ? crypto.randomUUID()
     : `pi_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
-
-// Reduce la imagen a máx. 1600px y la convierte a JPEG (data URL) para no exceder
-// el límite del backend y acelerar el OCR.
-async function fileToDownscaledDataUrl(file: File, maxSize = 1600, quality = 0.72): Promise<string> {
-  const dataUrl = await new Promise<string>((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(reader.result as string)
-    reader.onerror = reject
-    reader.readAsDataURL(file)
-  })
-  return new Promise<string>((resolve) => {
-    const img = new Image()
-    img.onload = () => {
-      let { width, height } = img
-      if (width > maxSize || height > maxSize) {
-        const ratio = Math.min(maxSize / width, maxSize / height)
-        width = Math.round(width * ratio)
-        height = Math.round(height * ratio)
-      }
-      const canvas = document.createElement('canvas')
-      canvas.width = width
-      canvas.height = height
-      const ctx = canvas.getContext('2d')
-      if (!ctx) { resolve(dataUrl); return }
-      ctx.drawImage(img, 0, 0, width, height)
-      resolve(canvas.toDataURL('image/jpeg', quality))
-    }
-    img.onerror = () => resolve(dataUrl)
-    img.src = dataUrl
-  })
-}
 
 // ─── Supplier Info Card (shown inline in form when supplier selected) ──────────
 

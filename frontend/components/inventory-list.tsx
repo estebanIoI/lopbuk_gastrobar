@@ -8,6 +8,7 @@ import { api } from '@/lib/api'
 import { type Product, type Category, type ProductType, type Sede, type ProductVariant } from '@/lib/types'
 import { PRODUCT_TYPES, FIELD_DEFINITIONS, getFieldsForProductType } from '@/lib/product-config'
 import { formatCOP } from '@/lib/utils'
+import { fileToDownscaledDataUrl } from '@/lib/image'
 import { resolveColorHex } from '@/lib/colors'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -2885,13 +2886,10 @@ function ProductFormDialog({
     setAiAnalyzing(true)
     setAiProvider(null)
     try {
-      const dataUrl: string = await new Promise((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onload = () => resolve(String(reader.result))
-        reader.onerror = () => reject(new Error('No se pudo leer el archivo'))
-        reader.readAsDataURL(file)
-      })
-      const res = await api.analyzeProductImage({ imageBase64: dataUrl, mimeType: file.type || 'image/jpeg' })
+      // Se reduce antes de subir: una foto de cámara sin comprimir supera el límite
+      // del body del backend y tumba la petición en el proxy (502).
+      const dataUrl = await fileToDownscaledDataUrl(file)
+      const res = await api.analyzeProductImage({ imageBase64: dataUrl, mimeType: 'image/jpeg' })
       if (!res.success || !res.data) {
         setAiError(res.error || 'No se pudo analizar la imagen')
         return
