@@ -8,6 +8,14 @@ const BUILD_ID = process.env.BUILD_ID || String(Date.now());
 const nextConfig: NextConfig = {
   output: 'standalone', // necesario para el Dockerfile de producción
   generateBuildId: async () => BUILD_ID,
+  experimental: {
+    // El rewrite /api/* proxea al backend. Next corta el proxy a los 30s por defecto
+    // y mata la conexión sin responder, lo que Cloudflare traduce a un 502 con HTML.
+    // Las llamadas de visión (analyze-image, OCR de facturas) pasan de 30s con
+    // facilidad. El backend aborta la llamada a la IA antes de este límite, así que
+    // el error que ve el usuario siempre es JSON del backend, no un 502 opaco.
+    proxyTimeout: 120_000,
+  },
   env: {
     NEXT_PUBLIC_APP_VERSION: BUILD_ID,
   },
