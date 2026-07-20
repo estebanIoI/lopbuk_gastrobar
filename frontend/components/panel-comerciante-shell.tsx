@@ -18,8 +18,9 @@ import {
   FlaskConical, Truck, Receipt, History, CalendarDays, Ticket, Star,
   Scissors, CreditCard, UserCheck, Printer, ArrowRight, Boxes, PieChart,
   HelpCircle, UtensilsCrossed, Trash2, Wine, ClipboardList, Network, FileSpreadsheet, Gauge, Layers,
-  Sparkles,
+  Sparkles, Dumbbell,
 } from 'lucide-react'
+import { resolveActiveModules, isSectionEnabled } from '@/lib/modules'
 
 // ──────────────────────────────────────────────────────────────
 // Navegación del tema: cada item mapea a una sección real (activeSection)
@@ -55,6 +56,8 @@ const NAV: NavGroup[] = [
       { id: 'merma', label: 'Merma', icon: Trash2, adminOnly: true, warehouse: true },
     ],
   },
+  // Sección propia (sin hijos): solo se ve con el módulo 'gym' activo.
+  { key: 'gym', label: 'Gimnasio', icon: Dumbbell, id: 'gym', adminOnly: true },
   {
     key: 'tienda', label: 'Tienda', icon: Store, adminOnly: true, children: [
       { id: 'tienda', label: 'Mi tienda', icon: Store, adminOnly: true },
@@ -236,9 +239,13 @@ export function PanelComercianteShell() {
   // Los pedidos pendientes son tema de admin (ventas); bodega/vendedor solo ven stock.
   const alertCount = lowStockCount + outOfStockCount + (isAdmin ? Number(pendingOrdersCount || 0) : 0)
 
-  // ── Filtrado por rol ──
-  // admin: ve todo · bodega: solo lo marcado como warehouse · ventas: solo lo no-admin
-  const canSee = (it?: { adminOnly?: boolean; warehouse?: boolean }) => {
+  // ── Filtrado por rol y por módulos activos ──
+  // Rol → admin: ve todo · bodega: solo lo marcado como warehouse · ventas: solo lo no-admin.
+  // Módulos → cada sección exige su módulo habilitado; el superadmin no tiene restricción.
+  // Los grupos sin `id` son contenedores: su visibilidad la deciden sus hijos (último filter).
+  const activeModules = isSuperadmin ? null : resolveActiveModules(user?.enabledModules)
+  const canSee = (it?: { adminOnly?: boolean; warehouse?: boolean; id?: string }) => {
+    if (!isSectionEnabled(it?.id, activeModules)) return false
     if (isAdmin) return true
     if (isWarehouse) return !!it?.warehouse
     return !it?.adminOnly
@@ -247,7 +254,11 @@ export function PanelComercianteShell() {
     .filter(g => canSee(g))
     .map(g => ({ ...g, children: g.children?.filter(c => canSee(c)) }))
     .filter(g => g.id || (g.children && g.children.length > 0))
-  const visibleQuick = isWarehouse ? QUICK_WAREHOUSE : QUICK.filter(q => canSee(q))
+  // Los accesos de bodega ya son específicos del rol, así que solo se filtran por módulo
+  // (canSee los descartaría todos: no llevan el flag `warehouse`).
+  const visibleQuick = isWarehouse
+    ? QUICK_WAREHOUSE.filter(q => isSectionEnabled(q.id, activeModules))
+    : QUICK.filter(q => canSee(q))
   const visibleMore = MORE_TOOLS.filter(m => canSee(m))
 
   const go = (id: string) => {

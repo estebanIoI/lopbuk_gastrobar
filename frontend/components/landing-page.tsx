@@ -11,6 +11,7 @@ import { WholesalePriceBar, resolveActiveTier } from '@/components/wholesale-pri
 import { ProductDetailML, type MLProduct } from '@/components/theme-ml/product-detail-ml'
 import { CheckoutWizardML } from '@/components/theme-ml/checkout-wizard-ml'
 import { parseQtyPromo, hasQtyPromo, qtyPromoOptions } from '@/lib/qty-promo'
+import { matchMunicipality, departamentos as coDepartamentos, municipiosDe } from '@/lib/municipios'
 import { HomeHeroCarousel, HomeCategoryRail, MarketplaceHomeGovCo, type HeroSlide, type PromoCardConfig } from '@/components/home-theme2'
 import { EventsShowcase } from '@/components/events/events-showcase'
 import { ProductInfoTabs } from '@/components/theme-classic/product-info-tabs'
@@ -739,13 +740,26 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
           const data = await res.json()
           const addr = data.address || {}
           const dept = addr.state || addr.region || ''
-          const mun = addr.city || addr.town || addr.municipality || addr.county || addr.village || ''
-          if (dept) setLocationDept(dept)
-          if (mun) setLocationMun(mun)
-          const label = [mun, dept].filter(Boolean).join(', ')
-          setDetectedModalCity(label || 'Ubicación detectada')
+          const rawMun = addr.city || addr.town || addr.municipality || addr.county || addr.village || ''
+          // Encaja el municipio detectado contra la lista canónica (mismo string
+          // que guarda el comercio). Así el match de cobertura de domicilio no
+          // falla por tildes/mayúsculas/variantes. Si no encaja, se ofrece el
+          // selector manual (locationMun queda vacío → botón Confirmar deshabilitado).
+          const canon = matchMunicipality(rawMun) || matchMunicipality([rawMun, dept].filter(Boolean).join(', '))
+          if (canon) {
+            setLocationDept(canon.department)
+            setLocationMun(canon.municipality)
+            setDetectedModalCity(`${canon.municipality}, ${canon.department}`)
+          } else {
+            // No se pudo mapear: limpiamos para forzar selección manual.
+            setLocationMun('')
+            if (dept) setLocationDept(dept)
+            setDetectedModalCity('')
+            setLocationModalError('No ubicamos tu municipio automáticamente. Selecciónalo abajo.')
+          }
         } catch {
-          setDetectedModalCity('Ubicación detectada')
+          setDetectedModalCity('')
+          setLocationModalError('No se pudo detectar tu municipio. Selecciónalo abajo.')
         }
         setIsLocatingModal(false)
       },
@@ -10884,9 +10898,12 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               <div className="h-12 w-12 rounded-full bg-black dark:bg-white flex items-center justify-center mb-4">
                 <MapPin className="h-5 w-5 text-white dark:text-black" />
               </div>
-              <h2 className="font-semibold text-lg tracking-tight text-black dark:text-white">¿Dónde estás?</h2>
+              <h2 className="font-semibold text-lg tracking-tight text-black dark:text-white">
+                {storeConfig?.storeInfo?.name || 'Esta tienda'} tiene domicilios activos
+              </h2>
               <p className="text-xs text-black/50 dark:text-white/50 mt-1 leading-relaxed">
-                Para mostrarte tiendas y domicilios disponibles en tu zona.
+                Activa tu ubicación para confirmar que {storeConfig?.storeInfo?.name || 'la tienda'} hace domicilios en tu municipio.
+                Si no llega a tu zona, te mostraremos únicamente los productos con envío.
               </p>
             </div>
 
@@ -10926,6 +10943,39 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   </span>
                 </button>
               )}
+
+              {/* Selección manual (respaldo si el GPS falla o no encaja) */}
+              {!detectedModalCity && (
+                <>
+                  <div className="flex items-center gap-2 py-0.5">
+                    <div className="h-px flex-1 bg-black/8 dark:bg-white/8" />
+                    <span className="text-[10px] uppercase tracking-wider text-black/30 dark:text-white/30">o elígelo</span>
+                    <div className="h-px flex-1 bg-black/8 dark:bg-white/8" />
+                  </div>
+                  <select
+                    value={locationDept}
+                    onChange={e => { setLocationDept(e.target.value); setLocationMun('') }}
+                    className="w-full px-4 py-2.5 text-sm rounded-xl border border-black/10 dark:border-white/10 bg-transparent text-black dark:text-white focus:outline-none focus:border-black/30 dark:focus:border-white/30"
+                  >
+                    <option value="">Departamento</option>
+                    {coDepartamentos.map(dep => (
+                      <option key={dep} value={dep}>{dep}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={locationMun}
+                    onChange={e => setLocationMun(e.target.value)}
+                    disabled={!locationDept}
+                    className="w-full px-4 py-2.5 text-sm rounded-xl border border-black/10 dark:border-white/10 bg-transparent text-black dark:text-white disabled:opacity-40 focus:outline-none focus:border-black/30 dark:focus:border-white/30"
+                  >
+                    <option value="">Municipio</option>
+                    {municipiosDe(locationDept).map(mun => (
+                      <option key={mun} value={mun}>{mun}</option>
+                    ))}
+                  </select>
+                </>
+              )}
+
               {locationModalError && (
                 <p className="text-xs text-red-500 dark:text-red-400 text-center">{locationModalError}</p>
               )}

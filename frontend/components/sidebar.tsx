@@ -54,7 +54,7 @@ import {
   Layers,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { resolveActiveModules } from '@/lib/modules'
+import { resolveActiveModules, isSectionEnabled } from '@/lib/modules'
 import { GuideButton } from '@/components/AppGuide'
 
 interface NavChild {
@@ -185,21 +185,8 @@ export function Sidebar() {
     if (item.adminOnly && !isAdmin) return false
     if (item.id === 'tienda' && !isSuperadmin && !isEmpresarial) return false
     if (item.id === 'daimuz-chat') return isEmpresarial
-    // Jerarquía: módulo nuevo. Los tenants con config guardada aún no lo tienen en su
-    // lista; visible siempre que Empleados lo esté (mismo dominio) para que no quede oculto.
-    if (item.id === 'organigrama') return !activeModules || activeModules.includes('organigrama') || activeModules.includes('vendedores')
-    // Cotizaciones: módulo nuevo — visible siempre que POS lo esté (mismo dominio de venta).
-    if (item.id === 'cotizaciones') return !activeModules || activeModules.includes('cotizaciones') || activeModules.includes('pos')
-    // Picking: módulo nuevo — visible con flota o inventario (bodega/logística).
-    if (item.id === 'picking') return !activeModules || activeModules.includes('picking') || activeModules.includes('fleet') || activeModules.includes('inventory')
-    // Conteo: módulo nuevo — visible con inventario.
-    if (item.id === 'conteo') return !activeModules || activeModules.includes('conteo') || activeModules.includes('inventory')
-    // Tiempos: módulo nuevo — visible con flota (operación logística).
-    if (item.id === 'tiempos') return !activeModules || activeModules.includes('tiempos') || activeModules.includes('fleet')
-    // Gerencia: módulo nuevo — visible con analytics (dominio reportes).
-    if (item.id === 'gerencia') return !activeModules || activeModules.includes('gerencia') || activeModules.includes('analytics')
-    if (activeModules && item.id && !activeModules.includes(item.id)) return false
-    return true
+    // Filtro por módulos (incluidos los alias de módulos nuevos) — compartido con Tema 2.
+    return isSectionEnabled(item.id, activeModules)
   }
 
   const filteredNavigation = navigation.filter(filterItem)

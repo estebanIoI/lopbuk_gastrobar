@@ -684,9 +684,17 @@ export function MarketplaceHomeGovCo({
   const visibleOffers = useMemo(() =>
     offers.filter(p => !q || p.name.toLowerCase().includes(q) || (p.storeName || '').toLowerCase().includes(q)),
     [offers, q])
-  const visibleFeatured = useMemo(() =>
-    (featured.length ? featured : products).filter(p => !q || p.name.toLowerCase().includes(q) || (p.storeName || '').toLowerCase().includes(q)),
-    [featured, products, q])
+  // IDs que ya están en Ofertas: Novedades no debe duplicarlos.
+  const offerIdSet = useMemo(() => new Set(offers.map(o => String(o.id))), [offers])
+  const visibleFeatured = useMemo(() => {
+    // Novedades = destacados del superadmin; si no hay, cae a productos que NO
+    // estén en oferta (el backend ordena is_on_offer DESC, así que sin este
+    // filtro Novedades mostraría exactamente las mismas Ofertas).
+    const base = featured.length
+      ? featured
+      : products.filter(p => !p.isOnOffer && !offerIdSet.has(String(p.id)))
+    return base.filter(p => !q || p.name.toLowerCase().includes(q) || (p.storeName || '').toLowerCase().includes(q))
+  }, [featured, products, offerIdSet, q])
 
   const scrollToGrid = () => gridRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 

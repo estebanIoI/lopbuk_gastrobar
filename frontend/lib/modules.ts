@@ -100,3 +100,40 @@ export function resolveActiveModules(enabledModules?: string[] | null): string[]
   if (!enabledModules || enabledModules.length === 0) return DEFAULT_MODULES
   return enabledModules
 }
+
+/**
+ * Módulos nuevos que los tenants con configuración ya guardada todavía no tienen en
+ * su lista. Cada uno se muestra si algún módulo del mismo dominio está activo, para
+ * que no queden ocultos hasta que el comercio vuelva a guardar sus módulos.
+ */
+const MODULE_ALIASES: Record<string, string[]> = {
+  organigrama:  ['organigrama', 'vendedores'],
+  cotizaciones: ['cotizaciones', 'pos'],
+  picking:      ['picking', 'fleet', 'inventory'],
+  conteo:       ['conteo', 'inventory'],
+  tiempos:      ['tiempos', 'fleet'],
+  gerencia:     ['gerencia', 'analytics'],
+  // Estas tres son secciones sin módulo propio en ALL_MODULES. Sin alias nunca podrían
+  // estar en `activeModules` y quedarían ocultas para todos los comercios, así que
+  // cuelgan del módulo de su dominio.
+  combos:       ['combos', 'restbar', 'gastrobar-ops'],
+  eventos:      ['eventos', 'tienda'],
+  engagement:   ['engagement', 'customers'],
+}
+
+/**
+ * ¿Debe verse esta sección según los módulos activos del comercio?
+ *
+ * Fuente única para la navegación de ambos temas del panel: el sidebar (Tema 1) y
+ * `panel-comerciante-shell` (Tema 2). Solo decide por módulo — el filtrado por rol
+ * y por plan se queda en cada nav, porque difiere entre temas.
+ *
+ * `activeModules === null` significa "sin restricción" (superadmin).
+ */
+export function isSectionEnabled(id: string | undefined, activeModules: string[] | null): boolean {
+  if (!id) return true
+  if (!activeModules) return true
+  const aliases = MODULE_ALIASES[id]
+  if (aliases) return aliases.some(m => activeModules.includes(m))
+  return activeModules.includes(id)
+}

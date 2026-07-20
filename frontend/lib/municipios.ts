@@ -1,0 +1,103 @@
+// Utilidades canónicas de municipios de Colombia.
+// Fuente única: `departamentosMunicipios` en constants.ts (DIVIPOLA/DANE).
+// Objetivo: que el municipio detectado por GPS del cliente (texto crudo de
+// Nominatim) se "encaje" exactamente contra el mismo string que el comercio
+// guardó desde su dropdown, para que el match de cobertura de domicilio no
+// falle por tildes, mayúsculas, espacios o variantes de nombre.
+
+import { departamentosMunicipios } from '@/constants'
+
+export interface MunicipioMatch {
+  municipality: string
+  department: string
+}
+
+/** Normaliza para comparar: sin tildes, minúsculas, sin espacios extra. */
+export function normalizeMun(s: string): string {
+  return (s || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, "") // quita diacríticos (tildes, diéresis)
+    .toLowerCase()
+    .replace(/[.,]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+// Índice normalizado → { municipality, department } construido una sola vez.
+const _index: Map<string, MunicipioMatch> = (() => {
+  const m = new Map<string, MunicipioMatch>()
+  for (const [department, municipios] of Object.entries(departamentosMunicipios)) {
+    for (const municipality of municipios) {
+      const key = normalizeMun(municipality)
+      if (!m.has(key)) m.set(key, { municipality, department })
+    }
+  }
+  return m
+})()
+
+// Lista plana de nombres canónicos (para heurísticas de coincidencia parcial).
+const _flat: MunicipioMatch[] = Object.entries(departamentosMunicipios).flatMap(
+  ([department, municipios]) => municipios.map(municipality => ({ municipality, department }))
+)
+
+/** Todos los departamentos, ordenados. */
+export const departamentos: string[] = Object.keys(departamentosMunicipios).sort((a, b) =>
+  a.localeCompare(b, 'es')
+)
+
+/** Municipios de un departamento (ya vienen ordenados desde constants). */
+export function municipiosDe(departamento: string): string[] {
+  return departamentosMunicipios[departamento] || []
+}
+
+/**
+ * Encaja un nombre crudo (p. ej. de Nominatim) contra la lista canónica.
+ * Estrategia:
+ *  1. Match exacto normalizado.
+ *  2. Limpia prefijos comunes ("municipio de", "distrito de", "d.c.") y reintenta.
+ *  3. Coincidencia por inclusión (el canónico empieza por / contiene el crudo,
+ *     o viceversa) — resuelve "Cartagena" → "Cartagena de Indias", "Bogotá D.C." → "Bogotá".
+ * Devuelve null si no hay una coincidencia razonable.
+ */
+export function matchMunicipality(raw: string | null | undefined): MunicipioMatch | null {
+  if (!raw) return null
+  const norm = normalizeMun(raw)
+  if (!norm) return null
+
+  // 1. Exacto
+  const exact = _index.get(norm)
+  if (exact) return exact
+
+  // 2. Sin prefijos administrativos
+  const cleaned = norm
+    .replace(/^(municipio|ciudad|distrito|dc|d c)\s+(de\s+|del\s+)?/, '')
+    .replace(/\s+(dc|d c|distrito capital)$/, '')
+    .trim()
+  if (cleaned !== norm) {
+    const byClean = _index.get(cleaned)
+    if (byClean) return byClean
+  }
+
+  // 3. Inclusión (solo para nombres de longitud significativa, evita falsos positivos)
+  if (cleaned.length >= 4) {
+    let best: MunicipioMatch | null = null
+    let bestLen = Infinity
+    for (const c of _flat) {
+      const ck = normalizeMun(c.municipality)
+      if (ck === cleaned) return c
+      if (ck.startsWith(cleaned + ' ') || cleaned.startsWith(ck + ' ') || ck === cleaned) {
+        // Prefiere el candidato canónico más corto (más específico)
+        if (ck.length < bestLen) { best = c; bestLen = ck.length }
+      }
+    }
+    if (best) return best
+  }
+
+  return null
+}
+
+/** ¿El string ya es un municipio canónico exacto? */
+export function isCanonicalMunicipality(name: string | null | undefined): boolean {
+  if (!name) return false
+  return _index.has(normalizeMun(name))
+}

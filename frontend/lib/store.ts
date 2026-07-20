@@ -119,7 +119,7 @@ interface AppState {
  * siguiente usuario que iniciara sesión en el mismo navegador.
  */
 const INITIAL_STORE_INFO: StoreInfo = {
-  name: 'Lopbuk Gestion de Inventario',
+  name: 'Daimuz Gestión de Inventario',
   address: 'Cra 7 #45-23, Bogotá, Colombia',
   phone: '(601) 234-5678',
   taxId: '900.123.456-7',
@@ -530,6 +530,18 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'lopbuk-storage',
+      version: 1,
+      // Migra el nombre por defecto viejo ('Lopbuk...') al nuevo ('Daimuz...').
+      // Solo lo cambia si sigue siendo el default viejo: no pisa nombres que el
+      // comerciante haya personalizado.
+      migrate: (persistedState: any, _version: number) => {
+        try {
+          if (persistedState?.storeInfo?.name === 'Lopbuk Gestion de Inventario') {
+            persistedState.storeInfo.name = 'Daimuz Gestión de Inventario'
+          }
+        } catch {}
+        return persistedState
+      },
       partialize: (state) => ({
         cart: state.cart,
         storeInfo: state.storeInfo,
