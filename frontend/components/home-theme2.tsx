@@ -188,6 +188,7 @@ export interface MarketProduct {
   category?: string
   storeSlug?: string
   tenantSlug?: string
+  createdAt?: string | null
 }
 
 // ── Iconos por rubro ────────────────────────────────────────────────────────────
@@ -528,6 +529,7 @@ export function MarketplaceHomeGovCo({
   heroSubtitle,
   heroSplit = '60-40',
   heroRight = 'producto',
+  heroFeaturedEnabled = false,
   promoConfig,
   welcomeEnabled = true,
   welcomeTitle,
@@ -555,6 +557,8 @@ export function MarketplaceHomeGovCo({
   heroSplit?: string
   /** Contenido del panel derecho: 'producto' | 'comercio' | 'cta' */
   heroRight?: string
+  /** Muestra u oculta el panel destacado a la derecha del hero (configurable desde superadmin). */
+  heroFeaturedEnabled?: boolean
   /** Tarjetas del carrusel "Para ti" (orden + tipo + etiqueta). Si no se pasa, usa el set por defecto. */
   promoConfig?: PromoCardConfig[]
   /** Barra de bienvenida (activable + contenido editable desde superadmin). */
@@ -576,8 +580,12 @@ export function MarketplaceHomeGovCo({
   const [alertOpen, setAlertOpen] = useState(true)
   const [scrolled, setScrolled] = useState(false)
   const [legalDoc, setLegalDoc] = useState<'terminos' | 'privacidad' | null>(null)
+  // Hero: el panel destacado (der.) se muestra según el ajuste persistente del superadmin.
+  // Sin él, solo se ve el banner en primer plano a ancho completo.
+  const showFeatured = heroFeaturedEnabled
   const gridRef = useRef<HTMLDivElement>(null)
   const accesosRef = useRef<HTMLDivElement>(null)
+  const storesSecRef = useRef<HTMLElement>(null)
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20)
@@ -684,17 +692,19 @@ export function MarketplaceHomeGovCo({
   const visibleOffers = useMemo(() =>
     offers.filter(p => !q || p.name.toLowerCase().includes(q) || (p.storeName || '').toLowerCase().includes(q)),
     [offers, q])
-  // IDs que ya están en Ofertas: Novedades no debe duplicarlos.
-  const offerIdSet = useMemo(() => new Set(offers.map(o => String(o.id))), [offers])
   const visibleFeatured = useMemo(() => {
-    // Novedades = destacados del superadmin; si no hay, cae a productos que NO
-    // estén en oferta (el backend ordena is_on_offer DESC, así que sin este
-    // filtro Novedades mostraría exactamente las mismas Ofertas).
+    // Novedades = destacados del superadmin; si no hay, muestra los productos
+    // más recientes (por createdAt desc). El backend ordena is_on_offer DESC,
+    // así que sin reordenar por fecha Novedades clonaba las Ofertas.
+    const recencyTs = (p: MarketProduct) => {
+      const t = p.createdAt ? Date.parse(p.createdAt) : NaN
+      return Number.isNaN(t) ? 0 : t
+    }
     const base = featured.length
       ? featured
-      : products.filter(p => !p.isOnOffer && !offerIdSet.has(String(p.id)))
+      : [...products].sort((a, b) => recencyTs(b) - recencyTs(a))
     return base.filter(p => !q || p.name.toLowerCase().includes(q) || (p.storeName || '').toLowerCase().includes(q))
-  }, [featured, products, offerIdSet, q])
+  }, [featured, products, q])
 
   const scrollToGrid = () => gridRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 
@@ -703,9 +713,6 @@ export function MarketplaceHomeGovCo({
     setTab('comercios'); onSelectBusinessType('all'); setQuery(''); setShowStoresMap(false)
     if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' })
   }
-
-  // Verticales del ecosistema DAIMUZ (nav único, estilo de la página).
-  const DAIMUZ_VERTICALS = ['Restaurantes', 'Delivery', 'Supermercado', 'Tecnología', 'Moda', 'Belleza', 'Salud', 'Servicios', 'Ferretería', 'Mascotas', 'Eventos', 'Hoteles', 'Automotriz']
 
   const pickRubro = (type: string) => {
     onSelectBusinessType(type)
@@ -1025,9 +1032,15 @@ export function MarketplaceHomeGovCo({
             </span>
           </div>
 
-          {/* Comercios — abre el mapa interactivo */}
+          {/* Comercios — muestra/oculta la sección integrada del mapa */}
           <button
-            onClick={() => setShowStoresMap(true)}
+            onClick={() => {
+              setShowStoresMap(v => {
+                const next = !v
+                if (next) setTimeout(() => storesSecRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80)
+                return next
+              })
+            }}
             className="hidden lg:flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-semibold shrink-0 transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0"
             style={{
               background: `linear-gradient(135deg, var(--brand-green,#00833E), var(--brand-green-dark,#005C2A))`,
@@ -1099,22 +1112,20 @@ export function MarketplaceHomeGovCo({
               )
             })}
 
-            {/* Verticales del ecosistema DAIMUZ (mismo estilo del nav) */}
-            {DAIMUZ_VERTICALS.map(v => {
-              const active = query.toLowerCase() === v.toLowerCase()
+            {/* Categorías de negocios ACTIVOS (derivadas de las tiendas reales) —
+                solo se muestran los rubros con comercios, evitando el doble renglón. */}
+            {rubros.map(({ type }) => {
+              const active = businessTypeFilter === type
               return (
                 <button
-                  key={v}
-                  onClick={() => {
-                    if (v === 'Eventos') { window.location.href = '/evento'; return }
-                    setTab('comercios'); onSelectBusinessType('all'); setQuery(v); setMobileNav(false); setTimeout(scrollToGrid, 50)
-                  }}
-                  className="shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-200 hover:-translate-y-0.5 text-left"
+                  key={type}
+                  onClick={() => { pickRubro(type) }}
+                  className="shrink-0 px-4 py-1.5 rounded-full text-sm font-medium capitalize transition-all duration-200 hover:-translate-y-0.5 text-left"
                   style={active
                     ? { background: `var(--brand-green,#00833E)`, color: '#fff', border: '1px solid transparent', boxShadow: '0 2px 8px rgba(0,131,62,0.25)' }
                     : { color: '#374151', background: 'rgba(255,255,255,0.6)', border: '1px solid rgba(0,0,0,0.08)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}
                 >
-                  {v}
+                  {type}
                 </button>
               )
             })}
@@ -1132,17 +1143,6 @@ export function MarketplaceHomeGovCo({
           </div>
         </div>
       </nav>
-
-      {/* ══ Sección "Comercios" — mapa interactivo inline (botón "Comercios") ══ */}
-      {showStoresMap && (
-        <StoresSection
-          stores={stores.map(s => ({ id: s.id, name: s.name, slug: s.slug, logoUrl: s.logoUrl, city: s.city, address: s.address, department: s.department, schedule: s.schedule, openState: s.openState, nextOpenLabel: s.nextOpenLabel, latitude: s.latitude, longitude: s.longitude }))}
-          brandColor={GREEN}
-          brandDark={GREEN_DARK}
-          onClose={() => setShowStoresMap(false)}
-          onOpenStore={(slug) => { const st = stores.find(x => x.slug === slug); if (st) onOpenStore(st as any) }}
-        />
-      )}
 
       {/* ══ Banner de bienvenida (activable + editable desde superadmin) ══ */}
       {welcomeEnabled && alertOpen && (() => {
@@ -1167,8 +1167,22 @@ export function MarketplaceHomeGovCo({
       <main className="flex-1">
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-7 space-y-7">
 
-          {/* Hero — split configurable: editorial/carrusel (izq) + panel (der) */}
-          <section className={`grid grid-cols-1 ${splitClass} gap-4`}>
+          {/* ══ Sección "Comercios" — mapa interactivo integrado (botón "Comercios") ══ */}
+          {showStoresMap && (
+            <section ref={storesSecRef} className="scroll-mt-28">
+              <StoresSection
+                inline
+                stores={stores.map(s => ({ id: s.id, name: s.name, slug: s.slug, logoUrl: s.logoUrl, city: s.city, address: s.address, department: s.department, schedule: s.schedule, openState: s.openState, nextOpenLabel: s.nextOpenLabel, latitude: s.latitude, longitude: s.longitude }))}
+                brandColor={GREEN}
+                brandDark={GREEN_DARK}
+                onClose={() => setShowStoresMap(false)}
+                onOpenStore={(slug) => { const st = stores.find(x => x.slug === slug); if (st) onOpenStore(st as any) }}
+              />
+            </section>
+          )}
+
+          {/* Hero — banner en primer plano; el panel destacado (der.) es opcional (ajuste del superadmin) */}
+          <section className={`grid grid-cols-1 ${showFeatured ? splitClass : ''} gap-4`}>
             {/* Columna izquierda */}
             <div className="min-w-0">
               {heroSlides.filter(s => s.url).length > 0 ? (
@@ -1181,7 +1195,8 @@ export function MarketplaceHomeGovCo({
               )}
             </div>
 
-            {/* Columna derecha — según configuración (producto / comercio / cta) */}
+            {/* Columna derecha — panel destacado (opcional): producto / comercio / cta */}
+            {showFeatured && (
             <aside className="flex flex-col gap-4">
               {heroRight === 'comercio' && topStore ? (
                 <button onClick={() => onOpenStore(topStore)} className="group relative rounded-xl overflow-hidden text-left flex-1 min-h-[160px] bg-gray-900">
@@ -1236,6 +1251,7 @@ export function MarketplaceHomeGovCo({
                 <span className="inline-flex items-center justify-center w-9 h-9 rounded-lg text-white shrink-0" style={{ background: GOLD }}><ArrowRight className="w-4 h-4" /></span>
               </button>
             </aside>
+            )}
           </section>
 
           {/* Carrusel de tarjetas (productos + accesos institucionales) */}

@@ -15,7 +15,9 @@ import {
   AlertTriangle, Sparkles, Loader2, Dumbbell, Flame, TrendingUp, Settings,
   Droplet, Target, Carrot, ListChecks, Utensils, Repeat, QrCode, ShieldCheck, ShieldX, ShieldAlert, Crown, Compass, Award, KeyRound,
   MoreHorizontal, ChevronDown, ChevronUp, ChevronRight, LogOut, Users,
+  Camera, User as UserIcon,
 } from 'lucide-react'
+import { CloudinaryUpload } from '@/components/ui/cloudinary-upload'
 import { QRCodeSVG } from 'qrcode.react'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/lib/auth-store'
@@ -1123,14 +1125,23 @@ function GymView({ data, onReload }: any) {
 // ═══════════════════ PERFIL ═══════════════════
 function PerfilModal({ onClose, onSaved }: any) {
   const [f, setF] = useState<any>(null)
+  const [avatar, setAvatar] = useState<string>('')
+  const [originalAvatar, setOriginalAvatar] = useState<string>('')
   const [saving, setSaving] = useState(false)
+  const user = useAuthStore(s => s.user)
+  const updateProfile = useAuthStore(s => s.updateProfile)
+
   useEffect(() => {
     api.getRutinaPerfil().then(r => setF({
       sex: r.data?.sex || '', heightCm: r.data?.height_cm || '', weightKg: r.data?.weight_kg || '',
       targetWeightKg: r.data?.target_weight_kg || '', goal: r.data?.goal || '', activityLevel: r.data?.activity_level || '',
       dailyCalorieTarget: r.data?.daily_calorie_target || '', waterTargetMl: r.data?.water_target_ml || '', city: r.data?.city || '',
     }))
-  }, [])
+    const currentAvatar = user?.avatar || ''
+    setAvatar(currentAvatar)
+    setOriginalAvatar(currentAvatar)
+  }, [user?.avatar])
+
   const save = async () => {
     setSaving(true)
     await api.saveRutinaPerfil({
@@ -1138,12 +1149,45 @@ function PerfilModal({ onClose, onSaved }: any) {
       targetWeightKg: Number(f.targetWeightKg) || null, goal: f.goal || null, activityLevel: f.activityLevel || null,
       dailyCalorieTarget: Number(f.dailyCalorieTarget) || null, waterTargetMl: Number(f.waterTargetMl) || null, city: f.city || null,
     })
+    // Si cambió la foto, actualizar en users.avatar
+    if (avatar !== originalAvatar) {
+      const r = await updateProfile({ avatar: avatar || undefined })
+      if (!r.success && r.error) {
+        // No bloqueamos: el perfil de rutina ya se guardó
+        console.warn('No se pudo actualizar la foto:', r.error)
+      }
+    }
     setSaving(false); onSaved()
   }
   return (
     <Modal title="Mi perfil" onClose={onClose}>
       {!f ? <div className="flex justify-center py-8 text-neutral-300"><Loader2 className="w-5 h-5 animate-spin" /></div> : (
         <div className="space-y-3">
+          {/* ── Foto de perfil ── */}
+          <div className="flex flex-col items-center gap-3 py-2">
+            <div className="relative">
+              {avatar ? (
+                <div className="relative w-24 h-24 rounded-full overflow-hidden ring-2 ring-amber-400/40 shadow-lg">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={avatar} alt="Foto de perfil" className="w-full h-full object-cover" />
+                </div>
+              ) : (
+                <div className="w-24 h-24 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-lg ring-2 ring-amber-400/40">
+                  <UserIcon className="w-12 h-12 text-white" />
+                </div>
+              )}
+            </div>
+            <div className="w-full">
+              <CloudinaryUpload
+                value={avatar}
+                onChange={setAvatar}
+                previewClassName="h-16 w-16 object-cover rounded-full border-2 border-amber-400/30"
+              />
+            </div>
+          </div>
+
+          <div className="border-t border-black/5" />
+
           <select value={f.goal} onChange={e => setF({ ...f, goal: e.target.value })} className={inputCls}>
             <option value="">Objetivo</option><option value="bajar_peso">Bajar de peso</option><option value="subir_masa">Subir masa</option><option value="mantener">Mantener</option><option value="salud_general">Salud general</option>
           </select>

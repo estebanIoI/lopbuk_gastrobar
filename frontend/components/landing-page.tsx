@@ -365,6 +365,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   const [homeOffersLimit, setHomeOffersLimit] = useState(10)
   const [homeHeroSplit, setHomeHeroSplit] = useState('60-40')
   const [homeHeroRight, setHomeHeroRight] = useState('producto')
+  const [homeHeroFeatured, setHomeHeroFeatured] = useState(false)
   const [homePromoCards, setHomePromoCards] = useState<PromoCardConfig[]>([])
   const [homeWelcomeEnabled, setHomeWelcomeEnabled] = useState(true)
   const [homeWelcomeTitle, setHomeWelcomeTitle] = useState('')
@@ -1334,6 +1335,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
           if (json.data.home_offers_limit) setHomeOffersLimit(Math.min(60, Math.max(1, Number(json.data.home_offers_limit) || 10)))
           if (json.data.home_hero_split) setHomeHeroSplit(json.data.home_hero_split)
           if (json.data.home_hero_right) setHomeHeroRight(json.data.home_hero_right)
+          if (json.data.home_hero_featured !== undefined) setHomeHeroFeatured(json.data.home_hero_featured === 'true')
           if (json.data.home_welcome_enabled !== undefined) setHomeWelcomeEnabled(json.data.home_welcome_enabled !== 'false')
           if (json.data.home_welcome_title !== undefined) setHomeWelcomeTitle(json.data.home_welcome_title)
           if (json.data.home_welcome_subtitle !== undefined) setHomeWelcomeSubtitle(json.data.home_welcome_subtitle)
@@ -2336,6 +2338,12 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
           orderPayload.couponCode = cuponCodigo
         }
 
+        // Valor de envío configurado por el comerciante: se cobra una sola vez
+        // (en el primer pedido) para no duplicarlo cuando hay varias tiendas.
+        if (orderNumbers.length === 0 && activeDeliveryFee > 0) {
+          orderPayload.shippingCost = activeDeliveryFee
+        }
+
         try {
           const orderRes = await fetch(`${API_URL}/orders/public`, {
             method: 'POST',
@@ -2394,13 +2402,18 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
       })
 
+      const descuentoPedido = cuponAplicado?.valido ? (cuponAplicado.descuento || 0) : 0
       const pedido: PedidoConfirmado = {
         numeroPedido,
         email: formData.email,
         productos: carrito,
-        total: totalConDescuento,
+        subtotal: totalCarrito,
+        descuento: descuentoPedido,
+        envio: activeDeliveryFee,
+        total: totalConDescuento + activeDeliveryFee,
         fecha,
         vehiculoAsignado: vehicleFlota,
+        metodoPago: 'Contra entrega',
       }
 
       setPedidoConfirmado(pedido)
@@ -2445,6 +2458,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       payload.discount = cuponAplicado.descuento
       payload.couponCode = cuponCodigo
     }
+    if (activeDeliveryFee > 0) payload.shippingCost = activeDeliveryFee
 
     const res = await fetch(`${API_URL}/orders/mp-preference`, {
       method: 'POST',
@@ -2481,6 +2495,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     }
     if (firstTenantId) orderPayload.tenantId = firstTenantId
     if (discount > 0) { orderPayload.discount = discount; orderPayload.couponCode = cuponCodigo }
+    if (activeDeliveryFee > 0) orderPayload.shippingCost = activeDeliveryFee
     if (deliveryLat !== null && deliveryLng !== null) { orderPayload.deliveryLatitude = deliveryLat; orderPayload.deliveryLongitude = deliveryLng }
     if (isAuthenticated && authUser?.id) orderPayload.clientUserId = authUser.id
 
@@ -2609,7 +2624,10 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   const carritoTieneDelivery = carrito.some(
     item => item.deliveryType === 'domicilio' || item.deliveryType === 'ambos'
   )
-  const activeDeliveryFee = (carritoTieneDelivery && DELIVERY_FREE_MIN > 0 && !deliveryUnlocked && DELIVERY_FEE > 0) ? DELIVERY_FEE : 0
+  // Valor de envío configurado por el comerciante en Tienda → Carrito ("Valor de envío").
+  // Se suma como "+ envío" cuando el cliente paga. Si hay un mínimo de compra para domicilio
+  // gratis y el carrito lo alcanza (deliveryUnlocked), el envío queda gratis.
+  const activeDeliveryFee = (DELIVERY_FEE > 0 && !deliveryUnlocked) ? DELIVERY_FEE : 0
 
   const fetchOrderBump = async () => {
     if (!selectedStore || selectedStore === 'all') return
@@ -3125,6 +3143,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         heroSubtitle={platformHeroSubtitle}
         heroSplit={homeHeroSplit}
         heroRight={homeHeroRight}
+        heroFeaturedEnabled={homeHeroFeatured}
         promoConfig={homePromoCards}
         welcomeEnabled={homeWelcomeEnabled}
         welcomeTitle={homeWelcomeTitle}

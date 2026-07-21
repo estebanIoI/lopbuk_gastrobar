@@ -1265,7 +1265,7 @@ export function CheckoutView({
       {mostrarModalExito && pedidoConfirmado && (
         mlStyle
           ? <OrderCompletedML pedido={pedidoConfirmado} onCerrar={onCerrarModal} storeName={storeName} accentColor={accentColor} />
-          : <ModalExito pedido={pedidoConfirmado} onCerrar={onCerrarModal} />
+          : <ModalExito pedido={pedidoConfirmado} onCerrar={onCerrarModal} accentColor={accentColor} />
       )}
     </div>
   );

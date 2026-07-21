@@ -1927,6 +1927,10 @@ class ApiService {
     contactPageLinkTheme?: string;
     socialInstagram?: string; socialFacebook?: string; socialTiktok?: string; socialWhatsapp?: string;
     socialX?: string; socialSnapchat?: string;
+    /** Imagen de fondo por red social fija: { instagram, tiktok, facebook, whatsapp, x, snapchat, youtube }. */
+    contactPageSocialImages?: Record<string, string>;
+    /** Ajustes de la página de contacto: { hideTabs, emailCapture, emailCaptureTitle, emailCaptureButton }. */
+    contactPageSettings?: { hideTabs?: boolean; emailCapture?: boolean; emailCaptureTitle?: string; emailCaptureButton?: string };
   }) {
     return this.request<any>('/storefront/contact-page', {
       method: 'PUT',
@@ -4115,6 +4119,29 @@ class ApiService {
   async getMyHealthPhotos() { return this.request<any[]>('/gym/me/health/photos') }
   async getMyHealthConditions() { return this.request<any[]>('/gym/me/health/conditions') }
   async addMyHealthPhoto(data: any) { return this.request<any>('/gym/me/health/photos', { method: 'POST', body: JSON.stringify(data) }) }
+
+  // ── Módulo GIMNASIO v3 — Dominio Pagos y Facturación ──
+  // Pagos
+  async registerGymPayment(data: any) { return this.request<any>('/gym/payments', { method: 'POST', body: JSON.stringify(data) }) }
+  async listGymPayments(filters?: Record<string, string>) {
+    const qs = filters ? '?' + new URLSearchParams(filters).toString() : ''
+    return this.request<any[]>(`/gym/payments${qs}`)
+  }
+  async getGymPayment(id: string) { return this.request<any>(`/gym/payments/${id}`) }
+  async voidGymPayment(id: string, reason: string) { return this.request<any>(`/gym/payments/${id}/void`, { method: 'PATCH', body: JSON.stringify({ reason }) }) }
+  async refundGymPayment(id: string, amount: number) { return this.request<any>(`/gym/payments/${id}/refund`, { method: 'PATCH', body: JSON.stringify({ amount }) }) }
+  // Deudas
+  async generateGymDebts() { return this.request<any>('/gym/debts/generate', { method: 'POST' }) }
+  async listGymDebts(filters?: Record<string, string>) {
+    const qs = filters ? '?' + new URLSearchParams(filters).toString() : ''
+    return this.request<any[]>(`/gym/debts${qs}`)
+  }
+  async payGymDebt(id: string, data: { amount: number; method?: string; concept?: string }) { return this.request<any>(`/gym/debts/${id}/pay`, { method: 'PATCH', body: JSON.stringify(data) }) }
+  async waiveGymDebt(id: string, reason: string) { return this.request<any>(`/gym/debts/${id}/waive`, { method: 'PATCH', body: JSON.stringify({ reason }) }) }
+  // Reportes / Billing
+  async getGymBillingSummary() { return this.request<any>('/gym/billing/summary') }
+  async getGymRevenueByPeriod(from: string, to: string) { return this.request<any[]>(`/gym/billing/revenue?from=${from}&to=${to}`) }
+  async getGymOverdue() { return this.request<any[]>('/gym/billing/overdue') }
 
   // ── Variantes ──────────────────────────────────────────────────────────────
   async getVariantsSummary() { return this.request<any[]>('/variants/summary') }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef, type FormEvent } from 'react'
 import { useParams } from 'next/navigation'
 import { formatCOP } from '@/lib/utils'
 
@@ -147,6 +147,88 @@ function InstagramIcon() {
     <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
       <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 1 0 0 12.324 6.162 6.162 0 0 0 0-12.324zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.406-11.845a1.44 1.44 0 1 0 0 2.881 1.44 1.44 0 0 0 0-2.881z" />
     </svg>
+  )
+}
+
+function YouTubeIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+      <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
+    </svg>
+  )
+}
+
+// ── Capturador de email (contacto) ──────────────────────────────────────────────
+// Campo de email + botón "Connect". Al enviar: guarda el correo (módulo Newsletter),
+// muestra "¡Listo!" y desaparece. Recuerda por visitante (localStorage) para no reaparecer.
+function EmailCaptureBox({ slug, isTheme2, title, buttonText, logoUrl }: {
+  slug: string; isTheme2: boolean; title?: string; buttonText?: string; logoUrl?: string | null
+}) {
+  const [email, setEmail] = useState('')
+  const [state, setState] = useState<'idle' | 'loading' | 'success' | 'hidden'>('idle')
+  useEffect(() => {
+    try { if (localStorage.getItem(`emailcap_${slug}`)) setState('hidden') } catch { /* ignore */ }
+  }, [slug])
+  if (state === 'hidden') return null
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault()
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return
+    setState('loading')
+    try {
+      await fetch(`${API_URL}/newsletter/subscribe`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), acceptedTerms: true, store: slug }),
+      })
+    } catch { /* red — igual mostramos éxito para no frustrar al cliente */ }
+    try { localStorage.setItem(`emailcap_${slug}`, '1') } catch { /* ignore */ }
+    setState('success')
+    setTimeout(() => setState('hidden'), 2600)
+  }
+
+  const surface = isTheme2 ? 'bg-white/10 border-white/15' : 'bg-white border-gray-200'
+  const textMuted = isTheme2 ? 'text-white/70' : 'text-gray-500'
+  const textStrong = isTheme2 ? 'text-white' : 'text-gray-900'
+
+  if (state === 'success') {
+    return (
+      <div className={`w-full rounded-2xl border ${surface} p-4 flex items-center gap-3 transition-all`}>
+        <div className="w-9 h-9 rounded-full bg-emerald-500 flex items-center justify-center shrink-0">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" className="w-5 h-5"><path d="M20 6L9 17l-5-5" /></svg>
+        </div>
+        <div>
+          <p className={`text-sm font-bold ${textStrong}`}>¡Listo! Gracias por conectar</p>
+          <p className={`text-xs ${textMuted}`}>Te escribiremos pronto.</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <form onSubmit={submit} className="w-full">
+      {title && <p className={`text-sm font-semibold mb-2 text-center ${textStrong}`}>{title}</p>}
+      <div className={`flex items-center gap-1 w-full rounded-full border ${surface} p-1`}>
+        <input
+          type="email"
+          required
+          value={email}
+          onChange={e => setEmail(e.target.value)}
+          placeholder="your@email.com"
+          className={`flex-1 min-w-0 bg-transparent px-4 py-2.5 text-sm outline-none ${textStrong} ${isTheme2 ? 'placeholder:text-white/50' : 'placeholder:text-gray-400'}`}
+        />
+        <button
+          type="submit"
+          disabled={state === 'loading'}
+          className={`shrink-0 flex items-center gap-2 pl-4 pr-1.5 py-1.5 rounded-full font-semibold text-sm transition-all active:scale-[0.98] disabled:opacity-60 ${isTheme2 ? 'bg-white text-black' : 'bg-gray-900 text-white'}`}
+        >
+          {state === 'loading' ? 'Enviando…' : (buttonText || 'Connect')}
+          {logoUrl
+            // eslint-disable-next-line @next/next/no-img-element
+            ? <img src={logoUrl} alt="" className="w-7 h-7 rounded-full object-cover" />
+            : <span className={`w-7 h-7 rounded-full flex items-center justify-center ${isTheme2 ? 'bg-black/10' : 'bg-white/20'}`}>→</span>}
+        </button>
+      </div>
+    </form>
   )
 }
 
@@ -512,6 +594,44 @@ export default function LinksPage() {
   const linkTheme = data.contactPageLinkTheme || 'theme1'
   const isTheme2 = linkTheme === 'theme2'
   const hasSocials = data.socialInstagram || data.socialFacebook || data.socialTiktok || data.socialWhatsapp || data.socialX || data.socialSnapchat
+
+  // Imágenes de fondo por red (grid estilo "MY SOCIALS"). Cada red con imagen se
+  // muestra como tarjeta; sin imagen, sigue como icono en la cabecera.
+  let socialImages: Record<string, string> = {}
+  try {
+    const raw = data.contactPageSocialImages
+    socialImages = raw ? (typeof raw === 'string' ? JSON.parse(raw) : raw) : {}
+  } catch { socialImages = {} }
+  const socialCards = [
+    { key: 'instagram', url: data.socialInstagram, label: 'Instagram', icon: <InstagramIcon /> },
+    { key: 'snapchat', url: data.socialSnapchat, label: 'Snapchat', icon: <SnapchatIcon /> },
+    { key: 'tiktok', url: data.socialTiktok, label: 'TikTok', icon: <TikTokIcon /> },
+    { key: 'facebook', url: data.socialFacebook, label: 'Facebook', icon: <FacebookIcon /> },
+    { key: 'x', url: data.socialX, label: 'X', icon: <XIcon /> },
+    { key: 'whatsapp', url: data.socialWhatsapp, label: 'WhatsApp', icon: <WhatsAppIcon /> },
+  ].filter(s => s.url && socialImages[s.key])
+  const hasSocialGrid = isTheme2 && socialCards.length > 0
+
+  // Ajustes de la página: ocultar selector de pestañas + capturador de email.
+  let contactSettings: { hideTabs?: boolean; emailCapture?: boolean; emailCaptureTitle?: string; emailCaptureButton?: string } = {}
+  try {
+    const raw = data.contactPageSettings
+    contactSettings = raw ? (typeof raw === 'string' ? JSON.parse(raw) : raw) : {}
+  } catch { contactSettings = {} }
+  const hideTabs = !!contactSettings.hideTabs
+
+  // Detecta la red de un link personalizado (por nombre o URL) para mostrar su icono de marca.
+  const brandIconFor = (text: string) => {
+    const t = (text || '').toLowerCase()
+    if (t.includes('instagram')) return <InstagramIcon />
+    if (t.includes('tiktok')) return <TikTokIcon />
+    if (t.includes('youtube') || t.includes('youtu.be')) return <YouTubeIcon />
+    if (t.includes('facebook') || t.includes('fb.com')) return <FacebookIcon />
+    if (t.includes('whatsapp') || t.includes('wa.me')) return <WhatsAppIcon />
+    if (t.includes('snapchat')) return <SnapchatIcon />
+    if (t.includes('twitter') || t.includes('x.com')) return <XIcon />
+    return null
+  }
   const catalogUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/?store=${slug}`
 
   const socialLinks = (
@@ -599,8 +719,22 @@ export default function LinksPage() {
           </>
         )}
 
-        {/* Tab selector */}
-        <div className={`flex w-full rounded-full p-1 gap-1 ${isTheme2 ? 'bg-white/10 mt-0' : 'bg-gray-100 mt-6'}`}>
+        {/* Capturador de email (contacto) — si el comercio lo activó */}
+        {contactSettings.emailCapture && (
+          <div className={isTheme2 ? 'w-full mt-4' : 'w-full mt-6'}>
+            <EmailCaptureBox
+              slug={slug}
+              isTheme2={isTheme2}
+              title={contactSettings.emailCaptureTitle}
+              buttonText={contactSettings.emailCaptureButton}
+              logoUrl={data.logoUrl}
+            />
+          </div>
+        )}
+
+        {/* Tab selector — se puede ocultar desde el editor (hideTabs) */}
+        {!hideTabs && (
+        <div className={`flex w-full rounded-full p-1 gap-1 ${isTheme2 ? 'bg-white/10 mt-4' : 'bg-gray-100 mt-6'}`}>
           <button
             onClick={() => setActiveTab('links')}
             className={`flex-1 py-2 rounded-full text-sm font-semibold transition-all ${
@@ -622,9 +756,10 @@ export default function LinksPage() {
             Menú
           </button>
         </div>
+        )}
 
-        {/* Links tab */}
-        {activeTab === 'links' && (
+        {/* Links tab — cuando el selector está oculto, se muestra siempre este contenido */}
+        {(hideTabs || activeTab === 'links') && (
           <div className="w-full mt-4 space-y-3">
             {data.reservationsEnabled && (
               <a
@@ -642,7 +777,32 @@ export default function LinksPage() {
                 Reservar mesa
               </a>
             )}
-            {links.length === 0 && !data.reservationsEnabled ? (
+
+            {/* ── Grid "MY SOCIALS": redes con imagen de fondo (tema 2) ── */}
+            {hasSocialGrid && (
+              <div className="pt-1">
+                <h2 className="text-center text-white text-lg font-extrabold tracking-widest uppercase mb-3">Mis redes</h2>
+                <div className="grid grid-cols-2 gap-3">
+                  {socialCards.map(s => (
+                    <a key={s.key} href={s.url!} target="_blank" rel="noopener noreferrer"
+                      className="relative block rounded-2xl overflow-hidden active:scale-[0.98] transition-all"
+                      style={{ height: '150px' }}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={socialImages[s.key]} alt={s.label} className="absolute inset-0 w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent" />
+                      <div className="absolute top-3 left-3 w-9 h-9 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center text-black">
+                        {s.icon}
+                      </div>
+                      <div className="absolute bottom-0 inset-x-0 px-3 pb-3 pt-8">
+                        <p className="text-white text-sm font-bold tracking-wide text-center">{s.label}</p>
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {links.length === 0 && !data.reservationsEnabled && !hasSocialGrid ? (
               <p className={`text-center text-sm py-8 ${isTheme2 ? 'text-gray-500' : 'text-gray-400'}`}>Sin links configurados</p>
             ) : links.length === 0 ? null : isTheme2 ? (
               links.map((link, i) => (
@@ -656,11 +816,13 @@ export default function LinksPage() {
                     <div className="absolute inset-0 bg-gradient-to-br from-gray-700 to-gray-900" />
                   )}
                   <div className="absolute inset-0 bg-black/40" />
-                  <div className="absolute top-3 left-3 w-7 h-7 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-white">
-                      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-                      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-                    </svg>
+                  <div className="absolute top-3 left-3 w-8 h-8 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center text-black">
+                    {brandIconFor(`${link.label || ''} ${link.url || ''}`) || (
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-black">
+                        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                      </svg>
+                    )}
                   </div>
                   <div className="absolute bottom-0 inset-x-0 px-4 pb-4 pt-8 bg-gradient-to-t from-black/80 to-transparent">
                     <p className="text-white text-sm font-bold tracking-wide uppercase text-center">{link.label || link.url}</p>

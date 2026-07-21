@@ -29,6 +29,7 @@ export function LandingConfigTab() {
     heroSlides, isSavingSlides, addSlide, updateSlide, removeSlide, moveSlide, handleSaveHeroSlides,
     heroInterval, setHeroInterval,
     heroSplit, heroRight, isSavingHeroLayout, handleSaveHeroSplit, handleSaveHeroRight,
+    heroFeatured, handleSaveHeroFeatured,
     welcomeEnabled, setWelcomeEnabled, welcomeTitle, setWelcomeTitle, welcomeSubtitle, setWelcomeSubtitle, isSavingWelcome, handleSaveWelcome,
     promoCards, promoCatalog, isSavingPromos, addPromoCard, removePromoCard, updatePromoLabel, movePromoCard, handleSavePromoCards,
     offers, isLoadingOffers, fetchOffers,
@@ -465,8 +466,27 @@ export function LandingConfigTab() {
               })}
             </div>
           </div>
+          {/* Mostrar/ocultar el panel destacado (por defecto oculto → solo el banner a ancho completo) */}
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-border p-3">
+            <div>
+              <Label className="text-xs block">Panel destacado (derecha del hero)</Label>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {heroFeatured ? 'Visible junto al banner' : 'Oculto — el banner ocupa todo el ancho'}
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={heroFeatured}
+              disabled={isSavingHeroLayout}
+              onClick={() => handleSaveHeroFeatured(!heroFeatured)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-60 ${heroFeatured ? 'bg-emerald-500' : 'bg-muted-foreground/30'}`}
+            >
+              <span className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${heroFeatured ? 'translate-x-6' : 'translate-x-1'}`} />
+            </button>
+          </div>
           {/* Panel derecho */}
-          <div>
+          <div className={heroFeatured ? '' : 'opacity-50 pointer-events-none'}>
             <Label className="text-xs mb-2 block">Contenido del panel derecho</Label>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               {([

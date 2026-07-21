@@ -46,6 +46,13 @@ import { Merma } from '@/components/merma'
 import { GastrobarOps } from '@/components/gastrobar-ops'
 import { CombosManager } from '@/components/combos-manager'
 import EventBackoffice from '@/components/events/event-backoffice'
+import dynamic from 'next/dynamic'
+import { CartillaManagement } from '@/components/cartilla-management'
+import { ProfileEditor } from '@/components/profile-theme3/profile-editor'
+import { Theme4Editor } from '@/components/theme4/theme4-editor'
+// Carga diferida: evita una dependencia circular (panel-comerciante-shell →
+// section-renderer → ContentHub → …) que rompía la evaluación del módulo del panel.
+const ContentHub = dynamic(() => import('@/components/content-hub/ContentHub').then(m => m.ContentHub), { ssr: false })
 
 /**
  * Renderiza el componente correspondiente a la sección activa.
@@ -122,6 +129,14 @@ export function SectionRenderer() {
       return <PurchaseInvoices />
     case 'services':
       return <ServicesManagement />
+    case 'contenido':
+      return <ContentHub />
+    case 'cartilla':
+      return <CartillaManagement />
+    case 'perfil':
+      return <ProfileEditor />
+    case 'servicios-pro':
+      return <Theme4Editor />
     case 'eventos':
       return <EventBackoffice />
     case 'gym':

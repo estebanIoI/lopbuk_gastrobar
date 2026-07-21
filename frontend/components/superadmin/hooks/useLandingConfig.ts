@@ -62,6 +62,8 @@ export function useLandingConfig() {
   // Layout del hero del Tema 2 (proporción del split + contenido panel derecho)
   const [heroSplit, setHeroSplit] = useState<'70-30' | '60-40' | '50-50'>('60-40')
   const [heroRight, setHeroRight] = useState<'producto' | 'comercio' | 'cta'>('producto')
+  // Muestra/oculta el panel destacado a la derecha del hero (por defecto oculto → banner a ancho completo)
+  const [heroFeatured, setHeroFeatured] = useState(false)
   const [isSavingHeroLayout, setIsSavingHeroLayout] = useState(false)
 
   // Barra de bienvenida (Página de Inicio, Tema 2): activable + contenido editable
@@ -118,6 +120,7 @@ export function useLandingConfig() {
       if (['producto', 'comercio', 'cta'].includes(result.data.home_hero_right)) {
         setHeroRight(result.data.home_hero_right as 'producto' | 'comercio' | 'cta')
       }
+      if (result.data.home_hero_featured !== undefined) setHeroFeatured(result.data.home_hero_featured === 'true')
       if (result.data.home_welcome_enabled !== undefined) setWelcomeEnabled(result.data.home_welcome_enabled !== 'false')
       if (result.data.home_welcome_title !== undefined) setWelcomeTitle(result.data.home_welcome_title)
       if (result.data.home_welcome_subtitle !== undefined) setWelcomeSubtitle(result.data.home_welcome_subtitle)
@@ -239,6 +242,16 @@ export function useLandingConfig() {
     const result = await api.updatePlatformSetting('home_hero_right', value)
     if (result.success) toast.success('Panel derecho del hero actualizado')
     else { setHeroRight(prev); toast.error(result.error || 'Error al guardar') }
+    setIsSavingHeroLayout(false)
+  }
+
+  const handleSaveHeroFeatured = async (value: boolean) => {
+    const prev = heroFeatured
+    setHeroFeatured(value)
+    setIsSavingHeroLayout(true)
+    const result = await api.updatePlatformSetting('home_hero_featured', value ? 'true' : 'false')
+    if (result.success) toast.success(value ? 'Panel destacado activado' : 'Panel destacado ocultado')
+    else { setHeroFeatured(prev); toast.error(result.error || 'Error al guardar') }
     setIsSavingHeroLayout(false)
   }
 
@@ -384,6 +397,7 @@ export function useLandingConfig() {
     heroInterval, setHeroInterval,
     // layout del hero (split + panel derecho)
     heroSplit, heroRight, isSavingHeroLayout, handleSaveHeroSplit, handleSaveHeroRight,
+    heroFeatured, handleSaveHeroFeatured,
     welcomeEnabled, setWelcomeEnabled, welcomeTitle, setWelcomeTitle, welcomeSubtitle, setWelcomeSubtitle, isSavingWelcome, handleSaveWelcome,
     // tarjetas del carrusel "Para ti"
     promoCards, promoCatalog, isSavingPromos, addPromoCard, removePromoCard, updatePromoLabel, movePromoCard, handleSavePromoCards,

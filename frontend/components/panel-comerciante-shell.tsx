@@ -7,7 +7,8 @@ import { useCashStore } from '@/lib/cash-store'
 import { useTourStore } from '@/lib/tour-store'
 import { api } from '@/lib/api'
 import { formatCOP } from '@/lib/utils'
-import { SectionRenderer } from '@/components/section-renderer'
+import dynamic from 'next/dynamic'
+const SectionRenderer = dynamic(() => import('@/components/section-renderer').then(m => m.SectionRenderer), { ssr: false })
 import { NotificationsBell } from '@/components/notifications-bell'
 import { SalesTrendChart } from '@/components/sales-trend-chart'
 import { ThemeSwitch } from '@/components/theme-switch'
@@ -18,7 +19,7 @@ import {
   FlaskConical, Truck, Receipt, History, CalendarDays, Ticket, Star,
   Scissors, CreditCard, UserCheck, Printer, ArrowRight, Boxes, PieChart,
   HelpCircle, UtensilsCrossed, Trash2, Wine, ClipboardList, Network, FileSpreadsheet, Gauge, Layers,
-  Sparkles, Dumbbell,
+  Sparkles, Dumbbell, BookOpenText, IdCard, Briefcase, LayoutTemplate,
 } from 'lucide-react'
 import { resolveActiveModules, isSectionEnabled } from '@/lib/modules'
 
@@ -66,11 +67,15 @@ const NAV: NavGroup[] = [
       { id: 'reviews', label: 'Reseñas', icon: Star, adminOnly: true },
       { id: 'services', label: 'Servicios', icon: Scissors, adminOnly: true },
       { id: 'eventos', label: 'Eventos', icon: Ticket, adminOnly: true },
+      { id: 'cartilla', label: 'Cartilla digital', icon: BookOpenText, adminOnly: true },
+      { id: 'perfil', label: 'Perfil público', icon: IdCard, adminOnly: true },
+      { id: 'servicios-pro', label: 'Servicios Pro', icon: Briefcase, adminOnly: true },
     ],
   },
   {
     key: 'clientes', label: 'Clientes', icon: Users, adminOnly: true, children: [
       { id: 'customers', label: 'Clientes', icon: Users, adminOnly: true },
+      { id: 'contenido', label: 'Página Principal', icon: LayoutTemplate, adminOnly: true },
       { id: 'engagement', label: 'Engagement', icon: Sparkles, adminOnly: true },
       { id: 'fiados', label: 'Fiados', icon: CreditCard, adminOnly: true },
       { id: 'vendedores', label: 'Empleados', icon: UserCheck, adminOnly: true },

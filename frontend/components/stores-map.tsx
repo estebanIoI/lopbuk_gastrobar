@@ -37,12 +37,14 @@ function haversineKm(aLat: number, aLng: number, bLat: number, bLng: number): nu
 const gmapsUrl = (lat: number, lng: number) => `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`
 const hasCoords = (s: MapStore) => { const a = num(s.latitude), b = num(s.longitude); return Number.isFinite(a) && Number.isFinite(b) && (a !== 0 || b !== 0) }
 
-export function StoresSection({ stores, brandColor = '#00833E', brandDark = '#005C2A', onClose, onOpenStore }: {
+export function StoresSection({ stores, brandColor = '#00833E', brandDark = '#005C2A', onClose, onOpenStore, inline = false }: {
   stores: MapStore[]
   brandColor?: string
   brandDark?: string
   onClose: () => void
   onOpenStore?: (slug: string) => void
+  /** Renderiza como sección integrada (empuja el contenido) en vez de modal overlay. */
+  inline?: boolean
 }) {
   const [userLoc, setUserLoc] = useState<{ lat: number; lng: number } | null>(null)
   const mapElRef = useRef<HTMLDivElement>(null)
@@ -74,6 +76,19 @@ export function StoresSection({ stores, brandColor = '#00833E', brandDark = '#00
   }, [stores, dept, city, userLoc])
   const located = useMemo(() => filtered.map(f => f.store).filter(hasCoords), [filtered])
 
+  // Filtrado dinámico por lo visible en el mapa: al hacer zoom/mover, la lista solo
+  // muestra los comercios cuyo pin está dentro del encuadre actual. `viewBounds` es un
+  // L.LatLngBounds que se actualiza en cada moveend/zoomend. Los comercios sin coordenadas
+  // se mantienen siempre (no se pueden ubicar en el mapa).
+  const [viewBounds, setViewBounds] = useState<any>(null)
+  const inView = useMemo(() => {
+    if (!viewBounds) return filtered
+    return filtered.filter(({ store: s }) => {
+      if (!hasCoords(s)) return true
+      try { return viewBounds.contains([num(s.latitude), num(s.longitude)]) } catch { return true }
+    })
+  }, [filtered, viewBounds])
+
   // Pide la ubicación del usuario (para mostrar distancias y ordenar por cercanía).
   useEffect(() => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) return
@@ -84,12 +99,13 @@ export function StoresSection({ stores, brandColor = '#00833E', brandDark = '#00
     )
   }, [])
 
-  // Cerrar con ESC
+  // Cerrar con ESC (solo en modo modal)
   useEffect(() => {
+    if (inline) return
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [onClose])
+  }, [onClose, inline])
 
   // Cargar CSS de Leaflet
   useEffect(() => {
@@ -113,6 +129,10 @@ export function StoresSection({ stores, brandColor = '#00833E', brandDark = '#00
       L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map)
       layerRef.current = L.layerGroup().addTo(map)
       map.setView([4.57, -74.29], 5) // Colombia por defecto
+      // Cada vez que el usuario acerca/mueve el mapa, actualizamos el encuadre para
+      // filtrar la lista de comercios visibles.
+      map.on('moveend zoomend', () => { if (!cancelled) setViewBounds(map.getBounds()) })
+      setViewBounds(map.getBounds())
       setTimeout(() => map.invalidateSize(), 80)
     })()
     return () => { cancelled = true }
@@ -159,8 +179,13 @@ export function StoresSection({ stores, brandColor = '#00833E', brandDark = '#00
   }
 
   return (
-    // Overlay (modal). El header/pie de página de la página quedan detrás del backdrop.
-    <div className="fixed inset-0 z-[110] flex items-stretch sm:items-center justify-center bg-black/50 backdrop-blur-sm sm:p-4" onClick={onClose}>
+    // Inline: sección integrada que empuja el contenido. Modal: overlay con backdrop.
+    <div
+      className={inline
+        ? 'relative w-full'
+        : 'fixed inset-0 z-[110] flex items-stretch sm:items-center justify-center bg-black/50 backdrop-blur-sm sm:p-4'}
+      onClick={inline ? undefined : onClose}
+    >
       <style>{`
         .sm-icon { background: transparent; border: 0; }
         .sm-float { display: inline-flex; align-items: center; gap: 6px; transform: translate(-50%, -100%);
@@ -174,10 +199,12 @@ export function StoresSection({ stores, brandColor = '#00833E', brandDark = '#00
         .sm-pin { position: absolute; left: 50%; bottom: -7px; width: 12px; height: 12px; transform: translateX(-50%) rotate(45deg); border-radius: 2px; box-shadow: 2px 2px 4px rgba(0,0,0,0.15); }
       `}</style>
 
-      {/* Panel del modal */}
+      {/* Panel (modal) o tarjeta (inline) */}
       <div
-        className="bg-white w-full sm:w-[96vw] sm:max-w-6xl h-[100dvh] sm:h-auto sm:max-h-[90vh] sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col"
-        onClick={e => e.stopPropagation()}
+        className={inline
+          ? 'bg-white w-full rounded-2xl border border-gray-200 shadow-sm overflow-hidden flex flex-col'
+          : 'bg-white w-full sm:w-[96vw] sm:max-w-6xl h-[100dvh] sm:h-auto sm:max-h-[90vh] sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col'}
+        onClick={inline ? undefined : (e => e.stopPropagation())}
       >
         {/* Cabecera del modal */}
         <div className="flex items-center justify-between px-5 sm:px-6 h-14 border-b border-gray-100 shrink-0">
@@ -207,7 +234,7 @@ export function StoresSection({ stores, brandColor = '#00833E', brandDark = '#00
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
             <div>
               <label className="block text-xs font-semibold text-gray-500 mb-1">Departamento</label>
-              <select value={dept} onChange={e => { setDept(e.target.value); setCity('') }}
+              <select value={dept} onChange={e => { setDept(e.target.value); setCity(''); setViewBounds(null) }}
                 className="w-full h-11 px-3 rounded-xl border border-gray-200 bg-white text-sm text-gray-800 focus:outline-none">
                 <option value="">Todos los departamentos</option>
                 {departments.map(d => <option key={d} value={d}>{d}</option>)}
@@ -215,7 +242,7 @@ export function StoresSection({ stores, brandColor = '#00833E', brandDark = '#00
             </div>
             <div>
               <label className="block text-xs font-semibold text-gray-500 mb-1">Ciudad</label>
-              <select value={city} onChange={e => setCity(e.target.value)}
+              <select value={city} onChange={e => { setCity(e.target.value); setViewBounds(null) }}
                 className="w-full h-11 px-3 rounded-xl border border-gray-200 bg-white text-sm text-gray-800 focus:outline-none">
                 <option value="">Todas las ciudades</option>
                 {cities.map(c => <option key={c} value={c}>{c}</option>)}
@@ -223,16 +250,28 @@ export function StoresSection({ stores, brandColor = '#00833E', brandDark = '#00
             </div>
           </div>
 
+          <div className="flex items-center gap-2 mb-2 text-xs text-gray-500">
+            <MapIcon className="w-3.5 h-3.5" style={{ color: brandColor }} />
+            <span>
+              Mostrando <b style={{ color: brandDark }}>{inView.length}</b>
+              {filtered.length !== inView.length ? ` de ${filtered.length}` : ''} comercio{inView.length === 1 ? '' : 's'} · acerca o mueve el mapa para filtrar
+            </span>
+          </div>
+
           {/* Lista + Mapa */}
           <div className="grid grid-cols-1 md:grid-cols-[360px_1fr] gap-4">
             <div className={`${mode === 'mapa' ? 'hidden md:block' : ''} rounded-2xl border border-gray-200 overflow-hidden`}>
               <div className="max-h-[440px] overflow-y-auto divide-y divide-gray-100">
-                {filtered.length === 0 ? (
+                {inView.length === 0 ? (
                   <div className="p-8 text-center text-gray-500">
                     <StoreIcon className="w-10 h-10 text-gray-300 mx-auto mb-2" />
-                    <p className="text-sm">No hay comercios para ese filtro.</p>
+                    <p className="text-sm">
+                      {filtered.length > 0 && viewBounds
+                        ? 'No hay comercios en esta zona del mapa. Aleja o mueve el mapa para ver más.'
+                        : 'No hay comercios para ese filtro.'}
+                    </p>
                   </div>
-                ) : filtered.map(({ store: s, distanceKm }) => {
+                ) : inView.map(({ store: s, distanceKm }) => {
                   const lat = num(s.latitude), lng = num(s.longitude)
                   const geo = Number.isFinite(lat) && Number.isFinite(lng)
                   return (

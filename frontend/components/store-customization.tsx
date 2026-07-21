@@ -2533,8 +2533,11 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
               </div>
 
               <div className="flex-1 space-y-2">
-                <label className="text-sm font-medium">Tarifa de domicilio (COP)</label>
-                <p className="text-xs text-muted-foreground">Se cobra cuando el pedido no alcanza el mínimo. Pon <strong>0</strong> para no cobrar tarifa.</p>
+                <label className="text-sm font-medium">Valor de envío (COP)</label>
+                <p className="text-xs text-muted-foreground">
+                  Se le suma al cliente como <strong>"+ envío"</strong> al pagar. Pon <strong>0</strong> para no cobrar envío.
+                  {cartMinPurchase > 0 && <> Si el pedido alcanza el mínimo de arriba, el envío será gratis.</>}
+                </p>
                 <input
                   type="number"
                   min={0}
@@ -2544,6 +2547,11 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
                   placeholder="Ej: 5000"
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 />
+                {cartDeliveryFee > 0 && (
+                  <p className="text-xs font-medium text-primary">
+                    El cliente verá: + envío {formatCurrency(cartDeliveryFee)}
+                  </p>
+                )}
               </div>
 
               {cartMinPurchase > 0 && (
