@@ -1,12 +1,18 @@
 'use client'
 
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { Instagram, MessageCircle, Globe, BadgeCheck } from 'lucide-react'
 import type { ProfileData } from './types'
 
 /** Banner + foto de perfil + nombre + tagline + links sociales. */
 export function ProfileHeader({ profile }: { profile: ProfileData }) {
   const accent = profile.accentColor || '#10b981'
+  // Tolerancia a fallos: si una imagen externa no carga (hotlink bloqueado, URL rota),
+  // caemos al degradado / inicial en vez de mostrar el icono de imagen rota.
+  const [coverError, setCoverError] = useState(false)
+  const [photoError, setPhotoError] = useState(false)
+  useEffect(() => { setCoverError(false) }, [profile.coverUrl])
+  useEffect(() => { setPhotoError(false) }, [profile.profilePhotoUrl])
   const waLink = profile.whatsapp
     ? `https://wa.me/${profile.whatsapp.replace(/[^\d]/g, '')}`
     : null
@@ -19,20 +25,52 @@ export function ProfileHeader({ profile }: { profile: ProfileData }) {
 
   return (
     <div className="bg-white">
-      {/* Banner */}
-      <div className="relative h-44 sm:h-60 md:h-72 w-full bg-gradient-to-br from-gray-200 to-gray-300 overflow-hidden">
-        {profile.coverUrl
-          ? <img src={profile.coverUrl} alt="Portada" className="w-full h-full object-cover" />
+      {/* Banner — muestra la imagen COMPLETA (object-contain), sin recortar. Los lados
+          se rellenan con una copia difuminada de la misma imagen para evitar barras vacías. */}
+      <div className="relative h-44 sm:h-60 md:h-72 w-full bg-gray-100 overflow-hidden">
+        {profile.coverUrl && !coverError
+          ? <>
+              {/* Fondo difuminado (relleno de los lados) */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={profile.coverUrl}
+                alt=""
+                aria-hidden="true"
+                referrerPolicy="no-referrer"
+                className="absolute inset-0 w-full h-full object-cover scale-110 blur-2xl opacity-60 pointer-events-none select-none"
+              />
+              {/* Imagen completa en primer plano */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={profile.coverUrl}
+                alt="Portada"
+                referrerPolicy="no-referrer"
+                loading="lazy"
+                decoding="async"
+                onError={() => setCoverError(true)}
+                className="relative w-full h-full object-contain"
+              />
+            </>
           : <div className="w-full h-full" style={{ background: `linear-gradient(135deg, ${accent}, #0f172a)` }} />}
       </div>
 
       {/* Cabecera: foto + nombre + links */}
       <div className="max-w-4xl mx-auto px-4">
         <div className="flex flex-col sm:flex-row sm:items-end gap-4 -mt-12 sm:-mt-14 pb-5">
-          <div className="shrink-0">
+          {/* relative z-10: el banner es un elemento posicionado y, sin esto, se
+              pinta ENCIMA del avatar (que es estático) recortando su parte superior. */}
+          <div className="shrink-0 relative z-10">
             <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-full ring-4 ring-white bg-white overflow-hidden shadow-lg">
-              {profile.profilePhotoUrl
-                ? <img src={profile.profilePhotoUrl} alt={profile.displayName || 'Perfil'} className="w-full h-full object-cover" />
+              {profile.profilePhotoUrl && !photoError
+                ? <img
+                    src={profile.profilePhotoUrl}
+                    alt={profile.displayName || 'Perfil'}
+                    referrerPolicy="no-referrer"
+                    loading="lazy"
+                    decoding="async"
+                    onError={() => setPhotoError(true)}
+                    className="w-full h-full object-contain"
+                  />
                 : <div className="w-full h-full flex items-center justify-center text-3xl font-bold text-white" style={{ background: accent }}>
                     {(profile.displayName || '?').charAt(0).toUpperCase()}
                   </div>}

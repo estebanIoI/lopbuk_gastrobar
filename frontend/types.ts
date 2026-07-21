@@ -65,6 +65,12 @@ export interface PedidoConfirmado {
   total: number;
   fecha: string;
   vehiculoAsignado?: { tipoVehiculo: string; pesoTotal: number } | null;
+  /** Desglose opcional para el resumen del modal de confirmación. */
+  subtotal?: number;
+  envio?: number;
+  descuento?: number;
+  /** Etiqueta del método de pago elegido (p. ej. "Contra entrega"). */
+  metodoPago?: string;
 }
 
 export interface CuponValidacion {

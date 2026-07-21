@@ -174,6 +174,10 @@ export function Tienda() {
   const [socialWhatsapp, setSocialWhatsapp] = useState('')
   const [socialX, setSocialX] = useState('')
   const [socialSnapchat, setSocialSnapchat] = useState('')
+  // Imagen de fondo por red social (estilo grid "MY SOCIALS"): { instagram, tiktok, ... }
+  const [socialImages, setSocialImages] = useState<Record<string, string>>({})
+  // Ajustes de la página de contacto: ocultar selector Links/Menú + capturador de email.
+  const [contactSettings, setContactSettings] = useState<{ hideTabs?: boolean; emailCapture?: boolean; emailCaptureTitle?: string; emailCaptureButton?: string }>({})
   const [contactProductIds, setContactProductIds] = useState<string[]>([])
   const [loadingContact, setLoadingContact] = useState(false)
   const [savingContact, setSavingContact] = useState(false)
@@ -294,6 +298,14 @@ export function Tienda() {
         setSocialX((si as any).socialX || '')
         setSocialSnapchat((si as any).socialSnapchat || '')
         try {
+          const raw = (si as any).contactPageSocialImages
+          setSocialImages(raw ? (typeof raw === 'string' ? JSON.parse(raw) : raw) : {})
+        } catch { setSocialImages({}) }
+        try {
+          const rawS = (si as any).contactPageSettings
+          setContactSettings(rawS ? (typeof rawS === 'string' ? JSON.parse(rawS) : rawS) : {})
+        } catch { setContactSettings({}) }
+        try {
           setContactProductIds(si.contactPageProducts ? JSON.parse(si.contactPageProducts) : [])
         } catch { setContactProductIds([]) }
       }
@@ -320,6 +332,8 @@ export function Tienda() {
         socialWhatsapp,
         socialX,
         socialSnapchat,
+        contactPageSocialImages: socialImages,
+        contactPageSettings: contactSettings,
       })
       if (result.success) {
         setContactSaved(true)
@@ -2047,6 +2061,66 @@ export function Tienda() {
                 </CardContent>
               </Card>
 
+              {/* Presentación: ocultar selector + capturador de email */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm">Presentación</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Ocultar selector Links/Menú */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium">Ocultar selector "Links / Menú"</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Si lo ocultas, la página muestra directamente el contenido sin las pestañas.
+                      </p>
+                    </div>
+                    <button onClick={() => setContactSettings(s => ({ ...s, hideTabs: !s.hideTabs }))} className="transition-colors shrink-0">
+                      {contactSettings.hideTabs
+                        ? <ToggleRight className="h-8 w-8 text-blue-500" />
+                        : <ToggleLeft className="h-8 w-8 text-muted-foreground" />}
+                    </button>
+                  </div>
+
+                  {/* Capturador de email */}
+                  <div className="flex items-center justify-between border-t border-border pt-4">
+                    <div>
+                      <p className="text-sm font-medium">Capturador de email de contacto</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Muestra un campo de email con botón. Al enviarlo, el cliente ve "¡Listo!" y el correo queda en tu lista (módulo Newsletter).
+                      </p>
+                    </div>
+                    <button onClick={() => setContactSettings(s => ({ ...s, emailCapture: !s.emailCapture }))} className="transition-colors shrink-0">
+                      {contactSettings.emailCapture
+                        ? <ToggleRight className="h-8 w-8 text-blue-500" />
+                        : <ToggleLeft className="h-8 w-8 text-muted-foreground" />}
+                    </button>
+                  </div>
+                  {contactSettings.emailCapture && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pl-1">
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground">Título (opcional)</label>
+                        <Input
+                          placeholder="Déjanos tu correo"
+                          value={contactSettings.emailCaptureTitle || ''}
+                          onChange={e => setContactSettings(s => ({ ...s, emailCaptureTitle: e.target.value }))}
+                          className="text-sm mt-1"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground">Texto del botón</label>
+                        <Input
+                          placeholder="Connect"
+                          value={contactSettings.emailCaptureButton || ''}
+                          onChange={e => setContactSettings(s => ({ ...s, emailCaptureButton: e.target.value }))}
+                          className="text-sm mt-1"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
               {/* Fields */}
               <Card>
                 <CardHeader className="pb-3">
@@ -2077,24 +2151,44 @@ export function Tienda() {
                   </div>
                   {/* Social links */}
                   <div className="space-y-3 pt-1">
-                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Redes sociales</label>
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Redes sociales</label>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        Agrega el enlace y, si quieres, una imagen de fondo. Con el tema <strong>"Con imágenes"</strong> se muestran como tarjetas (estilo grid).
+                      </p>
+                    </div>
                     <div className="grid grid-cols-1 gap-2">
                       {[
-                        { icon: '📸', label: 'Instagram', value: socialInstagram, set: setSocialInstagram, placeholder: 'https://instagram.com/tuusuario' },
-                        { icon: '🎵', label: 'TikTok', value: socialTiktok, set: setSocialTiktok, placeholder: 'https://tiktok.com/@tuusuario' },
-                        { icon: '📘', label: 'Facebook', value: socialFacebook, set: setSocialFacebook, placeholder: 'https://facebook.com/tupagina' },
-                        { icon: '💬', label: 'WhatsApp', value: socialWhatsapp, set: setSocialWhatsapp, placeholder: 'https://wa.me/573001234567' },
-                        { icon: '𝕏', label: 'X (Twitter)', value: socialX, set: setSocialX, placeholder: 'https://x.com/tuusuario' },
-                        { icon: '👻', label: 'Snapchat', value: socialSnapchat, set: setSocialSnapchat, placeholder: 'https://snapchat.com/add/tuusuario' },
-                      ].map(({ icon, label, value, set, placeholder }) => (
-                        <div key={label} className="flex items-center gap-2">
-                          <span className="text-base w-6 text-center shrink-0">{icon}</span>
-                          <Input
-                            placeholder={placeholder}
-                            value={value}
-                            onChange={e => set(e.target.value)}
-                            className="flex-1 text-sm"
-                          />
+                        { key: 'instagram', icon: '📸', label: 'Instagram', value: socialInstagram, set: setSocialInstagram, placeholder: 'https://instagram.com/tuusuario' },
+                        { key: 'tiktok', icon: '🎵', label: 'TikTok', value: socialTiktok, set: setSocialTiktok, placeholder: 'https://tiktok.com/@tuusuario' },
+                        { key: 'facebook', icon: '📘', label: 'Facebook', value: socialFacebook, set: setSocialFacebook, placeholder: 'https://facebook.com/tupagina' },
+                        { key: 'whatsapp', icon: '💬', label: 'WhatsApp', value: socialWhatsapp, set: setSocialWhatsapp, placeholder: 'https://wa.me/573001234567' },
+                        { key: 'x', icon: '𝕏', label: 'X (Twitter)', value: socialX, set: setSocialX, placeholder: 'https://x.com/tuusuario' },
+                        { key: 'snapchat', icon: '👻', label: 'Snapchat', value: socialSnapchat, set: setSocialSnapchat, placeholder: 'https://snapchat.com/add/tuusuario' },
+                      ].map(({ key, icon, label, value, set, placeholder }) => (
+                        <div key={key} className="rounded-lg border border-input p-2 space-y-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-base w-6 text-center shrink-0" title={label}>{icon}</span>
+                            <Input
+                              placeholder={placeholder}
+                              value={value}
+                              onChange={e => set(e.target.value)}
+                              className="flex-1 text-sm"
+                            />
+                          </div>
+                          {/* Imagen de fondo (opcional) — solo se ofrece si hay enlace, para no saturar */}
+                          {value?.trim() && (
+                            <div className="flex items-center gap-2 pl-8">
+                              <div className="w-28 shrink-0">
+                                <CloudinaryUpload
+                                  value={socialImages[key] || ''}
+                                  onChange={(url) => setSocialImages(prev => ({ ...prev, [key]: url }))}
+                                  previewClassName="h-14 w-full object-cover rounded border"
+                                />
+                              </div>
+                              <span className="text-[11px] text-muted-foreground">Imagen de fondo de {label} (opcional)</span>
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>

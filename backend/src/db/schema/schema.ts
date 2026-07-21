@@ -4750,6 +4750,11 @@ export const storeInfo = mysqlTable("store_info", {
 	contactPageImage: varchar("contact_page_image", { length: 500 }),
 	contactPageProducts: text("contact_page_products"),
 	contactPageLinks: text("contact_page_links"),
+	// Imagen de fondo por red social fija (JSON: { instagram, tiktok, facebook, whatsapp, x, snapchat, youtube }).
+	// Permite mostrar las redes como tarjetas con foto (estilo grid) en la página de contacto.
+	contactPageSocialImages: text("contact_page_social_images"),
+	// Ajustes varios de la página de contacto (JSON): { hideTabs, emailCapture, emailCaptureTitle, emailCaptureButton }.
+	contactPageSettings: text("contact_page_settings"),
 	showInfoModule: tinyint("show_info_module").default(0).notNull(),
 	infoModuleDescription: text("info_module_description"),
 	cartMinPurchase: int("cart_min_purchase").default(0).notNull(),
@@ -6706,6 +6711,78 @@ export const gymMedicalConditions = mysqlTable("gym_medical_conditions", {
 		idxGmcMember: index("idx_gmc_member").on(table.memberId, table.status),
 		idxGmcTenant: index("idx_gmc_tenant").on(table.tenantId),
 		gymMedicalConditionsId: primaryKey({ columns: [table.id], name: "gym_medical_conditions_id"}),
+	}
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Gimnasio: Pagos y facturación
+// Historial real de pagos por membresía, con método, monto, referencia y estado.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const gymPayments = mysqlTable("gym_payments", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" }),
+	membresiaId: varchar("membresia_id", { length: 36 }).notNull(),
+	memberUserId: varchar("member_user_id", { length: 36 }).notNull(),
+	amount: decimal({ precision: 12, scale: 2 }).notNull(),
+	currency: varchar({ length: 8 }).default('COP').notNull(),
+	method: mysqlEnum("method", [
+		'efectivo', 'nequi', 'daviplata', 'bancolombia', 'transferencia',
+		'tarjeta', 'sistecredito', 'addi', 'cheque', 'otro'
+	]).notNull(),
+	reference: varchar({ length: 120 }),
+	status: mysqlEnum("status", ['aplicado', 'anulado', 'reembolsado', 'pendiente']).default('aplicado').notNull(),
+	voidedAt: datetime("voided_at", { mode: 'string' }),
+	voidedBy: varchar("voided_by", { length: 36 }),
+	voidReason: text("void_reason"),
+	refundedAt: datetime("refunded_at", { mode: 'string' }),
+	refundedAmount: decimal("refunded_amount", { precision: 12, scale: 2 }),
+	periodStart: date("period_start", { mode: 'string' }),
+	periodEnd: date("period_end", { mode: 'string' }),
+	concept: varchar({ length: 160 }),
+	notes: text(),
+	receivedBy: varchar("received_by", { length: 36 }),
+	paymentDate: datetime("payment_date", { mode: 'string' }).notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
+},
+(table) => {
+	return {
+		idxGymPayTenant: index("idx_gym_pay_tenant").on(table.tenantId, table.paymentDate),
+		idxGymPayMember: index("idx_gym_pay_member").on(table.memberUserId, table.paymentDate),
+		idxGymPayMembresia: index("idx_gym_pay_membresia").on(table.membresiaId),
+		idxGymPayStatus: index("idx_gym_pay_status").on(table.tenantId, table.status),
+		gymPaymentsId: primaryKey({ columns: [table.id], name: "gym_payments_id"}),
+	}
+});
+
+// Deudas/cargos pendientes por membresía. Generadas cuando el next_payment_at
+// vence sin pago. Permiten ver morosos, registrar pagos parciales, aplicar
+// recargos.
+export const gymDebts = mysqlTable("gym_debts", {
+	id: varchar({ length: 36 }).notNull(),
+	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" }),
+	membresiaId: varchar("membresia_id", { length: 36 }).notNull(),
+	memberUserId: varchar("member_user_id", { length: 36 }).notNull(),
+	originalAmount: decimal("original_amount", { precision: 12, scale: 2 }).notNull(),
+	surchargePct: decimal("surcharge_pct", { precision: 5, scale: 2 }).default('0.00').notNull(),
+	surchargeAmount: decimal("surcharge_amount", { precision: 12, scale: 2 }).default('0.00').notNull(),
+	totalDue: decimal("total_due", { precision: 12, scale: 2 }).notNull(),
+	paidAmount: decimal("paid_amount", { precision: 12, scale: 2 }).default('0.00').notNull(),
+	dueDate: date("due_date", { mode: 'string' }).notNull(),
+	status: mysqlEnum("status", ['pendiente', 'pagado', 'vencido', 'condonado']).default('pendiente').notNull(),
+	paidAt: datetime("paid_at", { mode: 'string' }),
+	concept: varchar({ length: 200 }),
+	notes: text(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`(now())`),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`(now())`).onUpdateNow(),
+},
+(table) => {
+	return {
+		idxGymDebtTenant: index("idx_gym_debt_tenant").on(table.tenantId, table.status),
+		idxGymDebtMember: index("idx_gym_debt_member").on(table.memberUserId, table.status),
+		idxGymDebtDue: index("idx_gym_debt_due").on(table.dueDate, table.status),
+		gymDebtsId: primaryKey({ columns: [table.id], name: "gym_debts_id"}),
 	}
 });
 

@@ -119,6 +119,9 @@ const MODULE_ALIASES: Record<string, string[]> = {
   combos:       ['combos', 'restbar', 'gastrobar-ops'],
   eventos:      ['eventos', 'tienda'],
   engagement:   ['engagement', 'customers'],
+  // "Página Principal" (Content Hub + Newsletter): sin módulo propio; cuelga de
+  // Clientes/Tienda para que aparezca en el Tema 2 sin quedar oculta por el filtro.
+  contenido:    ['contenido', 'customers', 'tienda'],
 }
 
 /**

@@ -508,6 +508,7 @@ router.get(
             p.weight as weight,
             p.hardware_weight_unit as hardwareWeightUnit,
             p.tenant_id as tenantId, t.name as storeName, t.slug as storeSlug,
+            p.created_at as createdAt,
             IF(COALESCE(p.is_presale, 0), 1, 0) as isPresale,
             p.presale_window_end as presaleWindowEnd,
             p.presale_ship_start as presaleShipStart,
@@ -547,6 +548,7 @@ router.get(
             p.weight as weight,
             NULL as hardwareWeightUnit,
             p.tenant_id as tenantId, t.name as storeName, t.slug as storeSlug,
+            p.created_at as createdAt,
             0 as isPresale,
             NULL as presaleWindowEnd,
             NULL as presaleShipStart,
@@ -1225,6 +1227,13 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
         ) as any;
         if (themeRows[0]) Object.assign(storeInfoData, themeRows[0]);
       } catch { /* column not yet added */ }
+      try {
+        const [siRows] = await pool.query(
+          `SELECT contact_page_social_images as contactPageSocialImages, contact_page_settings as contactPageSettings FROM store_info WHERE tenant_id = ?`,
+          [tenantId]
+        ) as any;
+        if (siRows[0]) Object.assign(storeInfoData, siRows[0]);
+      } catch { /* column not yet added */ }
 
       // Age gate fields
       try {
@@ -1810,6 +1819,13 @@ router.get('/customization', authenticate, requirePlan('empresarial'), async (re
         ) as any;
         if (themeRows[0]) Object.assign(storeInfoRow, themeRows[0]);
       } catch { /* column not yet added */ }
+      try {
+        const [siRows] = await pool.query(
+          `SELECT contact_page_social_images as contactPageSocialImages, contact_page_settings as contactPageSettings FROM store_info WHERE tenant_id = ?`,
+          [tenantId]
+        ) as any;
+        if (siRows[0]) Object.assign(storeInfoRow, siRows[0]);
+      } catch { /* column not yet added */ }
 
       // Age gate fields
       try {
@@ -2306,7 +2322,7 @@ router.put('/store-extended-info', authenticate, requirePlan('empresarial'), asy
 router.put('/contact-page', authenticate, requirePlan('empresarial'), async (req: Request, res: Response) => {
   try {
     const tenantId = (req as any).user.tenantId;
-    const { contactPageEnabled, contactPageTitle, contactPageDescription, contactPageImage, contactPageProducts, contactPageLinks, contactPageLinkTheme, socialInstagram, socialFacebook, socialTiktok, socialWhatsapp, socialX, socialSnapchat } = req.body;
+    const { contactPageEnabled, contactPageTitle, contactPageDescription, contactPageImage, contactPageProducts, contactPageLinks, contactPageLinkTheme, socialInstagram, socialFacebook, socialTiktok, socialWhatsapp, socialX, socialSnapchat, contactPageSocialImages, contactPageSettings } = req.body;
 
     const values = [
       contactPageEnabled ? 1 : 0,
@@ -2369,6 +2385,26 @@ router.put('/contact-page', authenticate, requirePlan('empresarial'), async (req
           [socialX || null, socialSnapchat || null, tenantId]
         );
       } catch { /* ignore */ }
+    }
+
+    // Imágenes de fondo por red social (JSON) — columna agregada en la migración 0053.
+    if (contactPageSocialImages !== undefined) {
+      try {
+        await pool.query(
+          `UPDATE store_info SET contact_page_social_images = ? WHERE tenant_id = ?`,
+          [contactPageSocialImages ? JSON.stringify(contactPageSocialImages) : null, tenantId]
+        );
+      } catch { /* columna aún no migrada — ignorar */ }
+    }
+
+    // Ajustes varios de la página de contacto (JSON) — columna agregada en la migración 0054.
+    if (contactPageSettings !== undefined) {
+      try {
+        await pool.query(
+          `UPDATE store_info SET contact_page_settings = ? WHERE tenant_id = ?`,
+          [contactPageSettings ? JSON.stringify(contactPageSettings) : null, tenantId]
+        );
+      } catch { /* columna aún no migrada — ignorar */ }
     }
 
     res.json({ success: true });
@@ -3305,6 +3341,17 @@ router.get('/links/:slug', async (req: Request, res: Response) => {
         contactData.socialSnapchat = (xRows as any[])[0].socialSnapchat;
       }
     } catch { /* columns not yet added */ }
+    // Imágenes de fondo por red social (grid estilo tarjetas) — columna 0053
+    try {
+      const [siRows] = await pool.query(
+        `SELECT contact_page_social_images as contactPageSocialImages, contact_page_settings as contactPageSettings FROM store_info WHERE tenant_id = ? LIMIT 1`,
+        [tenantId]
+      ) as any;
+      if ((siRows as any[])[0]) {
+        contactData.contactPageSocialImages = (siRows as any[])[0].contactPageSocialImages;
+        contactData.contactPageSettings = (siRows as any[])[0].contactPageSettings;
+      }
+    } catch { /* column not yet added */ }
 
     // Shop products — use selected IDs or all published
     let shopProducts: any[] = [];
@@ -3388,6 +3435,8 @@ router.get('/links/:slug', async (req: Request, res: Response) => {
         contactPageImage: contactData.contactPageImage || null,
         contactPageLinks: contactData.contactPageLinks || null,
         contactPageLinkTheme: contactData.contactPageLinkTheme || 'theme1',
+        contactPageSocialImages: contactData.contactPageSocialImages || null,
+        contactPageSettings: contactData.contactPageSettings || null,
         reservationsEnabled,
         shopProducts,
       },

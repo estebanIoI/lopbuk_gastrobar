@@ -1,0 +1,1 @@
+ALTER TABLE `store_info` ADD `contact_page_settings` text;
