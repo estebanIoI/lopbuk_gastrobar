@@ -991,7 +991,12 @@ router.post('/addi-webhook', async (req: Request, res: Response) => {
         return;
       }
     } else {
-      console.warn('ADDI webhook: sin credenciales configuradas — aceptando sin auth. Configura addi_webhook_user/addi_webhook_password.');
+      // SEGURIDAD (PAY-01, fail-closed): sin credenciales no se puede autenticar el origen del
+      // webhook → rechazar para evitar confirmaciones de pago falsas (antes se aceptaba sin auth).
+      console.warn('ADDI webhook: sin credenciales configuradas — rechazando. Configura addi_webhook_user/addi_webhook_password.');
+      audit.webhookInvalidSignature('addi', req.ip);
+      res.status(401).json({ error: 'Webhook authentication not configured' });
+      return;
     }
 
     const payload = req.body;
@@ -1469,13 +1474,23 @@ router.post('/sistecredito-webhook', async (req: Request, res: Response) => {
         return;
       }
     } else if (apiKey) {
-      // Some integrations send the API key as a header for webhook validation
+      // SEGURIDAD (PAY-01): exigir la API key. Una key vacía/ausente NO puede pasar
+      // (antes `receivedKey && ...` dejaba pasar cuando no se enviaba el header → bypass).
       const receivedKey = req.headers['x-api-key'] as string || '';
-      if (receivedKey && receivedKey !== apiKey) {
+      if (receivedKey !== apiKey) {
         console.warn('Sistecredito webhook: invalid api key');
+        audit.webhookInvalidSignature('sistecredito', req.ip);
         res.status(401).json({ error: 'Invalid API key' });
         return;
       }
+    } else {
+      // SEGURIDAD (PAY-01, fail-closed): sin `apiSecret` ni `apiKey` configurados no se puede
+      // autenticar el origen del webhook. Se rechaza para evitar confirmaciones de pago falsas
+      // (un atacante podría enviar {reference, status:'approved'} y marcar órdenes como pagadas).
+      console.warn('Sistecredito webhook: no signature/apiKey configured — rejecting');
+      audit.webhookInvalidSignature('sistecredito', req.ip);
+      res.status(401).json({ error: 'Webhook authentication not configured' });
+      return;
     }
 
     const { reference, status, orderId: webhookOrderId } = req.body;

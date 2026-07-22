@@ -1,5 +1,9 @@
 # 🔒 Política de Seguridad (v4)
 
+> Estas son las **reglas que nunca se rompen**. El programa completo de auditoría (17 fases,
+> modelo de amenazas 2026, KPIs, herramientas, respuesta a incidentes) vive en la región
+> [[security/README]]. Antes de tocar auth, tenant, pagos o el agente IA → lee también [[synapses/security-chain]].
+
 1. **Tenant isolation**: toda query filtra por `tenant_id`; el `tenant_id` viene del JWT, nunca del body/params/query. Única excepción: superadmin, explícita.
 2. **Auth**: JWT en cookie httpOnly como fuente de verdad. No tocar `auth.middleware.ts` ni el middleware de tenant sin aprobación.
 3. **DAIMUZ Chat que actúa**: el ControlChat ejecuta acciones reales → corre con el `tenant` del comerciante, respeta permisos y aprobaciones (`approval-policy.md`), y audita cada acción. Nunca expone datos de otro tenant.
@@ -17,4 +21,6 @@
 | Cloudinary | imágenes (productos, logos) — evitar fotos con PII | ⏳ pendiente firmar |
 | Proveedor LLM (agente IA) | mensajes del chat — PROHIBIDO inyectar PII de clientes al contexto RAG | guard en `agent.rag.ts` |
 
-← [[governance/universal-constraints]] | [[governance/approval-policy]]
+> Firmar los DPAs pendientes es una tarea de la Ola 3 en [[context/plan-auditoria-seguridad-2026]].
+
+← [[governance/universal-constraints]] | [[governance/approval-policy]] | → [[security/README]]

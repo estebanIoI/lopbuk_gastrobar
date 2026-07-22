@@ -47,6 +47,26 @@
 | [[synapses/delivery-chain]] | Storefront → Pedidos → Delivery → WhatsApp |
 | [[synapses/supplier-chain]] | Proveedor → Variantes → Tiers → Venta → Liquidación |
 | [[synapses/saas-chain]] | Tenant → Auth → Módulos → Suscripciones |
+| [[synapses/security-chain]] | 🛡️ Seguridad transversal → Traefik → Auth → Tenant → Query → Auditoría |
+
+---
+
+## 🛡️ Seguridad — El Cerebro Duro en Datos
+
+> Programa completo de auditoría continua. Antes de tocar auth, tenant, pagos o el agente IA → pasa por aquí.
+
+| Nodo | Contenido |
+|---|---|
+| [[security/README]] | 🛡️ Índice de la región: objetivo, 17 fases, riesgos 2026, nivel de madurez |
+| [[security/compressed]] | ⚡ Triage: lo mínimo que todo agente debe saber |
+| [[security/threat-model-2026]] | 🎯 Amenazas 2026 + 10 riesgos prioritarios + mapeo MITRE ATT&CK |
+| [[security/asset-inventory]] | 📦 Fase 1: inventario de activos (infra, apps, datos, secretos) |
+| [[security/audit-plan]] | 🔬 Las 17 fases de auditoría + checklist accionable |
+| [[security/kpis]] | 📊 MTTD, MTTR, RTO/RPO, cobertura MFA/cifrado/backups, riesgo residual |
+| [[security/tools]] | 🧰 Herramientas y dónde encaja cada una |
+| [[security/incident-response]] | 🚑 Blue Team: detección → contención → recuperación → SOAR |
+| [[agents/security-agent]] | 🕵️ El especialista de seguridad (red / blue / reviewer) |
+| [[context/plan-auditoria-seguridad-2026]] | 🗓️ Roadmap de ejecución por olas |
 
 ---
 
@@ -276,6 +296,9 @@ memory/lessons-learned.md (si aplica), memory/completed-features.md (si aplica).
 ### 🌐 Administrador SaaS (superadmin)
 [[modules/tenants/tenants]] · [[modules/subscriptions/subscriptions]] · [[modules/auth/auth]]
 
+### 🛡️ CISO / Seguridad
+[[security/README]] · [[security/audit-plan]] · [[security/threat-model-2026]] · [[synapses/security-chain]] · [[agents/security-agent]] · [[security/kpis]]
+
 ---
 
 ## ⚡ Navegar por Tarea
@@ -315,6 +338,12 @@ para mañana
 
 ### "¿Cuáles son las reglas que nunca se rompen?"
 → [[governance/universal-constraints]]
+
+### "¿Cómo audito / endurezco la seguridad?"
+→ [[security/README]] → [[security/audit-plan]] → [[security/threat-model-2026]] → [[context/plan-auditoria-seguridad-2026]]
+
+### "Voy a tocar auth / tenant / pagos / el agente IA"
+→ [[governance/security-policy]] → [[synapses/security-chain]] → la fase relevante en [[security/audit-plan]]
 
 ---
 

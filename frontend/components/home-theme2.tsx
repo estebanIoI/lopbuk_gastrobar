@@ -21,489 +21,30 @@ import { BRAND } from '@/lib/brand'
 import { DaimuzWelcomeFrame } from '@/components/daimuz-welcome-frame'
 import { FlameButton } from '@/components/ui/flame-button'
 import { useIsDesktop } from '@/components/consumer/hooks/useIsDesktop'
-import { cldImg, cldSrcSet } from '@/utils/img'
+import { cldImg } from '@/utils/img'
 import { StoresSection } from '@/components/stores-map'
 import { fillTemplate, DEFAULT_TERMS, DEFAULT_PRIVACY_POLICY } from '@/lib/legal-templates'
 import {
-  ChevronLeft, ChevronRight, Store, UtensilsCrossed, Zap, Tag, Package,
-  Sparkles, ShoppingBag, Pill, Apple, Wrench, Scissors, Dog, Wine,
-  Croissant, Coffee, Shirt, Gem, Flower2, ArrowRight, Search,
-  ChevronDown, MapPin, Flame, Bell, Facebook, Instagram, Phone,
-  Mail, TrendingUp, X, Menu, Compass, User as UserIcon, Home as HomeIcon,
-  ShoppingCart,
+  ChevronLeft, ChevronRight, Store, Zap, Tag, Package, Sparkles, ShoppingBag,
+  ArrowRight, Search, ChevronDown, MapPin, Flame, Facebook, Instagram, Phone,
+  Mail, TrendingUp, X, Menu, Compass, User as UserIcon, Home as HomeIcon, ShoppingCart,
+  ShieldCheck, Truck,
 } from 'lucide-react'
 
-// ── Paleta institucional ────────────────────────────────────────────────────
-// Colores de marca como variables CSS con fallback al verde DAIMUZ.
-// Cuando el superadmin genera una colorimetría, se inyectan --brand-green /
-// --brand-green-dark en la raíz del home y TODO se tiñe automáticamente
-// (los estilos inline las resuelven en tiempo de render).
-const GREEN = 'var(--brand-green, #00833E)'
-const GREEN_DARK = 'var(--brand-green-dark, #005C2A)'
-// El acento "destacado" sigue la paleta: cuando el superadmin genera/edita una
-// colorimetría se inyecta --brand-gold (y su color de texto legible). Sin paleta,
-// cae al dorado DAIMUZ por defecto.
-const GOLD = 'var(--brand-gold, #F0A500)'
-const GOLD_TEXT = 'var(--brand-gold-text, #111827)'
+// ── Módulos del marketplace (extraídos para reducir el tamaño de este archivo) ──
+import {
+  GREEN, GREEN_DARK, GOLD, GOLD_TEXT, readableOn, complementaryAccent,
+  fmtCOP, waLink, PLATFORM_WHATSAPP, prefersReducedMotion,
+} from './marketplace/theme'
+import { PRODUCT_CARD_KEYS, DEFAULT_PROMO_CARDS } from './marketplace/types'
+import type { HeroSlide, PromoCardConfig, MarketStore, MarketProduct } from './marketplace/types'
+import { StoreCard, ProductCard } from './marketplace/cards'
+import { HomeHeroCarousel } from './marketplace/hero'
 
-function hexToRgb(hex?: string | null): [number, number, number] | null {
-  if (!hex || typeof hex !== 'string') return null
-  const m = hex.replace('#', '')
-  const h = m.length === 3 ? m.split('').map(c => c + c).join('') : m
-  const r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16)
-  return [r, g, b].some(Number.isNaN) ? null : [r, g, b]
-}
-
-/** Devuelve '#fff' o '#111827' según el contraste sobre un color hex. */
-function readableOn(hex?: string | null): string {
-  const rgb = hexToRgb(hex)
-  if (!rgb) return '#111827'
-  const L = (0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]) / 255
-  return L > 0.6 ? '#111827' : '#ffffff'
-}
-
-function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
-  r /= 255; g /= 255; b /= 255
-  const max = Math.max(r, g, b), min = Math.min(r, g, b)
-  let h = 0, s = 0; const l = (max + min) / 2
-  const d = max - min
-  if (d !== 0) {
-    s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
-    h = max === r ? (g - b) / d + (g < b ? 6 : 0) : max === g ? (b - r) / d + 2 : (r - g) / d + 4
-    h *= 60
-  }
-  return [h, s, l]
-}
-function hslToHex(h: number, s: number, l: number): string {
-  h = ((h % 360) + 360) % 360
-  const c = (1 - Math.abs(2 * l - 1)) * s
-  const x = c * (1 - Math.abs((h / 60) % 2 - 1))
-  const m = l - c / 2
-  let r = 0, g = 0, b = 0
-  if (h < 60) [r, g, b] = [c, x, 0]
-  else if (h < 120) [r, g, b] = [x, c, 0]
-  else if (h < 180) [r, g, b] = [0, c, x]
-  else if (h < 240) [r, g, b] = [0, x, c]
-  else if (h < 300) [r, g, b] = [x, 0, c]
-  else [r, g, b] = [c, 0, x]
-  const to = (n: number) => Math.round((n + m) * 255).toString(16).padStart(2, '0')
-  return `#${to(r)}${to(g)}${to(b)}`.toUpperCase()
-}
-
-/**
- * Acento "destacado" complementario al color primario de la paleta: rota el
- * matiz ~165° (split-complementario, evita el naranja puro) y sube saturación,
- * para que las insignias resalten sobre el header sin salirse de la colorimetría.
- */
-function complementaryAccent(hex?: string | null): string | null {
-  const rgb = hexToRgb(hex)
-  if (!rgb) return null
-  const [h, s, l] = rgbToHsl(rgb[0], rgb[1], rgb[2])
-  // Si el color es casi gris (sin matiz), no tiene complemento útil.
-  if (s < 0.08) return null
-  const h2 = h + 165
-  const s2 = Math.min(0.92, Math.max(0.6, s + 0.15))
-  const l2 = Math.min(0.6, Math.max(0.46, l))
-  return hslToHex(h2, s2, l2)
-}
-
-// ── Tipos compartidos ─────────────────────────────────────────────────────────
-export interface HeroSlide {
-  id: string
-  type: 'image' | 'video'
-  url: string
-  /** Media alterna para pantallas móviles (imagen/GIF/video). Si está vacía, se usa `url`. */
-  mobileUrl?: string
-  link?: string
-  title?: string
-  subtitle?: string
-}
-
-export interface RubroCategory {
-  type: string
-  count: number
-}
-
-// ── Tarjetas configurables del carrusel "Para ti" ──────────────────────────────
-export interface PromoCardConfig {
-  key: string   // identifica el tipo de tarjeta (ver PROMO_CARD_CATALOG)
-  label: string // título visible
-}
-
-// Catálogo de tarjetas disponibles para el superadmin
-export const PROMO_CARD_CATALOG: { key: string; label: string; kind: 'product' | 'accion'; desc: string }[] = [
-  { key: 'novedades',   label: 'Novedades',   kind: 'product', desc: 'Producto reciente del marketplace' },
-  { key: 'ofertas',     label: 'En oferta',   kind: 'product', desc: 'Producto con descuento activo' },
-  { key: 'recomendado', label: 'Recomendado', kind: 'product', desc: 'Producto destacado por la plataforma' },
-  { key: 'tendencia',   label: 'Tendencia',   kind: 'product', desc: 'Producto popular' },
-  { key: 'accion_comercios',  label: 'Comercios',  kind: 'accion', desc: 'Acceso: ver todos los comercios' },
-  { key: 'accion_ofertas',    label: 'Ofertas',    kind: 'accion', desc: 'Acceso: ver ofertas' },
-  { key: 'accion_novedades',  label: 'Novedades',  kind: 'accion', desc: 'Acceso: ver novedades' },
-]
-
-export const DEFAULT_PROMO_CARDS: PromoCardConfig[] = [
-  { key: 'novedades', label: 'Novedades' },
-  { key: 'ofertas', label: 'En oferta' },
-  { key: 'recomendado', label: 'Recomendado' },
-  { key: 'tendencia', label: 'Tendencia' },
-  { key: 'accion_comercios', label: 'Comercios' },
-  { key: 'accion_ofertas', label: 'Ofertas' },
-  { key: 'accion_novedades', label: 'Novedades' },
-]
-
-const PRODUCT_CARD_KEYS = new Set(['novedades', 'ofertas', 'recomendado', 'tendencia'])
-
-export interface MarketStore {
-  id: string
-  name: string
-  slug: string
-  businessType?: string | null
-  logoUrl?: string | null
-  coverUrl?: string | null
-  cardDescription?: string | null
-  city?: string | null
-  address?: string | null
-  department?: string | null
-  schedule?: string | null
-  latitude?: number | null
-  longitude?: number | null
-  isVerified?: number | boolean
-  openState?: 'open' | 'closed'
-  nextOpenLabel?: string | null
-  sedeCount?: number
-  productCount: number
-  theme?: string
-  /** Si está presente, la tarjeta es externa: al abrirla redirige a este link. */
-  externalUrl?: string | null
-}
-
-export interface MarketProduct {
-  id: string
-  name: string
-  imageUrl?: string | null
-  salePrice: number
-  offerPrice?: number | null
-  isOnOffer?: boolean
-  storeName?: string
-  category?: string
-  storeSlug?: string
-  tenantSlug?: string
-  createdAt?: string | null
-}
-
-// ── Iconos por rubro ────────────────────────────────────────────────────────────
-const RUBRO_ICONS: Record<string, ReactNode> = {
-  restaurante: <UtensilsCrossed className="w-full h-full" />,
-  comida: <UtensilsCrossed className="w-full h-full" />,
-  gastrobar: <UtensilsCrossed className="w-full h-full" />,
-  tecnologia: <Zap className="w-full h-full" />,
-  'tecnología': <Zap className="w-full h-full" />,
-  ropa: <Shirt className="w-full h-full" />,
-  moda: <Shirt className="w-full h-full" />,
-  calzado: <ShoppingBag className="w-full h-full" />,
-  drogueria: <Pill className="w-full h-full" />,
-  'droguería': <Pill className="w-full h-full" />,
-  farmacia: <Pill className="w-full h-full" />,
-  fruver: <Apple className="w-full h-full" />,
-  supermercado: <ShoppingBag className="w-full h-full" />,
-  ferreteria: <Wrench className="w-full h-full" />,
-  'ferretería': <Wrench className="w-full h-full" />,
-  tapiceria: <Wrench className="w-full h-full" />,
-  'tapicería': <Wrench className="w-full h-full" />,
-  belleza: <Scissors className="w-full h-full" />,
-  peluqueria: <Scissors className="w-full h-full" />,
-  mascotas: <Dog className="w-full h-full" />,
-  licores: <Wine className="w-full h-full" />,
-  panaderia: <Croissant className="w-full h-full" />,
-  'panadería': <Croissant className="w-full h-full" />,
-  cafe: <Coffee className="w-full h-full" />,
-  'café': <Coffee className="w-full h-full" />,
-  joyeria: <Gem className="w-full h-full" />,
-  'joyería': <Gem className="w-full h-full" />,
-  flores: <Flower2 className="w-full h-full" />,
-  perfumeria: <Sparkles className="w-full h-full" />,
-  'perfumería': <Sparkles className="w-full h-full" />,
-}
-
-const rubroIcon = (type: string): ReactNode =>
-  RUBRO_ICONS[type.toLowerCase()] ?? <Store className="w-full h-full" />
-
-const fmtCOP = (v: number) =>
-  new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(v || 0)
-
-// ════════════════════════════════════════════════════════════════════════════
-//  HERO CAROUSEL (reutilizable)
-// ════════════════════════════════════════════════════════════════════════════
-export function HomeHeroCarousel({
-  slides,
-  isMobile = false,
-  intervalMs = 5500,
-}: {
-  slides: HeroSlide[]
-  isMobile?: boolean
-  intervalMs?: number
-}) {
-  const [index, setIndex] = useState(0)
-  const [paused, setPaused] = useState(false)
-  const valid = (slides || []).filter(s => s && s.url)
-
-  useEffect(() => {
-    if (paused || valid.length <= 1) return
-    const id = setInterval(() => setIndex(i => (i + 1) % valid.length), intervalMs)
-    return () => clearInterval(id)
-  }, [paused, valid.length, intervalMs])
-
-  useEffect(() => {
-    if (index >= valid.length) setIndex(0)
-  }, [valid.length, index])
-
-  if (valid.length === 0) return null
-
-  const go = (dir: number) => setIndex(i => (i + dir + valid.length) % valid.length)
-  const activeSlide = valid[index] || valid[0]
-
-  return (
-    <section
-      className="relative w-full"
-      onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => setPaused(false)}
-      aria-label="Carrusel principal"
-    >
-      {/* Móvil: la altura del contenedor = altura natural de la imagen (sin franjas arriba/abajo).
-          Desktop: altura fija a sangre (object-cover). */}
-      <div className="relative w-full overflow-hidden bg-gray-100 sm:bg-black rounded-xl sm:h-[clamp(260px,38vw,460px)]">
-        {activeSlide && activeSlide.type !== 'video' ? (
-          // Sizer invisible solo en móvil: define la altura exacta de la imagen activa.
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={cldImg((isMobile && activeSlide.mobileUrl) ? activeSlide.mobileUrl : activeSlide.url, 1200)} alt="" aria-hidden="true" className="block w-full h-auto sm:hidden invisible select-none pointer-events-none" />
-        ) : (
-          <div className="w-full aspect-video sm:hidden" />
-        )}
-        {valid.map((slide, i) => {
-          const active = i === index
-          // En móvil usa la media móvil si existe (fallback a la de escritorio).
-          const mediaUrl = (isMobile && slide.mobileUrl) ? slide.mobileUrl : slide.url
-          // En móvil el contenedor ENVUELVE la imagen (object-contain, no la corta), como el tema 1
-          // de las tiendas; en escritorio se mantiene a sangre (object-cover).
-          const media = slide.type === 'video' ? (
-            <video src={mediaUrl} autoPlay muted loop playsInline className="absolute inset-0 w-full h-full object-contain sm:object-cover" />
-          ) : (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={cldImg(mediaUrl, 1600)} alt={slide.title || `Banner ${i + 1}`} className="absolute inset-0 w-full h-full object-contain sm:object-cover" loading={i === 0 ? 'eager' : 'lazy'} fetchPriority={i === 0 ? 'high' : 'auto'} decoding="async" />
-          )
-          const overlay = (slide.title || slide.subtitle) && (
-            <>
-              <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/25 to-transparent pointer-events-none" />
-              <div className="absolute inset-0 flex flex-col justify-center px-6 sm:px-12 max-w-2xl pointer-events-none">
-                {slide.title && <h2 className="text-white text-xl sm:text-3xl md:text-4xl font-bold tracking-tight drop-shadow-lg leading-tight">{slide.title}</h2>}
-                {slide.subtitle && <p className="text-white/85 text-sm sm:text-lg mt-2 sm:mt-3 drop-shadow-md max-w-lg">{slide.subtitle}</p>}
-                {slide.link && (
-                  <span className="mt-4 inline-flex items-center gap-1.5 self-start text-white text-xs sm:text-sm font-semibold px-4 py-2 rounded-full" style={{ background: GOLD }}>
-                    Ver más <ArrowRight className="w-3.5 h-3.5" />
-                  </span>
-                )}
-              </div>
-            </>
-          )
-          const inner = (
-            <div className={`absolute inset-0 transition-opacity duration-700 ease-out ${active ? 'opacity-100 z-10' : 'opacity-0 z-0'}`} aria-hidden={!active}>
-              {media}{overlay}
-            </div>
-          )
-          return slide.link ? (
-            <a key={slide.id || i} href={slide.link} target={slide.link.startsWith('http') ? '_blank' : undefined} rel="noopener noreferrer" className={active ? 'block cursor-pointer' : 'pointer-events-none'}>{inner}</a>
-          ) : (
-            <div key={slide.id || i}>{inner}</div>
-          )
-        })}
-
-        {valid.length > 1 && (
-          <>
-            <button type="button" onClick={() => go(-1)} aria-label="Anterior" className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 z-20 w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-black/45 hover:bg-black/70 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white transition-all"><ChevronLeft className="w-5 h-5" /></button>
-            <button type="button" onClick={() => go(1)} aria-label="Siguiente" className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 z-20 w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-black/45 hover:bg-black/70 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white transition-all"><ChevronRight className="w-5 h-5" /></button>
-          </>
-        )}
-        {valid.length > 1 && (
-          <div className="absolute bottom-3 sm:bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5">
-            {valid.map((_, i) => (
-              <button key={i} type="button" aria-label={`Ir al slide ${i + 1}`} onClick={() => setIndex(i)} className="h-1.5 rounded-full transition-all duration-300" style={{ width: i === index ? 24 : 6, background: i === index ? GOLD : 'rgba(255,255,255,.5)' }} />
-            ))}
-          </div>
-        )}
-      </div>
-    </section>
-  )
-}
-
-// ════════════════════════════════════════════════════════════════════════════
-//  CATEGORY RAIL (legado — usado por la landing en modo Tema 1 alterno)
-// ════════════════════════════════════════════════════════════════════════════
-export function HomeCategoryRail({
-  categories, active, total, onSelect,
-}: {
-  categories: RubroCategory[]
-  active: string
-  total: number
-  onSelect: (type: string) => void
-}) {
-  const cats = (categories || []).filter(c => c.type)
-  if (cats.length === 0) return null
-  return (
-    <section className="landing-section-bg relative py-5 sm:py-7">
-      <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 space-y-5">
-        <div className="flex gap-2 sm:gap-2.5 overflow-x-auto scrollbar-hide pb-1 -mx-1 px-1">
-          <button onClick={() => onSelect('all')} className={`shrink-0 flex items-center gap-2 px-4 py-2 rounded-full border text-xs sm:text-sm font-medium whitespace-nowrap transition-all ${active === 'all' ? 'bg-white text-black border-white shadow' : 'bg-white/5 text-white/70 border-white/12 hover:border-white/35 hover:text-white'}`}>
-            <Store className="w-4 h-4" /> Todos
-          </button>
-          {cats.map(({ type, count }) => {
-            const selected = active === type
-            return (
-              <button key={type} onClick={() => onSelect(type)} className={`shrink-0 flex items-center gap-2 px-4 py-2 rounded-full border text-xs sm:text-sm font-medium whitespace-nowrap capitalize transition-all ${selected ? 'bg-white text-black border-white shadow' : 'bg-white/5 text-white/70 border-white/12 hover:border-white/35 hover:text-white'}`}>
-                <span className="w-4 h-4 inline-flex">{rubroIcon(type)}</span>{type}
-                <span className="text-[10px] rounded-full px-1.5 py-0.5 bg-white/10 text-white/50">{count}</span>
-              </button>
-            )
-          })}
-        </div>
-      </div>
-    </section>
-  )
-}
-
-// ════════════════════════════════════════════════════════════════════════════
-//  TARJETA DE COMERCIO (idéntica a la landing original)
-// ════════════════════════════════════════════════════════════════════════════
-function StoreCard({
-  store, onOpenStore, hasServices, ensureAbsoluteUrl,
-}: {
-  store: MarketStore
-  onOpenStore: (s: MarketStore) => void
-  hasServices: boolean
-  ensureAbsoluteUrl: (u: string) => string
-}) {
-  const isExternal = !!store.externalUrl
-  const isEmpty = !isExternal && store.productCount === 0
-  return (
-    <button
-      onClick={() => { if (isExternal || !isEmpty) onOpenStore(store) }}
-      className={`group relative bg-[#171717] rounded-2xl overflow-hidden text-left flex flex-col shadow-sm transition-all duration-300 border ${isEmpty ? 'cursor-default border-white/5 opacity-70' : 'hover:shadow-xl border-white/10 hover:border-white/25 cursor-pointer'}`}
-    >
-      {isEmpty && (
-        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-white/80 backdrop-blur-[2px] rounded-2xl">
-          <span style={{ fontSize: '1.6rem', lineHeight: 1, marginBottom: '0.4rem' }}>🚧</span>
-          <p style={{ color: '#d97706', fontSize: '0.6rem', fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase' }}>Próximamente</p>
-        </div>
-      )}
-      {hasServices && (
-        <div style={{ position: 'absolute', top: 0, left: 0, width: 80, height: 80, zIndex: 30, pointerEvents: 'none', overflow: 'hidden' }}>
-          <div style={{ position: 'absolute', top: 18, left: -22, width: 100, transform: 'rotate(-45deg)', background: 'linear-gradient(90deg,#7c3aed,#a855f7)', color: '#fff', fontSize: 8, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.18em', padding: '3px 0', textAlign: 'center' }}>
-            Servicios
-          </div>
-        </div>
-      )}
-      <div className="relative w-full bg-[#0e0e0e] overflow-hidden shrink-0" style={{ aspectRatio: '16/10' }}>
-        {(store.coverUrl || store.logoUrl) ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={cldImg((store.coverUrl || store.logoUrl) as string, 500)} srcSet={cldSrcSet((store.coverUrl || store.logoUrl) as string, [300, 500, 800])} sizes="(max-width:640px) 100vw, 360px" loading="lazy" decoding="async" alt={store.name} className={`w-full h-full ${store.coverUrl ? 'object-cover' : 'object-contain p-4'} ${isEmpty ? '' : 'group-hover:scale-105'} transition-transform duration-500`} />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={BRAND.isotipo} alt={BRAND.name} className="w-16 h-16 object-contain opacity-30" />
-          </div>
-        )}
-        <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-[#171717] to-transparent pointer-events-none" />
-        {isExternal ? (
-          <span className="absolute top-2.5 right-2.5 flex items-center gap-1 text-[9px] sm:text-[10px] font-bold px-2 py-1 rounded-full backdrop-blur-sm bg-violet-500/20 text-violet-200 border border-violet-400/50">
-            VISITAR ↗
-          </span>
-        ) : !isEmpty && (
-          <span className={`absolute top-2.5 right-2.5 flex items-center gap-1 text-[9px] sm:text-[10px] font-bold px-2 py-1 rounded-full backdrop-blur-sm ${store.openState === 'closed' ? 'bg-red-500/20 text-red-300 border border-red-400/40' : 'bg-green-500/20 text-green-300 border border-green-400/50'}`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${store.openState === 'closed' ? 'bg-red-400' : 'bg-green-400'}`} />
-            {store.openState === 'closed' ? 'CERRADO' : 'ABIERTO'}
-          </span>
-        )}
-      </div>
-      <div className="px-4 -mt-7 relative z-10 flex">
-        <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl overflow-hidden bg-[#1f1f1f] border-2 border-[#171717] shadow-lg flex items-center justify-center shrink-0">
-          {store.logoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={cldImg(store.logoUrl, 160)} loading="lazy" decoding="async" alt={store.name} className="w-full h-full object-cover" />
-          ) : (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={BRAND.isotipo} alt={BRAND.name} className="w-full h-full object-contain p-1.5" />
-          )}
-        </div>
-      </div>
-      <div className="px-4 pt-2 pb-4 flex flex-col gap-1 mt-auto">
-        <div className="flex items-center gap-1.5">
-          <h3 className="text-sm sm:text-base font-bold text-white truncate">{store.name}</h3>
-          {Boolean(store.isVerified) && (
-            <svg viewBox="0 0 24 24" className="w-4 h-4 shrink-0" role="img" aria-label="Verificado">
-              <path fill="#3b82f6" d="M12 1l2.4 1.8 3 .2.9 2.9 2.4 1.8-.9 2.9.9 2.9-2.4 1.8-.9 2.9-3 .2L12 23l-2.4-1.8-3-.2-.9-2.9L3.3 16l.9-2.9-.9-2.9 2.4-1.8.9-2.9 3-.2z"/>
-              <path fill="#fff" d="M10.6 14.6l-2.2-2.2-1.1 1.1 3.3 3.3 6-6-1.1-1.1z"/>
-            </svg>
-          )}
-        </div>
-        {(store.cardDescription || store.businessType) && (
-          <p className="text-[11px] sm:text-xs text-white/50 truncate">{store.cardDescription || store.businessType}</p>
-        )}
-        <div className="flex items-center gap-1 mt-1 text-[11px] text-white/40">
-          <MapPin className="w-3 h-3 text-rose-400 shrink-0" />
-          <span className="truncate">
-            {[
-              // Solo mostramos "N Sedes" si hay 2 o más; con 0/1 mostramos solo la ubicación.
-              (typeof store.sedeCount === 'number' && store.sedeCount >= 2) ? `${store.sedeCount} Sedes` : null,
-              store.city || store.address || null,
-            ].filter(Boolean).join(' · ')}
-          </span>
-        </div>
-        {store.openState === 'closed' && store.nextOpenLabel && (
-          <p className="text-[11px] text-gray-300 mt-0.5 truncate">🕒 {store.nextOpenLabel}</p>
-        )}
-      </div>
-    </button>
-  )
-}
-
-// ── Tarjeta de producto (estilo claro institucional) ──────────────────────────
-function ProductCard({ product, onOpen }: { product: MarketProduct; onOpen: (p: MarketProduct) => void }) {
-  const isOffer = !!(product.isOnOffer && product.offerPrice)
-  const discount = isOffer ? Math.round(((product.salePrice - (product.offerPrice as number)) / product.salePrice) * 100) : 0
-  return (
-    <button onClick={() => onOpen(product)} className="group text-left bg-white rounded-xl overflow-hidden border border-gray-200 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 flex flex-col">
-      <div className="relative aspect-[4/3] bg-gray-50 overflow-hidden">
-        {product.imageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={BRAND.isotipo} alt={BRAND.name} className="w-12 h-12 object-contain opacity-40" />
-          </div>
-        )}
-        {isOffer && (
-          <span className="absolute top-2 left-2 flex items-center gap-1 text-white text-[10px] font-bold px-2 py-0.5 rounded" style={{ background: '#dc2626' }}>
-            <Flame className="w-2.5 h-2.5" />-{discount}%
-          </span>
-        )}
-      </div>
-      <div className="p-3 flex flex-col gap-0.5">
-        <p className="text-sm font-medium text-gray-800 line-clamp-2 leading-snug">{product.name}</p>
-        {product.storeName && <p className="text-[10px] uppercase tracking-wide text-gray-400 truncate">{product.storeName}</p>}
-        <div className="flex items-center gap-2 mt-1">
-          {isOffer ? (
-            <>
-              <span className="text-xs text-gray-400 line-through">{fmtCOP(product.salePrice)}</span>
-              <span className="text-sm font-bold" style={{ color: GREEN }}>{fmtCOP(product.offerPrice as number)}</span>
-            </>
-          ) : (
-            <span className="text-sm font-bold" style={{ color: GREEN }}>{fmtCOP(product.salePrice)}</span>
-          )}
-        </div>
-      </div>
-    </button>
-  )
-}
+// Re-exports: preservan el contrato público que consumen landing-page.tsx y otros.
+export type { HeroSlide, RubroCategory, PromoCardConfig, MarketStore, MarketProduct } from './marketplace/types'
+export { PROMO_CARD_CATALOG, DEFAULT_PROMO_CARDS } from './marketplace/types'
+export { HomeHeroCarousel, HomeCategoryRail } from './marketplace/hero'
 
 // ════════════════════════════════════════════════════════════════════════════
 //  PÁGINA PRINCIPAL — Marketplace estilo institucional
@@ -536,6 +77,7 @@ export function MarketplaceHomeGovCo({
   welcomeSubtitle,
   brandLogo = BRAND.icon,
   themeColors,
+  contactWhatsApp,
 }: {
   stores: MarketStore[]
   products: MarketProduct[]
@@ -569,7 +111,11 @@ export function MarketplaceHomeGovCo({
   brandLogo?: string
   /** Paleta de marca generada por IA (superadmin). Tiñe todo el home. */
   themeColors?: { primary?: string; primary_hover?: string; secondary?: string; admin_accent?: string } | null
+  /** WhatsApp de contacto (solo dígitos con código de país). Si no se pasa, usa NEXT_PUBLIC_WHATSAPP. */
+  contactWhatsApp?: string
 }) {
+  // Enlace de contacto WhatsApp resuelto una sola vez (vacío = sin número → no se pintan links rotos).
+  const waHref = waLink(contactWhatsApp || PLATFORM_WHATSAPP)
   const [query, setQuery] = useState('')
   const [tab, setTab] = useState<MainTab>('comercios')
   const [megaOpen, setMegaOpen] = useState(false)
@@ -603,6 +149,8 @@ export function MarketplaceHomeGovCo({
   ]
   const [hintIdx, setHintIdx] = useState(0)
   useEffect(() => {
+    // El placeholder no rota si el usuario pidió reducir movimiento.
+    if (prefersReducedMotion()) return
     const t = setInterval(() => setHintIdx(i => (i + 1) % SEARCH_HINTS.length), 3200)
     return () => clearInterval(t)
   }, [])
@@ -774,6 +322,8 @@ export function MarketplaceHomeGovCo({
       selected ? { background: GREEN, color: '#fff', borderColor: GREEN } : { color: '#4b5563', borderColor: '#d7dbe0', background: '#fff' }
     return (
       <div ref={mTopRef} className="min-h-screen bg-gray-50 text-gray-800 flex flex-col pb-24 relative" style={brandVars}>
+        <a href="#contenido" className="skip-link">Saltar al contenido</a>
+        <h1 className="sr-only">DAIMUZ — Marketplace de comercios locales: tiendas, ofertas y domicilios cerca de ti</h1>
         {/* Profundidad ambiental (en el verde/gold de la marca) — coherente con el sistema glass */}
         <div aria-hidden className="fixed inset-0 pointer-events-none" style={{ zIndex: 0, background: 'radial-gradient(1000px 560px at 6% -6%, rgba(0,131,62,0.07), transparent 60%), radial-gradient(900px 520px at 100% 2%, rgba(240,165,0,0.08), transparent 55%)' }} />
         {/* ── TopBar: logo + búsqueda + acceder ── */}
@@ -786,11 +336,13 @@ export function MarketplaceHomeGovCo({
             <div className="relative flex-1 min-w-0">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
+                type="search"
+                aria-label="Buscar comercios y productos"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder={SEARCH_HINTS[hintIdx]}
                 className="w-full pl-9 pr-3 py-2 rounded-xl bg-gray-100 text-sm focus:outline-none focus:ring-2 focus:bg-white"
-                style={{ ['--tw-ring-color' as any]: GREEN }}
+                style={{ ['--tw-ring-color' as string]: GREEN } as CSSProperties}
               />
             </div>
             <button onClick={onGoToLogin} className="text-sm font-semibold shrink-0" style={{ color: GREEN_DARK }}>Acceder</button>
@@ -806,14 +358,14 @@ export function MarketplaceHomeGovCo({
           )}
         </header>
 
-        <main className="flex-1 px-4 py-4 space-y-8">
+        <main id="contenido" className="flex-1 px-4 py-4 space-y-8">
           {/* ── Hero único ── */}
           <section>
             {heroHasSlides ? (
               <div className="rounded-2xl overflow-hidden"><HomeHeroCarousel slides={heroSlides} isMobile intervalMs={heroIntervalMs ?? 5000} /></div>
             ) : (
               <div className="relative rounded-2xl overflow-hidden p-6 min-h-[200px] flex flex-col justify-end text-white" style={{ background: `linear-gradient(135deg, ${GREEN_DARK}, ${GREEN})` }}>
-                <h1 className="text-xl font-extrabold leading-tight max-w-[220px]">{heroTitle || 'Tu marketplace local'}</h1>
+                <h2 className="text-xl font-extrabold leading-tight max-w-[220px]">{heroTitle || 'Tu marketplace local'}</h2>
                 <p className="text-white/80 text-sm mt-1.5 max-w-[240px]">{heroSubtitle || 'Tiendas, ofertas y novedades en un solo lugar.'}</p>
                 <button onClick={goStores} className="mt-4 self-start text-sm font-semibold px-5 py-2 rounded-full" style={{ background: GOLD, color: GOLD_TEXT }}>Explorar</button>
               </div>
@@ -894,6 +446,11 @@ export function MarketplaceHomeGovCo({
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-800 flex flex-col relative" style={brandVars}>
+      {/* Salto al contenido (accesibilidad — visible solo con teclado) */}
+      <a href="#contenido" className="skip-link">Saltar al contenido</a>
+      {/* H1 único de la página (la marca + propuesta de valor). Los banners son imágenes,
+          por eso el H1 va aquí de forma accesible para SEO y lectores de pantalla. */}
+      <h1 className="sr-only">DAIMUZ — Marketplace de comercios locales: tiendas, ofertas y domicilios cerca de ti</h1>
       {/* Profundidad ambiental (en el verde/gold de la marca) — coherente con el sistema glass */}
       <div aria-hidden className="fixed inset-0 pointer-events-none" style={{ zIndex: 0, background: 'radial-gradient(1000px 560px at 6% -6%, rgba(0,131,62,0.07), transparent 60%), radial-gradient(900px 520px at 100% 2%, rgba(240,165,0,0.08), transparent 55%)' }} />
       {/* ══ CAPA 1: Top Info Bar — panel vivo de métricas del ecosistema ══ */}
@@ -905,7 +462,7 @@ export function MarketplaceHomeGovCo({
           <span className="w-px h-3 bg-white/20" />
           <span className="flex items-center gap-1.5"><Sparkles className="w-3 h-3 text-amber-300" /> IA disponible <b className="text-white font-bold">24/7</b></span>
           <span className="w-px h-3 bg-white/20" />
-          <button onClick={onGoToLogin} className="flex items-center gap-1 font-semibold text-white/90 hover:text-white transition-colors">Acceder al OS <span aria-hidden>→</span></button>
+          <button onClick={onGoToLogin} aria-label="Ingresar a tu cuenta" className="flex items-center gap-1 font-semibold text-white/90 hover:text-white transition-colors">Ingresar <span aria-hidden>→</span></button>
         </div>
       </div>
 
@@ -1013,6 +570,8 @@ export function MarketplaceHomeGovCo({
           <div className="relative flex-1 max-w-2xl group">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-green-600 transition-colors pointer-events-none" />
             <input
+              type="search"
+              aria-label="Buscar comercios y productos"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder={SEARCH_HINTS[hintIdx]}
@@ -1067,10 +626,11 @@ export function MarketplaceHomeGovCo({
           <button
             onClick={onGoToLogin}
             title="Carrito"
+            aria-label="Carrito de compras"
             className="hidden sm:flex flex-col items-center justify-center px-2 shrink-0 transition-transform duration-200 hover:-translate-y-0.5"
             style={{ color: GREEN_DARK }}
           >
-            <ShoppingCart className="w-5 h-5" />
+            <ShoppingCart className="w-5 h-5" aria-hidden />
             <span className="text-[10px] font-semibold mt-0.5 leading-none">$ 0.00</span>
           </button>
 
@@ -1094,7 +654,7 @@ export function MarketplaceHomeGovCo({
         }}
       >
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
-          <div className={`${mobileNav ? 'flex' : 'hidden'} sm:flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-1.5 py-2`}>
+          <div className={`${mobileNav ? 'flex' : 'hidden'} sm:flex flex-col sm:flex-row sm:flex-nowrap sm:items-center sm:overflow-x-auto scrollbar-hide gap-1.5 py-2`}>
             {/* Tabs de contenido como chips */}
             {navItems.filter(n => n.key !== 'comercios').map(item => {
               const active = tab === item.key
@@ -1132,9 +692,9 @@ export function MarketplaceHomeGovCo({
 
             {/* Contacto */}
             <a
-              href="https://api.whatsapp.com/send"
-              target="_blank"
-              rel="noopener noreferrer"
+              href={waHref || '#contacto'}
+              {...(waHref ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+              aria-label={waHref ? 'Contactar por WhatsApp' : 'Ir a contacto'}
               className="shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-200 hover:-translate-y-0.5"
               style={{ color: '#374151', background: 'rgba(255,255,255,0.6)', border: '1px solid rgba(0,0,0,0.08)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}
             >
@@ -1164,7 +724,7 @@ export function MarketplaceHomeGovCo({
       })()}
 
       {/* ══ Contenido ══ */}
-      <main className="flex-1">
+      <main id="contenido" className="flex-1">
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-7 space-y-7">
 
           {/* ══ Sección "Comercios" — mapa interactivo integrado (botón "Comercios") ══ */}
@@ -1189,7 +749,7 @@ export function MarketplaceHomeGovCo({
                 <HomeHeroCarousel slides={heroSlides} intervalMs={heroIntervalMs ?? 4000} />
               ) : (
                 <section className="relative rounded-xl overflow-hidden p-8 sm:p-12 text-white h-full min-h-[240px] flex flex-col justify-center" style={{ background: `linear-gradient(120deg, ${GREEN_DARK}, ${GREEN})` }}>
-                  <h1 className="text-2xl sm:text-4xl font-extrabold max-w-2xl">{heroTitle || 'Tu marketplace de comercios locales'}</h1>
+                  <h2 className="text-2xl sm:text-4xl font-extrabold max-w-2xl">{heroTitle || 'Tu marketplace de comercios locales'}</h2>
                   <p className="mt-2 text-white/85 max-w-xl">{heroSubtitle || 'Explora tiendas, ofertas y novedades en un solo lugar.'}</p>
                 </section>
               )}
@@ -1254,6 +814,24 @@ export function MarketplaceHomeGovCo({
             )}
           </section>
 
+          {/* ── Franja de confianza — señales reales (verificados, ofertas), sin testimonios inventados ── */}
+          <section aria-label="Por qué comprar en DAIMUZ" className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {[
+              { icon: <ShieldCheck className="w-5 h-5" aria-hidden />, title: 'Comercios verificados', desc: `${stats.verificados} con sello de confianza` },
+              { icon: <Truck className="w-5 h-5" aria-hidden />, title: 'Domicilios locales', desc: 'Entregas en tu ciudad' },
+              { icon: <Sparkles className="w-5 h-5" aria-hidden />, title: 'Asistente con IA 24/7', desc: 'Resuelve y compra al instante' },
+              { icon: <Tag className="w-5 h-5" aria-hidden />, title: 'Ofertas cada día', desc: `${stats.ofertas} activas hoy` },
+            ].map((f) => (
+              <div key={f.title} className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-white/80 backdrop-blur px-4 py-3 transition-shadow hover:shadow-sm">
+                <span className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: '#EAF3DE', color: GREEN_DARK }}>{f.icon}</span>
+                <div className="min-w-0">
+                  <p className="text-[13px] font-bold text-gray-800 leading-tight truncate">{f.title}</p>
+                  <p className="text-[11px] text-gray-500 leading-tight truncate">{f.desc}</p>
+                </div>
+              </div>
+            ))}
+          </section>
+
           {/* Carrusel de tarjetas (productos + accesos institucionales) */}
           <section>
             <div className="flex items-center justify-between mb-3">
@@ -1275,7 +853,7 @@ export function MarketplaceHomeGovCo({
                       <div className="relative aspect-square bg-gray-50 rounded-xl overflow-hidden flex items-center justify-center mb-2.5">
                         {product.imageUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={product.imageUrl} alt={product.name} className="w-full h-full object-contain p-1" />
+                          <img src={product.imageUrl} alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-contain p-1" />
                         ) : <Package className="w-8 h-8 text-gray-300" />}
                         {isOffer && (
                           <span className="absolute top-1.5 right-1.5 text-[10px] font-extrabold px-1.5 py-0.5 rounded-md text-white shadow-sm" style={{ background: GREEN }}>-{disc}%</span>
@@ -1411,7 +989,7 @@ export function MarketplaceHomeGovCo({
                     { label: 'Verificados', value: stats.verificados },
                   ].map(s => (
                     <div key={s.label} className="rounded-lg bg-gray-50 p-3 text-center">
-                      <p className="text-xl font-extrabold" style={{ color: GREEN }}>{s.value}</p>
+                      <p className="text-xl font-extrabold" style={{ color: GREEN }}>{s.value.toLocaleString('es-CO')}</p>
                       <p className="text-[11px] text-gray-500">{s.label}</p>
                     </div>
                   ))}
@@ -1512,7 +1090,7 @@ export function MarketplaceHomeGovCo({
       </main>
 
       {/* ══ Footer ══ */}
-      <footer className="text-white mt-6" style={{ background: GREEN_DARK }}>
+      <footer id="contacto" className="text-white mt-6" style={{ background: GREEN_DARK }}>
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-10 grid grid-cols-2 md:grid-cols-4 gap-8">
           <div className="col-span-2 md:col-span-1">
             <div className="flex items-center gap-2 mb-3">
@@ -1522,9 +1100,11 @@ export function MarketplaceHomeGovCo({
             </div>
             <p className="text-sm text-white/70">Marketplace de comercios locales. Encuentra tiendas, productos y ofertas cerca de ti.</p>
             <div className="flex items-center gap-2 mt-4">
-              <a href="https://facebook.com" target="_blank" rel="noopener noreferrer" className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"><Facebook className="w-4 h-4" /></a>
-              <a href="https://instagram.com" target="_blank" rel="noopener noreferrer" className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"><Instagram className="w-4 h-4" /></a>
-              <a href="https://api.whatsapp.com/send" target="_blank" rel="noopener noreferrer" className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"><Phone className="w-4 h-4" /></a>
+              <a href="https://facebook.com" target="_blank" rel="noopener noreferrer" aria-label="Facebook de DAIMUZ" className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"><Facebook className="w-4 h-4" aria-hidden /></a>
+              <a href="https://instagram.com" target="_blank" rel="noopener noreferrer" aria-label="Instagram de DAIMUZ" className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"><Instagram className="w-4 h-4" aria-hidden /></a>
+              {waHref && (
+                <a href={waHref} target="_blank" rel="noopener noreferrer" aria-label="WhatsApp de DAIMUZ" className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"><Phone className="w-4 h-4" aria-hidden /></a>
+              )}
             </div>
           </div>
           <div>
@@ -1539,7 +1119,7 @@ export function MarketplaceHomeGovCo({
             <ul className="space-y-2 text-sm text-white/70">
               <li><button onClick={() => setTab('ofertas')} className="hover:text-white">Ofertas</button></li>
               <li><button onClick={() => setTab('novedades')} className="hover:text-white">Novedades</button></li>
-              <li><a href="https://api.whatsapp.com/send" target="_blank" rel="noopener noreferrer" className="hover:text-white">Contacto</a></li>
+              <li><a href={waHref || '#contacto'} {...(waHref ? { target: '_blank', rel: 'noopener noreferrer' } : {})} className="hover:text-white">Contacto</a></li>
               <li><button onClick={onGoToLogin} className="hover:text-white">Acceder</button></li>
             </ul>
           </div>

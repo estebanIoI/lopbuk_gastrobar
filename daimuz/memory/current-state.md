@@ -2,6 +2,18 @@
 
 > Actualiza este archivo después de cada sesión de trabajo significativa.
 
+## 🆕 [2026-07-22] 🛡️ Región de Seguridad del cerebro — DAIMUZ ahora "duro" en seguridad de datos
+
+> Nueva región `daimuz/security/`: Plan Maestro de Auditoría de Seguridad 2026 (OWASP · MITRE ATT&CK · NIST CSF 2.0 · ISO 27001), aterrizado en el stack real. Detalle en [[security/README]] y `changelog.md`.
+
+- ✅ **8 documentos** en `security/`: README (17 fases), compressed, threat-model-2026, asset-inventory, audit-plan, kpis, tools, incident-response
+- ✅ **Agente especialista**: [[agents/security-agent]] (red / blue / reviewer)
+- ✅ **Sinapsis transversal**: [[synapses/security-chain]] (qué control tocar según el cambio)
+- ✅ **Plan por olas**: [[context/plan-auditoria-seguridad-2026]] (Ola 0 → Nivel 4 auditoría continua)
+- ✅ **Cableado** en DAIMUZ.md, governance (security-policy + update-protocol), agents/README, modules-index y CLAUDE.md
+- 🟡 **Pendiente (ejecución, no doc)**: correr las olas — GitLeaks, Nmap, Dependabot/Trivy, 2FA, pentest de IA, SIEM. Ver el plan.
+- 📌 Solo documentación del cerebro; ningún cambio de código productivo.
+
 ## 🆕 [2026-07-15] Events Module — Beta RC1 — Arquitectura congelada
 
 > Módulo Events construido como bounded context completo. Detalle en [[modules/events/events]] y `changelog.md`.

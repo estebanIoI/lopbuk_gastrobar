@@ -26,7 +26,9 @@ export const authenticate = async (req: AuthRequest, res: Response, next: NextFu
       });
       return;
     }
-    const decoded = jwt.verify(token, config.jwt.secret) as JWTPayload;
+    // SEGURIDAD (F5): fijar el algoritmo esperado evita ataques de "alg confusion"
+    // (p.ej. tokens forjados con 'none' u otro algoritmo).
+    const decoded = jwt.verify(token, config.jwt.secret, { algorithms: ['HS256'] }) as JWTPayload;
 
     // Verify user status + load cargo permissions in one query
     const [userRows] = await db.execute<RowDataPacket[]>(

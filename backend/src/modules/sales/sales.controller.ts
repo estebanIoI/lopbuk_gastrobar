@@ -2,6 +2,7 @@ import { Response, NextFunction } from 'express';
 import { salesService, SaleFilters, DailyReportData } from './sales.service';
 import { AuthRequest } from '../../common/middleware';
 import { PaymentMethod, SaleStatus } from '../../common/types';
+import { canReadAllSales } from '../../utils/permissions';
 
 export class SalesController {
   async findAll(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
@@ -31,8 +32,8 @@ export class SalesController {
         filters.search = req.query.search as string;
       }
 
-      // Vendedor: solo puede ver sus propias ventas del día de hoy
-      if (req.user!.role === 'vendedor') {
+      // Política centralizada (BFLA): sin permiso de lectura total → solo lo propio (hoy).
+      if (!canReadAllSales(req.user!)) {
         filters.sellerId = req.user!.userId;
         filters.todayOnly = true;
       }
@@ -50,7 +51,9 @@ export class SalesController {
 
   async findById(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const sale = await salesService.findById(req.params.id);
+      // BFLA: sin sales.read.all, solo puede leer su propia venta.
+      const restrictSellerId = canReadAllSales(req.user!) ? undefined : req.user!.userId;
+      const sale = await salesService.findById(req.user!.tenantId!, req.params.id, restrictSellerId);
 
       res.json({
         success: true,
@@ -63,7 +66,8 @@ export class SalesController {
 
   async findByInvoiceNumber(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const sale = await salesService.findByInvoiceNumber(req.params.invoiceNumber);
+      const restrictSellerId = canReadAllSales(req.user!) ? undefined : req.user!.userId;
+      const sale = await salesService.findByInvoiceNumber(req.user!.tenantId!, req.params.invoiceNumber, restrictSellerId);
 
       res.json({
         success: true,

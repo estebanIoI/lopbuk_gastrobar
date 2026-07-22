@@ -100,6 +100,22 @@ Actualiza los archivos DAIMUZ relevantes basándote en lo que hicimos hoy:
 
 ---
 
+## Cuándo actualizar Seguridad (`security/`)
+
+> La región [[security/README]] es viva. Actualizar cuando:
+
+| Evento | Actualizar |
+|---|---|
+| Nuevo activo (servicio, secreto, integración) | `security/asset-inventory.md` |
+| Nueva amenaza o técnica relevante | `security/threat-model-2026.md` |
+| Hallazgo de auditoría / pentest | tarea + `security/kpis.md` (riesgo residual) + fase en `security/audit-plan.md` |
+| Vulnerabilidad corregida | `security/kpis.md` + `memory/important-fixes.md` |
+| Incidente de seguridad | `security/incident-response.md` (post-mortem) + `memory/lessons-learned.md` |
+| Avance de una ola del plan | `context/plan-auditoria-seguridad-2026.md` (marcar checklist) |
+| Nueva regla de seguridad que NO se rompe | `governance/security-policy.md` + `governance/universal-constraints.md` |
+
+---
+
 ## Fuente de Verdad por Tipo de Dato
 
 | Dato | Fuente de Verdad | Secundario |
@@ -109,6 +125,7 @@ Actualiza los archivos DAIMUZ relevantes basándote en lo que hicimos hoy:
 | Archivos | `indexes/files-index.md` | — |
 | Módulos | `indexes/modules-index.md` | `modules/[x]/[x].md` |
 | Reglas | `governance/universal-constraints.md` | `brain/coding-standards.md` |
+| Seguridad | `security/README.md` | `governance/security-policy.md` |
 | Estado hoy | `memory/current-state.md` | `context/current-sprint.md` |
 
 ---
