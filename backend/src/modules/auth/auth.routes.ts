@@ -26,9 +26,12 @@ router.post(
       .isLength({ min: 6 })
       .withMessage('La contrasena debe tener al menos 6 caracteres'),
     body('name').notEmpty().withMessage('El nombre es requerido'),
+    // SEGURIDAD (F1): 'superadmin' NO puede crearse por este endpoint público.
+    // Crear un superadmin es una acción privilegiada; debe hacerse por un flujo
+    // autenticado y explícito, nunca desde un registro abierto.
     body('role')
       .optional()
-      .isIn(['superadmin', 'comerciante', 'vendedor', 'repartidor'])
+      .isIn(['comerciante', 'vendedor', 'repartidor'])
       .withMessage('Rol invalido'),
     validateRequest,
   ],

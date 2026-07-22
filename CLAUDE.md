@@ -86,6 +86,8 @@ Flujo para cualquier cambio de esquema (tabla/columna nueva, índice, etc.):
 | Impacto al cambiar un módulo | `daimuz/synapses/ops-chain.md` (o gastrobar/delivery/saas) |
 | Qué ES una entidad (Sale, Order...) | `daimuz/ontology/entities.md` |
 | Reglas que nunca se rompen | `daimuz/governance/universal-constraints.md` |
+| Seguridad / auditoría (17 fases) | `daimuz/security/README.md` (empezar por `compressed.md`) |
+| Antes de tocar auth/tenant/pagos/IA | `daimuz/governance/security-policy.md` + `daimuz/synapses/security-chain.md` |
 | Cómo es la arquitectura | `daimuz/architecture/overview.md` |
 | Sprint y trabajo activo | `daimuz/context/current-sprint.md` |
 | Backlog | `daimuz/context/pending.md` |

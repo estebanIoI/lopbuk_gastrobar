@@ -230,7 +230,7 @@ export class CustomersService {
     return rows.map((row) => this.mapCustomerWithBalance(row));
   }
 
-  async findById(id: string): Promise<CustomerWithBalance> {
+  async findById(tenantId: string, id: string): Promise<CustomerWithBalance> {
     const [rows] = await db.execute<CustomerBalanceRow[]>(
       `
       SELECT
@@ -268,9 +268,9 @@ export class CustomersService {
         c.created_at,
         c.updated_at
       FROM customers c
-      WHERE c.id = ?
+      WHERE c.id = ? AND c.tenant_id = ?
       `,
-      [id]
+      [id, tenantId]
     );
 
     if (rows.length === 0) {
@@ -336,7 +336,7 @@ export class CustomersService {
       notes?: string;
     }
   ): Promise<Customer> {
-    await this.findById(id);
+    await this.findById(tenantId, id);
 
     const updates: string[] = [];
     const values: (string | number | null)[] = [];
@@ -388,13 +388,13 @@ export class CustomersService {
       throw new AppError('No hay datos para actualizar', 400);
     }
 
-    values.push(id);
+    values.push(id, tenantId);
 
-    await db.execute(`UPDATE customers SET ${updates.join(', ')} WHERE id = ?`, values);
+    await db.execute(`UPDATE customers SET ${updates.join(', ')} WHERE id = ? AND tenant_id = ?`, values);
 
     const [rows] = await db.execute<CustomerRow[]>(
-      'SELECT * FROM customers WHERE id = ?',
-      [id]
+      'SELECT * FROM customers WHERE id = ? AND tenant_id = ?',
+      [id, tenantId]
     );
 
     return this.mapCustomer(rows[0]);
@@ -402,8 +402,8 @@ export class CustomersService {
 
   // Soft delete (regla universal: nunca DELETE físico en datos de negocio).
   // El borrado real de PII es la anonimización del módulo privacy (derecho al olvido).
-  async delete(id: string): Promise<void> {
-    const customer = await this.findById(id);
+  async delete(tenantId: string, id: string): Promise<void> {
+    const customer = await this.findById(tenantId, id);
 
     // No permitir eliminar clientes con saldo pendiente
     if (customer.balance > 0) {
@@ -414,8 +414,8 @@ export class CustomersService {
     }
 
     const [result] = await db.execute<ResultSetHeader>(
-      'UPDATE customers SET is_active = 0, deleted_at = NOW() WHERE id = ?',
-      [id]
+      'UPDATE customers SET is_active = 0, deleted_at = NOW() WHERE id = ? AND tenant_id = ?',
+      [id, tenantId]
     );
 
     if (result.affectedRows === 0) {
@@ -423,12 +423,12 @@ export class CustomersService {
     }
   }
 
-  async getBalance(customerId: string): Promise<{
+  async getBalance(tenantId: string, customerId: string): Promise<{
     totalCredit: number;
     totalPaid: number;
     balance: number;
   }> {
-    const customer = await this.findById(customerId);
+    const customer = await this.findById(tenantId, customerId);
     return {
       totalCredit: customer.totalCredit,
       totalPaid: customer.totalPaid,

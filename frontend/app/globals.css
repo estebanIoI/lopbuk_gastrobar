@@ -787,3 +787,45 @@ html {
 @media (prefers-reduced-motion: reduce) {
   .daimuz-ai-pulse::after { animation: none; }
 }
+
+/* ============================================================================
+   Accesibilidad (WCAG AA) — añadido en la auditoría corporativa del Tema 2
+   ============================================================================ */
+
+/* Foco de teclado visible y consistente en todo elemento interactivo.
+   Solo con teclado (:focus-visible), no molesta al puntero. */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--brand-green, #00833E);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Respetar "reducir movimiento": neutraliza animaciones, transiciones y autoscroll.
+   Los carruseles/efectos siguen funcionando, pero sin movimiento que maree. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Enlace "saltar al contenido" (skip link) — visible solo al enfocarlo con Tab. */
+.skip-link {
+  position: absolute;
+  left: 0.75rem;
+  top: -3rem;
+  z-index: 100;
+  padding: 0.5rem 0.875rem;
+  border-radius: 0.5rem;
+  background: var(--brand-green, #00833E);
+  color: #fff;
+  font-size: 0.875rem;
+  font-weight: 600;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.18);
+  transition: top 0.15s ease;
+}
+.skip-link:focus {
+  top: 0.75rem;
+}

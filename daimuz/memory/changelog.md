@@ -4,6 +4,16 @@
 
 ---
 
+## [2026-07-22] — 🛡️ Región de Seguridad del cerebro (auditoría de datos, 17 fases)
+
+Documentado e integrado el **Plan Maestro de Auditoría de Seguridad de Datos 2026** como región nueva del cerebro: `daimuz/security/`. Basado en OWASP (Top 10 + API + LLM), MITRE ATT&CK, NIST CSF 2.0 e ISO 27001, aterrizado en el stack real (Express monolito, MySQL multi-tenant, Traefik, Redis, agente IA RAG, Wompi, Cloudinary, Evolution API).
+
+**Creado (`security/`):** `README.md` (índice + 17 fases + 10 riesgos 2026 + nivel de madurez), `compressed.md`, `threat-model-2026.md` (amenazas + mapeo MITRE ATT&CK), `asset-inventory.md` (Fase 1), `audit-plan.md` (17 fases con checklist), `kpis.md` (MTTD/MTTR/RTO/RPO/riesgo residual), `tools.md`, `incident-response.md` (Blue Team + SOAR).
+**Creado (integración):** `agents/security-agent.md` (red/blue/reviewer), `synapses/security-chain.md` (seguridad transversal), `context/plan-auditoria-seguridad-2026.md` (roadmap por olas).
+**Cableado:** `DAIMUZ.md` (región 🛡️ Seguridad + sinapsis + nav por rol/tarea), `governance/security-policy.md`, `governance/update-protocol.md` (§ Cuándo actualizar Seguridad + fuente de verdad), `agents/README.md` (fila security-agent), `indexes/modules-index.md`, `CLAUDE.md` (punteros de seguridad).
+
+Objetivo: llevar DAIMUZ a **auditoría continua** (Nivel 4). Solo documentación del cerebro — sin cambios de código productivo.
+
 ## [2026-07-12] — Home D1 (otro agente): A renderer comerciante + B Tema 3 marketplace — 3 bugs corregidos
 
 Verificación de la implementación del otro agente (renderer del comerciante + Tema 3 D1 del marketplace). Estructura y wiring correctos; corregidos 3 defectos.

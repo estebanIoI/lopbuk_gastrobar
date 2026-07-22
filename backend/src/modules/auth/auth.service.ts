@@ -107,6 +107,12 @@ export class AuthService {
     role: UserRole = 'vendedor',
     tenantId?: string | null
   ): Promise<{ user: Omit<User, 'password'>; token: string }> {
+    // SEGURIDAD (F1, defensa en profundidad): 'superadmin' nunca se crea por register(),
+    // sin importar quién llame. La creación de superadmin va por un flujo dedicado.
+    if (role === 'superadmin') {
+      throw new AppError('No se puede registrar un usuario con ese rol', 403);
+    }
+
     // Verificar si el email ya existe
     const [existing] = await db.execute<UserRow[]>(
       'SELECT id FROM users WHERE email = ?',
@@ -118,7 +124,7 @@ export class AuthService {
     }
 
     const id = uuidv4();
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = await bcrypt.hash(password, 12);
 
     await db.execute<ResultSetHeader>(
       'INSERT INTO users (id, tenant_id, email, password, name, role) VALUES (?, ?, ?, ?, ?, ?)',
@@ -182,7 +188,7 @@ export class AuthService {
     }
 
     const id = uuidv4();
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = await bcrypt.hash(password, 12);
 
     const profileCompleted = !!(
       delivery?.department && delivery?.municipality && delivery?.address
@@ -563,7 +569,7 @@ export class AuthService {
       throw new AppError('Contrasena actual incorrecta', 401);
     }
 
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    const hashedPassword = await bcrypt.hash(newPassword, 12);
 
     await db.execute(
       'UPDATE users SET password = ? WHERE id = ?',

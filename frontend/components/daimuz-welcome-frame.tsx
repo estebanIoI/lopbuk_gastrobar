@@ -42,7 +42,7 @@ const CSS = `
 }
 .dz-frame .txt {
   position: absolute; padding: 0.5rem 1.5rem; z-index: 2;
-  font: 600 0.9rem "Inter", system-ui, sans-serif; color: var(--txt-color);
+  font: 600 0.9rem var(--font-montserrat), system-ui, sans-serif; color: var(--txt-color);
   text-shadow: 0 -1px 1px #ffffff60, 0 2px 1px #00000015;
 }
 .dz-frame .txt:last-child { color: var(--txt-color-2); opacity: 0; }

@@ -60,8 +60,10 @@ export class AuthController {
 
   async register(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { email, password, name, role, tenantId } = req.body;
-      const result = await authService.register(email, password, name, role, tenantId);
+      // SEGURIDAD (F1): NUNCA se toma tenantId del body (era inyectable → cross-tenant).
+      // El servicio decide el tenant de forma segura. 'superadmin' ya está bloqueado en el validador.
+      const { email, password, name, role } = req.body;
+      const result = await authService.register(email, password, name, role);
 
       setAuthCookie(res, result.token);
       audit.register(result.user.id as string, (result.user as any).tenantId ?? null, role ?? 'vendedor', req.ip);

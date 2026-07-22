@@ -100,6 +100,8 @@ interface StoreData {
   contactPageImage: string | null
   contactPageLinks: string | null
   contactPageLinkTheme: string | null
+  contactPageSocialImages: string | null
+  contactPageSettings: string | null
   socialX: string | null
   socialSnapchat: string | null
   reservationsEnabled?: boolean

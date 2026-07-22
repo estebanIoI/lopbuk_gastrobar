@@ -1260,7 +1260,7 @@ function TrainingView({ members }: any) {
       api.listTrainingTemplates(),
       api.listTrainingAssignments(),
     ])
-    if (ex.success) setExercises(ex.data?.rows || ex.data || [])
+    if (ex.success) setExercises(Array.isArray(ex.data) ? ex.data : (ex.data?.rows || []))
     if (tpl.success) setTemplates(tpl.data || [])
     if (asg.success) setAssignments(asg.data || [])
     setLoading(false)

@@ -1,0 +1,25 @@
+# GitLeaks — configuración para DAIMUZ (Ola 0)
+# Extiende el set de reglas por defecto y añade allowlist de falsos positivos
+# conocidos (archivos .example, placeholders del propio código).
+
+title = "DAIMUZ gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Falsos positivos conocidos en DAIMUZ"
+paths = [
+  '''\.env\.example$''',
+  '''\.env\.local\.example$''',
+  '''(^|/)daimuz/''',          # el cerebro documental no contiene secretos reales
+  '''(^|/)docs/''',
+]
+regexes = [
+  # Placeholder intencional del fallback de JWT (ver security/findings) — NO es un secreto real
+  '''MISSING_JWT_SECRET_SET_ENV_VAR''',
+]
+
+# Recomendación: correr también localmente antes de cada commit:
+#   gitleaks git --pre-commit --staged --config .gitleaks.toml
+# o instalar el hook: gitleaks completaría el escaneo del árbol staged.

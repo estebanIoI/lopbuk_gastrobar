@@ -114,6 +114,7 @@
 
 ## Navegar por síntoma
 
+- **"¿Es seguro / cómo lo audito?"** → `[[security/README]]` (17 fases) · `[[synapses/security-chain]]`
 - **"Error de autorización"** → `[[modules/auth/auth]]`
 - **"No descuenta stock"** → `[[modules/inventory/inventory]]` o `[[modules/variants/variants]]` (variantes)
 - **"No aparecen colores/tallas"** → `[[modules/variants/variants]]` (variantes no creadas)

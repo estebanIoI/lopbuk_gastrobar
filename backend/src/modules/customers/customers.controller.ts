@@ -47,7 +47,8 @@ export class CustomersController {
 
   async findById(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const customer = await customersService.findById(req.params.id);
+      const tenantId = req.user!.tenantId!;
+      const customer = await customersService.findById(tenantId, req.params.id);
 
       res.json({
         success: true,
@@ -90,7 +91,8 @@ export class CustomersController {
 
   async delete(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      await customersService.delete(req.params.id);
+      const tenantId = req.user!.tenantId!;
+      await customersService.delete(tenantId, req.params.id);
 
       res.json({
         success: true,
@@ -103,7 +105,8 @@ export class CustomersController {
 
   async getBalance(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const balance = await customersService.getBalance(req.params.id);
+      const tenantId = req.user!.tenantId!;
+      const balance = await customersService.getBalance(tenantId, req.params.id);
 
       res.json({
         success: true,
