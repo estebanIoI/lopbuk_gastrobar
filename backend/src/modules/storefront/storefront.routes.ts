@@ -676,7 +676,6 @@ router.get('/stores', async (req: Request, res: Response) => {
               si.business_hours as businessHours,
               COALESCE(si.open_state, 'open') as openStateFallback,
               (SELECT COUNT(*) FROM sedes s WHERE s.tenant_id = t.id) as sedeCount,
-              COALESCE(si.marketplace_order, 0) as marketplaceOrder,
               (SELECT COUNT(*) FROM products p WHERE p.tenant_id = t.id AND ${stockVisibleSql('p')} AND p.published_in_store = 1) as productCount
        FROM tenants t
        LEFT JOIN store_info si ON si.tenant_id = t.id
@@ -684,12 +683,7 @@ router.get('/stores', async (req: Request, res: Response) => {
          AND (t.is_hidden IS NULL OR t.is_hidden = 0)
          AND (si.marketplace_visible IS NULL OR si.marketplace_visible = 1)
        ${municipalityFilter}
-       -- Posicionamiento del superadmin: marketplace_order > 0 = comercio DESTACADO (1 primero, 2, 3…);
-       -- 0 / NULL = sin destacar, van después ordenados por nombre.
-       ORDER BY
-         CASE WHEN COALESCE(si.marketplace_order, 0) > 0 THEN 0 ELSE 1 END ASC,
-         COALESCE(NULLIF(si.marketplace_order, 0), 999999) ASC,
-         t.name ASC`,
+       ORDER BY COALESCE(si.marketplace_order, 0) ASC, t.name ASC`,
       params
     ) as any;
 
@@ -1102,20 +1096,6 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
         [tenantId]
       ) as any;
       banners = rows;
-      // Segunda imagen + velocidad de alternancia (columnas de la migración 0057).
-      // Consulta separada y defensiva: si aún no se migró, los banners siguen funcionando.
-      try {
-        const [extra] = await pool.query(
-          'SELECT id, image_url_2 as imageUrl2, swap_speed_ms as swapSpeedMs FROM store_banners WHERE tenant_id = ? AND is_active = 1',
-          [tenantId]
-        ) as any;
-        const byId = new Map((extra as any[]).map((r: any) => [r.id, r]));
-        banners = (banners as any[]).map((b: any) => ({
-          ...b,
-          imageUrl2: byId.get(b.id)?.imageUrl2 || null,
-          swapSpeedMs: byId.get(b.id)?.swapSpeedMs ?? null,
-        }));
-      } catch { /* columnas image_url_2 / swap_speed_ms aún no migradas */ }
     } catch { /* table may not exist yet */ }
 
     // Categories with images (only those that have published products)
@@ -1271,6 +1251,14 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
         ) as any;
         if (pixelRows[0]) Object.assign(storeInfoData, pixelRows[0]);
       } catch { /* column not yet added */ }
+      // Botón "Ver todas las tiendas" (default 1 = se muestra)
+      try {
+        const [asRows] = await pool.query(
+          `SELECT all_stores_button_enabled as allStoresButtonEnabled FROM store_info WHERE tenant_id = ?`,
+          [tenantId]
+        ) as any;
+        if (asRows[0]) Object.assign(storeInfoData, asRows[0]);
+      } catch { /* column not yet added → el frontend asume 1 */ }
     }
 
     // Announcement bar
@@ -1863,7 +1851,41 @@ router.get('/customization', authenticate, requirePlan('empresarial'), async (re
         ) as any;
         if (pixelRows[0]) Object.assign(storeInfoRow, pixelRows[0]);
       } catch { /* column not yet added */ }
+      // Botón "Ver todas las tiendas" (default 1 = se muestra)
+      try {
+        const [asRows] = await pool.query(
+          `SELECT all_stores_button_enabled as allStoresButtonEnabled FROM store_info WHERE tenant_id = ?`,
+          [tenantId]
+        ) as any;
+        if (asRows[0]) Object.assign(storeInfoRow, asRows[0]);
+      } catch { /* column not yet added → el panel asume 1 */ }
     }
+
+    // Tema de la tienda + estado de reservas y fidelización (para el hub de Enlaces).
+    let storeTheme = 'theme1';
+    let reservationsEnabled = false;
+    let loyaltyEnabled = false;
+    try {
+      const [stRows] = await pool.query(
+        'SELECT store_theme AS storeTheme FROM store_info WHERE tenant_id = ?',
+        [tenantId]
+      ) as any;
+      if (stRows[0]?.storeTheme) storeTheme = String(stRows[0].storeTheme);
+    } catch { /* columna aún no creada → theme1 */ }
+    try {
+      const [tRows] = await pool.query(
+        'SELECT reservations_enabled FROM tenants WHERE id = ? LIMIT 1',
+        [tenantId]
+      ) as any;
+      reservationsEnabled = !!(tRows[0]?.reservations_enabled);
+    } catch { /* columna aún no creada */ }
+    try {
+      const [lcRows] = await pool.query(
+        'SELECT enabled FROM loyalty_config WHERE tenant_id = ? LIMIT 1',
+        [tenantId]
+      ) as any;
+      loyaltyEnabled = (lcRows as any[])[0] ? !!(lcRows as any[])[0].enabled : false;
+    } catch { loyaltyEnabled = false; /* tabla no migrada */ }
 
     // Cart settings
     let cartMinPurchase = 0;
@@ -1978,6 +2000,9 @@ router.get('/customization', authenticate, requirePlan('empresarial'), async (re
         deliveryMode,
         platformDeliveryFee,
         deliveryAutoBroadcast,
+        storeTheme,
+        reservationsEnabled,
+        loyaltyEnabled,
       },
     });
   } catch (error) {
@@ -1992,10 +2017,7 @@ router.put('/banners', authenticate, requirePlan('empresarial'), async (req: Req
     const user = (req as any).user;
     // Superadmin can pass tenantId in body; regular users use their own
     const tenantId = user.role === 'superadmin' ? (req.body.tenantId || user.tenantId) : user.tenantId;
-    const { id, position, imageUrl, videoUrl, title, subtitle, linkUrl, imageUrl2, swapSpeedMs } = req.body;
-    // Normalizamos los campos de la 2ª imagen / velocidad (migración 0057).
-    const img2 = imageUrl2 || null;
-    const speed = (swapSpeedMs === undefined || swapSpeedMs === null || swapSpeedMs === '') ? null : (Number(swapSpeedMs) || null);
+    const { id, position, imageUrl, videoUrl, title, subtitle, linkUrl } = req.body;
 
     if (!tenantId) {
       res.status(400).json({ success: false, error: 'No se pudo determinar el comercio. Si eres superadmin, envía tenantId en el body.' });
@@ -2024,10 +2046,6 @@ router.put('/banners', authenticate, requirePlan('empresarial'), async (req: Req
         res.status(404).json({ success: false, error: 'Banner no encontrado' });
         return;
       }
-      // 2ª imagen + velocidad (defensivo: si la migración 0057 no corrió, no rompe el guardado).
-      try {
-        await pool.query('UPDATE store_banners SET image_url_2 = ?, swap_speed_ms = ? WHERE id = ? AND tenant_id = ?', [img2, speed, id, tenantId]);
-      } catch { /* columnas 0057 aún no migradas */ }
       res.json({ success: true, data: { id, updated: true } });
     } else {
       // Create new
@@ -2036,10 +2054,6 @@ router.put('/banners', authenticate, requirePlan('empresarial'), async (req: Req
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [tenantId, position, imageUrl, videoUrl || null, title || null, subtitle || null, linkUrl || null]
       ) as any;
-
-      try {
-        await pool.query('UPDATE store_banners SET image_url_2 = ?, swap_speed_ms = ? WHERE id = ? AND tenant_id = ?', [img2, speed, result.insertId, tenantId]);
-      } catch { /* columnas 0057 aún no migradas */ }
 
       res.json({ success: true, data: { id: result.insertId, created: true } });
     }
@@ -2266,7 +2280,7 @@ router.put('/store-extended-info', authenticate, requirePlan('empresarial'), asy
       department, municipality, productCardStyle, productDetailStyle, allowContraentrega,
       allowWompi, contraentregaLabel, contraentregaDesc,
       showInfoModule, infoModuleDescription, metaPixelId,
-      latitude, longitude,
+      latitude, longitude, allStoresButtonEnabled,
     } = req.body;
 
     // Punto de ubicación del comercio (para el mapa de comercios del marketplace).
@@ -2338,6 +2352,17 @@ router.put('/store-extended-info', authenticate, requirePlan('empresarial'), asy
     if (result.affectedRows === 0) {
       res.status(404).json({ success: false, error: 'Información de tienda no encontrada' });
       return;
+    }
+
+    // Botón "Ver todas las tiendas": se escribe aparte (best-effort) para que una
+    // columna faltante no rompa el guardado del resto de la información.
+    if (allStoresButtonEnabled !== undefined) {
+      try {
+        await pool.query(
+          'UPDATE store_info SET all_stores_button_enabled = ? WHERE tenant_id = ?',
+          [allStoresButtonEnabled ? 1 : 0, tenantId]
+        );
+      } catch { /* columna aún no creada → runCatchup la agrega al reiniciar */ }
     }
 
     res.json({ success: true });
@@ -3324,17 +3349,6 @@ router.get('/links/:slug', async (req: Request, res: Response) => {
     const tenantId = tenants[0].id;
     const reservationsEnabled = !!tenants[0].reservations_enabled;
 
-    // Fidelización: ¿el comercio la tiene activa? (default true si no hay fila de config,
-    // igual que getLoyaltyConfig). Se usa para mostrar el CTA de la wallet en el storefront.
-    let loyaltyEnabled = false;
-    try {
-      const [lcRows] = await pool.query(
-        'SELECT enabled FROM loyalty_config WHERE tenant_id = ? LIMIT 1',
-        [tenantId]
-      ) as any;
-      loyaltyEnabled = (lcRows as any[])[0] ? !!(lcRows as any[])[0].enabled : true;
-    } catch { loyaltyEnabled = false; /* tabla no migrada: no ofrecer wallet */ }
-
     // Base store info
     const [siRows] = await pool.query(
       `SELECT si.name, si.email, si.phone,
@@ -3480,7 +3494,6 @@ router.get('/links/:slug', async (req: Request, res: Response) => {
         contactPageSocialImages: contactData.contactPageSocialImages || null,
         contactPageSettings: contactData.contactPageSettings || null,
         reservationsEnabled,
-        loyaltyEnabled,
         shopProducts,
       },
     });

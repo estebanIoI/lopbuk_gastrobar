@@ -742,24 +742,30 @@ export async function runCatchup(): Promise<void> {
     ) ENGINE=InnoDB DEFAULT CHARSET=${charset} COLLATE=${collation}`
   )
 
-  // ── Servicios · Modalidades (opciones con su propio precio) + snapshot en reserva ──
+  // ── Botón "Ver todas las tiendas" (marketplace) por comercio ────────────────
+  // 1 = se muestra el botón para volver al marketplace (comportamiento actual).
+  // 0 = el comercio lo oculta para que el cliente no salga a ver otras tiendas.
+  await addColumnIfMissing('store_info', 'all_stores_button_enabled', 'TINYINT NOT NULL DEFAULT 1')
+
+  // ── Re-aseguramiento idempotente de columnas de features previas ─────────────
+  // Estas columnas ya se agregaron antes, pero un `git restore` puede revertir el
+  // archivo. addColumnIfMissing es no-op si ya existen en la BD, así que repetirlo
+  // es seguro y protege modalidades de servicio y la 2ª imagen del banner.
   await addColumnIfMissing('services', 'options', 'JSON NULL')
   await addColumnIfMissing('service_bookings', 'selected_option', 'JSON NULL')
-
-  // ── Banner 1 (hero1): segunda imagen + velocidad de alternancia ──
   await addColumnIfMissing('store_banners', 'image_url_2', 'VARCHAR(500) NULL')
   await addColumnIfMissing('store_banners', 'swap_speed_ms', 'INT NULL')
-
-  // ── Especialistas: URLs de foto largas (Facebook CDN) → TEXT en vez de VARCHAR(500) ──
+  // photo_url de especialistas debe ser TEXT (URLs de CDN largas rompían VARCHAR(500)).
   try {
-    const [pt]: any = await pool.query(
-      "SELECT DATA_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'service_specialists' AND COLUMN_NAME = 'photo_url'"
+    const [pc]: any = await pool.query(
+      `SELECT DATA_TYPE FROM information_schema.columns
+       WHERE table_schema = DATABASE() AND table_name = 'service_specialists' AND column_name = 'photo_url'`
     )
-    if (pt.length && String(pt[0].DATA_TYPE).toLowerCase() !== 'text') {
+    if (pc[0] && String(pc[0].DATA_TYPE).toLowerCase() !== 'text') {
       await pool.query('ALTER TABLE `service_specialists` MODIFY `photo_url` TEXT NULL')
-      console.log('Catch-up: service_specialists.photo_url ampliada a TEXT.')
+      console.log('Catch-up: service_specialists.photo_url → TEXT.')
     }
-  } catch { /* tabla aún no existe → no aplica */ }
+  } catch { /* tabla aún no creada → no aplica */ }
 }
 
 // Aplica las migraciones pendientes (registradas en __drizzle_migrations).

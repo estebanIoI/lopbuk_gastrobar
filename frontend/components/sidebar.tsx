@@ -36,6 +36,7 @@ import {
   ChevronRight,
   ChevronDown,
   LayoutTemplate,
+  Link2,
   Printer,
   Sparkles,
   Star,
@@ -99,6 +100,7 @@ const navigation: NavItem[] = [
     group: 'core',
     children: [
       { id: 'tienda', name: 'Mi Tienda', icon: Paintbrush, adminOnly: true, superadminOnly: false, merchantOnly: true },
+      { id: 'enlaces', name: 'Enlaces y accesos', icon: Link2, adminOnly: true, superadminOnly: false, merchantOnly: true },
       { id: 'pedidos', name: 'Pedidos', icon: ClipboardList, adminOnly: true, superadminOnly: false, merchantOnly: true },
       { id: 'cupones', name: 'Cupones', icon: Ticket, adminOnly: true, superadminOnly: false, merchantOnly: true },
       { id: 'reviews', name: 'Reseñas', icon: Star, adminOnly: true, superadminOnly: false, merchantOnly: true },
@@ -154,7 +156,7 @@ const groups = [
 ]
 
 // IDs that belong to the Tienda submenu (to detect active state for parent)
-const TIENDA_CHILD_IDS = ['tienda', 'pedidos', 'cupones', 'reviews', 'services', 'cartilla', 'perfil', 'servicios-pro']
+const TIENDA_CHILD_IDS = ['tienda', 'enlaces', 'pedidos', 'cupones', 'reviews', 'services', 'cartilla', 'perfil', 'servicios-pro']
 
 export function Sidebar() {
   const {

@@ -122,6 +122,9 @@ const MODULE_ALIASES: Record<string, string[]> = {
   // "Página Principal" (Content Hub + Newsletter): sin módulo propio; cuelga de
   // Clientes/Tienda para que aparezca en el Tema 2 sin quedar oculta por el filtro.
   contenido:    ['contenido', 'customers', 'tienda'],
+  // "Enlaces y accesos" (hub de enlaces públicos): sin módulo propio; cuelga de
+  // Tienda para verse en ambos temas sin quedar oculto por el filtro de módulos.
+  enlaces:      ['enlaces', 'tienda'],
 }
 
 /**

@@ -14,12 +14,12 @@ import { SalesTrendChart } from '@/components/sales-trend-chart'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { ProfileModal } from '@/components/profile-modal'
 import {
-  Home, Package, ShoppingCart, Store, Users, TrendingUp, Settings, Rocket,
+  Home, Package, ShoppingCart, Store, Users, TrendingUp, Settings,
   Search, Bell, LogOut, ChevronDown, AlertTriangle, ShoppingBag,
   FlaskConical, Truck, Receipt, History, CalendarDays, Ticket, Star,
   Scissors, CreditCard, UserCheck, Printer, ArrowRight, Boxes, PieChart,
   HelpCircle, UtensilsCrossed, Trash2, Wine, ClipboardList, Network, FileSpreadsheet, Gauge, Layers,
-  Sparkles, Dumbbell, BookOpenText, IdCard, Briefcase, LayoutTemplate,
+  Sparkles, Dumbbell, BookOpenText, IdCard, Briefcase, LayoutTemplate, Link2,
 } from 'lucide-react'
 import { resolveActiveModules, isSectionEnabled } from '@/lib/modules'
 
@@ -62,6 +62,7 @@ const NAV: NavGroup[] = [
   {
     key: 'tienda', label: 'Tienda', icon: Store, adminOnly: true, children: [
       { id: 'tienda', label: 'Mi tienda', icon: Store, adminOnly: true },
+      { id: 'enlaces', label: 'Enlaces y accesos', icon: Link2, adminOnly: true },
       { id: 'pedidos', label: 'Pedidos', icon: ShoppingBag, adminOnly: true },
       { id: 'cupones', label: 'Cupones', icon: Ticket, adminOnly: true },
       { id: 'reviews', label: 'Reseñas', icon: Star, adminOnly: true },
@@ -96,7 +97,6 @@ const NAV: NavGroup[] = [
       { id: 'settings', label: 'Configuración', icon: Settings, adminOnly: true },
     ],
   },
-  { key: 'crecimiento', label: 'Crecimiento', icon: Rocket, id: 'crecimiento', adminOnly: true },
 ]
 
 // Accesos rápidos (acciones frecuentes del día a día) — NO repiten lo de "Más herramientas"
