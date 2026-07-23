@@ -50,6 +50,32 @@ const parseBenefits = (raw: unknown): string[] => {
   return [];
 };
 
+// Modalidades de un servicio: array de { id, name, price, durationMinutes }.
+// Permite que un mismo servicio (ej. "Uñas") ofrezca varias opciones con su propio
+// precio (Gelish $250, Esculturales $360…) que el cliente elige al agendar.
+export interface ServiceOption { id: string; name: string; price: number; durationMinutes: number | null }
+const parseOptions = (raw: unknown): ServiceOption[] => {
+  let arr: any = raw;
+  if (typeof raw === 'string' && raw.trim()) { try { arr = JSON.parse(raw); } catch { return []; } }
+  if (!Array.isArray(arr)) return [];
+  return arr
+    .map((o: any) => ({
+      id: String(o?.id || '').trim() || uuidv4(),
+      name: String(o?.name || '').trim().slice(0, 200),
+      price: Number(o?.price) || 0,
+      durationMinutes: o?.durationMinutes != null && Number(o.durationMinutes) > 0 ? Number(o.durationMinutes) : null,
+    }))
+    .filter((o) => o.name.length > 0);
+};
+// Snapshot de la modalidad elegida al reservar (sobrevive a cambios posteriores del servicio).
+const parseSelectedOption = (raw: unknown): ServiceOption | null => {
+  let o: any = raw;
+  if (typeof raw === 'string' && raw.trim()) { try { o = JSON.parse(raw); } catch { return null; } }
+  if (!o || typeof o !== 'object' || Array.isArray(o)) return null;
+  if (!o.name) return null;
+  return { id: String(o.id || ''), name: String(o.name), price: Number(o.price) || 0, durationMinutes: o.durationMinutes != null ? Number(o.durationMinutes) : null };
+};
+
 const mapService = (r: ServiceRow) => ({
   id: r.id, tenantId: r.tenant_id, name: r.name, description: r.description,
   category: r.category, serviceType: r.service_type, price: Number(r.price),
@@ -58,6 +84,7 @@ const mapService = (r: ServiceRow) => ({
   preparation: (r as any).preparation ?? null,
   addonServiceIds: parseBenefits((r as any).addon_service_ids),
   specialistIds: parseBenefits((r as any).specialist_ids),
+  options: parseOptions((r as any).options),
   requiresPayment: Boolean(r.requires_payment),
   maxAdvanceDays: r.max_advance_days, cancellationHours: r.cancellation_hours,
   isActive: Boolean(r.is_active), isPublished: Boolean(r.is_published),
@@ -88,6 +115,7 @@ const mapBooking = (r: BookingRow) => ({
   status: r.status, paymentStatus: r.payment_status,
   amountPaid: Number(r.amount_paid), merchantNotes: r.merchant_notes,
   addons: parseAddons((r as any).addons),
+  selectedOption: parseSelectedOption((r as any).selected_option),
   totalAmount: Number((r as any).total_amount ?? 0),
   specialistId: (r as any).specialist_id ?? null,
   specialistName: (r as any).specialist_name ?? null,
@@ -143,6 +171,7 @@ export class ServicesService {
     serviceType: 'cita' | 'asesoria' | 'contacto'; price?: number;
     priceType?: string; durationMinutes?: number; imageUrl?: string;
     benefits?: string[]; preparation?: string; addonServiceIds?: string[]; specialistIds?: string[];
+    options?: Array<{ id?: string; name: string; price: number; durationMinutes?: number | null }>;
     requiresPayment?: boolean; maxAdvanceDays?: number;
     cancellationHours?: number; sortOrder?: number;
   }) {
@@ -153,11 +182,12 @@ export class ServicesService {
       ? [...new Set(data.addonServiceIds.map((x) => String(x).trim()).filter(Boolean))] : [];
     const specialistIds = Array.isArray(data.specialistIds)
       ? [...new Set(data.specialistIds.map((x) => String(x).trim()).filter(Boolean))] : [];
+    const options = parseOptions(data.options);
     await db.execute<ResultSetHeader>(
       `INSERT INTO services
         (id, tenant_id, name, description, category, service_type, price, price_type,
-         duration_minutes, image_url, benefits, preparation, addon_service_ids, specialist_ids, requires_payment, max_advance_days, cancellation_hours, sort_order)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         duration_minutes, image_url, benefits, preparation, addon_service_ids, specialist_ids, options, requires_payment, max_advance_days, cancellation_hours, sort_order)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id, tenantId, data.name, data.description || null, data.category || null,
         data.serviceType, data.price || 0, data.priceType || 'fijo',
@@ -165,6 +195,7 @@ export class ServicesService {
         benefits.length ? JSON.stringify(benefits) : null, data.preparation?.trim() || null,
         addonIds.length ? JSON.stringify(addonIds) : null,
         specialistIds.length ? JSON.stringify(specialistIds) : null,
+        options.length ? JSON.stringify(options) : null,
         data.requiresPayment ? 1 : 0, data.maxAdvanceDays || 30,
         data.cancellationHours || 24, data.sortOrder || 0,
       ]
@@ -176,6 +207,7 @@ export class ServicesService {
     name: string; description: string; category: string; serviceType: string;
     price: number; priceType: string; durationMinutes: number; imageUrl: string;
     benefits: string[]; preparation: string; addonServiceIds: string[]; specialistIds: string[];
+    options: Array<{ id?: string; name: string; price: number; durationMinutes?: number | null }>;
     requiresPayment: boolean; maxAdvanceDays: number; cancellationHours: number;
     isActive: boolean; isPublished: boolean; sortOrder: number;
   }>) {
@@ -204,6 +236,11 @@ export class ServicesService {
         ? [...new Set(data.specialistIds.map((x) => String(x).trim()).filter(Boolean))] : [];
       fields.push('specialist_ids = ?');
       values.push(specialistIds.length ? JSON.stringify(specialistIds) : null);
+    }
+    if ('options' in data) {
+      const options = parseOptions((data as any).options);
+      fields.push('options = ?');
+      values.push(options.length ? JSON.stringify(options) : null);
     }
 
     const map: Record<string, string> = {
@@ -738,7 +775,7 @@ export class ServicesService {
     serviceId: string; clientName: string; clientPhone: string;
     clientEmail?: string; clientNotes?: string;
     bookingDate?: string; startTime?: string; holdToken?: string;
-    addonIds?: string[]; specialistId?: string;
+    addonIds?: string[]; specialistId?: string; optionId?: string;
     preferredDateRange?: string; projectDescription?: string; budgetRange?: string;
   }) {
     // Validate service belongs to tenant and is active
@@ -784,7 +821,21 @@ export class ServicesService {
       );
       addons = addonRows.map((a) => ({ id: a.id, name: a.name, price: Number(a.price) }));
     }
-    const basePrice = ['fijo', 'desde'].includes(svc.price_type) ? Number(svc.price) : 0;
+    // ── Modalidad (opción del servicio): resuelta SIEMPRE en el servidor. Si el
+    // servicio ofrece opciones y el cliente eligió una válida, su precio manda sobre
+    // el precio base del servicio. Se snapshotea para que sobreviva a cambios futuros.
+    const svcOptions = parseOptions((svc as any).options);
+    let selectedOption: ServiceOption | null = null;
+    if (data.optionId) {
+      selectedOption = svcOptions.find((o) => o.id === data.optionId) || null;
+      if (!selectedOption) throw new AppError('La modalidad seleccionada no está disponible', 400);
+    } else if (svcOptions.length > 0) {
+      // El servicio tiene modalidades pero no se eligió ninguna → obligamos a elegir.
+      throw new AppError('Debes elegir una modalidad para este servicio', 400);
+    }
+
+    const baseServicePrice = ['fijo', 'desde'].includes(svc.price_type) ? Number(svc.price) : 0;
+    const basePrice = selectedOption ? selectedOption.price : baseServicePrice;
     const totalAmount = basePrice + addons.reduce((s, a) => s + a.price, 0);
 
     let endTime: string | null = null;
@@ -821,9 +872,9 @@ export class ServicesService {
       `INSERT INTO service_bookings
         (id, tenant_id, service_id, service_name, booking_type, client_name, client_phone,
          client_email, client_notes, booking_date, start_time, end_time,
-         preferred_date_range, project_description, budget_range, addons, total_amount,
+         preferred_date_range, project_description, budget_range, addons, selected_option, total_amount,
          specialist_id, specialist_name)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id, tenantId, data.serviceId, svc.name, svc.service_type,
         data.clientName, data.clientPhone, data.clientEmail || null,
@@ -831,7 +882,9 @@ export class ServicesService {
         data.bookingDate || null, data.startTime || null, endTime,
         data.preferredDateRange || null, data.projectDescription || null,
         data.budgetRange || null,
-        addons.length ? JSON.stringify(addons) : null, totalAmount,
+        addons.length ? JSON.stringify(addons) : null,
+        selectedOption ? JSON.stringify(selectedOption) : null,
+        totalAmount,
         specialistId, specialistName,
       ]
     );
