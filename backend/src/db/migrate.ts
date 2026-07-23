@@ -741,6 +741,25 @@ export async function runCatchup(): Promise<void> {
       INDEX idx_mpm_pass (meal_pass_id, created_at)
     ) ENGINE=InnoDB DEFAULT CHARSET=${charset} COLLATE=${collation}`
   )
+
+  // ── Servicios · Modalidades (opciones con su propio precio) + snapshot en reserva ──
+  await addColumnIfMissing('services', 'options', 'JSON NULL')
+  await addColumnIfMissing('service_bookings', 'selected_option', 'JSON NULL')
+
+  // ── Banner 1 (hero1): segunda imagen + velocidad de alternancia ──
+  await addColumnIfMissing('store_banners', 'image_url_2', 'VARCHAR(500) NULL')
+  await addColumnIfMissing('store_banners', 'swap_speed_ms', 'INT NULL')
+
+  // ── Especialistas: URLs de foto largas (Facebook CDN) → TEXT en vez de VARCHAR(500) ──
+  try {
+    const [pt]: any = await pool.query(
+      "SELECT DATA_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'service_specialists' AND COLUMN_NAME = 'photo_url'"
+    )
+    if (pt.length && String(pt[0].DATA_TYPE).toLowerCase() !== 'text') {
+      await pool.query('ALTER TABLE `service_specialists` MODIFY `photo_url` TEXT NULL')
+      console.log('Catch-up: service_specialists.photo_url ampliada a TEXT.')
+    }
+  } catch { /* tabla aún no existe → no aplica */ }
 }
 
 // Aplica las migraciones pendientes (registradas en __drizzle_migrations).

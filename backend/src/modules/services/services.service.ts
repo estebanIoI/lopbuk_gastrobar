@@ -186,8 +186,8 @@ export class ServicesService {
     await db.execute<ResultSetHeader>(
       `INSERT INTO services
         (id, tenant_id, name, description, category, service_type, price, price_type,
-         duration_minutes, image_url, benefits, preparation, addon_service_ids, specialist_ids, options, requires_payment, max_advance_days, cancellation_hours, sort_order)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         duration_minutes, image_url, benefits, preparation, addon_service_ids, specialist_ids, requires_payment, max_advance_days, cancellation_hours, sort_order)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id, tenantId, data.name, data.description || null, data.category || null,
         data.serviceType, data.price || 0, data.priceType || 'fijo',
@@ -195,11 +195,16 @@ export class ServicesService {
         benefits.length ? JSON.stringify(benefits) : null, data.preparation?.trim() || null,
         addonIds.length ? JSON.stringify(addonIds) : null,
         specialistIds.length ? JSON.stringify(specialistIds) : null,
-        options.length ? JSON.stringify(options) : null,
         data.requiresPayment ? 1 : 0, data.maxAdvanceDays || 30,
         data.cancellationHours || 24, data.sortOrder || 0,
       ]
     );
+    // Modalidades: escritura aparte y best-effort. Si la columna `options` aún no existe
+    // (migración 0059 no aplicada), no rompe la creación del servicio.
+    if (options.length) {
+      try { await db.execute('UPDATE services SET options = ? WHERE id = ? AND tenant_id = ?', [JSON.stringify(options), id, tenantId]); }
+      catch { /* columna options aún no migrada (0059) */ }
+    }
     return this.findById(id, tenantId);
   }
 
@@ -237,11 +242,8 @@ export class ServicesService {
       fields.push('specialist_ids = ?');
       values.push(specialistIds.length ? JSON.stringify(specialistIds) : null);
     }
-    if ('options' in data) {
-      const options = parseOptions((data as any).options);
-      fields.push('options = ?');
-      values.push(options.length ? JSON.stringify(options) : null);
-    }
+    // Nota: `options` (modalidades) se escribe aparte y best-effort al final, para no
+    // romper el update si la columna aún no existe (migración 0059 no aplicada).
 
     const map: Record<string, string> = {
       name: 'name', description: 'description', category: 'category',
@@ -259,13 +261,25 @@ export class ServicesService {
       }
     }
 
-    if (!fields.length) throw new AppError('Sin cambios', 400);
+    const optionsProvided = 'options' in data;
+    const optionsJson = optionsProvided
+      ? (() => { const o = parseOptions((data as any).options); return o.length ? JSON.stringify(o) : null; })()
+      : null;
 
-    values.push(id, tenantId);
-    await db.execute(
-      `UPDATE services SET ${fields.join(', ')} WHERE id = ? AND tenant_id = ?`,
-      values
-    );
+    if (!fields.length && !optionsProvided) throw new AppError('Sin cambios', 400);
+
+    if (fields.length) {
+      values.push(id, tenantId);
+      await db.execute(
+        `UPDATE services SET ${fields.join(', ')} WHERE id = ? AND tenant_id = ?`,
+        values
+      );
+    }
+    // Modalidades: best-effort, no rompe si la columna `options` aún no existe (0059).
+    if (optionsProvided) {
+      try { await db.execute('UPDATE services SET options = ? WHERE id = ? AND tenant_id = ?', [optionsJson, id, tenantId]); }
+      catch { /* columna options aún no migrada (0059) */ }
+    }
     return this.findById(id, tenantId);
   }
 
@@ -872,9 +886,9 @@ export class ServicesService {
       `INSERT INTO service_bookings
         (id, tenant_id, service_id, service_name, booking_type, client_name, client_phone,
          client_email, client_notes, booking_date, start_time, end_time,
-         preferred_date_range, project_description, budget_range, addons, selected_option, total_amount,
+         preferred_date_range, project_description, budget_range, addons, total_amount,
          specialist_id, specialist_name)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id, tenantId, data.serviceId, svc.name, svc.service_type,
         data.clientName, data.clientPhone, data.clientEmail || null,
@@ -883,11 +897,17 @@ export class ServicesService {
         data.preferredDateRange || null, data.projectDescription || null,
         data.budgetRange || null,
         addons.length ? JSON.stringify(addons) : null,
-        selectedOption ? JSON.stringify(selectedOption) : null,
         totalAmount,
         specialistId, specialistName,
       ]
     );
+    // Snapshot de la modalidad: best-effort, no rompe la reserva si la columna
+    // `selected_option` aún no existe (migración 0059 no aplicada). El precio ya
+    // quedó bien en total_amount de todos modos.
+    if (selectedOption) {
+      try { await db.execute('UPDATE service_bookings SET selected_option = ? WHERE id = ?', [JSON.stringify(selectedOption), id]); }
+      catch { /* columna selected_option aún no migrada (0059) */ }
+    }
 
     const [rows] = await db.execute<BookingRow[]>(
       'SELECT * FROM service_bookings WHERE id = ?', [id]
