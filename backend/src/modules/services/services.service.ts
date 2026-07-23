@@ -76,20 +76,29 @@ const parseSelectedOption = (raw: unknown): ServiceOption | null => {
   return { id: String(o.id || ''), name: String(o.name), price: Number(o.price) || 0, durationMinutes: o.durationMinutes != null ? Number(o.durationMinutes) : null };
 };
 
-const mapService = (r: ServiceRow) => ({
-  id: r.id, tenantId: r.tenant_id, name: r.name, description: r.description,
-  category: r.category, serviceType: r.service_type, price: Number(r.price),
-  priceType: r.price_type, durationMinutes: r.duration_minutes,
-  imageUrl: r.image_url, benefits: parseBenefits((r as any).benefits),
-  preparation: (r as any).preparation ?? null,
-  addonServiceIds: parseBenefits((r as any).addon_service_ids),
-  specialistIds: parseBenefits((r as any).specialist_ids),
-  options: parseOptions((r as any).options),
-  requiresPayment: Boolean(r.requires_payment),
-  maxAdvanceDays: r.max_advance_days, cancellationHours: r.cancellation_hours,
-  isActive: Boolean(r.is_active), isPublished: Boolean(r.is_published),
-  sortOrder: r.sort_order, createdAt: r.created_at, updatedAt: r.updated_at,
-});
+const mapService = (r: ServiceRow) => {
+  const options = parseOptions((r as any).options);
+  // Precio a MOSTRAR: si el servicio tiene modalidades, el precio lo definen ellas →
+  // se expone "Desde <mínimo>" para no confundir al cliente con un precio base aparte.
+  // El precio real cobrado siempre es el de la modalidad elegida (ver createBooking).
+  const optionMin = options.length ? Math.min(...options.map((o) => o.price)) : null;
+  const displayPrice = optionMin != null ? optionMin : Number(r.price);
+  const displayPriceType = optionMin != null ? 'desde' : r.price_type;
+  return {
+    id: r.id, tenantId: r.tenant_id, name: r.name, description: r.description,
+    category: r.category, serviceType: r.service_type, price: displayPrice,
+    priceType: displayPriceType, durationMinutes: r.duration_minutes,
+    imageUrl: r.image_url, benefits: parseBenefits((r as any).benefits),
+    preparation: (r as any).preparation ?? null,
+    addonServiceIds: parseBenefits((r as any).addon_service_ids),
+    specialistIds: parseBenefits((r as any).specialist_ids),
+    options,
+    requiresPayment: Boolean(r.requires_payment),
+    maxAdvanceDays: r.max_advance_days, cancellationHours: r.cancellation_hours,
+    isActive: Boolean(r.is_active), isPublished: Boolean(r.is_published),
+    sortOrder: r.sort_order, createdAt: r.created_at, updatedAt: r.updated_at,
+  };
+};
 
 const mapAvailability = (r: AvailabilityRow) => ({
   id: r.id, serviceId: r.service_id, dayOfWeek: r.day_of_week,

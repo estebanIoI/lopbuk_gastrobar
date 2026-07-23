@@ -805,24 +805,37 @@ export function ServicesManagement() {
                 </Select>
               </div>
 
-              <div className="space-y-1.5">
-                <Label>Precio</Label>
-                <Input type="number" min={0} value={serviceForm.price}
-                  onChange={(e) => setServiceForm((p) => ({ ...p, price: Number(e.target.value) }))} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Tipo de precio</Label>
-                <Select value={serviceForm.priceType}
-                  onValueChange={(v) => setServiceForm((p) => ({ ...p, priceType: v }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="fijo">Precio fijo</SelectItem>
-                    <SelectItem value="desde">Desde</SelectItem>
-                    <SelectItem value="gratis">Gratis</SelectItem>
-                    <SelectItem value="cotizacion">Cotización</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              {serviceForm.options.some((o) => o.name.trim()) ? (
+                <div className="space-y-1.5 col-span-2">
+                  <Label>Precio</Label>
+                  <div className="rounded-lg border border-dashed border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                    Este servicio tiene <span className="font-medium text-foreground">modalidades</span>: el precio lo define cada una.
+                    Al cliente se le muestra <span className="font-medium text-foreground">“Desde {formatCOP(Math.min(...serviceForm.options.filter((o) => o.name.trim()).map((o) => Number(o.price) || 0)))}”</span> y
+                    se cobra la modalidad que elija. No necesitas fijar un precio aquí.
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="space-y-1.5">
+                    <Label>Precio</Label>
+                    <Input type="number" min={0} value={serviceForm.price}
+                      onChange={(e) => setServiceForm((p) => ({ ...p, price: Number(e.target.value) }))} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Tipo de precio</Label>
+                    <Select value={serviceForm.priceType}
+                      onValueChange={(v) => setServiceForm((p) => ({ ...p, priceType: v }))}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="fijo">Precio fijo</SelectItem>
+                        <SelectItem value="desde">Desde</SelectItem>
+                        <SelectItem value="gratis">Gratis</SelectItem>
+                        <SelectItem value="cotizacion">Cotización</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </>
+              )}
 
               {serviceForm.serviceType === 'cita' && (
                 <div className="space-y-1.5">
