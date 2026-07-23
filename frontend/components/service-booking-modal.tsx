@@ -291,9 +291,10 @@ export function ServiceBookingModal({ service, storeSlug, onClose }: Props) {
 
   // ── Resumen fijo lateral (vende la experiencia) ─────────────────
   const Summary = (
-    <aside className="md:order-2 md:w-[300px] shrink-0 border-t md:border-t-0 md:border-l bg-muted/30 flex flex-col md:overflow-y-auto">
+    <aside className="md:order-2 md:w-[300px] md:shrink-0 border-t md:border-t-0 md:border-l bg-muted/30 flex flex-col md:overflow-y-auto md:min-h-0">
       {service.imageUrl && (
-        <div className="relative h-28 w-full overflow-hidden">
+        // En móvil se oculta: robaba altura y tapaba el calendario. En escritorio decora el panel lateral.
+        <div className="relative hidden h-28 w-full overflow-hidden md:block">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={service.imageUrl} alt={service.name} className="h-full w-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
@@ -452,9 +453,11 @@ export function ServiceBookingModal({ service, storeSlug, onClose }: Props) {
             <Button onClick={onClose} className="mt-4 w-full max-w-sm">Listo</Button>
           </div>
         ) : (
-          <div className="flex max-h-[92vh] flex-col md:flex-row">
-            {/* ── Columna principal: flujo (en móvil va primero) ── */}
-            <div className="md:order-1 flex-1 min-w-0 space-y-4 overflow-y-auto p-5 sm:p-6">
+          <div className="flex max-h-[92vh] flex-col overflow-y-auto md:flex-row md:overflow-hidden">
+            {/* ── Columna principal: flujo (en móvil va primero) ──
+                Móvil: scroll ÚNICO en el contenedor (sin flex-1/overflow aquí) para que el
+                calendario no se expanda y tape el resumen. Escritorio: columna con scroll propio. */}
+            <div className="md:order-1 md:flex-1 min-w-0 space-y-4 p-5 sm:p-6 md:min-h-0 md:overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>
                   {step === 'calendar' ? 'Elige fecha y hora' : isCita ? 'Confirma tus datos' : service.name}
