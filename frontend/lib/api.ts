@@ -2362,6 +2362,7 @@ class ApiService {
     description?: string; category?: string; price?: number
     priceType?: string; durationMinutes?: number; imageUrl?: string
     benefits?: string[]; preparation?: string; addonServiceIds?: string[]; specialistIds?: string[]
+    options?: Array<{ id?: string; name: string; price: number; durationMinutes?: number | null }>
     requiresPayment?: boolean; maxAdvanceDays?: number
     cancellationHours?: number; sortOrder?: number
   }) {
@@ -2533,7 +2534,7 @@ class ApiService {
     serviceId: string; clientName: string; clientPhone: string
     clientEmail?: string; clientNotes?: string
     bookingDate?: string; startTime?: string; holdToken?: string
-    addonIds?: string[]; specialistId?: string
+    addonIds?: string[]; specialistId?: string; optionId?: string
     preferredDateRange?: string; projectDescription?: string; budgetRange?: string
   }) {
     return this.request<any>(`/services/bookings?store=${encodeURIComponent(store)}`, {

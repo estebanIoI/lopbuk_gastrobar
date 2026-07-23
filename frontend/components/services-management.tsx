@@ -61,6 +61,7 @@ const emptyServiceForm = () => ({
   requiresPayment: false, maxAdvanceDays: 30, cancellationHours: 24,
   imageUrl: '', benefits: [] as string[], preparation: '',
   addonServiceIds: [] as string[], specialistIds: [] as string[],
+  options: [] as Array<{ name: string; price: number; durationMinutes: number | null }>,
 })
 
 // ─── Main Component ───────────────────────────────────────────────
@@ -163,6 +164,7 @@ export function ServicesManagement() {
       preparation: svc.preparation || '',
       addonServiceIds: svc.addonServiceIds || [],
       specialistIds: svc.specialistIds || [],
+      options: ((svc as any).options || []).map((o: any) => ({ name: o.name || '', price: Number(o.price) || 0, durationMinutes: o.durationMinutes ?? null })),
     })
     setFormError(null)
     setShowServiceForm(true)
@@ -184,6 +186,9 @@ export function ServicesManagement() {
         preparation: serviceForm.preparation.trim() || undefined,
         addonServiceIds: serviceForm.addonServiceIds,
         specialistIds: serviceForm.specialistIds,
+        options: serviceForm.options
+          .filter((o) => o.name.trim())
+          .map((o) => ({ name: o.name.trim(), price: Number(o.price) || 0, durationMinutes: o.durationMinutes ? Number(o.durationMinutes) : null })),
       }
       const res = editingService
         ? await api.updateService(editingService.id, payload)
@@ -892,6 +897,54 @@ export function ServicesManagement() {
                   </Button>
                 </div>
               </div>
+
+              {/* Modalidades: opciones del servicio con su propio precio (Gelish $250, Esculturales $360…) */}
+              {serviceForm.serviceType === 'cita' && (
+                <div className="col-span-2 space-y-1.5">
+                  <Label className="flex items-center gap-1.5">
+                    <Sparkles className="h-3.5 w-3.5 text-primary" /> Modalidades / tipos (opcional)
+                  </Label>
+                  <p className="text-xs text-muted-foreground -mt-0.5">
+                    Si este servicio tiene varias modalidades con distinto precio (ej. Gelish $250, Esculturales $360),
+                    agrégalas aquí. El cliente elegirá una al reservar y se cobrará su precio. Si dejas la lista vacía,
+                    se usa el precio del servicio.
+                  </p>
+                  <div className="space-y-2">
+                    {serviceForm.options.map((o, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <Input
+                          placeholder="Nombre (ej: Gelish)"
+                          value={o.name}
+                          className="flex-1"
+                          onChange={(e) => setServiceForm((p) => ({ ...p, options: p.options.map((x, j) => j === i ? { ...x, name: e.target.value } : x) }))}
+                        />
+                        <Input
+                          type="number" min={0} step={100} placeholder="Precio"
+                          value={o.price}
+                          className="w-28"
+                          onChange={(e) => setServiceForm((p) => ({ ...p, options: p.options.map((x, j) => j === i ? { ...x, price: Number(e.target.value) } : x) }))}
+                        />
+                        <Input
+                          type="number" min={0} step={5} placeholder="min"
+                          value={o.durationMinutes ?? ''}
+                          className="w-20"
+                          title="Duración (opcional)"
+                          onChange={(e) => setServiceForm((p) => ({ ...p, options: p.options.map((x, j) => j === i ? { ...x, durationMinutes: e.target.value ? Number(e.target.value) : null } : x) }))}
+                        />
+                        <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-destructive shrink-0"
+                          onClick={() => setServiceForm((p) => ({ ...p, options: p.options.filter((_, j) => j !== i) }))}
+                          title="Quitar">
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                    <Button type="button" variant="outline" size="sm"
+                      onClick={() => setServiceForm((p) => ({ ...p, options: [...p.options, { name: '', price: 0, durationMinutes: null }] }))}>
+                      <Plus className="mr-1 h-3.5 w-3.5" /> Agregar modalidad
+                    </Button>
+                  </div>
+                </div>
+              )}
 
               {/* Preparación / recomendaciones (solo citas) */}
               {serviceForm.serviceType === 'cita' && (

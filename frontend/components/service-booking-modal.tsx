@@ -73,6 +73,14 @@ export function ServiceBookingModal({ service, storeSlug, onClose }: Props) {
   const [specialists, setSpecialists] = useState<Specialist[]>([])
   const [selectedSpecialistId, setSelectedSpecialistId] = useState<string>('') // '' = sin preferencia
 
+  // Modalidades (F7): un servicio puede ofrecer varias opciones con su propio precio
+  // (ej. Uñas → Gelish, Esculturales…). El cliente elige una y su precio manda.
+  type SvcOption = { id: string; name: string; price: number; durationMinutes?: number | null }
+  const options: SvcOption[] = Array.isArray((service as any).options) ? (service as any).options : []
+  const hasOptions = options.length > 0
+  const [selectedOptionId, setSelectedOptionId] = useState<string>('')
+  const selectedOption = options.find((o) => o.id === selectedOptionId) || null
+
   // Lista de espera (F6): cuando un día no tiene cupos
   const [waitlistOpen, setWaitlistOpen] = useState(false)
   const [waitlistForm, setWaitlistForm] = useState({ name: '', phone: '' })
@@ -83,8 +91,11 @@ export function ServiceBookingModal({ service, storeSlug, onClose }: Props) {
   const isAsesoria = service.serviceType === 'asesoria'
   const benefits = (service.benefits || []).filter(Boolean)
 
-  // Total = precio base (si es fijo/desde) + complementos elegidos
-  const basePrice = ['fijo', 'desde'].includes(service.priceType) ? service.price : 0
+  // Total = precio base (modalidad elegida, si el servicio tiene; si no, el precio del
+  // servicio cuando es fijo/desde) + complementos elegidos.
+  const basePrice = hasOptions
+    ? (selectedOption ? selectedOption.price : 0)
+    : (['fijo', 'desde'].includes(service.priceType) ? service.price : 0)
   const selectedAddons = addons.filter((a) => selectedAddonIds.includes(a.id))
   const addonsTotal = selectedAddons.reduce((s, a) => s + a.price, 0)
   const total = basePrice + addonsTotal
@@ -231,6 +242,7 @@ export function ServiceBookingModal({ service, storeSlug, onClose }: Props) {
           holdToken: holdToken || undefined,
           addonIds: selectedAddonIds.length ? selectedAddonIds : undefined,
           specialistId: selectedSpecialistId || undefined,
+          optionId: hasOptions ? (selectedOptionId || undefined) : undefined,
         } : {}),
         ...(isAsesoria ? {
           preferredDateRange: form.preferredDateRange || undefined,
@@ -279,10 +291,9 @@ export function ServiceBookingModal({ service, storeSlug, onClose }: Props) {
 
   // ── Resumen fijo lateral (vende la experiencia) ─────────────────
   const Summary = (
-    <aside className="md:order-2 md:w-[300px] md:shrink-0 border-t md:border-t-0 md:border-l bg-muted/30 flex flex-col md:overflow-y-auto md:min-h-0">
+    <aside className="md:order-2 md:w-[300px] shrink-0 border-t md:border-t-0 md:border-l bg-muted/30 flex flex-col md:overflow-y-auto">
       {service.imageUrl && (
-        // En móvil se oculta: robaba altura y tapaba el calendario. En escritorio decora el panel lateral.
-        <div className="relative hidden h-28 w-full overflow-hidden md:block">
+        <div className="relative h-28 w-full overflow-hidden">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={service.imageUrl} alt={service.name} className="h-full w-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
@@ -353,7 +364,7 @@ export function ServiceBookingModal({ service, storeSlug, onClose }: Props) {
         {isCita && (basePrice > 0 || selectedAddons.length > 0) && (
           <div className="border-t pt-3 space-y-1 text-xs">
             <div className="flex justify-between text-muted-foreground">
-              <span>{service.name}</span>
+              <span>{service.name}{selectedOption ? ` · ${selectedOption.name}` : ''}</span>
               <span>{basePrice > 0 ? formatCOP(basePrice) : priceLabel()}</span>
             </div>
             {selectedAddons.map((a) => (
@@ -404,6 +415,9 @@ export function ServiceBookingModal({ service, storeSlug, onClose }: Props) {
             {isCita && selectedDate && selectedSlot && (
               <div className="mt-4 w-full max-w-sm space-y-2 rounded-xl border bg-muted/40 p-4 text-left text-sm">
                 <div className="flex justify-between gap-2"><span className="text-muted-foreground">Servicio</span><span className="font-medium text-right">{service.name}</span></div>
+                {selectedOption && (
+                  <div className="flex justify-between gap-2"><span className="text-muted-foreground">Modalidad</span><span className="font-medium text-right">{selectedOption.name}</span></div>
+                )}
                 <div className="flex justify-between gap-2"><span className="text-muted-foreground">Fecha</span><span className="font-medium capitalize text-right">{longDate(selectedDate)}</span></div>
                 <div className="flex justify-between gap-2"><span className="text-muted-foreground">Hora</span><span className="font-medium">{selectedSlot.split('-')[0]}</span></div>
                 {selectedSpecialist && (
@@ -438,11 +452,9 @@ export function ServiceBookingModal({ service, storeSlug, onClose }: Props) {
             <Button onClick={onClose} className="mt-4 w-full max-w-sm">Listo</Button>
           </div>
         ) : (
-          <div className="flex max-h-[92vh] flex-col overflow-y-auto md:flex-row md:overflow-hidden">
-            {/* ── Columna principal: flujo (en móvil va primero) ──
-                Móvil: scroll ÚNICO en el contenedor (sin flex-1/overflow aquí) para que el
-                calendario no se expanda y tape el resumen. Escritorio: columna con scroll propio. */}
-            <div className="md:order-1 md:flex-1 min-w-0 space-y-4 p-5 sm:p-6 md:min-h-0 md:overflow-y-auto">
+          <div className="flex max-h-[92vh] flex-col md:flex-row">
+            {/* ── Columna principal: flujo (en móvil va primero) ── */}
+            <div className="md:order-1 flex-1 min-w-0 space-y-4 overflow-y-auto p-5 sm:p-6">
               <DialogHeader>
                 <DialogTitle>
                   {step === 'calendar' ? 'Elige fecha y hora' : isCita ? 'Confirma tus datos' : service.name}
@@ -455,6 +467,31 @@ export function ServiceBookingModal({ service, storeSlug, onClose }: Props) {
               {/* ── Step: Calendar ────────────────────────────── */}
               {step === 'calendar' && isCita && (
                 <div className="space-y-4">
+                  {/* Modalidad (F7) — elegir el tipo de servicio con su precio */}
+                  {hasOptions && (
+                    <div className="space-y-2 rounded-lg border border-border bg-muted/30 p-3">
+                      <p className="flex items-center gap-1.5 text-sm font-medium">
+                        <Sparkles className="h-4 w-4 text-primary" /> Elige la modalidad
+                      </p>
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        {options.map((o) => {
+                          const active = selectedOptionId === o.id
+                          return (
+                            <button key={o.id} type="button" onClick={() => setSelectedOptionId(o.id)}
+                              className={`flex items-center justify-between gap-2 rounded-lg border p-2.5 text-left transition-colors ${active ? 'border-primary bg-primary/10' : 'border-border hover:bg-accent'}`}>
+                              <span className="min-w-0">
+                                <span className="block truncate text-sm font-medium">{o.name}</span>
+                                {o.durationMinutes ? <span className="block text-[11px] text-muted-foreground">{o.durationMinutes} min</span> : null}
+                              </span>
+                              <span className="shrink-0 text-sm font-semibold">{formatCOP(o.price)}</span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                      {!selectedOptionId && <p className="text-[11px] text-muted-foreground">Selecciona una modalidad para continuar.</p>}
+                    </div>
+                  )}
+
                   {/* Month navigation */}
                   <div className="flex items-center justify-between">
                     <Button variant="outline" size="icon" className="h-8 w-8"
@@ -631,7 +668,7 @@ export function ServiceBookingModal({ service, storeSlug, onClose }: Props) {
 
                   <DialogFooter>
                     <Button variant="outline" onClick={onClose}>Cancelar</Button>
-                    <Button disabled={!selectedDate || !selectedSlot || holding} onClick={handleContinue}>
+                    <Button disabled={!selectedDate || !selectedSlot || holding || (hasOptions && !selectedOptionId)} onClick={handleContinue}>
                       {holding ? 'Apartando…' : 'Continuar'} <Calendar className="ml-2 h-4 w-4" />
                     </Button>
                   </DialogFooter>

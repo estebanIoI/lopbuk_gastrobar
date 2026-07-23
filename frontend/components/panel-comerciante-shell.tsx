@@ -14,7 +14,7 @@ import { SalesTrendChart } from '@/components/sales-trend-chart'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { ProfileModal } from '@/components/profile-modal'
 import {
-  Home, Package, ShoppingCart, Store, Users, TrendingUp, Settings,
+  Home, Package, ShoppingCart, Store, Users, TrendingUp, Settings, Rocket,
   Search, Bell, LogOut, ChevronDown, AlertTriangle, ShoppingBag,
   FlaskConical, Truck, Receipt, History, CalendarDays, Ticket, Star,
   Scissors, CreditCard, UserCheck, Printer, ArrowRight, Boxes, PieChart,
@@ -96,6 +96,7 @@ const NAV: NavGroup[] = [
       { id: 'settings', label: 'Configuración', icon: Settings, adminOnly: true },
     ],
   },
+  { key: 'crecimiento', label: 'Crecimiento', icon: Rocket, id: 'crecimiento', adminOnly: true },
 ]
 
 // Accesos rápidos (acciones frecuentes del día a día) — NO repiten lo de "Más herramientas"

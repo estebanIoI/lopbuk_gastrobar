@@ -48,6 +48,7 @@ import { CombosManager } from '@/components/combos-manager'
 import EventBackoffice from '@/components/events/event-backoffice'
 import dynamic from 'next/dynamic'
 import { CartillaManagement } from '@/components/cartilla-management'
+import { GrowthPlaybook } from '@/components/growth-playbook'
 import { ProfileEditor } from '@/components/profile-theme3/profile-editor'
 import { Theme4Editor } from '@/components/theme4/theme4-editor'
 // Carga diferida: evita una dependencia circular (panel-comerciante-shell →
@@ -205,6 +206,8 @@ export function SectionRenderer() {
       return <GastrobarOps />
     case 'combos':
       return <CombosManager />
+    case 'crecimiento':
+      return <GrowthPlaybook />
     default:
       return <Dashboard />
   }
