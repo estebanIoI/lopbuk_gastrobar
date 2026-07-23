@@ -15,7 +15,7 @@ import {
   AlertTriangle, Sparkles, Loader2, Dumbbell, Flame, TrendingUp, Settings,
   Droplet, Target, Carrot, ListChecks, Utensils, Repeat, QrCode, ShieldCheck, ShieldX, ShieldAlert, Crown, Compass, Award, KeyRound,
   MoreHorizontal, ChevronDown, ChevronUp, ChevronRight, LogOut, Users,
-  Camera, User as UserIcon,
+  Camera, User as UserIcon, Wallet,
 } from 'lucide-react'
 import { CloudinaryUpload } from '@/components/ui/cloudinary-upload'
 import { QRCodeSVG } from 'qrcode.react'
@@ -29,6 +29,7 @@ import ExploreSection from '@/components/consumer/sections/explore/ExploreSectio
 import CoachSection from '@/components/consumer/sections/CoachSection'
 import VaultSection from '@/components/consumer/sections/VaultSection'
 import CommunitySection from '@/components/consumer/sections/CommunitySection'
+import WalletSection from '@/components/consumer/sections/WalletSection'
 import AchievementShelf from '@/components/consumer/AchievementShelf'
 import AdaptiveCards from '@/components/consumer/widgets/AdaptiveCards'
 import MissionControl from '@/components/consumer/widgets/MissionControl'
@@ -67,6 +68,7 @@ function getOverflowTabs(hasGym: boolean): { k: ConsumerTab; icon: any; label: s
     { k: 'coach' as ConsumerTab, icon: Award, label: 'Coach' },
     { k: 'cocina' as ConsumerTab, icon: ChefHat, label: 'Cocina' },
     { k: 'compras' as ConsumerTab, icon: ShoppingBasket, label: 'Compras' },
+    { k: 'wallet' as ConsumerTab, icon: Wallet, label: 'Mi Wallet' },
     { k: 'vault' as ConsumerTab, icon: KeyRound, label: 'The Vault' },
     { k: 'planes' as ConsumerTab, icon: Crown, label: 'Planes' },
     { k: 'explore' as ConsumerTab, icon: Compass, label: 'Explore' },
@@ -213,6 +215,7 @@ export default function ConsumerRoutine({ onClose }: { onClose: () => void }) {
         {tab === 'planes' && <PlanesView onUpgrade={() => { setLegend(true); setShowReveal(true) }} />}
         {tab === 'explore' && <ExploreSection goal={resumen?.perfil?.goal} onFullStore={onClose} onGoPlanes={() => setTab('planes')} />}
         {tab === 'coach' && <CoachSection />}
+        {tab === 'wallet' && <WalletSection onExplore={() => setTab('explore')} />}
         {tab === 'vault' && <VaultSection />}
         {tab === 'comunidad' && <div className="p-4"><CommunitySection /></div>}
         {!loading && tab === 'gym' && <GymView data={gym} onReload={() => load('gym')} />}

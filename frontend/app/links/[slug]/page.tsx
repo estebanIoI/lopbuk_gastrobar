@@ -100,11 +100,10 @@ interface StoreData {
   contactPageImage: string | null
   contactPageLinks: string | null
   contactPageLinkTheme: string | null
-  contactPageSocialImages: string | null
-  contactPageSettings: string | null
   socialX: string | null
   socialSnapchat: string | null
   reservationsEnabled?: boolean
+  loyaltyEnabled?: boolean
   shopProducts: ShopProduct[]
 }
 
@@ -777,6 +776,21 @@ export default function LinksPage() {
                   <line x1="3" y1="10" x2="21" y2="10" />
                 </svg>
                 Reservar mesa
+              </a>
+            )}
+
+            {/* Fidelización: invitar al cliente a unirse al programa de puntos */}
+            {data.loyaltyEnabled && (
+              <a
+                href={`/wallet/${slug}`}
+                className={`flex items-center justify-center gap-2 w-full py-4 px-6 rounded-2xl text-sm font-semibold tracking-wide uppercase transition-all active:scale-[0.98] ${
+                  isTheme2
+                    ? 'bg-amber-500 text-black hover:bg-amber-400'
+                    : 'bg-amber-500 text-white border border-amber-600 hover:bg-amber-600'
+                }`}
+              >
+                <span className="text-base leading-none">⭐</span>
+                Únete y gana puntos
               </a>
             )}
 

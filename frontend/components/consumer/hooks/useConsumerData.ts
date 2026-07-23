@@ -12,7 +12,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { api } from '@/lib/api'
 
-export type ConsumerTab = 'hoy' | 'rutina' | 'cocina' | 'plan' | 'compras' | 'gym' | 'planes' | 'explore' | 'coach' | 'vault' | 'comunidad'
+export type ConsumerTab = 'hoy' | 'rutina' | 'cocina' | 'plan' | 'compras' | 'gym' | 'planes' | 'explore' | 'coach' | 'vault' | 'comunidad' | 'wallet'
 
 export interface GymData {
   membresias: any[]

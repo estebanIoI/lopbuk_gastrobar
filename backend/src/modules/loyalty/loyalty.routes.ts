@@ -60,6 +60,25 @@ export async function earnPoints(tenantId: string, phone: string, name: string |
   return { points, balance: acct.points_balance + points, accountId: acct.id };
 }
 
+/**
+ * Acredita puntos por un pedido del storefront. IDEMPOTENTE: no re-otorga si el pedido ya generó
+ * puntos (evita doble acreditación entre webhook de pago y transición de estado). Sin teléfono de
+ * cliente no hay cuenta de fidelización y no hace nada. Seguro para llamar en cualquier confirmación.
+ */
+export async function awardLoyaltyForOrder(orderId: string): Promise<void> {
+  if (!orderId) return;
+  const [existing] = (await pool.query(
+    "SELECT 1 FROM loyalty_transactions WHERE order_id = ? AND type = 'earn' LIMIT 1", [orderId]
+  )) as any;
+  if (existing.length > 0) return; // ya acreditado
+  const [rows] = (await pool.query(
+    'SELECT tenant_id, customer_phone, customer_name, total FROM storefront_orders WHERE id = ? LIMIT 1', [orderId]
+  )) as any;
+  const o = rows?.[0];
+  if (!o || !o.customer_phone) return;
+  await earnPoints(o.tenant_id, o.customer_phone, o.customer_name || undefined, Number(o.total) || 0, orderId);
+}
+
 // ─────────── ADMIN: configuración ───────────
 router.get('/config', authenticate, authorize(...ADMIN_ROLES), async (req: AuthRequest, res: Response) => {
   try { await ensureLoyaltyTables(); ok(res, await getLoyaltyConfig(req.user!.tenantId!)); }

@@ -28,6 +28,65 @@ export async function getAccountByPhone(tenantId: string, phone: string): Promis
   return rows[0] || null;
 }
 
+// ─────────────── ConsumerOS: "Mi Wallet" (multi-comercio, por teléfono) ───────────────
+// El consumidor autenticado ve TODAS sus tarjetas de fidelización a lo largo de los comercios.
+// Seguridad: el teléfono se deriva SIEMPRE del registro del usuario (users.phone), nunca del
+// cliente, para evitar IDOR (que un usuario consulte tarjetas de un teléfono ajeno).
+
+export async function getUserPhone(userId: string): Promise<string | null> {
+  const [rows] = (await pool.query('SELECT phone FROM users WHERE id = ? LIMIT 1', [userId])) as any;
+  const raw = rows[0]?.phone;
+  if (!raw) return null;
+  const ph = String(raw).replace(/\s/g, '').slice(0, 40);
+  return ph || null;
+}
+
+export async function setUserPhone(userId: string, phone: string): Promise<string> {
+  const ph = String(phone || '').replace(/\s/g, '').slice(0, 40);
+  if (ph.replace(/\D/g, '').length < 7) throw new AppError('Teléfono inválido', 400);
+  await pool.query('UPDATE users SET phone = ? WHERE id = ?', [ph, userId]);
+  return ph;
+}
+
+export async function listMyCardsByPhone(phone: string): Promise<{
+  cards: any[]; totalBalance: number; totalStores: number; totalEarned: number;
+}> {
+  const ph = String(phone || '').replace(/\s/g, '').slice(0, 40);
+  if (!ph) return { cards: [], totalBalance: 0, totalStores: 0, totalEarned: 0 };
+  const [rows] = (await pool.query(
+    `SELECT la.id, la.tenant_id AS tenantId, la.customer_name AS name, la.customer_phone AS phone,
+            la.points_balance AS balance, la.level, la.visits, la.total_spent AS totalSpent,
+            la.total_earned AS totalEarned,
+            t.slug AS storeSlug, COALESCE(si.name, t.name) AS storeName, si.logo_url AS storeLogo
+       FROM loyalty_accounts la
+       JOIN tenants t ON t.id = la.tenant_id AND t.status = 'activo'
+       LEFT JOIN store_info si ON si.tenant_id = la.tenant_id
+      WHERE la.customer_phone = ?
+      ORDER BY la.points_balance DESC, la.total_earned DESC`,
+    [ph],
+  )) as any;
+  const cards = (rows as any[]).map((r) => ({
+    id: r.id,
+    tenantId: r.tenantId,
+    storeSlug: r.storeSlug,
+    storeName: r.storeName,
+    storeLogo: r.storeLogo || null,
+    name: r.name || null,
+    phone: r.phone,
+    balance: Number(r.balance) || 0,
+    level: r.level || 'bronze',
+    visits: Number(r.visits) || 0,
+    totalSpent: Number(r.totalSpent) || 0,
+    totalEarned: Number(r.totalEarned) || 0,
+  }));
+  return {
+    cards,
+    totalBalance: cards.reduce((s, c) => s + c.balance, 0),
+    totalStores: cards.length,
+    totalEarned: cards.reduce((s, c) => s + c.totalEarned, 0),
+  };
+}
+
 export async function ensureAccount(tenantId: string, phone: string, name?: string, email?: string): Promise<any> {
   const ph = phone.replace(/\s/g, '').slice(0, 40);
   const existing = await getAccountByPhone(tenantId, ph);

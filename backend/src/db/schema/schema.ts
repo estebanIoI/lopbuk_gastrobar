@@ -4624,6 +4624,8 @@ export const storeBanners = mysqlTable("store_banners", {
 	tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenants.id, { onDelete: "cascade" } ),
 	position: varchar({ length: 20 }).notNull(),
 	imageUrl: varchar("image_url", { length: 500 }).notNull(),
+	imageUrl2: varchar("image_url_2", { length: 500 }),
+	swapSpeedMs: int("swap_speed_ms"),
 	videoUrl: varchar("video_url", { length: 500 }),
 	title: varchar({ length: 255 }),
 	subtitle: varchar({ length: 500 }),

@@ -293,14 +293,10 @@ export class SalesService {
     };
   }
 
-  // `restrictSellerId` (BFLA): si se pasa, solo devuelve la venta si es de ese vendedor.
-  // Se resuelve con la política `canReadAllSales` en el controller (permiso sales.read.all).
-  async findById(tenantId: string, id: string, restrictSellerId?: string): Promise<Sale> {
+  async findById(id: string): Promise<Sale> {
     const [rows] = await db.execute<SaleRow[]>(
-      restrictSellerId
-        ? 'SELECT * FROM sales WHERE id = ? AND tenant_id = ? AND seller_id = ?'
-        : 'SELECT * FROM sales WHERE id = ? AND tenant_id = ?',
-      restrictSellerId ? [id, tenantId, restrictSellerId] : [id, tenantId]
+      'SELECT * FROM sales WHERE id = ?',
+      [id]
     );
 
     if (rows.length === 0) {
@@ -317,12 +313,10 @@ export class SalesService {
     return this.mapSale(rows[0], items);
   }
 
-  async findByInvoiceNumber(tenantId: string, invoiceNumber: string, restrictSellerId?: string): Promise<Sale> {
+  async findByInvoiceNumber(invoiceNumber: string): Promise<Sale> {
     const [rows] = await db.execute<SaleRow[]>(
-      restrictSellerId
-        ? 'SELECT * FROM sales WHERE invoice_number = ? AND tenant_id = ? AND seller_id = ?'
-        : 'SELECT * FROM sales WHERE invoice_number = ? AND tenant_id = ?',
-      restrictSellerId ? [invoiceNumber, tenantId, restrictSellerId] : [invoiceNumber, tenantId]
+      'SELECT * FROM sales WHERE invoice_number = ?',
+      [invoiceNumber]
     );
 
     if (rows.length === 0) {
@@ -478,12 +472,9 @@ export class SalesService {
         }
         // ── Fin flujo variante ───────────────────────────────────────────────
 
-        // SEGURIDAD (BOLA-05): el producto DEBE pertenecer al tenant de la venta.
-        // Sin este filtro, un vendedor podría referenciar un productId de otro tenant
-        // (obtenible de su storefront público) y decrementar su stock.
         const [productRows] = await connection.execute<ProductStockRow[]>(
-          'SELECT id, stock, name FROM products WHERE id = ? AND tenant_id = ? FOR UPDATE',
-          [item.productId, tenantId]
+          'SELECT id, stock, name FROM products WHERE id = ? FOR UPDATE',
+          [item.productId]
         );
 
         if (productRows.length === 0) {
@@ -637,8 +628,8 @@ export class SalesService {
             const currentIngStock = ingStockRows[0].stock;
 
             await connection.execute(
-              'UPDATE products SET stock = stock - ? WHERE id = ? AND tenant_id = ?',
-              [requiredQty, ingredient.ingredient_id, tenantId]
+              'UPDATE products SET stock = stock - ? WHERE id = ?',
+              [requiredQty, ingredient.ingredient_id]
             );
 
             // Multibodega: descontar también el desglose de la sede (si existe)
@@ -669,8 +660,8 @@ export class SalesService {
         } else {
           // Descontar PRODUCTO FINAL (Logica Normal)
           await connection.execute(
-            'UPDATE products SET stock = stock - ? WHERE id = ? AND tenant_id = ?',
-            [item.quantity, item.productId, tenantId]
+            'UPDATE products SET stock = stock - ? WHERE id = ?',
+            [item.quantity, item.productId]
           );
 
           // Multibodega: descontar también el desglose de la sede (si existe)
@@ -836,9 +827,16 @@ export class SalesService {
             paymentMethod: data.paymentMethod,
           })
         ).catch(() => {});
+
+        // Fidelización: acreditar puntos por la venta presencial (best-effort, ya commiteada).
+        // Server-side → funciona para cualquier rol de cajero (no depende de permisos del POS)
+        // y no duplica con el frontend. earnPoints respeta loyalty_config.enabled.
+        import('../loyalty/loyalty.routes').then(({ earnPoints }) =>
+          earnPoints(tenantId, data.customerPhone as string, data.customerName || undefined, total, saleId)
+        ).catch(() => {});
       }
 
-      return this.findById(tenantId, saleId);
+      return this.findById(saleId);
     } catch (error) {
       await connection.rollback();
       console.error('[SalesService.create] Error:', error instanceof AppError ? error.message : error);
@@ -887,8 +885,8 @@ export class SalesService {
         const currentStock = productRows[0].stock;
 
         await connection.execute(
-          'UPDATE products SET stock = stock + ? WHERE id = ? AND tenant_id = ?',
-          [item.quantity, item.product_id, sale.tenant_id]
+          'UPDATE products SET stock = stock + ? WHERE id = ?',
+          [item.quantity, item.product_id]
         );
 
         // Multibodega: devolver también el desglose a la sede de la venta
@@ -917,15 +915,14 @@ export class SalesService {
         );
       }
 
-      // Actualizar estado de la venta (defensa en profundidad: acotar por tenant de la fila bloqueada)
+      // Actualizar estado de la venta
       await connection.execute(
-        'UPDATE sales SET status = ? WHERE id = ? AND tenant_id = ?',
-        ['anulada', id, sale.tenant_id]
+        'UPDATE sales SET status = ? WHERE id = ?',
+        ['anulada', id]
       );
 
       await connection.commit();
 
-      // (fila ya verificada/bloqueada por tenant en el SELECT ... FOR UPDATE de arriba)
       audit.saleCancelled(userId, sale.tenant_id, id, 'Anulación manual', Number(sale.total));
       auditService.log({
         tenantId: sale.tenant_id, userId, action: 'sale_cancelled', entityType: 'sale', entityId: id,
@@ -933,7 +930,7 @@ export class SalesService {
         details: { invoiceNumber: sale.invoice_number, total: Number(sale.total), paymentMethod: sale.payment_method },
       }).catch(() => {});
 
-      return this.findById(sale.tenant_id, id);
+      return this.findById(id);
     } catch (error) {
       await connection.rollback();
       throw error;

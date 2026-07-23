@@ -564,6 +564,8 @@ export function PointOfSale() {
     setIsProcessing(false)
 
     if (result.success) {
+      // La acumulación de puntos de fidelización se hace server-side al crear la venta
+      // (sales.service.create), cuando el cliente trae teléfono. No se llama aquí para evitar duplicado.
       setIsCheckoutOpen(false)
       setPaymentMethod('efectivo')
       setAmountPaid('')
@@ -1696,6 +1698,9 @@ export function PointOfSale() {
             {paymentMethod !== 'fiado' && (
               <div className="space-y-2">
                 <Label className="text-muted-foreground">Datos del Cliente (opcional)</Label>
+                <p className="text-[11px] text-amber-600 dark:text-amber-500 flex items-center gap-1">
+                  ⭐ Con el teléfono, el cliente suma puntos de fidelización por esta compra.
+                </p>
                 <Input
                   placeholder="Nombre"
                   value={customer.name}

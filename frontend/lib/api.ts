@@ -1,5 +1,29 @@
 import type { DailyReportData, LoyaltyAccount, LoyaltyReward, EngagementAnalytics, EngagementCampaign, EngagementSegment } from './types'
 
+// ConsumerOS — "Mi Wallet": tarjetas de fidelización del consumidor a través de comercios.
+export interface MyLoyaltyCard {
+  id: string
+  tenantId: string
+  storeSlug: string
+  storeName: string
+  storeLogo: string | null
+  name: string | null
+  phone: string
+  balance: number
+  level: string
+  visits: number
+  totalSpent: number
+  totalEarned: number
+}
+export interface MyCardsResponse {
+  hasPhone: boolean
+  phone: string | null
+  cards: MyLoyaltyCard[]
+  totalBalance: number
+  totalStores: number
+  totalEarned: number
+}
+
 export interface CloudinaryImage {
   public_id: string
   secure_url: string
@@ -1858,7 +1882,7 @@ class ApiService {
     return this.request<any>('/storefront/customization')
   }
 
-  async updateBanner(data: { id?: number; position: string; imageUrl: string; title?: string; subtitle?: string; linkUrl?: string }) {
+  async updateBanner(data: { id?: number; position: string; imageUrl: string; imageUrl2?: string; swapSpeedMs?: number | null; videoUrl?: string; title?: string; subtitle?: string; linkUrl?: string }) {
     return this.request<any>('/storefront/banners', {
       method: 'PUT',
       body: JSON.stringify(data),
@@ -3117,6 +3141,14 @@ class ApiService {
   }
   async getMyWallet(phone: string) {
     return this.request<LoyaltyAccount>(`/engagement/me/wallet?phone=${encodeURIComponent(phone)}`)
+  }
+  // ConsumerOS — todas mis tarjetas de fidelización (multi-comercio). El teléfono lo resuelve
+  // el backend desde mi cuenta (no se envía), así que no hay riesgo de ver tarjetas ajenas.
+  async getMyCards() {
+    return this.request<MyCardsResponse>(`/engagement/my-cards`)
+  }
+  async setMyPhone(phone: string) {
+    return this.request<MyCardsResponse>(`/engagement/me/phone`, { method: 'POST', body: JSON.stringify({ phone }) })
   }
   async getWalletPass(data: { phone: string; name?: string; email?: string; storeSlug?: string }) {
     return this.request<{ saveUrl: string; accountId: string }>(`/engagement/me/pass`, { method: 'POST', body: JSON.stringify(data) })

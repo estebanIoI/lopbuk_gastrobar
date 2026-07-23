@@ -406,6 +406,8 @@ export function BillingPOS({ onToggleMode }: BillingPOSProps) {
     setIsProcessing(false)
 
     if (result.success && result.data) {
+      // La acumulación de puntos se hace server-side al crear la venta (sales.service.create)
+      // cuando el cliente trae teléfono. No se llama aquí para evitar duplicado.
       toast.success(`✓ Factura ${result.data.invoiceNumber} guardada`)
       handlePrint(result.data)
       setTimeout(() => handleNewInvoice(), 800)
