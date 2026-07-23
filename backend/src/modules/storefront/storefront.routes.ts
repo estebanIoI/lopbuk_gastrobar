@@ -676,6 +676,7 @@ router.get('/stores', async (req: Request, res: Response) => {
               si.business_hours as businessHours,
               COALESCE(si.open_state, 'open') as openStateFallback,
               (SELECT COUNT(*) FROM sedes s WHERE s.tenant_id = t.id) as sedeCount,
+              COALESCE(si.marketplace_order, 0) as marketplaceOrder,
               (SELECT COUNT(*) FROM products p WHERE p.tenant_id = t.id AND ${stockVisibleSql('p')} AND p.published_in_store = 1) as productCount
        FROM tenants t
        LEFT JOIN store_info si ON si.tenant_id = t.id
@@ -683,7 +684,12 @@ router.get('/stores', async (req: Request, res: Response) => {
          AND (t.is_hidden IS NULL OR t.is_hidden = 0)
          AND (si.marketplace_visible IS NULL OR si.marketplace_visible = 1)
        ${municipalityFilter}
-       ORDER BY COALESCE(si.marketplace_order, 0) ASC, t.name ASC`,
+       -- Posicionamiento del superadmin: marketplace_order > 0 = comercio DESTACADO (1 primero, 2, 3…);
+       -- 0 / NULL = sin destacar, van después ordenados por nombre.
+       ORDER BY
+         CASE WHEN COALESCE(si.marketplace_order, 0) > 0 THEN 0 ELSE 1 END ASC,
+         COALESCE(NULLIF(si.marketplace_order, 0), 999999) ASC,
+         t.name ASC`,
       params
     ) as any;
 
@@ -1096,6 +1102,20 @@ router.get('/store-config/:storeSlug', async (req: Request, res: Response) => {
         [tenantId]
       ) as any;
       banners = rows;
+      // Segunda imagen + velocidad de alternancia (columnas de la migración 0057).
+      // Consulta separada y defensiva: si aún no se migró, los banners siguen funcionando.
+      try {
+        const [extra] = await pool.query(
+          'SELECT id, image_url_2 as imageUrl2, swap_speed_ms as swapSpeedMs FROM store_banners WHERE tenant_id = ? AND is_active = 1',
+          [tenantId]
+        ) as any;
+        const byId = new Map((extra as any[]).map((r: any) => [r.id, r]));
+        banners = (banners as any[]).map((b: any) => ({
+          ...b,
+          imageUrl2: byId.get(b.id)?.imageUrl2 || null,
+          swapSpeedMs: byId.get(b.id)?.swapSpeedMs ?? null,
+        }));
+      } catch { /* columnas image_url_2 / swap_speed_ms aún no migradas */ }
     } catch { /* table may not exist yet */ }
 
     // Categories with images (only those that have published products)
@@ -1972,7 +1992,10 @@ router.put('/banners', authenticate, requirePlan('empresarial'), async (req: Req
     const user = (req as any).user;
     // Superadmin can pass tenantId in body; regular users use their own
     const tenantId = user.role === 'superadmin' ? (req.body.tenantId || user.tenantId) : user.tenantId;
-    const { id, position, imageUrl, videoUrl, title, subtitle, linkUrl } = req.body;
+    const { id, position, imageUrl, videoUrl, title, subtitle, linkUrl, imageUrl2, swapSpeedMs } = req.body;
+    // Normalizamos los campos de la 2ª imagen / velocidad (migración 0057).
+    const img2 = imageUrl2 || null;
+    const speed = (swapSpeedMs === undefined || swapSpeedMs === null || swapSpeedMs === '') ? null : (Number(swapSpeedMs) || null);
 
     if (!tenantId) {
       res.status(400).json({ success: false, error: 'No se pudo determinar el comercio. Si eres superadmin, envía tenantId en el body.' });
@@ -2001,6 +2024,10 @@ router.put('/banners', authenticate, requirePlan('empresarial'), async (req: Req
         res.status(404).json({ success: false, error: 'Banner no encontrado' });
         return;
       }
+      // 2ª imagen + velocidad (defensivo: si la migración 0057 no corrió, no rompe el guardado).
+      try {
+        await pool.query('UPDATE store_banners SET image_url_2 = ?, swap_speed_ms = ? WHERE id = ? AND tenant_id = ?', [img2, speed, id, tenantId]);
+      } catch { /* columnas 0057 aún no migradas */ }
       res.json({ success: true, data: { id, updated: true } });
     } else {
       // Create new
@@ -2009,6 +2036,10 @@ router.put('/banners', authenticate, requirePlan('empresarial'), async (req: Req
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [tenantId, position, imageUrl, videoUrl || null, title || null, subtitle || null, linkUrl || null]
       ) as any;
+
+      try {
+        await pool.query('UPDATE store_banners SET image_url_2 = ?, swap_speed_ms = ? WHERE id = ? AND tenant_id = ?', [img2, speed, result.insertId, tenantId]);
+      } catch { /* columnas 0057 aún no migradas */ }
 
       res.json({ success: true, data: { id: result.insertId, created: true } });
     }
@@ -3293,6 +3324,17 @@ router.get('/links/:slug', async (req: Request, res: Response) => {
     const tenantId = tenants[0].id;
     const reservationsEnabled = !!tenants[0].reservations_enabled;
 
+    // Fidelización: ¿el comercio la tiene activa? (default true si no hay fila de config,
+    // igual que getLoyaltyConfig). Se usa para mostrar el CTA de la wallet en el storefront.
+    let loyaltyEnabled = false;
+    try {
+      const [lcRows] = await pool.query(
+        'SELECT enabled FROM loyalty_config WHERE tenant_id = ? LIMIT 1',
+        [tenantId]
+      ) as any;
+      loyaltyEnabled = (lcRows as any[])[0] ? !!(lcRows as any[])[0].enabled : true;
+    } catch { loyaltyEnabled = false; /* tabla no migrada: no ofrecer wallet */ }
+
     // Base store info
     const [siRows] = await pool.query(
       `SELECT si.name, si.email, si.phone,
@@ -3438,6 +3480,7 @@ router.get('/links/:slug', async (req: Request, res: Response) => {
         contactPageSocialImages: contactData.contactPageSocialImages || null,
         contactPageSettings: contactData.contactPageSettings || null,
         reservationsEnabled,
+        loyaltyEnabled,
         shopProducts,
       },
     });

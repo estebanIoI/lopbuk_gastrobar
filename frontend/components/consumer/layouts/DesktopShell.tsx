@@ -9,7 +9,7 @@
 import { useState, type CSSProperties } from 'react'
 import {
   Home, Repeat, ChefHat, CalendarDays, ShoppingBasket, Crown, Dumbbell,
-  Compass, Sparkles, Settings, Loader2, Award, KeyRound, Users,
+  Compass, Sparkles, Settings, Loader2, Award, KeyRound, Users, Wallet,
 } from 'lucide-react'
 import { useConsumerData, type ConsumerTab } from '@/components/consumer/hooks/useConsumerData'
 import { useConsumerTheme } from '@/components/consumer/hooks/useConsumerTheme'
@@ -29,6 +29,7 @@ import ExploreSection from '@/components/consumer/sections/explore/ExploreSectio
 import CoachSection from '@/components/consumer/sections/CoachSection'
 import VaultSection from '@/components/consumer/sections/VaultSection'
 import CommunitySection from '@/components/consumer/sections/CommunitySection'
+import WalletSection from '@/components/consumer/sections/WalletSection'
 import AdaptiveCards from '@/components/consumer/widgets/AdaptiveCards'
 import MissionControl from '@/components/consumer/widgets/MissionControl'
 import ProgressCard from '@/components/consumer/widgets/ProgressCard'
@@ -38,6 +39,7 @@ import ActiveProgramBanner from '@/components/consumer/widgets/ActiveProgramBann
 const TITLES: Record<string, string> = {
   hoy: 'Today', rutina: 'Rutina', cocina: 'Cocina', plan: 'Plan',
   compras: 'Compras', planes: 'Planes', gym: 'Gym', comunidad: 'Comunidad',
+  wallet: 'Mi Wallet',
 }
 
 export default function DesktopShell({ onExplore }: { onExplore: () => void }) {
@@ -58,6 +60,7 @@ export default function DesktopShell({ onExplore }: { onExplore: () => void }) {
     { k: 'cocina', icon: ChefHat, label: 'Cocina' },
     { k: 'plan', icon: CalendarDays, label: 'Plan' },
     { k: 'compras', icon: ShoppingBasket, label: 'Compras' },
+    { k: 'wallet', icon: Wallet, label: 'Mi Wallet' },
     { k: 'explore', icon: Compass, label: 'Explore' },
     { k: 'coach', icon: Award, label: 'Coach' },
     { k: 'comunidad', icon: Users, label: 'Comunidad' },
@@ -154,6 +157,7 @@ export default function DesktopShell({ onExplore }: { onExplore: () => void }) {
         )}
         {/* Coach = catálogo de entrenadores (T2) */}
         {tab === 'coach' && <CoachSection />}
+        {tab === 'wallet' && <WalletSection onExplore={() => setTab('explore')} />}
         {tab === 'vault' && <VaultSection />}
         {tab === 'comunidad' && <div className="max-w-3xl mx-auto px-6 py-4"><CommunitySection /></div>}
         {/* Rutina = dashboard de widgets (desktop) */}

@@ -58,6 +58,8 @@ interface Banner {
   id?: number
   position: string
   imageUrl: string
+  imageUrl2?: string
+  swapSpeedMs?: number | null
   videoUrl?: string
   title: string
   subtitle: string
@@ -217,7 +219,7 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
   const [orderBumpMsg, setOrderBumpMsg] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
 
   // Banner form
-  const [bannerForm, setBannerForm] = useState<Banner>({ position: 'hero1', imageUrl: '', videoUrl: '', title: '', subtitle: '', linkUrl: '' })
+  const [bannerForm, setBannerForm] = useState<Banner>({ position: 'hero1', imageUrl: '', imageUrl2: '', swapSpeedMs: 4000, videoUrl: '', title: '', subtitle: '', linkUrl: '' })
   const [editingBannerId, setEditingBannerId] = useState<number | null>(null)
 
   // Announcement bar
@@ -465,7 +467,7 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
       const result = await api.updateBanner(payload)
       if (result.success) {
         showMsg('success', editingBannerId ? 'Banner actualizado' : 'Banner creado')
-        setBannerForm({ position: 'hero1', imageUrl: '', videoUrl: '', title: '', subtitle: '', linkUrl: '' })
+        setBannerForm({ position: 'hero1', imageUrl: '', imageUrl2: '', swapSpeedMs: 4000, videoUrl: '', title: '', subtitle: '', linkUrl: '' })
         setEditingBannerId(null)
         fetchData()
       } else {
@@ -499,6 +501,8 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
     setBannerForm({
       position: banner.position,
       imageUrl: banner.imageUrl,
+      imageUrl2: banner.imageUrl2 || '',
+      swapSpeedMs: banner.swapSpeedMs ?? 4000,
       videoUrl: banner.videoUrl || '',
       title: banner.title || '',
       subtitle: banner.subtitle || '',
@@ -814,6 +818,36 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
                     accept="image/*"
                   />
                 </div>
+                {bannerForm.position === 'hero1' && (
+                  <>
+                    <div>
+                      <CloudinaryUpload
+                        label="Segunda imagen (opcional)"
+                        value={bannerForm.imageUrl2 || ''}
+                        onChange={url => setBannerForm(prev => ({ ...prev, imageUrl2: url }))}
+                        previewClassName="h-16 w-28 object-cover rounded-lg border"
+                        accept="image/*"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">Si agregas una segunda imagen, el banner alterna entre ambas con un efecto de deslizamiento (como el hover de categorías).</p>
+                    </div>
+                    {bannerForm.imageUrl2 && (
+                      <div>
+                        <label className="text-sm font-medium mb-1 block">
+                          Velocidad de cambio: {((bannerForm.swapSpeedMs ?? 4000) / 1000).toFixed(1)}s por imagen
+                        </label>
+                        <input
+                          type="range" min={1500} max={10000} step={500}
+                          value={bannerForm.swapSpeedMs ?? 4000}
+                          onChange={e => setBannerForm(prev => ({ ...prev, swapSpeedMs: Number(e.target.value) }))}
+                          className="w-full accent-primary"
+                        />
+                        <div className="flex justify-between text-xs text-muted-foreground">
+                          <span>Rápido (1.5s)</span><span>Lento (10s)</span>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
                 {bannerForm.position === 'hero4' && (
                   <div>
                     <label className="text-sm font-medium mb-1 block">Video del Banner (opcional)</label>
@@ -880,7 +914,7 @@ export function StoreCustomization({ onBack }: { onBack: () => void }) {
                 {editingBannerId && (
                   <Button variant="outline" onClick={() => {
                     setEditingBannerId(null)
-                    setBannerForm({ position: 'hero1', imageUrl: '', videoUrl: '', title: '', subtitle: '', linkUrl: '' })
+                    setBannerForm({ position: 'hero1', imageUrl: '', imageUrl2: '', swapSpeedMs: 4000, videoUrl: '', title: '', subtitle: '', linkUrl: '' })
                   }}>
                     Cancelar
                   </Button>

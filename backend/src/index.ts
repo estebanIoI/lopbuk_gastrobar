@@ -226,7 +226,6 @@ app.use(`${apiPrefix}/sync`, syncRoutes);
 app.use(`${apiPrefix}/subscriptions`, subscriptionsRoutes);
 app.use(`${apiPrefix}/restbar`, restbarRoutes);
 app.use(`${apiPrefix}/restbar-qr`, restbarQrRoutes);
-app.use(`${apiPrefix}/loyalty`, loyaltyRoutes);
 app.use(`${apiPrefix}/affiliates`, affiliatesRoutes);
 app.use(`${apiPrefix}/consumer-plans`, consumerPlansRoutes);
 app.use(`${apiPrefix}/trainers`, trainersRoutes);

@@ -48,6 +48,28 @@ export async function getMyWallet(req: AuthRequest, res: Response) {
   } catch (e: any) { bad(res, e.message || 'Error', e.statusCode || 500); }
 }
 
+// ── ConsumerOS: "Mi Wallet" — todas las tarjetas del consumidor a través de comercios ──
+// El teléfono se toma SIEMPRE del registro del usuario autenticado (no del cliente) → sin IDOR.
+export async function getMyCards(req: AuthRequest, res: Response) {
+  try {
+    const phone = await svc.getUserPhone(req.user!.userId);
+    if (!phone) return ok(res, { hasPhone: false, phone: null, cards: [], totalBalance: 0, totalStores: 0, totalEarned: 0 });
+    const data = await svc.listMyCardsByPhone(phone);
+    ok(res, { hasPhone: true, phone, ...data });
+  } catch (e: any) { bad(res, e.message || 'Error', e.statusCode || 500); }
+}
+
+// Guarda/actualiza el teléfono del consumidor en su propia cuenta (para vincular sus tarjetas).
+export async function setMyPhone(req: AuthRequest, res: Response) {
+  try {
+    const phone = String(req.body?.phone || '');
+    if (!phone.trim()) return bad(res, 'Teléfono requerido');
+    const saved = await svc.setUserPhone(req.user!.userId, phone);
+    const data = await svc.listMyCardsByPhone(saved);
+    ok(res, { hasPhone: true, phone: saved, ...data });
+  } catch (e: any) { bad(res, e.message || 'Error', e.statusCode || 500); }
+}
+
 export async function getWalletPass(req: AuthRequest, res: Response) {
   try {
     const phone = String(req.body?.phone || req.query.phone || '');

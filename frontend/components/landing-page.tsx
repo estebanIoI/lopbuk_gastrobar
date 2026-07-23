@@ -224,6 +224,32 @@ function getStoreSlugFromUrl(): string | null {
   return new URLSearchParams(window.location.search).get('store')
 }
 
+// Flechas de navegación para carruseles con scroll nativo. Desplazan ~80% del ancho visible.
+// Visibles en todas las pantallas; en móvil también se puede navegar deslizando con el dedo.
+function CarouselNav({ scrollRef }: { scrollRef: React.RefObject<HTMLDivElement | null> }) {
+  const nudge = (dir: number) => {
+    const el = scrollRef.current
+    if (!el) return
+    el.scrollBy({ left: dir * Math.max(el.clientWidth * 0.8, 240), behavior: 'smooth' })
+  }
+  return (
+    <>
+      <button
+        type="button" aria-label="Anterior" onClick={(e) => { e.stopPropagation(); nudge(-1) }}
+        className="flex absolute left-1 top-1/2 -translate-y-1/2 z-30 w-8 h-8 sm:w-9 sm:h-9 items-center justify-center rounded-full bg-white/90 text-black shadow-md border border-black/10 hover:bg-white transition-colors"
+      >
+        <ChevronLeft className="w-5 h-5" />
+      </button>
+      <button
+        type="button" aria-label="Siguiente" onClick={(e) => { e.stopPropagation(); nudge(1) }}
+        className="flex absolute right-1 top-1/2 -translate-y-1/2 z-30 w-8 h-8 sm:w-9 sm:h-9 items-center justify-center rounded-full bg-white/90 text-black shadow-md border border-black/10 hover:bg-white transition-colors"
+      >
+        <ChevronRight className="w-5 h-5" />
+      </button>
+    </>
+  )
+}
+
 export function LandingPage({ onGoToLogin }: LandingPageProps) {
   const [showCatalog, setShowCatalog] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
@@ -356,6 +382,9 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   const [platformHeroUrl, setPlatformHeroUrl] = useState('')
   const [platformHeroTitle, setPlatformHeroTitle] = useState('')
   const [platformHeroSubtitle, setPlatformHeroSubtitle] = useState('')
+  // Banner 1 (hero1) con dos imágenes: alterna entre imagen 1 y 2 con efecto deslizante.
+  // heroFlip=false → muestra imagen 1; true → imagen 2. El intervalo lo define swap_speed_ms.
+  const [heroFlip, setHeroFlip] = useState(false)
 
   // ====== HOME THEME (Tema 1 clásico / Tema 2 marketplace) ======
   const [homeTheme, setHomeTheme] = useState<'theme1' | 'theme2' | 'theme3'>('theme1')
@@ -377,7 +406,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
   // ====== STORE CONFIG STATE (Hero Sections) ======
   const [storeConfig, setStoreConfig] = useState<{
-    banners: Array<{ id: number; position: string; imageUrl: string; videoUrl?: string | null; title: string | null; subtitle: string | null; linkUrl: string | null }>
+    banners: Array<{ id: number; position: string; imageUrl: string; imageUrl2?: string | null; swapSpeedMs?: number | null; videoUrl?: string | null; title: string | null; subtitle: string | null; linkUrl: string | null }>
     categories: Array<{ name: string; displayName?: string; imageUrl: string | null; imageUrlHover?: string | null; coverUrl?: string | null }>
     featuredProducts: StorefrontProduct[]
     trendingProducts: StorefrontProduct[]
@@ -474,6 +503,10 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   const [socialProof, setSocialProof] = useState<any>(null)
   const [ctaVisible, setCtaVisible] = useState(false)
   const ctaRef = useRef<HTMLDivElement>(null)
+  // CTA principal en móvil: la barra sticky de compra solo aparece cuando este CTA
+  // deja de verse (evita el "doble" de botones cuando el CTA principal aún está en pantalla).
+  const [mobileCtaVisible, setMobileCtaVisible] = useState(false)
+  const mobileCtaRef = useRef<HTMLDivElement>(null)
 
   // ====== PRODUCT REVIEWS STATE ======
   const [productReviews, setProductReviews] = useState<any[]>([])
@@ -1495,6 +1528,12 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
   useEffect(() => {
     if (typeof window === 'undefined') return
 
+    // Marquee de auto-movimiento DESACTIVADO: causaba que el tap se "bloqueara"
+    // (se tocaba un clon sin handler o un producto en movimiento). Ahora los carruseles
+    // usan scroll nativo (overflow-x-auto): tocar un producto siempre lo abre, se navega
+    // deslizando con el dedo y con las flechas ◀▶ (CarouselNav) en pantallas medianas+.
+    const MARQUEE_ENABLED = false
+
     const SPEED = window.innerWidth < 640 ? 38 : 55
     const refs = [
       carouselTrendingRef,
@@ -1509,6 +1548,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     // Defer 2 frames: first frame paints, second gives accurate rects
     let outerRaf: number
     const outerSetup = () => {
+      if (!MARQUEE_ENABLED) return
       outerRaf = requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           refs.forEach(ref => {
@@ -1736,6 +1776,16 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
     }
   }, [storeConfig, offerProducts, products])
 
+  // Banner 1: alternancia automática entre las 2 imágenes (si hay 2ª imagen configurada).
+  // La velocidad la define swap_speed_ms del banner hero1 (mínimo 1.5s). Sin 2ª imagen no hace nada.
+  useEffect(() => {
+    const b = storeConfig?.banners?.find(x => x.position === 'hero1')
+    if (!b?.imageUrl2) { setHeroFlip(false); return }
+    const interval = Math.max(1500, Number(b.swapSpeedMs) || 4000)
+    const t = setInterval(() => setHeroFlip(f => !f), interval)
+    return () => clearInterval(t)
+  }, [storeConfig])
+
   const dismissDropPopup = () => {
     if (storeConfig?.activeDrop) {
       localStorage.setItem(`drop_seen_${storeConfig.activeDrop.id}`, '1')
@@ -1921,6 +1971,26 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
       clearTimeout(timer)
       observer?.disconnect()
       setCtaVisible(false)
+    }
+  }, [showProductModal, selectedProduct])
+
+  // Observa el CTA principal MÓVIL para decidir si mostrar la barra sticky de compra.
+  useEffect(() => {
+    if (!showProductModal) return
+    let observer: IntersectionObserver
+    const timer = setTimeout(() => {
+      const el = mobileCtaRef.current
+      if (!el) return
+      observer = new IntersectionObserver(
+        ([entry]) => setMobileCtaVisible(entry.isIntersecting),
+        { threshold: 0.1 }
+      )
+      observer.observe(el)
+    }, 100)
+    return () => {
+      clearTimeout(timer)
+      observer?.disconnect()
+      setMobileCtaVisible(false)
     }
   }, [showProductModal, selectedProduct])
 
@@ -4222,6 +4292,56 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   return null
                 })()}
 
+                {/* Combos (Bundle Builder) — se ofrecen en el PDP aunque no haya plantilla asignada */}
+                {productBundles.length > 0 && (
+                  <div className="space-y-2 pt-1">
+                    <p className={`text-xs font-semibold uppercase tracking-wider ${isLightBg ? 'text-black/60' : 'text-white/60'}`}>Combos disponibles</p>
+                    {productBundles.map((bundle: any) => (
+                      <div key={bundle.id} className={`rounded-xl border p-3 ${isLightBg ? 'border-black/10 bg-black/[0.02]' : 'border-white/10 bg-white/[0.03]'}`}>
+                        <div className="flex items-center justify-between gap-2 mb-2">
+                          <div className="min-w-0">
+                            <p className={`text-sm font-bold truncate ${isLightBg ? 'text-black' : 'text-white'}`}>{bundle.name}</p>
+                            {bundle.label && <span className="text-[10px] uppercase tracking-wide text-emerald-500 font-semibold">{bundle.label}</span>}
+                          </div>
+                          {bundle.savings > 0 && (
+                            <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-500 border border-emerald-500/30">
+                              -{bundle.savingsPct}%
+                            </span>
+                          )}
+                        </div>
+                        {Array.isArray(bundle.items) && bundle.items.length > 0 && (
+                          <div className="flex items-center gap-1.5 mb-2">
+                            {bundle.items.slice(0, 4).map((it: any, i: number) => (
+                              <div key={i} className={`w-10 h-10 rounded-lg overflow-hidden shrink-0 flex items-center justify-center ${isLightBg ? 'bg-black/5' : 'bg-white/5'}`}>
+                                {it.imageUrl ? (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img src={cldImg(it.imageUrl, 120)} alt={it.name || ''} className="w-full h-full object-cover" />
+                                ) : (
+                                  <Package className={`w-4 h-4 ${isLightBg ? 'text-black/25' : 'text-white/25'}`} />
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <span className={`text-base font-bold ${isLightBg ? 'text-black' : 'text-white'}`}>{formatCOP(bundle.bundlePrice)}</span>
+                            {bundle.regularTotal > bundle.bundlePrice && (
+                              <span className={`ml-2 text-xs line-through ${isLightBg ? 'text-black/35' : 'text-white/35'}`}>{formatCOP(bundle.regularTotal)}</span>
+                            )}
+                          </div>
+                          <button
+                            onClick={() => agregarBundleAlCarrito(bundle.id)}
+                            className="shrink-0 px-4 py-2 rounded-lg text-xs font-semibold uppercase tracking-wider bg-emerald-500 text-white hover:bg-emerald-600 transition-colors"
+                          >
+                            Agregar combo
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 {/* Action buttons */}
                 {(() => {
                   const _isPresale = Boolean(selectedProduct.isPresale || selectedProduct.isPreorder)
@@ -4233,7 +4353,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                   const previewRemaining = Math.max(0, DELIVERY_FREE_MIN - previewTotal)
                   const canBuy = !_outOfStock && t1Missing.length === 0 && !variantPending && !isAddingToCart
                   return (
-                    <div className="space-y-3 pt-1">
+                    <div ref={mobileCtaRef} className="space-y-3 pt-1">
                       {t1Missing.length > 0 && (
                         <p className="text-center text-[11px] text-red-400">Elige: {t1Missing.map((g: any) => g.name).join(', ')}</p>
                       )}
@@ -4669,7 +4789,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               {/* ── Barra sticky de compra (Motor de PDP · #4) ──
                   Principio 4: el CTA nunca desaparece. Reusa el mismo canBuy y los
                   mismos handlers del CTA principal — no duplica lógica de compra. */}
-              {pdpScrolled && (() => {
+              {pdpScrolled && !mobileCtaVisible && (() => {
                 const _isPresale = Boolean(selectedProduct.isPresale || selectedProduct.isPreorder)
                 const _outOfStock = selectedProduct.stock === 0 && !_isPresale
                 const canBuy = !_outOfStock && t1Missing.length === 0 && !variantPending && !isAddingToCart
@@ -5890,6 +6010,11 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                       const displayPrice = variantPrice > 0 ? variantPrice : product.salePrice
                       const isOffer = product.isOnOffer && product.offerPrice
                       const discount = isOffer ? Math.round(((product.salePrice - product.offerPrice!) / product.salePrice) * 100) : 0
+                      // Galería para el hover: aprovecha las imágenes configuradas del producto.
+                      // La 1ª imagen se desliza fuera y la 2ª entra (mismo efecto que las categorías).
+                      const catalogImgs = Array.isArray(product.images) ? product.images.filter(Boolean) : []
+                      const catalogPrimary = product.imageUrl || catalogImgs[0] || null
+                      const catalogHover = catalogImgs.find(u => u && u !== catalogPrimary) || null
 
                       if (productCardStyle === 'style2') {
                         return (
@@ -5900,9 +6025,27 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                           >
                             {/* Image area */}
                             <div className="relative aspect-[4/3] sm:aspect-square overflow-hidden bg-gray-50">
-                              {product.imageUrl ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img src={cldImg(product.imageUrl, 400)} srcSet={cldSrcSet(product.imageUrl)} sizes="(max-width:640px) 50vw, (max-width:1024px) 33vw, 25vw" alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                              {catalogPrimary ? (
+                                <>
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img
+                                    src={cldImg(catalogPrimary, 400)} srcSet={cldSrcSet(catalogPrimary)}
+                                    sizes="(max-width:640px) 50vw, (max-width:1024px) 33vw, 25vw"
+                                    alt={product.name} loading="lazy" decoding="async"
+                                    className={`absolute inset-0 w-full h-full object-cover transition-transform duration-700 ease-out ${
+                                      catalogHover ? 'group-hover:translate-x-full' : 'group-hover:scale-105'
+                                    }`}
+                                  />
+                                  {catalogHover && (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img
+                                      src={cldImg(catalogHover, 400)} srcSet={cldSrcSet(catalogHover)}
+                                      sizes="(max-width:640px) 50vw, (max-width:1024px) 33vw, 25vw"
+                                      alt="" aria-hidden="true" loading="lazy" decoding="async"
+                                      className="absolute inset-0 w-full h-full object-cover -translate-x-full group-hover:translate-x-0 transition-transform duration-700 ease-out"
+                                    />
+                                  )}
+                                </>
                               ) : (
                                 <div className="w-full h-full flex items-center justify-center">
                                   <Package className="w-10 h-10 text-gray-300" />
@@ -6784,16 +6927,39 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
         }}
       >
         <div className={`relative w-full overflow-hidden bg-black${isMobile ? '' : ' rounded-xl'}`}>
-          {(storeConfig?.banners?.find(b => b.position === 'hero1')?.imageUrl || platformHeroUrl) && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={cldImg(storeConfig?.banners?.find(b => b.position === 'hero1')?.imageUrl || platformHeroUrl, 1600)}
-              alt={storeConfig?.banners?.find(b => b.position === 'hero1')?.title || platformHeroTitle || 'Banner principal'}
-              loading="eager"
-              fetchPriority="high"
-              className={isMobile ? 'w-full h-auto block object-contain' : 'w-full h-auto block object-contain object-center max-h-[calc(100vh-64px)]'}
-            />
-          )}
+          {(() => {
+            const b = storeConfig?.banners?.find(x => x.position === 'hero1')
+            const img1 = b?.imageUrl || platformHeroUrl
+            const img2 = b?.imageUrl2 || null
+            const alt = b?.title || platformHeroTitle || 'Banner principal'
+            const baseCls = isMobile ? 'w-full h-auto block object-contain' : 'w-full h-auto block object-contain object-center max-h-[calc(100vh-64px)]'
+            if (!img1) return null
+            // Sin 2ª imagen: comportamiento de siempre (una sola imagen).
+            if (!img2) {
+              return (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={cldImg(img1, 1600)} alt={alt} loading="eager" fetchPriority="high" className={baseCls} />
+              )
+            }
+            // Con 2ª imagen: alternan con deslizamiento (mismo efecto que el hover de categorías).
+            // La imagen 1 define la altura (in-flow); la 2 va superpuesta y entra/sale por los lados.
+            return (
+              <>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={cldImg(img1, 1600)} alt={alt} loading="eager" fetchPriority="high"
+                  className={`${baseCls} transition-transform duration-700 ease-out`}
+                  style={{ transform: heroFlip ? 'translateX(100%)' : 'translateX(0)' }}
+                />
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={cldImg(img2, 1600)} alt="" aria-hidden="true" loading="eager"
+                  className={`absolute inset-0 w-full h-full object-contain object-center transition-transform duration-700 ease-out ${isMobile ? '' : 'max-h-[calc(100vh-64px)]'}`}
+                  style={{ transform: heroFlip ? 'translateX(0)' : 'translateX(-100%)' }}
+                />
+              </>
+            )
+          })()}
           <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/10 to-black/70 pointer-events-none" />
         </div>
 
@@ -7143,6 +7309,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               </button>
             </div>
             <div className="relative">
+              <CarouselNav scrollRef={carouselTrendingRef} />
               <div ref={carouselTrendingRef} className="flex gap-4 overflow-x-auto scrollbar-hide scroll-smooth">
               {storeConfig.trendingProducts.map(product => {
                 const isOffer = product.isOnOffer && product.offerPrice
@@ -7358,6 +7525,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               </button>
             </div>
             <div className="relative">
+              <CarouselNav scrollRef={carouselFeaturedRef} />
               <div ref={carouselFeaturedRef} className="flex gap-4 overflow-x-auto scrollbar-hide scroll-smooth">
               {storeConfig.featuredProducts.map(product => {
                 const isOffer = product.isOnOffer && product.offerPrice
@@ -7850,20 +8018,28 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               {selectedStore !== 'all' && stores.length > 1 && !(storeConfig as any)?.isHidden && (
                 <button
                   onClick={() => { setSelectedStore('all'); setShowStoresView(true) }}
-                  className="flex items-center gap-2 px-4 py-3 bg-white/10 border border-white/20 text-white text-sm font-light hover:bg-white/15 transition-colors whitespace-nowrap"
+                  className={`group flex items-center gap-2 px-4 py-3 rounded-full text-sm font-medium whitespace-nowrap transition-all duration-300 ${
+                    isLightBg
+                      ? 'bg-black/[0.04] border border-black/10 text-black/70 hover:bg-black/[0.07] hover:text-black hover:border-black/20'
+                      : 'bg-white/10 border border-white/15 text-white/80 hover:bg-white/15 hover:text-white hover:border-white/25'
+                  }`}
                 >
-                  <ArrowLeft className="w-4 h-4" />
+                  <ArrowLeft className="w-4 h-4 transition-transform duration-300 group-hover:-translate-x-0.5" />
                   Todas las tiendas
                 </button>
               )}
               <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
+                <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${isLightBg ? 'text-black/30' : 'text-white/30'}`} />
                 <input
                   type="text"
                   placeholder="Buscar perfume..."
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 text-white placeholder-white/30 font-light text-sm focus:border-white/50 focus:outline-none transition-colors rounded-none"
+                  className={`w-full pl-10 pr-4 py-3 rounded-full font-light text-sm focus:outline-none transition-colors ${
+                    isLightBg
+                      ? 'bg-black/[0.04] border border-black/10 text-black placeholder-black/30 focus:border-black/30'
+                      : 'bg-white/5 border border-white/10 text-white placeholder-white/30 focus:border-white/50'
+                  }`}
                 />
               </div>
             </div>
@@ -8196,6 +8372,8 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
               </p>
             </div>
           ) : (
+            <div className="relative">
+            <CarouselNav scrollRef={carouselProductsRef} />
             <div ref={carouselProductsRef} className="flex gap-4 overflow-x-auto scrollbar-hide scroll-smooth">
               {filteredProducts.map(product => {
                 const inCart = carrito.find(c => c.id === product.id)
@@ -8321,6 +8499,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
                 )
               })}
             </div>
+            </div>
           )}
         </div>
       </RevealSection>
@@ -8329,7 +8508,7 @@ export function LandingPage({ onGoToLogin }: LandingPageProps) {
 
 
       {/* ========== SECCIÓN DE CONTACTO ========== */}
-      {storeConfig?.storeInfo?.contactPageEnabled && selectedStore !== 'all' && (
+      {!!storeConfig?.storeInfo?.contactPageEnabled && selectedStore !== 'all' && (
         <RevealSection id="seccion-contacto" className="py-12 sm:py-20 landing-section-bg border-t border-white/5">
           <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
             {/* Header */}

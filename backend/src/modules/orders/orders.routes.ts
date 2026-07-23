@@ -15,6 +15,7 @@ import { orderPricingService } from './order-pricing.service';
 import { privacyService } from '../privacy/privacy.service';
 import { redactPII } from '../../utils/redact';
 import { resolveComboOrderItem } from '../combos/combos.routes';
+import { awardLoyaltyForOrder } from '../loyalty/loyalty.routes';
 
 const router: ReturnType<typeof Router> = Router();
 
@@ -1022,6 +1023,8 @@ router.post('/addi-webhook', async (req: Request, res: Response) => {
           console.log(`ADDI webhook: order ${orderId} → ${newStatus}`);
           if (newStatus === 'confirmado') {
             await extendHolds(orderId, new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)).catch(() => {});
+            // Fidelización: acreditar puntos por el pedido pagado (idempotente).
+            await awardLoyaltyForOrder(orderId).catch(() => {});
             try {
               await pool.query(
                 `INSERT INTO merchant_notifications (tenant_id, type, title, message, data)
@@ -1412,6 +1415,8 @@ router.post('/mercadopago-webhook', async (req: Request, res: Response) => {
         // Extender hold a 30 días al confirmar pago
         const holdExpiry30d = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
         await extendHolds(orderId, holdExpiry30d).catch(() => {});
+        // Fidelización: acreditar puntos por el pedido pagado (idempotente).
+        await awardLoyaltyForOrder(orderId).catch(() => {});
         // Notificar al comerciante (no crítico)
         try {
           const [oRows] = await pool.query(
@@ -1526,6 +1531,8 @@ router.post('/sistecredito-webhook', async (req: Request, res: Response) => {
         console.log(`Sistecredito webhook: order ${order.id} confirmed`);
         // Extender hold a 30 días al confirmar pago
         await extendHolds(order.id, new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)).catch(() => {});
+        // Fidelización: acreditar puntos por el pedido pagado (idempotente).
+        await awardLoyaltyForOrder(order.id).catch(() => {});
         // Notificar al comerciante (no crítico)
         try {
           await pool.query(
@@ -2037,6 +2044,8 @@ router.put(
             paymentMethod: status,
           })
         ).catch(() => {});
+        // Fidelización: acreditar puntos por el pedido entregado (idempotente).
+        await awardLoyaltyForOrder(orderId).catch(() => {});
       }
 
       // Si se canceló, liberar reservas de variante (en 'entregado' ya las consumió el asiento)

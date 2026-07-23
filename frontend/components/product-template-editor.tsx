@@ -178,10 +178,13 @@ function AssignModal({ template, onClose, onAssigned }: { template: TemplateRow;
     setLoading(true)
     api.getProducts({ limit: 100, search: search || undefined }).then(res => {
       if (cancelled) return
-      const list = (res as any)?.data?.products || (res as any)?.data || []
+      // Forma real de /products: { success, data: [...], pagination }. Toleramos también
+      // shapes anidados (data.products / data.data / data.items) por robustez entre deploys.
+      const d: any = (res as any)?.data
+      const list = Array.isArray(d) ? d : (d?.products ?? d?.data ?? d?.items ?? [])
       setProducts(Array.isArray(list) ? list : [])
       setLoading(false)
-    })
+    }).catch(() => { if (!cancelled) { setProducts([]); setLoading(false) } })
     return () => { cancelled = true }
   }, [search])
 
@@ -213,7 +216,9 @@ function AssignModal({ template, onClose, onAssigned }: { template: TemplateRow;
           {loading ? (
             <p className="text-xs text-muted-foreground text-center py-6">Cargando productos…</p>
           ) : products.length === 0 ? (
-            <p className="text-xs text-muted-foreground text-center py-6">Sin resultados</p>
+            <p className="text-xs text-muted-foreground text-center py-6">
+              {search ? 'Sin resultados para esa búsqueda' : 'No hay productos en tu inventario. Crea productos en Inventario para poder asignarles esta plantilla.'}
+            </p>
           ) : products.map((p: any) => (
             <label key={p.id} className="flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-muted/50">
               <input type="checkbox" checked={selected.has(String(p.id))} onChange={() => toggle(String(p.id))} />

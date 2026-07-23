@@ -15,6 +15,9 @@ router.get('/me/wallet', authenticate, ctl.getMyWallet);
 router.post('/me/pass', authenticate, ctl.getWalletPass);
 router.post('/me/location', authenticate, ctl.reportLocation);
 router.post('/me/redeem', authenticate, ctl.redeemReward);
+// ConsumerOS: todas mis tarjetas (multi-comercio) + vincular mi teléfono
+router.get('/my-cards', authenticate, ctl.getMyCards);
+router.post('/me/phone', authenticate, ctl.setMyPhone);
 
 // ─── ADMIN ───
 router.get('/customers', authenticate, authorize(...ADMIN), ctl.getCustomers);
