@@ -13,6 +13,29 @@ router.use(authorize('comerciante', 'superadmin'));
 // GET  /api/vendedores                       – lista vendedores + config comisión
 router.get('/', vendedoresController.getSellers.bind(vendedoresController));
 
+// POST /api/vendedores                       – crear empleado (usuario con/sin login)
+router.post(
+  '/',
+  [
+    body('name').trim().notEmpty().withMessage('El nombre es requerido'),
+    body('role').optional().isString(),
+    body('cedula').optional({ nullable: true }).isString(),
+    body('phone').optional({ nullable: true }).isString(),
+    body('address').optional({ nullable: true }).isString(),
+    body('cargoId').optional({ nullable: true }).isString(),
+    body('canLogin').optional().isBoolean(),
+    body('email').optional({ nullable: true }).isString(),
+    body('password').optional({ nullable: true }).isString(),
+    body('commissionType').optional().isIn(['sin_comision', 'porcentaje', 'fijo_por_venta', 'fijo_por_item']),
+    body('commissionValue').optional().isFloat({ min: 0 }),
+    body('salaryBase').optional().isFloat({ min: 0 }),
+    body('monthlyGoal').optional().isFloat({ min: 0 }),
+    body('goalBonus').optional().isFloat({ min: 0 }),
+    validateRequest,
+  ],
+  vendedoresController.createEmployee.bind(vendedoresController)
+);
+
 // PUT  /api/vendedores/:sellerId/commission   – actualizar config de comisión
 router.put(
   '/:sellerId/commission',

@@ -133,6 +133,17 @@ export function DriverPanel() {
     api.getMyCourierRating().then(r => { if (r.success && r.data) setMyRating(r.data) }).catch(() => {});
   }, []);
 
+  // Restaurar el estado "en línea" tras recargar la página. El backend recuerda
+  // is_online mientras el heartbeat siga fresco (<10 min), así que al montar
+  // preguntamos y reponemos el toggle. Sin esto, cada reload dejaba al repartidor
+  // como "fuera de línea" aunque siguiera activo. Al poner isOnline=true, el
+  // heartbeat de ubicación se reanuda y mantiene la fila viva.
+  useEffect(() => {
+    api.getMyAvailability()
+      .then(r => { if (r.success && r.data?.isOnline) setIsOnline(true); })
+      .catch(() => {});
+  }, []);
+
   const toggleOnline = async () => {
     const next = !isOnline;
     setOnlineSaving(true);

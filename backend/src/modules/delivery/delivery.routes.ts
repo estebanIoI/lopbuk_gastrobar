@@ -277,12 +277,27 @@ router.put(
     validateRequest,
   ],
   async (req: AuthRequest, res: Response) => {
-    const tenantId = req.user!.tenantId!;
     const cid: string | undefined = req.body.clientActionId || undefined;
     try {
       const driverId = req.user!.userId;
       const { orderId } = req.params;
       const { deliveryStatus } = req.body;
+
+      // Buscar el pedido PRIMERO: valida que esté asignado a este repartidor y nos da
+      // el tenant real. El repartidor de plataforma tiene req.user.tenantId = NULL, así
+      // que la idempotencia debe usar el tenant del PEDIDO, no el del usuario (antes
+      // reventaba con "Column 'tenant_id' cannot be null" al insertar idempotency_keys).
+      const [orderRows] = await pool.query(
+        `SELECT id, status, tenant_id AS tenantId FROM storefront_orders WHERE id = ? AND delivery_driver_id = ?`,
+        [orderId, driverId]
+      ) as any;
+
+      if (orderRows.length === 0) {
+        res.status(404).json({ success: false, error: 'Pedido no encontrado o no asignado a ti' });
+        return;
+      }
+
+      const tenantId = req.user!.tenantId || orderRows[0].tenantId;
 
       // Idempotencia (offline): reclamar la llave ANTES de aplicar. Duplicado → no re-aplica.
       if (cid) {
@@ -295,16 +310,6 @@ router.put(
           if (e?.code === 'ER_DUP_ENTRY') { res.json({ success: true, message: 'Acción ya registrada', data: { duplicate: true } }); return; }
           throw e;
         }
-      }
-
-      const [orderRows] = await pool.query(
-        `SELECT id, status FROM storefront_orders WHERE id = ? AND delivery_driver_id = ?`,
-        [orderId, driverId]
-      ) as any;
-
-      if (orderRows.length === 0) {
-        res.status(404).json({ success: false, error: 'Pedido no encontrado o no asignado a ti' });
-        return;
       }
 
       const updates: string[] = ['delivery_status = ?'];
@@ -448,6 +453,39 @@ router.put(
     } catch (error) {
       console.error('Availability toggle error:', error);
       res.status(500).json({ success: false, error: 'Error al actualizar disponibilidad' });
+    }
+  }
+);
+
+// =============================================
+// GET /api/delivery/availability — Estado en línea del repartidor actual
+// Se usa al cargar la vista repartidor para restaurar el toggle tras un reload.
+// Se consulta por user_id (robusto para repartidor de plataforma con tenant NULL)
+// y se considera "en línea" solo si el heartbeat es reciente (<10 min).
+// =============================================
+router.get(
+  '/availability',
+  authorize('repartidor'),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.userId!;
+      const [rows] = await pool.query(
+        `SELECT is_online AS isOnline, last_seen_at AS lastSeenAt,
+                (is_online = 1 AND last_seen_at > DATE_SUB(NOW(), INTERVAL 10 MINUTE)) AS isFresh
+         FROM courier_availability WHERE user_id = ? LIMIT 1`,
+        [userId]
+      ) as any;
+      const row = rows?.[0];
+      res.json({
+        success: true,
+        data: {
+          isOnline: !!(row && Number(row.isFresh) === 1),
+          lastSeenAt: row?.lastSeenAt || null,
+        },
+      });
+    } catch (error) {
+      console.error('Get availability error:', error);
+      res.status(500).json({ success: false, error: 'Error al obtener disponibilidad' });
     }
   }
 );

@@ -1,7 +1,12 @@
 import { v4 as uuidv4 } from 'uuid';
+import bcrypt from 'bcryptjs';
 import { db } from '../../config';
 import { AppError } from '../../common/middleware';
+import { encryptNullable } from '../../utils/crypto';
 import { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
+
+// Roles asignables a un empleado creado desde el módulo de Empleados.
+const EMPLOYEE_ROLES = ['vendedor', 'cajero', 'mesero', 'cocinero', 'bartender', 'repartidor', 'auxiliar_bodega', 'administrador_rb', 'despachador'] as const;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -188,6 +193,90 @@ export class VendedoresService {
       [tenantId]
     );
     return rows.map(this.mapSeller.bind(this));
+  }
+
+  /**
+   * Crea un EMPLEADO desde el módulo de Empleados. Es una fila en `users`, de modo
+   * que alimenta automáticamente todos los módulos que ya consumen empleados
+   * (comisiones, nómina, turnos RestBar, hoja de vida, novedades, cargo…).
+   *
+   * Distinción clave que pidió el comerciante: "usuario de interfaz" vs "empleado".
+   *  - canLogin=false (default): empleado SIN acceso al sistema. No necesita email
+   *    real; se genera uno sintético porque users.email es UNIQUE NOT NULL, y una
+   *    contraseña aleatoria que nunca se usa (auth bloquea el login con can_login=0).
+   *  - canLogin=true: además es usuario de interfaz → requiere email + contraseña.
+   */
+  async createEmployee(
+    tenantId: string,
+    data: {
+      name: string;
+      cedula?: string | null;
+      phone?: string | null;
+      address?: string | null;
+      role?: string;
+      cargoId?: string | null;
+      canLogin?: boolean;
+      email?: string | null;
+      password?: string | null;
+      commissionType?: string;
+      commissionValue?: number;
+      salaryBase?: number;
+      monthlyGoal?: number;
+      goalBonus?: number;
+    }
+  ): Promise<SellerConfig> {
+    const name = (data.name || '').trim();
+    if (!name) throw new AppError('El nombre del empleado es requerido', 400);
+
+    const canLogin = data.canLogin === true;
+    let email = (data.email || '').trim().toLowerCase();
+    let rawPassword = data.password || '';
+
+    if (canLogin) {
+      if (!email) throw new AppError('El email es requerido para dar acceso al sistema', 400);
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new AppError('El email no es válido', 400);
+      if (!rawPassword || rawPassword.length < 6) throw new AppError('La contraseña debe tener al menos 6 caracteres', 400);
+    } else {
+      // Empleado sin acceso: email sintético único (users.email es UNIQUE NOT NULL).
+      if (!email) email = `emp-${uuidv4().slice(0, 8)}@empleado.daimuz.local`;
+      if (!rawPassword) rawPassword = uuidv4(); // no se usa: can_login=0 bloquea el login
+    }
+
+    const [existing] = await db.execute<RowDataPacket[]>('SELECT id FROM users WHERE email = ?', [email]);
+    if (existing.length > 0) throw new AppError('Ya existe un usuario con ese email', 400);
+
+    const role = EMPLOYEE_ROLES.includes((data.role || '') as any) ? (data.role as string) : 'vendedor';
+    const commissionType = ['sin_comision', 'porcentaje', 'fijo_por_venta', 'fijo_por_item'].includes(data.commissionType || '')
+      ? (data.commissionType as string) : 'sin_comision';
+    const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) && n >= 0 ? n : 0; };
+
+    const id = uuidv4();
+    const hashed = await bcrypt.hash(rawPassword, 10);
+
+    await db.execute<ResultSetHeader>(
+      `INSERT INTO users
+         (id, tenant_id, email, password, name, role, phone, cedula, address, cargo_id, can_login, is_active,
+          commission_type, commission_value, salary_base, monthly_goal, goal_bonus)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)`,
+      [
+        id, tenantId, email, hashed, name, role,
+        encryptNullable(data.phone || null), encryptNullable(data.cedula || null), encryptNullable(data.address || null),
+        data.cargoId || null, canLogin ? 1 : 0,
+        commissionType, num(data.commissionValue), num(data.salaryBase), num(data.monthlyGoal), num(data.goalBonus),
+      ]
+    );
+
+    const [rows] = await db.execute<UserRow[]>(
+      `SELECT id, name, email, role, is_active, can_login,
+              COALESCE(commission_type, 'sin_comision') AS commission_type,
+              COALESCE(commission_value, 0)             AS commission_value,
+              COALESCE(salary_base, 0)                  AS salary_base,
+              COALESCE(monthly_goal, 0)                 AS monthly_goal,
+              COALESCE(goal_bonus, 0)                   AS goal_bonus
+       FROM users WHERE id = ?`,
+      [id]
+    );
+    return this.mapSeller(rows[0]);
   }
 
   async updateSellerConfig(
