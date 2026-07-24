@@ -559,6 +559,10 @@ class ApiService {
       method: 'PUT', body: JSON.stringify({ isOnline, lat, lng }),
     })
   }
+  /** Repartidor: su estado en línea actual (para restaurar el toggle tras recargar). */
+  async getMyAvailability() {
+    return this.request<{ isOnline: boolean; lastSeenAt: string | null }>('/delivery/availability')
+  }
   /** Repartidor: su calificación real. average es null si aún no lo han calificado. */
   async getMyCourierRating() {
     return this.request<{
@@ -1012,6 +1016,21 @@ class ApiService {
 
   async getVendedoresList() {
     return this.request<any[]>('/vendedores')
+  }
+
+  /** Crea un empleado desde el módulo de Empleados. canLogin=false → empleado sin
+   * acceso al sistema (no requiere email/contraseña). Alimenta comisiones, nómina,
+   * turnos, hoja de vida y novedades porque es una fila en users. */
+  async createEmployee(data: {
+    name: string; role?: string; cargoId?: string | null;
+    cedula?: string | null; phone?: string | null; address?: string | null;
+    canLogin?: boolean; email?: string | null; password?: string | null;
+    commissionType?: string; commissionValue?: number;
+    salaryBase?: number; monthlyGoal?: number; goalBonus?: number;
+  }) {
+    return this.request<any>('/vendedores', {
+      method: 'POST', body: JSON.stringify(data),
+    })
   }
 
   /** Smart Checkout (F5): asigna ítems de una comanda a una tiquetera (null = pago normal). */

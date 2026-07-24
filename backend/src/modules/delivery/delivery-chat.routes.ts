@@ -21,7 +21,7 @@ async function authorizeRoom(
 ): Promise<{ id: string; status: string; orderId: string; tenantId: string } | null> {
   const [rows] = await pool.query(
     `SELECT r.id, r.status, r.order_id AS orderId, r.tenant_id AS tenantId,
-            o.delivery_driver_id AS driverId
+            o.delivery_driver_id AS driverId, o.tenant_id AS orderTenantId
        FROM delivery_chat_rooms r
        LEFT JOIN storefront_orders o ON o.id = r.order_id
       WHERE r.id = ? LIMIT 1`,
@@ -33,7 +33,11 @@ async function authorizeRoom(
   if (user.role === 'repartidor') {
     return room.driverId && room.driverId === user.userId ? room : null;
   }
-  return user.tenantId && room.tenantId === user.tenantId ? room : null;
+  // El comercio se valida contra el tenant del PEDIDO (siempre correcto). La sala
+  // pudo haberse creado por un repartidor de plataforma con tenant_id vacío, y en
+  // ese caso comparar room.tenantId dejaba al comercio sin acceso a sus mensajes.
+  const roomTenant = room.orderTenantId || room.tenantId;
+  return user.tenantId && roomTenant === user.tenantId ? room : null;
 }
 
 // =============================================================================
@@ -51,7 +55,7 @@ router.get(
       const [orderRows] = await pool.query(
         `SELECT o.id, o.order_number as orderNumber, o.customer_name as customerName,
                 o.customer_phone as customerPhone, o.delivery_status as deliveryStatus,
-                o.delivery_driver_id as driverId, u.name as driverName
+                o.delivery_driver_id as driverId, o.tenant_id as tenantId, u.name as driverName
          FROM storefront_orders o
          LEFT JOIN users u ON u.id = o.delivery_driver_id
          WHERE o.id = ? ${tenantId ? 'AND o.tenant_id = ?' : ''}
@@ -82,9 +86,12 @@ router.get(
 
       if (!roomRows.length) {
         const roomId = uuidv4();
+        // Guardamos el tenant del PEDIDO (no el del usuario): un repartidor de
+        // plataforma tiene tenant_id NULL y antes creaba la sala con '' vacío,
+        // dejando al comercio sin poder abrir el chat de su propio pedido.
         await pool.query(
           'INSERT INTO delivery_chat_rooms (id, order_id, tenant_id, status) VALUES (?, ?, ?, ?)',
-          [roomId, orderId, tenantId || '', 'active']
+          [roomId, orderId, order.tenantId || tenantId || '', 'active']
         );
         roomRows = [{ id: roomId, status: 'active', createdAt: new Date().toISOString() }];
       }

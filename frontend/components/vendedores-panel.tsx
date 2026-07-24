@@ -16,7 +16,7 @@ import {
   Settings2, ClipboardList, History, Plus, Trash2, CheckCircle,
   Target, Award, AlertCircle, BarChart2, FileText, Umbrella, Loader2,
   ThumbsUp, ThumbsDown, Clock, X, Monitor, MonitorOff, UtensilsCrossed,
-  RefreshCw, ChefHat, IdCard,
+  RefreshCw, ChefHat, IdCard, UserPlus,
 } from 'lucide-react'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -507,11 +507,62 @@ function TabConfig() {
   const [msg, setMsg] = useState('')
   const [togglingId, setTogglingId] = useState<string | null>(null)
 
+  // Crear empleado
+  const emptyCreate = {
+    name: '', role: 'vendedor', cargoId: '',
+    cedula: '', phone: '', address: '',
+    canLogin: false, email: '', password: '',
+    commissionType: 'sin_comision', commissionValue: 0,
+    salaryBase: 0, monthlyGoal: 0, goalBonus: 0,
+  }
+  const [creating, setCreating] = useState(false)
+  const [createForm, setCreateForm] = useState({ ...emptyCreate })
+  const [createSaving, setCreateSaving] = useState(false)
+  const [createMsg, setCreateMsg] = useState('')
+  const [cargos, setCargos] = useState<any[]>([])
+
   const load = async () => {
     setLoading(true)
     const res = await apiService.getVendedoresList()
     if (res.success && res.data) setSellers(res.data)
     setLoading(false)
+  }
+
+  useEffect(() => {
+    apiService.getCargos().then(r => { if (r.success && Array.isArray(r.data)) setCargos(r.data) }).catch(() => {})
+  }, [])
+
+  const submitCreate = async () => {
+    if (!createForm.name.trim()) { setCreateMsg('El nombre es requerido'); return }
+    if (createForm.canLogin) {
+      if (!createForm.email.trim()) { setCreateMsg('El email es requerido para dar acceso al sistema'); return }
+      if ((createForm.password || '').length < 6) { setCreateMsg('La contraseña debe tener al menos 6 caracteres'); return }
+    }
+    setCreateSaving(true); setCreateMsg('')
+    const res = await apiService.createEmployee({
+      name: createForm.name.trim(),
+      role: createForm.role,
+      cargoId: createForm.cargoId || null,
+      cedula: createForm.cedula || null,
+      phone: createForm.phone || null,
+      address: createForm.address || null,
+      canLogin: createForm.canLogin,
+      email: createForm.email || null,
+      password: createForm.password || null,
+      commissionType: createForm.commissionType,
+      commissionValue: Number(createForm.commissionValue) || 0,
+      salaryBase: Number(createForm.salaryBase) || 0,
+      monthlyGoal: Number(createForm.monthlyGoal) || 0,
+      goalBonus: Number(createForm.goalBonus) || 0,
+    })
+    setCreateSaving(false)
+    if (res.success) {
+      setCreating(false)
+      setCreateForm({ ...emptyCreate })
+      await load()
+    } else {
+      setCreateMsg(res.error || 'No se pudo crear el empleado')
+    }
   }
 
   const toggleLogin = async (s: any) => {
@@ -554,7 +605,15 @@ function TabConfig() {
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">Configura el salario base, tipo de comisión y meta mensual de cada vendedor.</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <p className="text-sm text-muted-foreground">
+          Crea y administra a tus empleados. Un empleado <strong className="text-foreground">sin acceso al sistema</strong> se
+          controla solo desde aquí (comisiones, nómina, hoja de vida, novedades); actívale acceso cuando necesites que inicie sesión.
+        </p>
+        <Button onClick={() => { setCreateForm({ ...emptyCreate }); setCreateMsg(''); setCreating(true) }} className="shrink-0">
+          <UserPlus className="h-4 w-4 mr-1.5" /> Crear empleado
+        </Button>
+      </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {sellers.map(s => (
           <Card key={s.id} className="border-border">
@@ -652,6 +711,136 @@ function TabConfig() {
               <div className="flex gap-2 pt-1">
                 <Button className="flex-1" onClick={save} disabled={saving}>{saving ? 'Guardando…' : 'Guardar'}</Button>
                 <Button variant="outline" onClick={() => setEditing(null)}>Cancelar</Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Crear empleado */}
+      {creating && (
+        <Dialog open onOpenChange={() => setCreating(false)}>
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-base">
+                <UserPlus className="h-4 w-4" /> Nuevo empleado
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 pt-2">
+              {/* Datos básicos */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="sm:col-span-2">
+                  <label className="text-xs text-muted-foreground uppercase tracking-widest block mb-1">Nombre completo *</label>
+                  <Input value={createForm.name} onChange={e => setCreateForm(f => ({ ...f, name: e.target.value }))} placeholder="Ej. María Pérez" />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground uppercase tracking-widest block mb-1">Cédula</label>
+                  <Input value={createForm.cedula} onChange={e => setCreateForm(f => ({ ...f, cedula: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground uppercase tracking-widest block mb-1">Teléfono</label>
+                  <Input value={createForm.phone} onChange={e => setCreateForm(f => ({ ...f, phone: e.target.value }))} />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="text-xs text-muted-foreground uppercase tracking-widest block mb-1">Dirección</label>
+                  <Input value={createForm.address} onChange={e => setCreateForm(f => ({ ...f, address: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground uppercase tracking-widest block mb-1">Rol / función</label>
+                  <select className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    value={createForm.role} onChange={e => setCreateForm(f => ({ ...f, role: e.target.value }))}>
+                    <option value="vendedor">Vendedor</option>
+                    <option value="cajero">Cajero</option>
+                    <option value="mesero">Mesero</option>
+                    <option value="cocinero">Cocinero</option>
+                    <option value="bartender">Bartender</option>
+                    <option value="repartidor">Repartidor</option>
+                    <option value="auxiliar_bodega">Auxiliar de bodega</option>
+                    <option value="administrador_rb">Administrador RestBar</option>
+                    <option value="despachador">Despachador</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground uppercase tracking-widest block mb-1">Cargo</label>
+                  <select className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    value={createForm.cargoId} onChange={e => setCreateForm(f => ({ ...f, cargoId: e.target.value }))}>
+                    <option value="">Sin cargo</option>
+                    {cargos.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              {/* Salario y comisión */}
+              <div className="border-t border-border pt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-muted-foreground uppercase tracking-widest block mb-1">Salario base mensual</label>
+                  <Input type="number" min="0" value={createForm.salaryBase}
+                    onChange={e => setCreateForm(f => ({ ...f, salaryBase: parseFloat(e.target.value) || 0 }))} />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground uppercase tracking-widest block mb-1">Tipo de comisión</label>
+                  <select className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    value={createForm.commissionType} onChange={e => setCreateForm(f => ({ ...f, commissionType: e.target.value }))}>
+                    {Object.entries(commissionLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                  </select>
+                </div>
+                {createForm.commissionType !== 'sin_comision' && (
+                  <div>
+                    <label className="text-xs text-muted-foreground uppercase tracking-widest block mb-1">
+                      {createForm.commissionType === 'porcentaje' ? 'Porcentaje (%)' : 'Valor fijo (COP)'}
+                    </label>
+                    <Input type="number" min="0" value={createForm.commissionValue}
+                      onChange={e => setCreateForm(f => ({ ...f, commissionValue: parseFloat(e.target.value) || 0 }))} />
+                  </div>
+                )}
+                <div>
+                  <label className="text-xs text-muted-foreground uppercase tracking-widest block mb-1">Meta mensual (0 = sin meta)</label>
+                  <Input type="number" min="0" value={createForm.monthlyGoal}
+                    onChange={e => setCreateForm(f => ({ ...f, monthlyGoal: parseFloat(e.target.value) || 0 }))} />
+                </div>
+                {createForm.monthlyGoal > 0 && (
+                  <div>
+                    <label className="text-xs text-muted-foreground uppercase tracking-widest block mb-1">Bono por cumplir meta</label>
+                    <Input type="number" min="0" value={createForm.goalBonus}
+                      onChange={e => setCreateForm(f => ({ ...f, goalBonus: parseFloat(e.target.value) || 0 }))} />
+                  </div>
+                )}
+              </div>
+
+              {/* Acceso al sistema */}
+              <div className="border-t border-border pt-3">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input type="checkbox" className="h-4 w-4 rounded border-input accent-primary"
+                    checked={createForm.canLogin} onChange={e => setCreateForm(f => ({ ...f, canLogin: e.target.checked }))} />
+                  <span className="text-sm font-medium text-foreground">Dar acceso al sistema (podrá iniciar sesión)</span>
+                </label>
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  {createForm.canLogin
+                    ? 'Ingresa un email y contraseña: este empleado también será usuario de la interfaz.'
+                    : 'Empleado solo para control interno. No inicia sesión; no necesita email ni contraseña.'}
+                </p>
+                {createForm.canLogin && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+                    <div>
+                      <label className="text-xs text-muted-foreground uppercase tracking-widest block mb-1">Email *</label>
+                      <Input type="email" value={createForm.email}
+                        onChange={e => setCreateForm(f => ({ ...f, email: e.target.value }))} />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground uppercase tracking-widest block mb-1">Contraseña *</label>
+                      <Input type="password" value={createForm.password}
+                        onChange={e => setCreateForm(f => ({ ...f, password: e.target.value }))} placeholder="Mín. 6 caracteres" />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {createMsg && <p className="text-xs text-red-400">{createMsg}</p>}
+              <div className="flex gap-2 pt-1">
+                <Button className="flex-1" onClick={submitCreate} disabled={createSaving}>
+                  {createSaving ? 'Creando…' : 'Crear empleado'}
+                </Button>
+                <Button variant="outline" onClick={() => setCreating(false)}>Cancelar</Button>
               </div>
             </div>
           </DialogContent>

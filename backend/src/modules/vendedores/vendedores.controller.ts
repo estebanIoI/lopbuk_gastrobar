@@ -10,6 +10,29 @@ export class VendedoresController {
     } catch (e) { next(e); }
   }
 
+  async createEmployee(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const b = req.body;
+      const data = await vendedoresService.createEmployee(req.user!.tenantId!, {
+        name: b.name,
+        cedula: b.cedula ?? null,
+        phone: b.phone ?? null,
+        address: b.address ?? null,
+        role: b.role,
+        cargoId: b.cargoId ?? null,
+        canLogin: b.canLogin === true,
+        email: b.email ?? null,
+        password: b.password ?? null,
+        commissionType: b.commissionType,
+        commissionValue: b.commissionValue,
+        salaryBase: b.salaryBase,
+        monthlyGoal: b.monthlyGoal,
+        goalBonus: b.goalBonus,
+      });
+      res.status(201).json({ success: true, data });
+    } catch (e) { next(e); }
+  }
+
   async updateSellerConfig(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const data = await vendedoresService.updateSellerConfig(
